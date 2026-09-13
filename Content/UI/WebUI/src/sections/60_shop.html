@@ -1,0 +1,110 @@
+<!-- ============ SEÇÃO: LOJA (Shop) ============ -->
+<div id="screen-shop" class="ui-section">
+    <div id="shop-layout" style="opacity: 0; transition: opacity 0.15s ease;">
+
+        <!-- Header: nome da loja + abas Buy/Sell (mesmo componente do Save/Load).
+             Não existe mais tela de escolha: JRPGShop.open() cai direto na lista
+             e a aba troca com Q/E (LB/RB no controle). -->
+        <div id="shop-header">
+            <div id="shop-title-box" class="jrpg-card">
+                <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+
+                <div id="shop-shopname"><span id="shop-title">Shop</span><span id="shop-town"></span></div>
+
+                <!-- As setinhas são SÓ VISUAIS (pointer-events: none) -->
+                <div id="shop-tabbar" class="jrpg-tabbar">
+                    <span class="jrpg-tab-arrow arrow-left">&#9664;</span>
+                    <div id="shop-tabs" class="jrpg-tabs">
+                        <div class="jrpg-tab selected" data-tab="buy">Buy</div>
+                        <div class="jrpg-tab" data-tab="sell">Sell</div>
+                    </div>
+                    <span class="jrpg-tab-arrow arrow-right">&#9654;</span>
+                </div>
+            </div>
+            <div id="shop-header-rule"></div>
+        </div>
+
+        <!-- Barra de filtros por categoria (gerada pelo JS a partir do estoque)
+             + gold atual. Left/right navegam os filtros, sem precisar confirmar. -->
+        <div id="shop-topbar">
+            <div id="shop-filters"></div>
+            <div id="shop-gold-group">
+                <span id="shop-gold-label">GOLD</span>
+                <span id="shop-gold">0</span>
+            </div>
+        </div>
+
+        <!-- Corpo: lista de itens (esquerda) + card de descrição (direita) -->
+        <div id="shop-body">
+            <div id="shop-list" class="jrpg-card">
+                <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+
+                <!-- Linhas geradas pelo JS (60_shop.js) -->
+                <div id="shop-list-rows"></div>
+                <div id="shop-list-empty">— Nothing —</div>
+            </div>
+
+            <div id="shop-detail" class="jrpg-card">
+                <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+
+                <div id="shop-detail-head">
+                    <span id="shop-detail-icon"></span>
+                    <div id="shop-detail-titles">
+                        <span id="shop-detail-name">—</span>
+                        <span id="shop-detail-cat"></span>
+                    </div>
+                </div>
+                <div id="shop-detail-rule"></div>
+
+                <div id="shop-detail-best">
+                    <span id="shop-detail-best-label">Best for</span>
+                    <span id="shop-detail-best-name">—</span>
+                </div>
+                <div id="shop-detail-bonus"></div>
+
+                <div id="shop-detail-desc"></div>
+            </div>
+        </div>
+
+        <!-- Boxes da party: ATK/UDF/LDF atuais + delta do item selecionado.
+             Gerados pelo JS; placeholders enquanto o PartySubsystem não existe. -->
+        <div id="shop-party"></div>
+
+        <!-- Atalhos de navegação (rodapé), mesmo padrão de Options e Save/Load -->
+        </div>
+
+    <!-- Atalhos de navegação: FICAM FORA do layout escalado.
+    O position:fixed do .jrpg-hints ancora no viewport, e dentro de um
+    elemento com transform ele ancoraria no próprio layout. -->
+    <div class="jrpg-hints">
+    <div id="shop-hints" class="jrpg-hints-row">
+    <span class="shop-hint"><span class="key-badge">Q</span><span class="key-badge">E</span> Switch Tab</span>
+    <span class="shop-hint"><span class="key-badge">&#9664;&#9654;</span> Filter</span>
+    <span class="shop-hint"><span class="key-badge">&#8593;&#8595;</span> Navigate</span>
+    <span class="shop-hint"><span class="key-badge">Enter</span> Confirm</span>
+    <span class="shop-hint"><span class="key-badge">Esc</span> Back</span>
+    </div>
+    </div>
+    </div>
+
+    <!-- OVERLAY: seletor de quantidade.
+         FICA FORA do #shop-layout: o véu é position:fixed para cobrir o
+         viewport inteiro em ultrawide (mesmo motivo do #saveload-confirm). -->
+    <div id="shop-qty">
+        <div id="shop-qty-card" class="jrpg-card">
+            <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+
+            <div id="shop-qty-item">Item</div>
+            <div id="shop-qty-row">
+                <span class="qty-arrow" id="shop-qty-minus">&#9664;</span>
+                <span id="shop-qty-value">1</span>
+                <span class="qty-arrow" id="shop-qty-plus">&#9654;</span>
+            </div>
+            <div id="shop-qty-total">
+                <span id="shop-qty-total-label">TOTAL</span>
+                <span id="shop-qty-total-value">0</span>
+            </div>
+        </div>
+    
+
+</div>

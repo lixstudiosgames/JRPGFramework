@@ -1,0 +1,429 @@
+/* 00_global.css - Sistema de Design Dark Realms para JRPGFramework */
+/* Tema Dark Blue & Gold - Baseado nos HTML da pasta concept */
+
+/* === FONTES LOCAIS (sem CDN) ===
+   Os TTFs ficam em Content/UI/WebUI/fonts/ — caminho relativo ao shell.html
+   gerado na raiz de WebUI. Cinzel = UI geral; MedievalSharp = diálogos/popup. */
+
+@font-face {
+    font-family: 'Cinzel';
+    src: url('fonts/Cinzel-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Cinzel';
+    src: url('fonts/Cinzel-Medium.ttf') format('truetype');
+    font-weight: 500;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Cinzel';
+    src: url('fonts/Cinzel-SemiBold.ttf') format('truetype');
+    font-weight: 600;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Cinzel';
+    src: url('fonts/Cinzel-Bold.ttf') format('truetype');
+    font-weight: 700;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Cinzel';
+    src: url('fonts/Cinzel-ExtraBold.ttf') format('truetype');
+    font-weight: 800;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Cinzel';
+    src: url('fonts/Cinzel-Black.ttf') format('truetype');
+    font-weight: 900;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'MedievalSharp';
+    src: url('fonts/MedievalSharp-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+}
+
+:root {
+    /* === Cores do Tema Dark Realms === */
+    --bg-deep: #020a18;
+    --bg-dark: #0a1628;
+    --bg-mid: #0f2040;
+    --bg-panel: #081430;
+    --bg-panel-hover: #0e1e40;
+    --border-gold: #c8a84e;
+    --border-gold-dim: #7a6a30;
+    --gold: #d4a843;
+    --gold-light: #f0d078;
+    --gold-bright: #ffe4a0;
+    --panel-1: #1b1e75;
+
+    /* Textos */
+    --text-primary: #e8dcc8;
+    --text-secondary: #8b95ab;
+    --text-dim: #5a5244;
+    --danger: #e2586b;
+    --hover-highlight: #1a160b;
+
+    /* Barras de Status - Concept Palette */
+    --ap-red: #8b1a1a;
+    --ap-red-bright: #c42828;
+    --mp-blue: #1a3a8b;
+    --mp-blue-bright: #2855c4;
+    --hp-green: #1a6b2a;
+    --hp-green-bright: #2a9a3e;
+
+    /* Glows */
+    --glow-gold: 0 0 15px rgba(212, 168, 67, 0.4);
+    --glow-gold-strong: 0 0 25px rgba(212, 168, 67, 0.6), 0 0 50px rgba(212, 168, 67, 0.2);
+}
+
+/* Reset Geral */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+body {
+    font-family: 'Cinzel', serif;
+    color: var(--text-primary);
+    background: transparent;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* --- ESTILO DO CARD JRPG (PAINEL DARK REALMS) --- */
+.jrpg-card {
+    position: relative;   
+    background: linear-gradient(180deg, rgba(20,35,60,.55) 0%, rgba(8,14,26,.7) 45%, rgba(6,10,18,.85) 100%),var(--panel-1);    
+    box-shadow: none;
+    padding: 22px 24px;
+    
+}
+
+/* Borda interna etérea (Concept line of light) */
+.jrpg-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 6px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* --- BADGE DE TECLA (atalhos de navegação: opções, main menu) --- */
+.key-badge {
+    display: inline-block;
+    padding: 3px 9px;
+    background: rgba(200, 168, 78, 0.1);
+    border: 1px solid var(--border-gold-dim);
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: var(--gold);
+}
+
+/* Cantoneiras Douradas do Painel - Estilo Concept */
+.corner {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-color: var(--border-gold);
+    z-index: 3;
+}
+
+.corner.tl {
+    top: -3px;
+    left: -3px;
+    border-top: 3px solid var(--border-gold);
+    border-left: 3px solid var(--border-gold);
+    border-right: none;
+    border-bottom: none;
+}
+
+.corner.tr {
+    top: -3px;
+    right: -3px;
+    border-top: 3px solid var(--border-gold);
+    border-right: 3px solid var(--border-gold);
+    border-left: none;
+    border-bottom: none;
+}
+
+.corner.bl {
+    bottom: -3px;
+    left: -3px;
+    border-bottom: 3px solid var(--border-gold);
+    border-left: 3px solid var(--border-gold);
+    border-top: none;
+    border-right: none;
+}
+
+.corner.br {
+    bottom: -3px;
+    right: -3px;
+    border-bottom: 3px solid var(--border-gold);
+    border-right: 3px solid var(--border-gold);
+    border-top: none;
+    border-left: none;
+}
+
+/* --- RESPIRO DO REALCE SELECIONADO ---
+   Usado pelo item do menu de pausa (.menu-item.selected) e pelas linhas da
+   tela de opcoes (.opt-row). Anima SO opacity de uma camada por cima do veu
+   estatico: o realce nunca some nem fica parado, e o Ultralight compoe barato
+   (animar o proprio gradiente seria bem mais caro). */
+@keyframes jrpgSelectBreath {
+    0%, 100% { opacity: 0.40; }
+    50%      { opacity: 1; }
+}
+
+
+/* ============================================================
+   ABAS (componente compartilhado: Save/Load e Loja)
+
+   Duas ou mais abas dentro de uma box dourada, com as setinhas ◀ ▶ nas
+   pontas. As setas são SÓ VISUAIS (pointer-events: none) — quem troca de aba
+   é Q/E no teclado e LB/RB no controle, igual à tela de Options. Assim
+   left/right ficam livres para o conteúdo da tela.
+
+   Os keyframes (optArrowPulse*, optArrowKick, optFlare*Pulse) vivem em
+   40_options.css: a ordem de @keyframes no bundle não importa, o CSS resolve
+   animation-name no uso.
+   ============================================================ */
+
+.jrpg-tabbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.jrpg-tabs {
+    display: flex;
+    gap: 0;
+}
+
+/* Aba travada (Continue do main menu: só faz sentido carregar) esconde as
+   setas e apaga a aba que não dá para escolher. */
+.jrpg-tabbar.tabs-locked .jrpg-tab-arrow {
+    visibility: hidden;
+}
+
+.jrpg-tabbar.tabs-locked .jrpg-tab:not(.selected) {
+    opacity: 0.22;
+}
+
+/* Reaproveita as animações das setas de Options (optArrowPulseLeft/Right e
+   optArrowKick, definidas em 40_options.css — o build concatena os dois). */
+.jrpg-tab-arrow {
+    /* Centraliza a seta no TEXTO, não na caixa: o .jrpg-tab reserva 12px
+       embaixo para o flare contra 6px em cima, o que sobe o texto 3px. Num
+       flex align-items:center, 6px de margin-bottom compensa exatamente. */
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: var(--gold);
+    pointer-events: none;
+    opacity: 0.45;
+    will-change: transform, opacity;
+}
+
+.jrpg-tab-arrow.arrow-left {
+    animation: optArrowPulseLeft 1.6s ease-in-out infinite;
+}
+
+.jrpg-tab-arrow.arrow-right {
+    animation: optArrowPulseRight 1.6s ease-in-out infinite;
+}
+
+/* Piscada ao trocar de aba (só a seta do lado para onde foi); enquanto roda,
+   substitui o pulso contínuo. */
+.jrpg-tab-arrow.arrow-kick,
+.jrpg-tab-arrow.arrow-kick.arrow-left,
+.jrpg-tab-arrow.arrow-kick.arrow-right {
+    animation: optArrowKick 0.32s ease;
+}
+
+.jrpg-tab {
+    position: relative;
+    /* +6px à esquerda compensa o vão que o letter-spacing deixa depois da
+       última letra — sem isso o texto fica visualmente torto na aba. */
+    padding: 6px 30px 12px 36px;
+    font-family: 'Cinzel', serif;
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    line-height: 1.1;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: color 0.25s ease, text-shadow 0.25s ease;
+}
+
+/* FLARE embaixo do texto da aba (mesmo padrão de .opt-tab): halo suave
+   (::before) + núcleo com falloff nas pontas (::after).
+   NADA de radial-gradient — o Ultralight desenha um CÍRCULO no lugar da
+   elipse (vira uma bola no jogo, mesmo funcionando no Chrome). */
+.jrpg-tab::before {
+    content: "";
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    width: 46%;
+    height: 2px;
+    transform: translateX(-50%);
+    pointer-events: none;
+    opacity: 0;
+    border-radius: 999px;
+    background: rgba(240, 208, 120, 0.45);
+    box-shadow: 0 0 16px 5px rgba(240, 208, 120, 0.22),
+                0 0 34px 10px rgba(212, 168, 67, 0.12);
+    transition: opacity 0.3s ease;
+}
+
+.jrpg-tab::after {
+    content: "";
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    transform: translateX(-50%);
+    pointer-events: none;
+    opacity: 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(212, 168, 67, 0.45) 18%,
+        var(--gold-bright) 50%,
+        rgba(212, 168, 67, 0.45) 82%,
+        transparent 100%);
+    box-shadow: 0 0 10px rgba(240, 208, 120, 0.5);
+    transition: width 0.3s ease, opacity 0.3s ease;
+}
+
+.jrpg-tab:hover {
+    color: var(--text-secondary);
+    text-shadow: 0 0 12px rgba(212, 168, 67, 0.35);
+}
+
+.jrpg-tab:hover::before {
+    opacity: 0.5;
+}
+
+.jrpg-tab:hover::after {
+    width: 55%;
+    opacity: 0.75;
+}
+
+.jrpg-tab.selected {
+    color: var(--gold);
+    text-shadow: 0 0 26px rgba(212, 168, 67, 0.35), 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.jrpg-tab.selected::before {
+    opacity: 1;
+    animation: optFlareBloomPulse 2.2s ease-in-out infinite;
+}
+
+.jrpg-tab.selected::after {
+    width: 82%;
+    opacity: 1;
+    animation: optFlareCorePulse 2.2s ease-in-out infinite;
+}
+
+/* Mesma proteção do Options: sem isto a transição de `width` roda ao sair de
+   display:none e o flare pisca como um ponto antes de virar faixa. O JS liga
+   a classe por ~1 frame ao abrir a tela. */
+.flare-instant .jrpg-tab::before,
+.flare-instant .jrpg-tab::after,
+.flare-instant .jrpg-tab.selected::before,
+.flare-instant .jrpg-tab.selected::after {
+    transition: none;
+    animation: none;
+}
+
+/* ============================================================
+   MODO TECLADO / GAMEPAD
+
+   O JS (InputMode, 05_ui_state.js) põe .kbd-mode no <html> assim que uma ação
+   semântica chega. Desligar pointer-events resolve hover E clique numa regra
+   só: sem hit-test, o item sob um ponteiro parado não fica destacado enquanto
+   se navega pelo teclado.
+
+   O mousemove que tira o modo continua chegando: pointer-events:none só
+   remove o elemento do hit-test, o evento segue para o document e o listener
+   de window recebe.
+   ============================================================ */
+
+html.kbd-mode, html.kbd-mode * {
+    cursor: none !important;
+}
+
+html.kbd-mode .ui-section * {
+    pointer-events: none !important;
+}
+
+/* ============================================================
+   RODAPÉ DE ATALHOS (componente compartilhado)
+
+   A barra fica colada no rodapé do VIEWPORT, não no do canvas 1920x1080:
+   `position: fixed` em vez de acompanhar o conteúdo, para que diminuir a
+   janela não puxe os atalhos junto com o card de cima.
+
+   O wrapper só posiciona e escala (transform-origin no rodapé, para o scale
+   não descolar da borda); quem anima é a linha de dentro, com o transform
+   livre para as animações de entrada de cada tela.
+   ============================================================ */
+
+.jrpg-hints {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0 0 26px 0;
+    pointer-events: none;
+    transform: scale(var(--scale-factor, 1));
+    transform-origin: bottom center;
+}
+
+/* Main menu: atalhos na direita, como a tela de título sempre teve */
+.jrpg-hints.align-right {
+    justify-content: flex-end;
+    padding-right: 90px;
+    transform-origin: bottom right;
+}
+
+.jrpg-hints-row {
+    display: flex;
+    align-items: center;
+    gap: 34px;
+}
+
+/* Entrada do rodapé: reinicia sozinha toda vez que a seção sai de
+   display:none, sem depender de classe posta por JS em cada tela. */
+.ui-section.active .jrpg-hints-row {
+    animation: jrpgHintsIn 0.40s ease-out 0.28s both;
+}
+
+@keyframes jrpgHintsIn {
+    0%   { opacity: 0; transform: translateY(18px); }
+    100% { opacity: 1; transform: translateY(0); }
+}

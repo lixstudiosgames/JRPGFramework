@@ -1,0 +1,285 @@
+<!-- ============ SEÇÃO: DEV MENU ============
+     Tela de TESTE. De propósito ela NÃO usa o tema do jogo: é densa, monoespaçada
+     e cinza, para nunca ser confundida com a UI real num print ou num vídeo.
+     Sai do build em Shipping pelo lado do C++ (UWebUISubsystem::OpenDevMenu). -->
+<div id="screen-dev" class="ui-section">
+
+    <!-- Fundo próprio, FORA do canvas escalado (position: fixed), para cobrir
+         o viewport inteiro em qualquer aspect ratio. -->
+    <div id="dev-bg"></div>
+
+    <div id="dev-root">
+
+        <div id="dev-head">
+            <span id="dev-title">DEV MENU</span>
+            <span id="dev-sub">build de desenvolvimento &middot; some no Shipping</span>
+            <span id="dev-close" title="Fechar (Esc)">&#10005;</span>
+        </div>
+
+        <div id="dev-tabs">
+            <button class="dev-tab selected" data-tab="0">Estado</button>
+            <button class="dev-tab" data-tab="1">Progress&atilde;o</button>
+            <button class="dev-tab" data-tab="2">Itens &amp; Gold</button>
+            <button class="dev-tab" data-tab="3">Mundo &amp; Save</button>
+            <button class="dev-tab" data-tab="4">Party</button>
+            <button class="dev-tab" data-tab="5">Telas</button>
+        </div>
+
+        <div id="dev-main">
+        <div id="dev-body">
+
+            <!-- ---------- 0: ESTADO ---------- -->
+            <div class="dev-panel active" data-panel="0">
+                <div class="dev-row">
+                    <button class="dev-btn" data-cmd="info">Atualizar estado</button>
+                    <span class="dev-note">Mostra gold, dificuldade e se as DataTables foram importadas.</span>
+                </div>
+            </div>
+
+            <!-- ---------- 1: PROGRESSÃO ---------- -->
+            <div class="dev-panel" data-panel="1">
+                <div class="dev-row">
+                    <label>Dificuldade</label>
+                    <button class="dev-btn" data-cmd="diff.set 0">Normal</button>
+                    <button class="dev-btn" data-cmd="diff.set 1">Hard</button>
+                    <button class="dev-btn" data-cmd="diff.set 2">Juggernaut</button>
+                </div>
+
+                <div class="dev-row">
+                    <label>Ficha</label>
+                    <select id="dev-char">
+                        <option>Vahn</option>
+                        <option>Noa</option>
+                        <option>Gala</option>
+                        <option>Terra</option>
+                    </select>
+                    <label>Level</label>
+                    <input id="dev-level" type="number" value="1" min="1" max="500">
+                    <button class="dev-btn" data-tpl="prog.sheet {char} {level}">Ver os 8 atributos</button>
+                </div>
+
+                <div class="dev-row">
+                    <label>Um atributo</label>
+                    <select id="dev-stat">
+                        <option>HP</option><option>MP</option><option>AGL</option><option>ATK</option>
+                        <option>UDF</option><option>LDF</option><option>SPD</option><option>INT</option>
+                    </select>
+                    <button class="dev-btn" data-tpl="prog.stat {char} {stat} {level}">Consultar</button>
+                    <span class="dev-note">Mostra o valor, o ganho do pr&oacute;ximo level e se cresce na dificuldade atual.</span>
+                </div>
+
+                <div class="dev-row">
+                    <label>XP do level</label>
+                    <button class="dev-btn" data-tpl="prog.xp {level}">Comparar os 4</button>
+                    <span class="dev-note">A Terra usa a curva base, igual ao Vahn.</span>
+                </div>
+
+                <div class="dev-row">
+                    <label>Teto de level</label>
+                    <button class="dev-btn" data-cmd="level.max 99">99 (original)</button>
+                    <button class="dev-btn" data-cmd="level.max 200">200</button>
+                    <button class="dev-btn" data-cmd="level.max 500">500 (m&aacute;ximo)</button>
+                    <span class="dev-note">Base do New Game+. Acima do 99 a curva &eacute; extrapolada &mdash; sem tabela nova.</span>
+                </div>
+
+                <div class="dev-row">
+                    <label>Cap de atributo</label>
+                    <button class="dev-btn" data-tpl="stat.cap {stat}">Ver</button>
+                    <button class="dev-btn" data-cmd="stat.cap HP 99999">HP &rarr; 99999</button>
+                    <button class="dev-btn" data-cmd="stat.cap AGL 500">AGL &rarr; 500</button>
+                    <span class="dev-note">O de AGL &eacute; recusado de prop&oacute;sito: 280 &eacute; o m&aacute;ximo de art blocks.</span>
+                </div>
+            </div>
+
+            <!-- ---------- 2: ITENS & GOLD ---------- -->
+            <div class="dev-panel" data-panel="2">
+                <div class="dev-row">
+                    <label>Gold</label>
+                    <button class="dev-btn" data-cmd="gold.add 100">+100</button>
+                    <button class="dev-btn" data-cmd="gold.add 1000">+1000</button>
+                    <button class="dev-btn" data-cmd="gold.add 10000">+10000</button>
+                    <button class="dev-btn" data-cmd="gold.add -1000">&minus;1000</button>
+                </div>
+
+                <div class="dev-row">
+                    <label>Item</label>
+                    <input id="dev-item" type="text" placeholder="row name (ex: healing_leaf)">
+                    <label>Qtd</label>
+                    <input id="dev-qty" type="number" value="1" min="1" max="99">
+                    <button class="dev-btn" data-tpl="item.add {item} {qty}">Adicionar</button>
+                    <button class="dev-btn" data-tpl="item.remove {item} {qty}">Remover</button>
+                </div>
+                <div class="dev-row">
+                    <span class="dev-note">O row name &eacute; a primeira coluna do DT_Items &mdash; d&aacute; para ver no LegaiaStudio.</span>
+                </div>
+            </div>
+
+            <!-- ---------- 3: MUNDO & SAVE ---------- -->
+            <div class="dev-panel" data-panel="3">
+                <div class="dev-row">
+                    <label>Campo</label>
+                    <button class="dev-btn" data-cmd="world.field 1">bIsInField = true</button>
+                    <button class="dev-btn" data-cmd="world.field 0">bIsInField = false</button>
+                    <span class="dev-note">&Eacute; o que libera a aba SAVE.</span>
+                </div>
+
+                <div class="dev-row">
+                    <label>Event flag</label>
+                    <input id="dev-flag" type="text" placeholder="flag id">
+                    <button class="dev-btn" data-tpl="world.flag {flag} 1">Ligar</button>
+                    <button class="dev-btn" data-tpl="world.flag {flag} 0">Desligar</button>
+                </div>
+
+                <div class="dev-row">
+                    <label>Slot</label>
+                    <input id="dev-slot" type="number" value="0" min="0" max="14">
+                    <button class="dev-btn" data-tpl="save.save {slot}">Salvar</button>
+                    <button class="dev-btn danger" data-tpl="save.load {slot}">Carregar</button>
+                    <span class="dev-note">Carregar troca de mapa na hora.</span>
+                </div>
+            </div>
+
+            <!-- ---------- 4: PARTY ---------- -->
+            <div class="dev-panel" data-panel="4">
+
+                <!-- ALVO: fica no topo e em destaque de propósito. Tudo abaixo
+                     que fala de UM personagem cai neste. -->
+                <div id="dev-target">
+                    <span class="dev-target-label">alvo</span>
+                    <select id="dev-member">
+                        <option>Vahn</option>
+                        <option>Noa</option>
+                        <option>Gala</option>
+                        <option>Terra</option>
+                    </select>
+                    <span class="dev-target-hint">os bot&otilde;es marcados com &#9679; aplicam neste personagem</span>
+                </div>
+
+                <div class="dev-row">
+                    <button class="dev-btn" data-cmd="party">Ver roster e forma&ccedil;&atilde;o</button>
+                    <span class="dev-note">Estado, atributos e XP de cada um. [ATIVO] luta, [banco] fica de fora, [fora] saiu da hist&oacute;ria.</span>
+                </div>
+
+                <div class="dev-row">
+                    <label>Recrutar</label>
+                    <button class="dev-btn" data-cmd="party.recruit Vahn">Vahn</button>
+                    <button class="dev-btn" data-cmd="party.recruit Noa">Noa</button>
+                    <button class="dev-btn" data-cmd="party.recruit Gala">Gala</button>
+                    <button class="dev-btn" data-cmd="party.recruit Terra">Terra</button>
+                    <span class="dev-note">Recrutar de novo N&Atilde;O reseta quem j&aacute; &eacute; seu &mdash; s&oacute; devolve &agrave; hist&oacute;ria.</span>
+                </div>
+
+                <div class="dev-row">
+                    <label>Forma&ccedil;&atilde;o</label>
+                    <button class="dev-btn alvo" data-tpl="party.active {member} 1">Ativar</button>
+                    <button class="dev-btn alvo" data-tpl="party.active {member} 0">Tirar</button>
+                    <span class="dev-note">Tirar o &uacute;ltimo &eacute; recusado &mdash; a forma&ccedil;&atilde;o nunca fica vazia.</span>
+                </div>
+
+                <div class="dev-row">
+                    <label>Hist&oacute;ria</label>
+                    <button class="dev-btn alvo" data-tpl="party.available {member} 0">Sai do grupo</button>
+                    <button class="dev-btn alvo" data-tpl="party.available {member} 1">Volta</button>
+                    <span class="dev-note">O caso da Terra ap&oacute;s o Mount Rikuroa: sai, mas os dados ficam intactos.</span>
+                </div>
+
+                <div class="dev-row">
+                    <label>Vagas</label>
+                    <button class="dev-btn" data-cmd="party.max 1">1</button>
+                    <button class="dev-btn" data-cmd="party.max 3">3 (original)</button>
+                    <button class="dev-btn" data-cmd="party.max 4">4</button>
+                </div>
+
+                <div class="dev-row">
+                    <label>Subir level</label>
+                    <button class="dev-btn alvo" data-tpl="party.levelup {member} 1">+1</button>
+                    <button class="dev-btn alvo" data-tpl="party.levelup {member} 5">+5</button>
+                    <button class="dev-btn alvo" data-tpl="party.levelup {member} 10">+10</button>
+                    <span class="dev-note">Cada level passa pelo crescimento de verdade, com jitter &mdash; mostra o antes e o depois dos 8 atributos.</span>
+                </div>
+
+                <div class="dev-row">
+                    <label>Ir para o level</label>
+                    <input id="dev-plevel" type="number" value="20" min="1" max="500">
+                    <button class="dev-btn alvo" data-tpl="party.setlevel {member} {plevel}">Aplicar</button>
+                    <span class="dev-note">Simula level por level. Para BAIXAR, refaz do 1 &mdash; n&atilde;o d&aacute; para desrolar o jitter j&aacute; ganho.</span>
+                </div>
+
+                <div class="dev-row">
+                    <label>Atributo</label>
+                    <select id="dev-pstat">
+                        <option>HP</option><option>MP</option><option>AP</option><option>ATK</option>
+                        <option>UDF</option><option>LDF</option><option>SPD</option><option>INT</option><option>AGL</option>
+                    </select>
+                    <input id="dev-pval" type="number" value="500" min="0" max="9999">
+                    <button class="dev-btn alvo" data-tpl="party.stat {member} {pstat} {pval}">Escrever</button>
+                    <button class="dev-btn alvo" data-tpl="party.stat {member} {pstat}">Ler</button>
+                    <span class="dev-note">HP e MP escrevem o M&Aacute;XIMO; o atual acompanha se passar dele.</span>
+                </div>
+
+                <div class="dev-row">
+                    <label>Roster</label>
+                    <button class="dev-btn danger alvo" data-tpl="party.unrecruit {member}">Apagar do roster</button>
+                    <span class="dev-note">Apaga o registro de vez. Para s&oacute; sair da hist&oacute;ria, use &quot;Sai do grupo&quot; acima.</span>
+                </div>
+
+                <div class="dev-row">
+                    <label>XP de batalha</label>
+                    <button class="dev-btn" data-cmd="party.xp 1000">1000</button>
+                    <button class="dev-btn" data-cmd="party.xp 10000">10000</button>
+                    <button class="dev-btn" data-cmd="party.xp 500000">500000</button>
+                    <span class="dev-note">&times;3/4 e dividido entre os VIVOS da forma&ccedil;&atilde;o. Sozinho, um leva tudo.</span>
+                </div>
+
+                <div class="dev-row">
+                    <label>Vitals</label>
+                    <button class="dev-btn danger alvo" data-tpl="party.damage {member} 99999">Matar</button>
+                    <button class="dev-btn alvo" data-tpl="party.revive {member}">Reviver</button>
+                    <button class="dev-btn" data-cmd="party.heal">Curar todos</button>
+                    <span class="dev-note">Mate um e rode o XP de novo: os vivos passam a levar mais.</span>
+                </div>
+            </div>
+
+            <!-- ---------- 5: TELAS ---------- -->
+            <div class="dev-panel" data-panel="5">
+                <div class="dev-row">
+                    <button class="dev-btn" data-cmd="screen.menu">Menu de pausa</button>
+                    <button class="dev-btn" data-cmd="screen.save">Save</button>
+                    <button class="dev-btn" data-cmd="screen.load">Load</button>
+                    <button class="dev-btn" data-cmd="screen.options">Op&ccedil;&otilde;es</button>
+                    <button class="dev-btn" data-cmd="screen.mainmenu">Main menu</button>
+                </div>
+                <div class="dev-row">
+                    <label>Loja</label>
+                    <input id="dev-shop" type="text" placeholder="row name do DT_Shops">
+                    <button class="dev-btn" data-tpl="screen.shop {shop}">Abrir loja</button>
+                </div>
+                <div class="dev-row">
+                    <label>Popup</label>
+                    <button class="dev-btn" data-cmd="screen.popup Item_de_Teste 3">Mostrar popup de item</button>
+                </div>
+                <div class="dev-row">
+                    <span class="dev-note">Abrir uma tela FECHA o dev menu &mdash; as telas do jogo exigem o estado HudOnly.</span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Console ao LADO, não embaixo: empilhado ele comia a altura toda e
+             sobrava pouco espaço para as opções. -->
+        <div id="dev-side">
+            <div id="dev-console-head">
+                <span>sa&iacute;da</span>
+                <span id="dev-clear" title="Limpar">limpar</span>
+            </div>
+            <pre id="dev-out"></pre>
+            <div id="dev-cmdline">
+                <span class="dev-prompt">&gt;</span>
+                <input id="dev-cmd" type="text" spellcheck="false"
+                       placeholder="comando manual — Enter roda, seta pra cima repete">
+            </div>
+        </div>
+
+        </div>
+    </div>
+</div>

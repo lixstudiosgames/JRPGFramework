@@ -1,0 +1,4 @@
+---,DisplayName,Description,EnemyHP,EnemyATK,EnemyDEF,XPReward,GoldReward
+Normal,Normal,O balanceamento do jogo original.,1.0,1.0,1.0,1.0,1.0
+Hard,Hard,Inimigos aguentam bem mais e batem mais forte.,1.8,1.2,1.25,1.25,1.25
+Juggernaut,Juggernaut,Cada encontro e uma ameaca real.,3.0,1.45,1.4,1.5,1.5

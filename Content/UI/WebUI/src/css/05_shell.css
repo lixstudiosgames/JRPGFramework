@@ -1,0 +1,26 @@
+/* 05_shell.css - Infraestrutura do Shell SPA (visibilidade das seções) */
+
+/* Cada tela do jogo é uma .ui-section dentro do shell único.
+   Só a(s) seção(ões) com .active ficam visíveis; o resto não renderiza.
+   O estado hud_only = nenhuma seção ativa = página 100% transparente. */
+
+.ui-section {
+    display: none;
+}
+
+.ui-section.active {
+    display: block;
+}
+
+/* Âncora de repaint (ver comentário no shell.template.html): 1px imperceptível
+   que mantém a página nunca-vazia, para o frame pós-esconder ser apresentado. */
+#ul-repaint-anchor {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 1px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.02);
+    pointer-events: none;
+    z-index: 0;
+}

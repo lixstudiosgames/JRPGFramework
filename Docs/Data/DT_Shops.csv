@@ -1,0 +1,33 @@
+---,ShopName,Town,Merchant,Inventory,FeaturedItems,RequiredFlagID,bRequiredFlagValue
+rim_elm_variety_shop,Variety Shop,Rim Elm,,"(hunter_clothes,scarlet_jewel,azure_jewel,survival_knife,warrior_seal,warrior_boots,cure_amulet,healing_leaf,antidote,door_of_light)","(hunter_clothes,scarlet_jewel,azure_jewel)",,True
+hunters_spring_variety_shop,Variety Shop,Hunter's Spring,Lezam,"(golden_compass,silver_compass,target_chain,defender_chain,healing_leaf,antidote,door_of_light)","(golden_compass,silver_compass)",,True
+hunters_spring_market,Market,Hunter's Spring,Lezam's Sister,"(target_chain,defender_chain,healing_leaf,healing_flower,magic_leaf,medicine,door_of_light)",,,True
+drake_castle_arms_shop,Arms Shop,Drake Castle,,"(survival_knife,nail_glove,warrior_seal,warrior_boots,guardian_clip,fighting_robe,electric_shoes)",,,True
+drake_castle_items_shop,Items Shop,Drake Castle,,"(target_chain,defender_chain,cure_amulet,healing_leaf,antidote,medicine,door_of_light)",,,True
+biron_monastery_morlang_before,Morlang,Biron Monastery,Morlang,"(survival_knife,nail_glove,savior_clothes,warrior_boots,guardian_clip,fighting_robe,electric_shoes)",,mist_cleared,False
+biron_monastery_corey_before,Corey,Biron Monastery,Corey,"(healing_flower,healing_bloom,magic_leaf,earth_jewel,deep_sea_jewel,burning_jewel,tempest_jewel,healing_leaf,medicine,door_of_light)","(healing_flower,healing_bloom,magic_leaf)",mist_cleared,False
+biron_monastery_morlang_after,Morlang,Biron Monastery,Morlang,"(battle_knife,crimson_nails,survival_club,ironman_seal,savior_clothes,ironman_boots,power_earrings,power_plate,power_shoes)",,mist_cleared,True
+wind_cave_arms_shop,Arms Shop,Wind Cave,,"(short_sword,fighter_claw,battle_knife,crimson_nails,survival_club,ironman_seal,savior_clothes,ironman_boots,green_clip,green_robe,tempest_shoes,power_earrings,power_plate,power_shoes)","(short_sword,fighter_claw)",,True
+wind_cave_items_shop,Items Shop,Wind Cave,,"(scarlet_jewel,azure_jewel,golden_compass,silver_compass,earth_jewel,deep_sea_jewel,burning_jewel,tempest_jewel,target_chain,defender_chain,cure_amulet,healing_leaf,medicine,door_of_light)","(scarlet_jewel,azure_jewel)",,True
+jeremi_arms_shop,Arms Shop,Jeremi,,"(short_sword,fighter_claw,warrior_armor,master_boots,green_clip,green_robe,tempest_shoes)",,,True
+jeremi_items_shop,Items Shop,Jeremi,,"(pure_amulet,magic_amulet,healing_leaf,healing_flower,medicine,door_of_light,door_of_wind)",,,True
+vidna_arms_shop,Arms Shop,Vidna,,"(short_sword,fighter_claw,red_club,expert_seal,warrior_armor,master_boots,fighting_plate)",,,True
+vidna_gift_shop,Gift Shop,Vidna,,"(magic_leaf,phoenix,mettle_ring,scarlet_jewel,azure_jewel,golden_compass,silver_compass,pure_amulet,forest_amulet,healing_flower,healing_bloom,medicine,door_of_light,door_of_wind)","(magic_leaf,phoenix)",,True
+octam_arms_shop,Arms Shop,Octam,,"(bloody_claw,survival_axe,master_armor,scarlet_robe,fighters_band,valor_plate)",,,True
+octam_items_shop,Items Shop,Octam,,"(earth_jewel,deep_sea_jewel,burning_jewel,tempest_jewel,madlight_jewel,luminous_jewel,ebony_jewel,healing_flower,healing_bloom,magic_leaf,medicine,phoenix,door_of_light,door_of_wind)",,,True
+underground_octam_arms_shop,Arms Shop,Underground Octam,,"(force_blade,hard_beat,red_club,expert_seal,ironman_armor,master_boots,jeweled_clip,scarlet_robe,olive_shoes,fighters_band,fighting_plate,fighting_boots)",,,True
+underground_octam_items_shop,Items Shop,Underground Octam,,"(earth_jewel,deep_sea_jewel,burning_jewel,tempest_jewel,madlight_jewel,luminous_jewel,ebony_jewel,healing_flower,healing_bloom,magic_leaf,medicine,phoenix,door_of_light,door_of_wind)",,,True
+ratayu_arms_shop,Arms Shop,Ratayu,,"(force_blade,hard_beat,survival_axe,expert_seal,ironman_armor,expert_boots,jeweled_clip,tempest_robe,olive_shoes,fighters_band,valor_plate,fighting_boots)",,,True
+ratayu_items_shop,Items Shop,Ratayu,,"(life_ring,power_ring,guardian_ring,mettle_ring,chicken_safe,chicken_guard,slowness_chain,healing_flower,healing_bloom,magic_leaf,phoenix,door_of_light,door_of_wind)","(life_ring,power_ring,guardian_ring)",,True
+karisto_station_honest_persons_store,Honest Person's Store,Karisto Station,,"(healing_bloom,door_of_wind,door_of_light)",,,True
+karisto_station_camper,Camper,Karisto Station,Camper,"(life_source,magic_source,mettle_source,vitality_ring,healing_berry,door_of_light,door_of_wind)","(life_source,magic_source,mettle_source)",,True
+sol_arms_shop_i,Arms Shop I,Sol,,"(holy_claw,battle_axe,hero_seal,expert_armor,steel_boots,war_god_plate)",,,True
+sol_items_shop_i,Items Shop I,Sol,,"(guardian_ring,speed_ring,wisdom_ring,healing_berry,healing_bloom,phoenix,door_of_light)",,,True
+sol_arms_shop_ii,Arms Shop II,Sol,,"(beast_buster,bloody_claw,survival_axe,master_armor,hero_boots,royal_crown,tempest_robe)",,,True
+sol_items_shop_ii_bakery,Items Shop II (Bakery),Sol,,"(life_ring,power_ring,stone_amulet,nature_amulet,healing_flower,magic_leaf,door_of_wind)","(life_ring,power_ring)",,True
+buma_variety_store,Variety Store,Buma,,"(mettle_armband,war_soul,chaos_breaker,battle_robe,war_god_band,war_god_boots,chicken_heart,healing_berry,healing_fruit,magic_fruit,medicine,phoenix,door_of_light,door_of_wind)","(mettle_armband,war_soul)",,True
+usha_research_center_ashif,Ashif,Usha Research Center,Ashif,"(ivory_book,bronze_book,bad_luck_bell,healing_berry,magic_fruit,medicine,phoenix)",,,True
+soren_camp_arms_shop,Arms Shop,Soren Camp,,"(chaos_breaker,heavy_strike,power_club,hero_seal,hero_armor,triumph_boots,pronged_crown,battle_robe,steel_boots,war_god_band,war_god_plate,war_god_boots)",,,True
+soren_camp_item_shop,Item Shop,Soren Camp,,"(healing_berry,healing_fruit,magic_fruit,medicine,phoenix,door_of_light,door_of_wind)",,,True
+conkram_arms_shop,Arms Shop,Conkram,,"(chaos_breaker,heavy_strike,power_club,hero_armor,battle_robe,war_god_plate)",,,True
+conkram_items_shop,Items Shop,Conkram,,"(healing_berry,healing_fruit,magic_fruit,medicine,phoenix,door_of_light,door_of_wind)",,,True

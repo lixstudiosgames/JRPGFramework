@@ -1,0 +1,111 @@
+<!-- ============ SEÇÃO: MENU DE PAUSA ============ -->
+<div id="screen-menu" class="ui-section">
+    <div id="menu-layout" style="opacity: 0; transition: opacity 0.15s ease;">
+        <!-- Coluna Esquerda: Opções de Menu e Painel Ouro/Tempo -->
+        <div class="menu-col left-col">
+
+            <!-- CARD 1: Lista de Opções -->
+            <div id="card-menu-list" class="jrpg-card animated-card">
+                <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+
+                <ul class="menu-list">
+
+                    <li class="menu-item selected" data-option="items">
+                        Items
+                    </li>
+                    <li class="menu-item" data-option="magic">
+                        Magic
+                    </li>
+                    <li class="menu-item" data-option="equip">
+                        Equip
+                    </li>
+                    <li class="menu-item" data-option="party">
+                        Party
+                    </li>
+                    <li class="menu-item" data-option="status">
+                        Status
+                    </li>
+                    <li class="menu-item" data-option="options">
+                        Options
+                    </li>
+                    <li class="menu-item" data-option="load">
+                        Load
+                    </li>
+                    <li class="menu-item" data-option="save">
+                        Save
+                    </li>
+                    <li class="menu-item" data-option="quit">
+                        Quit
+                    </li>
+                </ul>
+            </div>
+
+            <!-- CARD 2: Ouro e Tempo -->
+            <div id="card-gold-time" class="jrpg-card animated-card">
+                <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+
+                <div class="stat-row">
+                    <div class="stat-label flex-align">
+                        <svg class="gold-icon" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" />
+                            <circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="1" stroke-dasharray="2, 2" />
+                            <path d="M12 8L13.5 10.5L16 12L13.5 13.5L12 16L10.5 13.5L8 12L10.5 10.5Z" fill="currentColor" />
+                        </svg>
+                        <span class="gold-text-label">GOLD</span>
+                    </div>
+                    <div class="stat-val" id="gold-value">1289</div>
+                </div>
+                <div class="stat-row" style="margin-top: 16px;">
+                    <div class="stat-label flex-align">
+                        <svg class="time-icon" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
+                            <path d="M12,6 L12,12 L16,14" stroke="currentColor" stroke-width="2" fill="none"/>
+                        </svg>
+                        <span class="time-text-label">TIME</span>
+                    </div>
+                    <div class="stat-val" id="time-value">01:36:37</div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Coluna Direita: UM card com a party dentro -->
+        <div class="menu-col right-col" id="party-container">
+
+            <!-- UM card só, ocupando a coluna inteira. Com um card POR
+                 personagem, uma formação de 1 ou 2 deixava um buraco na
+                 interface; assim o card é sempre do mesmo tamanho e são as
+                 linhas que mudam.
+
+                 As linhas são GERADAS por JRPGSetParty() a partir da formação
+                 real. Cada uma mantém o id card-status-<key minúscula>, então a
+                 updateCharacterStatus() do C++ continua achando pelo mesmo
+                 caminho. -->
+            <div id="card-party" class="jrpg-card animated-card">
+                <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+                <div id="party-rows"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- OVERLAY: confirmação do Quit (voltar ao título perde o não salvo).
+         FICA FORA do #menu-layout: o véu é position:fixed para cobrir o
+         viewport inteiro em qualquer aspect ratio (ultrawide), igual ao
+         #options-bg. Só o card escala com o canvas 1920x1080. -->
+    <div id="menu-confirm">
+        <div id="menu-confirm-card" class="jrpg-card">
+            <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+
+            <div id="menu-confirm-text">Return to title?</div>
+            <div id="menu-confirm-sub">Unsaved progress will be lost.</div>
+            <ul id="menu-confirm-options">
+                <li class="confirm-option" data-choice="yes">Yes</li>
+                <li class="confirm-option selected" data-choice="no">No</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Contador de FPS para monitorar a fluidez visual da renderização -->
+    <div id="fps-counter">FPS: --</div>
+</div>

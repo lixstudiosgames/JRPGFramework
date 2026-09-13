@@ -1,0 +1,725 @@
+/* 10_menu.css - Estilos do Menu de Pausa | Tema Dark Realms (Gold & Blue) */
+/* Baseado nos estilos de concept/main menu + options.html e concept/prototipo.html */
+
+/* ============================================================
+   LAYOUT PRINCIPAL
+   ============================================================ */
+
+#menu-layout {
+    width: 1920px;
+    height: 1080px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 40px;
+    padding: 60px;
+    /*background: transparent;*/
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(var(--scale-factor, 1));
+    transform-origin: center center;
+    z-index: 1;
+}
+
+.menu-col {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.left-col {
+    width: 420px;
+    gap: 24px;
+}
+
+/* flex-start, não center: com UM personagem o card fica no topo, alinhado com
+   o painel da esquerda, em vez de flutuar no meio da coluna. */
+.right-col {
+    flex: 1;
+    max-width: 900px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    justify-content: flex-start;
+}
+
+/* ============================================================
+   CARDS - AJUSTES DE ALTURA E ESPAÇAMENTO
+   ============================================================ */
+
+#card-menu-list {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    overflow: visible;
+    border: 2px solid var(--border-gold-dim);
+}
+
+#card-gold-time {
+    height: 180px;
+    min-height: 160px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 24px 36px;
+    position: relative;
+    border: 2px solid var(--border-gold-dim);
+}
+
+/* ============================================================
+   CHARACTER CARDS - DESIGN PREMIUM
+   ============================================================ */
+
+/* O CARD ÚNICO da party. Ocupa a coluna inteira sempre — é o que evita o
+   buraco na interface quando a formação tem 1 ou 2 personagens. */
+#card-party {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 18px 0;
+    position: relative;
+    border: 2px solid var(--border-gold-dim);
+}
+
+/* As linhas ficam no TOPO; a sobra do card fica embaixo, vazia. */
+#party-rows {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Uma linha de personagem dentro do card. Herda toda a tipografia de
+   .char-layout / .char-info / .bar-* — que é onde ficam os seus ajustes. */
+.char-row {
+    display: flex;
+    align-items: center;
+    padding: 16px 32px;
+    position: relative;
+    border-bottom: 1px solid rgba(200, 168, 78, 0.16);
+}
+
+.char-row:last-child {
+    border-bottom: 0;
+}
+
+/* Layout interno do card do herói */
+/* Dentro da linha o layout não ocupa mais "toda a altura do card" — quem tem
+   altura agora é o card, não a linha. */
+.char-row .char-layout {
+    height: auto;
+}
+
+.char-layout {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    width: 100%;
+    height: 100%;
+}
+
+
+
+/* ============================================================
+   LISTA DE MENUS - ESTILO CONCEPT
+   ============================================================ */
+
+.menu-list {
+    list-style: none;
+    margin: 0 auto;
+    padding: 0;
+    position: relative;
+    width: 300px;
+
+}
+
+.menu-item {
+    position: relative;
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    font-size: 48px;
+    letter-spacing: 4px;
+    color: var(--text-secondary);
+    /* Apertado de 16/6 para 13/4 quando o Quit virou o 8º item: com o
+       espaçamento antigo a coluna esquerda (lista + card de gold/tempo)
+       passava dos 960px úteis do canvas e o card de baixo era cortado. */
+    padding: 13px 20px;
+    margin: 4px 0;
+    display: flex;
+    text-transform: capitalize;
+    align-items: center;
+    justify-content: flex-start;
+    line-height: 1;
+    cursor: pointer;
+    /* SEM transition: a troca de seleção tem que ser instantânea. Com o cursor
+       andando na lista, qualquer easing vira rastro. */
+    border-left: 3px solid transparent;
+    /* z-index 0 num elemento posicionado CRIA stacking context — é o que
+       segura o ::after em z-index -1 entre o fundo do item e o texto. Sem
+       isto o pseudo cairia atrás do card (que é opaco) e sumiria. */
+    z-index: 0;
+}
+
+/* Camada de brilho do item selecionado, atrás do texto. Fica invisível até o
+   item ser selecionado; é ela que respira (ver jrpgSelectBreath). */
+.menu-item::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: -1;
+    opacity: 0;
+    pointer-events: none;
+    background: linear-gradient(90deg,
+        rgba(212, 168, 67, 0.32) 0%,
+        rgba(212, 168, 67, 0.10) 52%,
+        transparent 100%);
+}
+
+/* Hover: véu dourado discreto do .opt-row:hover das opções. Fica só nos itens
+   que ainda não são o selecionado (o mouseenter move a seleção logo em
+   seguida) e nunca nos desabilitados. */
+.menu-item:hover:not(.selected):not(.disabled) {
+    background: rgba(200, 168, 78, 0.06);
+    border-left-color: rgba(200, 168, 78, 0.45);
+    color: var(--text-primary);
+    text-shadow: 0 0 12px rgba(212, 168, 67, 0.3);
+}
+
+/* Selecionado: só barra sólida à esquerda + véu dourado que MORRE no meio do
+   item (nada de linha embaixo). O véu tem duas camadas: um piso estático aqui,
+   que garante a legibilidade, e o ::after por cima respirando — assim o realce
+   nunca some nem fica parado. */
+.menu-item.selected {
+    color: var(--gold-light);
+    border-left-color: var(--gold);
+    background: linear-gradient(90deg,
+        rgba(212, 168, 67, 0.14) 0%,
+        rgba(212, 168, 67, 0.04) 55%,
+        transparent 100%);
+    text-shadow: 0 0 18px rgba(212, 168, 67, 0.45), 0 2px 4px rgba(0, 0, 0, 0.85);
+}
+
+/* jrpgSelectBreath vem do 00_global.css — o mesmo respiro das linhas da tela
+   de opções. Anima só `opacity`, nunca o gradiente. */
+.menu-item.selected::after {
+    opacity: 1;
+    animation: jrpgSelectBreath 2.2s ease-in-out infinite;
+}
+
+
+
+.menu-icon {
+    width: 36px;
+    height: 36px;
+    margin-right: 16px;
+    vertical-align: middle;
+    transition: transform 0.2s ease;
+}
+
+/* ============================================================
+   OURO & TEMPO - DESIGN CONCEPT
+   ============================================================ */
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 3px;
+    transition: all 0.3s ease;
+}
+
+.stat-label {
+    font-family: 'Cinzel', serif;
+    font-size: 1rem;
+    letter-spacing: 4px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+}
+
+.stat-val {
+    font-size: 24px;
+    font-weight: 600;
+    font-family: 'Cinzel', serif;
+    color: var(--gold);
+}
+
+.gold-icon {
+    width: 30px;
+    height: 30px;
+    margin-right: 12px;
+    color: var(--gold);
+
+}
+
+.gold-text-label {
+    font-family: 'Cinzel', serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    letter-spacing: .12em;
+
+}
+
+.time-icon {
+    width: 30px;
+    height: 30px;
+    margin-right: 12px;
+    color: var(--gold);
+
+}
+
+.time-text-label {
+    font-family: 'Cinzel', serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    letter-spacing: .12em;
+}
+
+/* ============================================================
+   STATUS DOS PERSONAGENS - PREMIUM DESIGN
+   ============================================================ */
+
+.char-avatar-container {
+    width: 22vh;
+    height: 22vh;
+    max-width: 240px;
+    max-height: 240px;
+    min-width: 110px;
+    min-height: 110px;
+    border: 2px solid var(--border-gold-dim);
+    border-radius: 4px;
+    overflow: hidden;
+    background: linear-gradient(135deg, var(--bg-mid), var(--bg-dark));
+
+    flex-shrink: 0;
+    position: relative;
+}
+
+.char-avatar {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.char-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.char-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid var(--border-gold-dim);
+    padding-bottom: 8px;
+    position: relative;
+}
+
+.char-name {
+    font-family: 'Cinzel', serif; /* era 'Cinzel Decorative' — unificado em Cinzel (fonte local) */
+    font-size: 32px;
+    color: var(--gold);
+    letter-spacing: 0.5px;
+}
+
+.char-level-container {
+    font-family: 'Cinzel', serif;
+    display: inline-flex;
+    align-items: baseline;
+}
+
+.char-level-label {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--mp-blue-bright);
+}
+
+.char-level {
+    color: var(--gold-light);
+    font-weight: 900;
+    font-size: 26px;
+    margin-left: 6px;
+}
+
+/* ============================================================
+   BARRAS DE STATUS - DESIGN CONCEPT
+   ============================================================ */
+
+.char-bar-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.char-bar-row {
+    display: grid;
+    grid-template-columns: 80px 1fr 180px;
+    align-items: center;
+    gap: 16px;
+}
+
+.bar-label {
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: .12em;
+}
+
+.hp-text {
+    color: var(--hp-green-bright);
+    font-size: 26px;
+    font-weight: 700;
+}
+
+.mp-text {
+    color: var(--mp-blue-bright);
+    font-size: 26px;
+    font-weight: 700;
+}
+
+.ap-text {
+    color: var(--ap-red-bright);
+    font-size: 26px;
+    font-weight: 700;
+}
+
+/* Trilhas das barras de status - Estilo Concept */
+.bar-track {
+    position: relative;
+    height: 18px;
+    background: #020a18;
+    border: 1px solid #303a4b;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+/* Preenchimento das barras com gradientes premium */
+.bar-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    transition: width 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Reflexo sutil no topo do preenchimento da barra */
+.bar-fill::after {
+    display: none;
+}
+
+/* HP Bars - Green (High) / Orange (Med) / Crimson (Low) */
+.bar-fill.hp {
+    background: linear-gradient(90deg, #104018, var(--hp-green-bright));
+
+}
+
+.bar-fill.hp.hp-high {
+    background: linear-gradient(90deg, #104018, var(--hp-green-bright));
+
+}
+
+.bar-fill.hp.hp-med {
+    background: linear-gradient(90deg, #804000, #d48000);
+
+}
+
+.bar-fill.hp.hp-low {
+    background: linear-gradient(90deg, #5b0000, #a80000);
+
+
+}
+
+/* MP Bars - Blue */
+.bar-fill.mp {
+    background: linear-gradient(90deg, #102060, var(--mp-blue-bright));
+
+}
+
+.bar-fill.mp.mp-high {
+    background: linear-gradient(90deg, #102060, var(--mp-blue-bright));
+}
+
+.bar-fill.mp.mp-med {
+    background: linear-gradient(90deg, #301060, #6028c4);
+
+}
+
+.bar-fill.mp.mp-low {
+    background: linear-gradient(90deg, #400050, #8000a0);
+
+}
+
+/* AP Bars - Red */
+.bar-fill.ap {
+    background: linear-gradient(90deg, #6b1010, var(--ap-red-bright));
+
+}
+
+/* Valores das barras */
+.bar-values {
+    text-align: right;
+    font-size: 26px;
+    font-family: 'Cinzel', serif;
+    color: var(--text-primary);
+}
+
+.bar-values .cur {
+    color: var(--text-primary);
+}
+
+.cur.hp-high-text {
+    color: var(--text-primary);
+}
+
+.cur.hp-med-text {
+    color: var(--gold-light);
+}
+
+.cur.hp-warn-text {
+    color: #e67e22;
+}
+
+.cur.hp-low-text {
+    color: #e74c3c;
+}
+
+
+.bar-values .sep {
+    color: var(--text-dim);
+    margin: 0 4px;
+}
+
+.cur-ap {
+    color: var(--text-primary);
+
+}
+
+.sep-ap {
+    color: var(--text-dim);
+    margin: 0 4px;
+}
+
+.max-ap {
+    color: var(--text-primary);
+
+}
+
+
+
+/* ============================================================
+   ANIMAÇÕES DOS CARDS
+   ============================================================ */
+
+/* Os cards entram/saem deslizando E com fade: a opacidade acompanha o mesmo
+   tempo do transform, então eles somem no meio do caminho em vez de "voar"
+   inteiros para fora da tela (e vice-versa na entrada). */
+.animated-card {
+    opacity: 0;
+    transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1),
+                opacity 0.3s ease;
+}
+
+#card-menu-list {
+    transform: translateX(-1500px);
+}
+
+#card-gold-time {
+    transform: translateY(1000px);
+}
+
+#card-party {
+    transform: translateX(1500px);
+}
+
+/* Estado Ativo (Entrada) — o id (1,0,0) vence o .animated-card (0,1,0), por
+   isso a opacidade final precisa estar repetida aqui. */
+#card-menu-list.animate-in,
+#card-gold-time.animate-in {
+    transform: translate(0, 0);
+    opacity: 1;
+}
+
+#card-party.animate-in {
+    transform: translate(0, 0);
+    opacity: 1;
+}
+
+/* Cascata das linhas DENTRO do card, depois que ele entrou. Por classe, não
+   por id: os personagens da formação variam. */
+.char-row {
+    opacity: 0;
+    transform: translateX(60px);
+    transition: transform 0.28s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.28s ease;
+}
+
+.char-row.row-in {
+    opacity: 1;
+    transform: translate(0, 0);
+}
+
+/* ============================================================
+   FPS COUNTER - TEMA DARK REALMS
+   ============================================================ */
+
+#fps-counter {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #06101e;
+    border: 1px solid var(--border-gold-dim);
+    color: var(--gold-light);
+    padding: 8px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px;
+    font-weight: 700;
+    z-index: 9999;
+    border-radius: 3px;
+    box-shadow: none;
+}
+
+/* ============================================================
+   AP BAR TRACK ESPECIAL
+   ============================================================ */
+
+.bar-track.ap-track {
+    border-color: #303a4b;
+    background: #020a18;
+}
+
+.flex-align {
+    display: flex;
+    align-items: center;
+}
+
+/* ============================================================
+   EFEITOS VISUAIS ADICIONAIS (ex-<style> inline do menu.html)
+   Ligados a markup opcional (.arcane-aura/.arcane-vignette)
+   ============================================================ */
+
+/* Aura mística de fundo - Concept style */
+.arcane-aura {
+    position: fixed;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at 15% 50%, rgba(200, 168, 78, 0.04) 0%, transparent 55%),
+        radial-gradient(ellipse at 85% 30%, rgba(15, 32, 64, 0.4) 0%, transparent 60%),
+        radial-gradient(ellipse at 50% 90%, rgba(200, 168, 78, 0.03) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+    animation: auraBreath 10s ease-in-out infinite alternate;
+}
+
+@keyframes auraBreath {
+    0% {
+        opacity: 0.7;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+/* Vinheta escura nas bordas - Concept style */
+.arcane-vignette {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(2, 8, 24, 0.65) 100%);
+    pointer-events: none;
+    z-index: 0;
+    box-shadow: inset 0 0 200px rgba(0, 0, 0, 0.8);
+}
+
+/* ============================================================
+   ITEM DESABILITADO (Save fora do Field)
+
+   O C++ manda JRPGUI.setCanSave(false) ao abrir o menu quando
+   WorldStateSubsystem::IsInField() e false. O item continua na lista
+   (o jogador ve que existe), mas apagado: a navegacao pula por cima e
+   o confirm toca som de Cancel.
+   ============================================================ */
+
+.menu-item.disabled {
+    color: var(--text-dim);
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* Travado nunca ganha o realce, nem se o cursor parar nele por um frame */
+.menu-item.disabled.selected {
+    background: none;
+    color: var(--text-dim);
+    border-left-color: transparent;
+    text-shadow: none;
+}
+
+.menu-item.disabled.selected::after {
+    opacity: 0;
+    animation: none;
+}
+
+/* ============================================================
+   OVERLAY DE CONFIRMACAO DO QUIT
+   ============================================================ */
+
+/* position: fixed (nao absolute): o veu tem que cobrir o VIEWPORT, nao o
+   canvas 1920x1080 escalado -- em ultrawide um absolute deixaria as laterais
+   sem escurecer. Mesmo motivo do #options-bg. */
+#menu-confirm {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(2, 8, 24, 0.72);
+    z-index: 20;
+    align-items: center;
+    justify-content: center;
+}
+
+#menu-confirm.view-active {
+    display: flex;
+}
+
+/* So o CARD herda a escala do canvas (o veu acima cobre o viewport cru) */
+#menu-confirm-card {
+    width: 620px;
+    padding: 36px 44px;
+    border: 1px solid var(--border-gold-dim);
+    text-align: center;
+    transform: scale(var(--scale-factor, 1));
+    transform-origin: center center;
+}
+
+#menu-confirm-text {
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    font-size: 32px;
+    letter-spacing: 2px;
+    color: var(--text-primary);
+}
+
+#menu-confirm-sub {
+    font-family: 'Cinzel', serif;
+    font-size: 17px;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    margin-top: 10px;
+    margin-bottom: 26px;
+}
+
+#menu-confirm-options {
+    list-style: none;
+    display: flex;
+    justify-content: center;
+    gap: 48px;
+}

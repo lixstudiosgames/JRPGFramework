@@ -1,0 +1,48 @@
+// UltralightBlitShader.usf
+
+#include "/Engine/Public/Platform.ush"
+
+void MainVS(
+    in uint VertexID : SV_VertexID,
+    out float4 OutPosition : SV_POSITION,
+    out float2 OutUV : TEXCOORD0
+)
+{
+    // Desenha um triângulo que cobre toda a tela (Viewport)
+    // VertexID: 0, 1, 2
+    // Coordenadas de vértice geradas para cobrir [-1, 1] no NDC e [0, 1] no UV.
+    OutUV = float2((VertexID << 1) & 2, VertexID & 2);
+    OutPosition = float4(OutUV * float2(2.0f, -2.0f) + float2(-1.0f, 1.0f), 0.0f, 1.0f);
+}
+
+Texture2D InputTexture;
+SamplerState InputSampler;
+
+// Matriz Bayer 4x4 normalizada (valores de 0 a 15, dividido por 16)
+static const float BayerMatrix4x4[16] = {
+    0.0/16.0,  8.0/16.0,  2.0/16.0, 10.0/16.0,
+    12.0/16.0, 4.0/16.0, 14.0/16.0,  6.0/16.0,
+    3.0/16.0, 11.0/16.0,  1.0/16.0,  9.0/16.0,
+    15.0/16.0, 7.0/16.0, 13.0/16.0,  5.0/16.0
+};
+
+float GetBayerDither(float2 PixelPos)
+{
+    uint2 p = uint2(PixelPos) % 4;
+    return BayerMatrix4x4[p.y * 4 + p.x];
+}
+
+void MainPS(
+    in float4 InPosition : SV_POSITION,
+    in float2 InUV : TEXCOORD0,
+    out float4 OutColor : SV_Target0
+)
+{
+    float4 Color = InputTexture.Sample(InputSampler, InUV);
+
+    // Dithering pra evitar banding em gradientes de baixa precisão (8 bits por canal)
+    float Dither = (GetBayerDither(InPosition.xy) - 0.5) / 255.0; // amplitude de ±0.5 LSB em 8 bits
+    Color.rgb += Dither;
+
+    OutColor = Color;
+}

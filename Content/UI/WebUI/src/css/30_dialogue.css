@@ -1,0 +1,40 @@
+/* 30_dialogue.css - Caixa de diálogo (PLACEHOLDER — sistema ainda não implementado) */
+
+/* MedievalSharp é a fonte oficial dos diálogos (decisão de design). */
+
+#dialogue-box {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1200px;
+    min-height: 160px;
+    font-family: 'MedievalSharp', cursive;
+}
+
+#dialogue-speaker {
+    color: var(--gold-light);
+    font-size: 26px;
+    margin-bottom: 8px;
+}
+
+#dialogue-text {
+    color: var(--text-primary);
+    font-size: 22px;
+    line-height: 1.4;
+}
+
+#dialogue-options {
+    list-style: none;
+    margin-top: 12px;
+}
+
+#dialogue-options li {
+    color: var(--text-secondary);
+    font-size: 20px;
+    padding: 4px 0;
+}
+
+#dialogue-options li.selected {
+    color: var(--gold);
+}

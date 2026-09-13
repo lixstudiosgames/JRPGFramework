@@ -1,0 +1,791 @@
+/* 60_shop.css - Tela de Loja (Shop) | Tema Dark Realms (Gold & Blue) */
+
+/* ============================================================
+   LAYOUT RAIZ (canvas 1920x1080 escalado — padrão das demais telas)
+
+   Orçamento vertical (tem que caber nos 1080 do canvas):
+     title-box ~87 + rule 19 + margem 18
+     topbar     44 + margem 16
+     body      520 + margem 18
+     party     148 + margem 18
+     hints      20
+     ------------------------------------------- ~908
+   Mexeu nas alturas abaixo? Refaz essa conta.
+   ============================================================ */
+
+:root {
+    --shop-content-w: 1360px;
+    --shop-list-w: 820px;
+    /* Laranja da MOLDURA de quem pode equipar o item selecionado. Não é a cor
+       do delta: subir/descer atributo é verde/vermelho (ver --shop-up/down). */
+    --shop-gain: #de5a00;
+
+    /* Delta do atributo: verde sobe, vermelho desce — a leitura universal de
+       RPG. Antes eram laranja/roxo e ninguém sabia qual era qual. */
+    --shop-up: #35c04a;
+    --shop-down: #e2586b;
+}
+
+#shop-layout {
+    width: 1920px;
+    height: 1080px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(var(--scale-factor, 1));
+    transform-origin: center center;
+    z-index: 1;
+}
+
+/* ============================================================
+   ANIMAÇÃO DE ENTRADA E SAÍDA
+
+   Mesmo mecanismo da tela de Options: cada bloco nasce deslocado e a classe
+   .anim-in (posta/removida pelo 60_shop.js) leva ao estado final. Como é
+   TRANSITION e não animation, a mesma regra serve para o out — basta tirar a
+   classe e o bloco volta pelo caminho inverso.
+
+   Entrada: lenta e escalonada (o olho acompanha a tela se montando).
+   Saída:   rápida e SEM delay, tudo junto, para não segurar o fechamento.
+   ============================================================ */
+
+#shop-header,
+#shop-topbar,
+#shop-list,
+#shop-detail,
+#shop-party,
+#shop-shopname {
+    opacity: 0;
+    transition: opacity 0.15s ease, transform 0.18s ease;
+}
+
+#shop-header   { transform: translateY(-26px); }
+#shop-topbar   { transform: translateY(-14px); }
+#shop-list     { transform: translateX(-40px); }
+#shop-detail   { transform: translateX(40px); }
+#shop-party    { transform: translateY(30px); }
+#shop-shopname { transform: translateY(-10px); }
+
+#shop-header.anim-in,
+#shop-topbar.anim-in,
+#shop-list.anim-in,
+#shop-detail.anim-in,
+#shop-party.anim-in,
+#shop-shopname.anim-in {
+    opacity: 1;
+    transform: translate(0, 0);
+    transition: opacity 0.34s ease, transform 0.44s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Cascata da entrada. O delay fica SÓ na regra .anim-in: na saída ele some
+   junto com a classe e todos os blocos partem no mesmo instante. */
+#shop-shopname.anim-in { transition-delay: 0.10s; }
+#shop-topbar.anim-in   { transition-delay: 0.06s; }
+#shop-list.anim-in     { transition-delay: 0.12s; }
+#shop-detail.anim-in   { transition-delay: 0.18s; }
+#shop-party.anim-in    { transition-delay: 0.24s; }
+
+/* ============================================================
+   HEADER: NOME DA LOJA + ABAS BUY / SELL
+   As abas usam o componente .jrpg-tab de 00_global.css.
+   ============================================================ */
+
+#shop-header {
+    width: var(--shop-content-w);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 18px;
+}
+
+#shop-title-box {
+    padding: 6px 22px 8px 22px;
+    border: 1px solid var(--border-gold-dim);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#shop-shopname {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-family: 'Cinzel', serif;
+    font-size: 15px;
+    letter-spacing: 3px;
+    text-indent: 3px;
+    text-transform: uppercase;
+    color: var(--text-primary);
+}
+
+#shop-town {
+    color: var(--text-secondary);
+}
+
+/* O nome da cidade ganha um separador só quando existe */
+#shop-town:not(:empty)::before {
+    content: "· ";
+}
+
+#shop-header-rule {
+    width: 100%;
+    height: 1px;
+    margin-top: 18px;
+    background: linear-gradient(90deg, transparent, rgba(200, 168, 78, 0.35), transparent);
+}
+
+/* ============================================================
+   BARRA DE FILTROS + GOLD
+   Os filtros são montados a partir das categorias que a loja realmente
+   vende (60_shop.js) — nada de filtro que sempre volta vazio.
+   ============================================================ */
+
+#shop-topbar {
+    width: var(--shop-content-w);
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+#shop-filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.shop-filter {
+    position: relative;
+    z-index: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 14px;
+    border: 1px solid var(--border-gold-dim);
+    border-radius: 3px;
+    background: linear-gradient(180deg, rgba(20, 35, 60, .45) 0%, rgba(6, 10, 18, .65) 100%);
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 2px;
+    text-indent: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+
+.shop-filter .shop-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+/* Camada de brilho do filtro ativo, atrás do conteúdo — mesmo respiro do
+   item selecionado do menu (jrpgSelectBreath, 00_global.css). */
+.shop-filter::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: -1;
+    opacity: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg,
+        rgba(212, 168, 67, 0.26) 0%,
+        rgba(212, 168, 67, 0.08) 100%);
+}
+
+.shop-filter:hover:not(.selected) {
+    color: var(--text-primary);
+    border-color: rgba(200, 168, 78, 0.55);
+}
+
+.shop-filter.selected {
+    color: var(--gold-light);
+    border-color: var(--border-gold);
+    text-shadow: 0 0 14px rgba(212, 168, 67, 0.4);
+}
+
+.shop-filter.selected::after {
+    opacity: 1;
+    animation: jrpgSelectBreath 2.2s ease-in-out infinite;
+}
+
+#shop-gold-group {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    font-family: 'Cinzel', serif;
+}
+
+#shop-gold-label {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-indent: 3px;
+    color: var(--text-secondary);
+}
+
+#shop-gold {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--gold);
+}
+
+/* ============================================================
+   CORPO: LISTA DE ITENS + CARD DE DESCRIÇÃO
+   ============================================================ */
+
+#shop-body {
+    width: var(--shop-content-w);
+    height: 520px;
+    display: flex;
+    gap: 24px;
+    margin-bottom: 18px;
+}
+
+#shop-list {
+    width: var(--shop-list-w);
+    border: 1px solid var(--border-gold-dim);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+#shop-list-rows {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+#shop-list-empty {
+    display: none;
+    margin: auto;
+    font-family: 'Cinzel', serif;
+    font-size: 24px;
+    letter-spacing: 6px;
+    text-indent: 6px;
+    color: var(--text-dim);
+}
+
+#shop-list.list-empty #shop-list-empty {
+    display: block;
+}
+
+#shop-list.list-empty #shop-list-rows {
+    display: none;
+}
+
+/* --- Linha de item: [ícone] Nome ......... preço  qtd --- */
+
+.shop-row {
+    position: relative;
+    z-index: 0;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    height: 46px;
+    padding: 0 14px;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+}
+
+/* Mesma camada de brilho respirando do menu e das linhas de Options */
+.shop-row::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: -1;
+    opacity: 0;
+    pointer-events: none;
+    background: linear-gradient(90deg,
+        rgba(212, 168, 67, 0.26) 0%,
+        rgba(212, 168, 67, 0.08) 52%,
+        transparent 100%);
+}
+
+.shop-row .shop-icon {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    color: var(--text-secondary);
+}
+
+.shop-row-name {
+    flex: 1;
+    min-width: 0;
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    font-size: 21px;
+    letter-spacing: 1px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.featured-star {
+    color: var(--gold);
+    margin-right: 8px;
+}
+
+.shop-row-price {
+    width: 130px;
+    text-align: right;
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    font-size: 20px;
+    color: var(--gold);
+    flex-shrink: 0;
+}
+
+/* Quantidade possuída: só o número. Zero fica apagado; ter algum acende. */
+.shop-row-owned {
+    width: 56px;
+    text-align: right;
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    font-size: 20px;
+    color: var(--text-primary);
+    flex-shrink: 0;
+}
+
+.shop-row-owned.owned-none {
+    color: var(--text-dim);
+}
+
+.shop-row:hover:not(.selected) {
+    border-left-color: rgba(200, 168, 78, 0.45);
+    background: rgba(200, 168, 78, 0.06);
+}
+
+.shop-row:hover:not(.selected) .shop-icon {
+    color: var(--gold);
+}
+
+.shop-row.selected {
+    border-left-color: var(--gold);
+    background: linear-gradient(90deg,
+        rgba(212, 168, 67, 0.14) 0%,
+        rgba(212, 168, 67, 0.04) 55%,
+        transparent 100%);
+}
+
+.shop-row.selected::after {
+    opacity: 1;
+    animation: jrpgSelectBreath 2.2s ease-in-out infinite;
+}
+
+.shop-row.selected .shop-row-name {
+    color: var(--gold-light);
+    text-shadow: 0 0 14px rgba(212, 168, 67, 0.4);
+}
+
+.shop-row.selected .shop-icon {
+    color: var(--gold-light);
+}
+
+/* Sem gold para comprar: preço em vermelho, linha apagada */
+.shop-row.cant-afford .shop-row-price {
+    color: var(--danger);
+}
+
+.shop-row.cant-afford .shop-row-name {
+    color: var(--text-secondary);
+}
+
+/* Entrada em cascata das linhas ao trocar de aba/filtro */
+.shop-row.row-rise {
+    animation: shopRowRise 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes shopRowRise {
+    0%   { opacity: 0; transform: translateX(-26px); }
+    100% { opacity: 1; transform: translateX(0); }
+}
+
+/* --- Card de descrição --- */
+
+#shop-detail {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid var(--border-gold-dim);
+    padding: 20px 24px;
+    display: flex;
+    flex-direction: column;
+}
+
+#shop-detail-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-shrink: 0;
+}
+
+#shop-detail-icon .shop-icon {
+    width: 34px;
+    height: 34px;
+    color: var(--gold);
+    display: block;
+}
+
+#shop-detail-name {
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    font-size: 27px;
+    letter-spacing: 1px;
+    color: var(--gold);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#shop-detail-cat {
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 3px;
+    text-indent: 3px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+#shop-detail-titles {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+#shop-detail-rule {
+    height: 1px;
+    margin: 14px 0;
+    background: linear-gradient(90deg, rgba(200, 168, 78, 0.4), transparent);
+    flex-shrink: 0;
+}
+
+#shop-detail-best {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+#shop-detail-best-label {
+    font-family: 'Cinzel', serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-indent: 2px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+#shop-detail-best-name {
+    font-family: 'Cinzel', serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* Linha dos bônus: "ATK +6", "UDF +8 / LDF +4" — o valor em cor de atributo */
+#shop-detail-bonus {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin-top: 12px;
+    flex-shrink: 0;
+}
+
+.shop-bonus {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    font-size: 19px;
+    letter-spacing: 1px;
+}
+
+.shop-bonus-label {
+    color: var(--text-secondary);
+    font-size: 15px;
+    letter-spacing: 2px;
+}
+
+.shop-bonus-val.stat-atk { color: var(--ap-red-bright); }
+.shop-bonus-val.stat-udf { color: var(--mp-blue-bright); }
+.shop-bonus-val.stat-ldf { color: var(--hp-green-bright); }
+
+#shop-detail-desc {
+    margin-top: 18px;
+    font-family: 'Cinzel', serif;
+    font-size: 20px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    overflow-y: auto;
+    min-height: 0;
+}
+
+/* ============================================================
+   BOXES DA PARTY: ATK / UDF / LDF + delta do item selecionado
+   ============================================================ */
+
+/* flex + largura fixa por card (em vez de 3 colunas): com 1 ou 2 membros na
+   party os cards ficam do mesmo tamanho e centralizados, em vez de um card
+   gigante esticado. 3 x 440 + 2 x 20 = 1360 = a largura do conteúdo. */
+#shop-party {
+    width: var(--shop-content-w);
+    height: 148px;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 18px;
+}
+
+/* Painel padrão do tema (.jrpg-card no HTML gerado): fundo e cantoneiras
+   douradas vêm de 00_global.css — aqui só o layout interno e a borda. */
+.shop-char {
+    width: 440px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 18px;
+    border: 1px solid var(--border-gold-dim);
+    min-width: 0;
+}
+
+/* Quem pode equipar o item selecionado: stroke laranja marcado (o glow
+   dourado sozinho ficava suave demais para dizer "é para este aqui"). */
+.shop-char.can-equip {
+    border: 2px solid var(--shop-gain);
+    box-shadow: 0 0 0 1px var(--shop-gain), 0 0 18px rgba(222, 90, 0, 0.45);
+}
+
+.shop-char.can-equip .corner {
+    border-color: var(--shop-gain);
+}
+
+.shop-char.can-equip .corner.tl { border-top-color: var(--shop-gain); border-left-color: var(--shop-gain); }
+.shop-char.can-equip .corner.tr { border-top-color: var(--shop-gain); border-right-color: var(--shop-gain); }
+.shop-char.can-equip .corner.bl { border-bottom-color: var(--shop-gain); border-left-color: var(--shop-gain); }
+.shop-char.can-equip .corner.br { border-bottom-color: var(--shop-gain); border-right-color: var(--shop-gain); }
+
+.shop-char-portrait {
+    width: 96px;
+    height: 96px;
+    border: 1px solid var(--border-gold-dim);
+    border-radius: 3px;
+    overflow: hidden;
+    background: linear-gradient(135deg, var(--bg-mid), var(--bg-dark));
+    flex-shrink: 0;
+}
+
+.shop-char-portrait img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.shop-char-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.shop-char-name {
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    font-size: 23px;
+    letter-spacing: 1px;
+    color: var(--gold);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.shop-stat {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    font-size: 20px;
+    letter-spacing: 1px;
+    white-space: nowrap;
+}
+
+.shop-stat-label {
+    width: 50px;
+    flex-shrink: 0;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 2px;
+}
+
+.shop-stat-label.stat-atk { color: var(--ap-red-bright); }
+.shop-stat-label.stat-udf { color: var(--mp-blue-bright); }
+.shop-stat-label.stat-ldf { color: var(--hp-green-bright); }
+
+.shop-stat-cur {
+    color: var(--text-primary);
+    min-width: 50px;
+}
+
+/* Seta do delta: sobe (amarela) / desce (roxa, girada). Sobe e desce de leve
+   para o olho achar o que mudou sem precisar comparar os números. */
+.shop-stat-arrow {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    animation: shopArrowBob 1.1s ease-in-out infinite;
+}
+
+.shop-stat-arrow.arrow-down {
+    transform: rotate(180deg);
+    animation: shopArrowBobDown 1.1s ease-in-out infinite;
+}
+
+@keyframes shopArrowBob {
+    0%, 100% { transform: translateY(1px); }
+    50%      { transform: translateY(-2px); }
+}
+
+/* O `rotate` precisa ser repetido nos keyframes: transform é uma propriedade
+   só, e a animação sobrescreveria a rotação da classe. */
+@keyframes shopArrowBobDown {
+    0%, 100% { transform: rotate(180deg) translateY(1px); }
+    50%      { transform: rotate(180deg) translateY(-2px); }
+}
+
+.shop-stat-new {
+    font-weight: 700;
+}
+
+.shop-stat-new.delta-up   { color: var(--shop-up); }
+.shop-stat-new.delta-down { color: var(--shop-down); }
+
+/* ============================================================
+   RODAPÉ: ATALHOS DE NAVEGAÇÃO
+   ============================================================ */
+
+.shop-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    letter-spacing: 2px;
+    color: var(--text-primary);
+    text-transform: uppercase;
+}
+
+/* ============================================================
+   OVERLAY: SELETOR DE QUANTIDADE
+   position: fixed pelo mesmo motivo dos outros overlays — o véu tem que
+   cobrir o viewport, não o canvas escalado (ultrawide).
+   ============================================================ */
+
+#shop-qty {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(2, 8, 24, 0.68);
+    z-index: 10;
+    align-items: center;
+    justify-content: center;
+}
+
+#shop-qty.view-active {
+    display: flex;
+}
+
+#shop-qty-card {
+    width: 520px;
+    padding: 32px 40px;
+    border: 1px solid var(--border-gold-dim);
+    text-align: center;
+    transform: scale(var(--scale-factor, 1));
+    transform-origin: center center;
+}
+
+#shop-qty-item {
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    font-size: 26px;
+    letter-spacing: 1px;
+    color: var(--gold);
+    margin-bottom: 20px;
+}
+
+#shop-qty-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 34px;
+    margin-bottom: 20px;
+}
+
+.qty-arrow {
+    font-size: 18px;
+    color: var(--gold);
+    cursor: pointer;
+    opacity: 0.55;
+}
+
+.qty-arrow:hover {
+    opacity: 1;
+}
+
+#shop-qty-value {
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    font-size: 44px;
+    color: var(--text-primary);
+    min-width: 90px;
+}
+
+#shop-qty-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 14px;
+}
+
+#shop-qty-total-label {
+    font-family: 'Cinzel', serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-indent: 3px;
+    color: var(--text-secondary);
+}
+
+#shop-qty-total-value {
+    font-family: 'Cinzel', serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--gold);
+}
+
+#shop-qty-total-value.cant-afford {
+    color: var(--danger);
+}

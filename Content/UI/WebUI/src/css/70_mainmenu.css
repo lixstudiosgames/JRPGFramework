@@ -1,0 +1,338 @@
+/* 70_mainmenu.css - Main Menu (tela de título) | Tema Dark Realms (Gold & Blue) */
+
+/* SEM background de propósito: a seção é transparente e a cena 3D do jogo
+   aparece por trás. Nada de partículas aqui (elas ficam só nas opções). */
+
+/* ============================================================
+   SCRIM DE LEGIBILIDADE DO RODAPÉ (o único "fundo" do main menu)
+   Faixa escura com fade para cima, presa ao viewport (fora do canvas
+   escalado). Só linear-gradient — radial vira círculo no Ultralight.
+   ============================================================ */
+
+#mm-scrim-bottom {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 180px;
+    z-index: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg,
+        transparent 0%,
+        rgba(2, 8, 20, 0.35) 40%,
+        rgba(2, 8, 20, 0.7) 72%,
+        rgba(2, 8, 20, 0.88) 100%);
+}
+
+/* ============================================================
+   LAYOUT RAIZ (canvas 1920x1080 escalado — mesmo padrão das demais telas)
+   ============================================================ */
+
+#mainmenu-layout {
+    width: 1920px;
+    height: 1080px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(var(--scale-factor, 1));
+    transform-origin: center center;
+    z-index: 1;
+}
+
+/* Entrada escalonada: cada .animated-item recebe .animate-in por setTimeout */
+.animated-item {
+    opacity: 0;
+    transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.animated-item.animate-in {
+    opacity: 1;
+    transform: none;
+}
+
+/* Os blocos com id precisam repetir o estado final: seletor de id (1,0,0) tem
+   precedência sobre .animated-item.animate-in (0,2,0). */
+#mm-copyright.animate-in {
+    transform: translateX(0);
+}
+
+/* ============================================================
+   OPÇÕES PRINCIPAIS (centro da tela, sem logo)
+   ============================================================ */
+
+#mm-items {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;    
+}
+
+/* Sem caixa/moldura: o destaque é SÓ o brilho do texto + a luzinha embaixo */
+.mm-item {
+    position: relative;
+    width: 460px;
+    padding: 10px 10px 10px 10px;
+    text-align: center;
+    cursor: pointer;
+    transform: translateY(18px);
+    transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mm-item.animate-in {
+    transform: translateY(0);
+}
+
+.mm-item-text {
+    position: relative;
+    z-index: 2;
+    font-size: 40px;
+    font-weight: 700;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    /* Sombra dupla: a difusa "cola" o texto na cena 3D atrás dele */
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.95), 0 0 20px rgba(0, 0, 0, 0.8);
+    transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+
+/* FLARE em baixo do texto (não é uma linha): halo suave (::before) + núcleo
+   luminoso com falloff nas pontas (::after), os dois pulsando.
+
+   ATENÇÃO: NADA de radial-gradient aqui. O Ultralight ignora a proporção do
+   `ellipse` e desenha um CÍRCULO (vira uma bola no jogo, mesmo funcionando no
+   Chrome). O halo é feito com box-shadow (blur + spread) e o falloff
+   horizontal com linear-gradient — os dois renderizam certo no engine. */
+.mm-item::before {
+    content: "";
+    position: absolute;
+    bottom: 6px;
+    left: 50%;
+    width: 34%;
+    height: 3px;
+    transform: translateX(-50%);
+    pointer-events: none;
+    opacity: 0;
+    border-radius: 999px;
+    background: rgba(240, 208, 120, 0.4);
+    box-shadow: 0 0 22px 7px rgba(240, 208, 120, 0.2),
+                0 0 46px 16px rgba(212, 168, 67, 0.1);
+    transition: opacity 0.4s ease;
+    z-index: 1;
+}
+
+.mm-item::after {
+    content: "";
+    position: absolute;
+    bottom: 6px;
+    left: 50%;
+    width: 0;
+    height: 3px;
+    transform: translateX(-50%);
+    pointer-events: none;
+    opacity: 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(212, 168, 67, 0.4) 18%,
+        var(--gold-bright) 50%,
+        rgba(212, 168, 67, 0.4) 82%,
+        transparent 100%);
+    box-shadow: 0 0 12px rgba(240, 208, 120, 0.45);
+    transition: width 0.4s ease, opacity 0.4s ease;
+    z-index: 2;
+}
+
+/* Hover: só destaca (quem move a seleção é o clique), num tom abaixo do
+   selecionado para os dois não se confundirem. */
+.mm-item:not(.selected):hover .mm-item-text {
+    color: var(--text-primary);
+    text-shadow: 0 0 14px rgba(212, 168, 67, 0.35), 0 2px 6px rgba(0, 0, 0, 0.9);
+}
+
+.mm-item:not(.selected):hover::after {
+    width: 40%;
+    opacity: 0.7;
+}
+
+/* Mesma cor de destaque das abas das opções (dourado do tema + brilho) */
+.mm-item.selected .mm-item-text {
+    color: var(--gold-light);
+    text-shadow: 0 0 26px rgba(212, 168, 67, 0.45), 0 2px 6px rgba(0, 0, 0, 0.95),
+                 0 0 20px rgba(0, 0, 0, 0.7);
+}
+
+.mm-item.selected::before {
+    opacity: 1;
+    animation: mmFlareBloomPulse 2.2s ease-in-out infinite;
+}
+
+.mm-item.selected::after {
+    width: 62%;
+    opacity: 1;
+    animation: mmFlareCorePulse 2.2s ease-in-out infinite;
+}
+
+/* Os keyframes precisam repetir o translateX(-50%), senão o flare "pula"
+   para a esquerda quando a animação começa. */
+@keyframes mmFlareBloomPulse {
+    0%, 100% { opacity: 0.65; transform: translateX(-50%) scale(0.9); }
+    50%      { opacity: 1;    transform: translateX(-50%) scale(1.1); }
+}
+
+@keyframes mmFlareCorePulse {
+    0%, 100% { opacity: 0.8; }
+    50%      { opacity: 1; }
+}
+
+/* Ao sair de display:none o engine dispara a transição de `width` do zero, e um
+   elemento de largura 0 com border-radius + box-shadow vira um PONTO CIRCULAR
+   que cresce — a "piscada em bola" ao voltar das opções/load. Esta classe fica
+   ligada por ~1 frame na reabertura para o flare já nascer no tamanho final.
+   (id + 2 classes vence a especificidade de .mm-item.selected::after) */
+#screen-mainmenu.flare-instant .mm-item::before,
+#screen-mainmenu.flare-instant .mm-item::after,
+#screen-mainmenu.flare-instant .mm-item.selected::before,
+#screen-mainmenu.flare-instant .mm-item.selected::after {
+    transition: none;
+    animation: none;
+}
+
+/* Item desabilitado (ex: Continue sem nenhum save) */
+.mm-item.mm-disabled {
+    cursor: default;
+}
+
+.mm-item.mm-disabled .mm-item-text {
+    color: var(--text-dim);
+    opacity: 0.45;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+}
+
+.mm-item.mm-disabled.selected::before,
+.mm-item.mm-disabled.selected::after {
+    opacity: 0;
+    animation: none;
+}
+
+/* ============================================================
+   COPYRIGHT / VERSÃO (canto inferior esquerdo)
+   ============================================================ */
+
+#mm-copyright {
+    position: absolute;
+    left: 90px;
+    bottom: 48px;
+    transform: translateX(-14px);
+}
+
+#mm-copy-build {
+    font-size: 20px;
+    letter-spacing: 2px;
+    color: var(--text-primary);
+    text-shadow: 0 2px 5px rgba(0, 0, 0, 0.95), 0 0 14px rgba(0, 0, 0, 0.8);
+}
+
+.mm-copy-sep {
+    margin: 0 6px;
+    color: var(--border-gold);
+}
+
+#mm-copy-legal {
+    margin-top: 8px;
+    font-size: 18px;
+    letter-spacing: 1px;
+    color: var(--text-primary);
+    opacity: 0.85;
+    text-shadow: 0 2px 5px rgba(0, 0, 0, 0.95), 0 0 14px rgba(0, 0, 0, 0.8);
+}
+
+/* ============================================================
+   APOIO AO PROJETO: 3 BALÕEZINHOS CENTRALIZADOS NO RODAPÉ
+   ============================================================ */
+
+#mm-support {
+    position: absolute;
+    left: 50%;
+    bottom: 44px;
+    transform: translate(-50%, 14px);
+    display: flex;
+    gap: 12px;
+}
+
+#mm-support.animate-in {
+    transform: translate(-50%, 0);
+}
+
+.mm-link {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 18px;
+    border: 1px solid var(--border-gold-dim);
+    border-radius: 10px;
+    background: #1b1e75;
+    cursor: pointer;
+    transition: background 0.25s ease, border-color 0.25s ease,
+                box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.mm-link:hover {    
+    border-color: var(--border-gold);
+    box-shadow: var(--glow-gold);
+    transform: translateY(-2px);
+}
+
+.mm-link-icon {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    color: var(--border-gold-dim);
+    transition: color 0.25s ease, filter 0.25s ease;
+}
+
+.mm-link-icon svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.mm-link:hover .mm-link-icon {
+    color: var(--gold);
+    filter: drop-shadow(0 0 6px rgba(212, 168, 67, 0.5));
+}
+
+.mm-link-name {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: var(--text-primary);
+    transition: color 0.25s ease;
+}
+
+.mm-link:hover .mm-link-name {
+    color: var(--gold);
+    text-shadow: 0 0 18px rgba(212, 168, 67, 0.4);
+}
+
+/* ============================================================
+   RODAPÉ: ATALHOS DE NAVEGAÇÃO
+   ============================================================ */
+
+#mm-hints {
+    gap: 26px;
+    opacity: 0.9;
+}
+
+.mm-hint {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    text-shadow: 0 2px 5px rgba(0, 0, 0, 0.95), 0 0 14px rgba(0, 0, 0, 0.8);
+}

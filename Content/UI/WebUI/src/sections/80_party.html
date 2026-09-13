@@ -1,0 +1,42 @@
+<!-- ============ SEÇÃO: PARTY (formação) ============
+     Abre do menu de pausa (opção "party") e volta para ele ao fechar, mesmo
+     padrão de Options/Save/Load.
+
+     Mostra TODO MUNDO que já foi recrutado — quem está na formação e quem está
+     na reserva — porque o ponto da tela é justamente trocar entre os dois. -->
+<div id="screen-party" class="ui-section">
+    <div id="party-layout" style="opacity: 0; transition: opacity 0.15s ease;">
+
+        <div id="party-header">
+            <div id="party-header-top">
+                <div id="party-title-box" class="jrpg-card">
+                    <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+                    <div id="party-title">PARTY</div>
+                </div>
+                <div id="party-count">-- / --</div>
+            </div>
+            <div id="party-header-rule"></div>
+        </div>
+
+        <!-- UM card grande com todos dentro. As linhas de personagem são
+             geradas pelo 80_party.js. -->
+        <div id="party-panel" class="jrpg-card">
+            <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+
+            <div id="party-list"></div>
+            <div id="party-empty">— No Members —</div>
+        </div>
+
+    </div>
+
+    <!-- Atalhos de navegação: FICAM FORA do #party-layout.
+         O position:fixed do .jrpg-hints ancora no viewport, e dentro de um
+         elemento com transform ele ancoraria no próprio layout. -->
+    <div class="jrpg-hints">
+        <div id="party-hints" class="jrpg-hints-row">
+            <span class="sl-hint"><span class="key-badge">&#8593;&#8595;</span> Navigate</span>
+            <span class="sl-hint"><span class="key-badge">Enter</span> Toggle</span>
+            <span class="sl-hint"><span class="key-badge">Esc</span> Back</span>
+        </div>
+    </div>
+</div>

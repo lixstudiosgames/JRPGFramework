@@ -1,0 +1,506 @@
+/* ============================================================
+   85_items.css — TELA DE ITENS (inventário)
+
+   Espelha a loja: filtros por categoria, lista à esquerda, descrição à direita.
+   A diferença é que aqui tudo mora DENTRO de um card só, e o gold fica no topo.
+
+   Nada de radial-gradient(ellipse) (o Ultralight renderiza como círculo) e
+   nada de <use>/sprite SVG (falha em silêncio) — ícones são <path> inline.
+   ============================================================ */
+
+#screen-items {
+    display: none;
+}
+
+#screen-items.active {
+    display: block;
+}
+
+#items-layout {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 16px;
+    padding: 56px 0 110px;
+    box-sizing: border-box;
+}
+
+/* --------------------------------------------------------- cabeçalho */
+#items-header {
+    width: 1100px;
+    max-width: 92%;
+    flex: 0 0 auto;
+}
+
+#items-header-top {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#items-title-box {
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 44px;
+    border: 2px solid var(--border-gold-dim);
+}
+
+#items-title {
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 24px;
+    letter-spacing: 6px;
+    color: var(--gold-light);
+    text-shadow: 0 0 18px rgba(212, 168, 67, 0.45);
+}
+
+/* O dinheiro fica no topo, fora do fluxo, para o título não sair do centro. */
+#items-gold-group {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    font-family: 'Cinzel', Georgia, serif;
+}
+
+#items-gold-label {
+    font-size: 15px;
+    letter-spacing: 3px;
+    color: var(--text-secondary);
+}
+
+#items-gold {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--gold-light);
+    font-variant-numeric: tabular-nums;
+}
+
+#items-header-rule {
+    height: 1px;
+    margin-top: 12px;
+    background: linear-gradient(90deg,
+        transparent, var(--border-gold-dim) 18%, var(--border-gold) 50%,
+        var(--border-gold-dim) 82%, transparent);
+    opacity: 0.75;
+}
+
+/* ------------------------------------------------------ O CARD ÚNICO */
+#items-panel {
+    width: 1100px;
+    max-width: 92%;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    border: 2px solid var(--border-gold-dim);
+}
+
+/* ------------------------------------------------ barra de filtros */
+#items-filterbar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 26px;
+    border-bottom: 1px solid rgba(200, 168, 78, 0.22);
+}
+
+/* Só decoração: quem troca de filtro é ←/→. */
+.items-filter-arrow {
+    color: var(--border-gold-dim);
+    font-size: 15px;
+    pointer-events: none;
+}
+
+#items-filters {
+    flex: 1 1 auto;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* Caixinha por categoria — ícone em cima, rótulo embaixo. */
+.items-filter {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 78px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-gold-dim);
+    background: rgba(0, 0, 0, 0.22);
+    color: var(--text-secondary);
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 12px;
+    letter-spacing: 1px;
+    cursor: pointer;
+}
+
+.items-filter svg {
+    width: 24px;
+    height: 24px;
+}
+
+.items-filter:hover {
+    border-color: var(--border-gold);
+    color: var(--text-primary);
+}
+
+/* Selecionado: dourado, sem transição (a troca é instantânea). */
+.items-filter.selected {
+    border-color: var(--gold);
+    background: rgba(212, 168, 67, 0.14);
+    color: var(--gold-light);
+}
+
+.items-filter-count {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+}
+
+.items-filter.selected .items-filter-count {
+    color: var(--gold);
+}
+
+/* ---------------------------------------------------------- corpo */
+#items-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+}
+
+#items-list {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    padding: 10px 0;
+}
+
+#items-list-empty {
+    display: none;
+    padding: 50px 0;
+    text-align: center;
+    font-family: 'MedievalSharp', Georgia, serif;
+    font-size: 22px;
+    color: var(--text-dim);
+}
+
+#items-list.is-empty #items-list-rows {
+    display: none;
+}
+
+#items-list.is-empty #items-list-empty {
+    display: block;
+}
+
+/* ------------------------------------------------------ linha de item */
+.items-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 26px;
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 19px;
+    color: var(--text-primary);
+}
+
+.items-row svg {
+    flex: 0 0 22px;
+    width: 22px;
+    height: 22px;
+    color: var(--text-secondary);
+}
+
+.items-row-name {
+    flex: 0 0 auto;
+}
+
+/* Pontilhado ligando o nome à quantidade, como na loja. */
+.items-row-dots {
+    flex: 1 1 auto;
+    height: 1px;
+    margin: 0 4px;
+    border-bottom: 1px dotted rgba(200, 168, 78, 0.3);
+}
+
+.items-row-qty {
+    flex: 0 0 56px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Item de missão não se joga fora — fica marcado. */
+.items-row.locked .items-row-name {
+    color: var(--text-secondary);
+}
+
+.items-row-lock {
+    flex: 0 0 auto;
+    font-size: 13px;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+}
+
+.items-row.selected {
+    z-index: 0;
+    border-left: 3px solid var(--gold);
+    padding-left: 23px;
+}
+
+.items-row.selected::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(90deg,
+        rgba(212, 168, 67, 0.20), rgba(212, 168, 67, 0.05) 55%, transparent);
+    animation: jrpgSelectBreath 2.4s ease-in-out infinite;
+    pointer-events: none;
+}
+
+.items-row.selected svg {
+    color: var(--gold-light);
+}
+
+/* --------------------------------------------------------- descrição */
+#items-detail {
+    flex: 0 0 410px;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 26px;
+    border-left: 1px solid rgba(200, 168, 78, 0.22);
+}
+
+#items-detail-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+#items-detail-icon svg {
+    width: 34px;
+    height: 34px;
+    color: var(--gold-light);
+}
+
+#items-detail-titles {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+#items-detail-name {
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 24px;
+    color: var(--gold);
+}
+
+#items-detail-cat {
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 13px;
+    letter-spacing: 2px;
+    color: var(--text-secondary);
+}
+
+#items-detail-rule {
+    height: 1px;
+    margin: 14px 0;
+    background: linear-gradient(90deg, var(--border-gold-dim), transparent);
+}
+
+/* Os efeitos: o que o item melhora. */
+#items-detail-effects {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin-bottom: 16px;
+}
+
+.items-effect {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 17px;
+}
+
+/* Sigla de atributo em letra maior e espaçada, como na tela de Party. */
+.items-effect-label {
+    letter-spacing: 1px;
+}
+
+.items-effect-label {
+    color: var(--text-secondary);
+}
+
+.items-effect-value {
+    color: var(--hp-green-bright);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Efeito que PIORA algo (custo, chance de encontro) vem em vermelho. */
+.items-effect-value.down {
+    color: var(--danger);
+}
+
+/* Efeito sem número (curar status, reviver) — texto simples. */
+.items-effect.flag .items-effect-value {
+    color: var(--gold-light);
+}
+
+#items-detail-desc {
+    flex: 1 1 auto;
+    font-family: 'MedievalSharp', Georgia, serif;
+    font-size: 18px;
+    line-height: 1.5;
+    color: var(--text-primary);
+}
+
+#items-detail-foot {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-top: 14px;
+    border-top: 1px solid rgba(200, 168, 78, 0.18);
+    font-family: 'Cinzel', Georgia, serif;
+}
+
+#items-detail-qty-label {
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: var(--text-secondary);
+}
+
+#items-detail-qty {
+    font-size: 26px;
+    color: var(--gold-light);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------ confirmação de descarte */
+#items-confirm {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    background: rgba(2, 6, 14, 0.72);
+}
+
+#items-confirm.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#items-confirm-card {
+    padding: 34px 56px;
+    text-align: center;
+    border: 2px solid var(--border-gold-dim);
+    transform: scale(var(--scale-factor, 1));
+}
+
+#items-confirm-text {
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 26px;
+    color: var(--text-primary);
+}
+
+#items-confirm-sub {
+    margin-top: 8px;
+    font-family: 'MedievalSharp', Georgia, serif;
+    font-size: 16px;
+    color: var(--danger);
+}
+
+#items-confirm-options {
+    list-style: none;
+    margin: 24px 0 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+}
+
+/* Sim/Não navegam com ESQUERDA/DIREITA — por isso ficam lado a lado. */
+.items-confirm-item {
+    position: relative;
+    padding: 6px 26px;
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 21px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.items-confirm-item.selected {
+    z-index: 0;
+    color: var(--gold-light);
+    border-left: 3px solid var(--gold);
+}
+
+.items-confirm-item.selected::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(90deg,
+        rgba(212, 168, 67, 0.22), rgba(212, 168, 67, 0.04) 70%, transparent);
+    animation: jrpgSelectBreath 2.4s ease-in-out infinite;
+    pointer-events: none;
+}
+
+/* --------------------------------------------------------- animações */
+#items-title-box {
+    animation: itTitleDrop 0.40s ease-out both;
+}
+
+#items-header-rule {
+    animation: itFadeIn 0.50s ease-out 0.18s both;
+}
+
+#items-panel.panel-in {
+    animation: itPanelRise 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.items-row.row-rise {
+    animation: itRowRise 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes itTitleDrop {
+    from { opacity: 0; transform: translateY(-26px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes itFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 0.75; }
+}
+
+@keyframes itPanelRise {
+    from { opacity: 0; transform: translateY(30px) scale(0.99); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes itRowRise {
+    from { opacity: 0; transform: translateX(24px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+#items-layout.anim-out {
+    animation: itLayoutOut 0.26s ease-in both;
+}
+
+@keyframes itLayoutOut {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(28px); }
+}

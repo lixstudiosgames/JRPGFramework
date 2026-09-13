@@ -1,0 +1,5 @@
+---,Key,DisplayName,PortraitId,RaSeru,RaSeruElement,AffinityStrong,AffinityWeak,WeaponClasses,bLeftHanded,BaseHP,BaseMP,BaseAGL,BaseATK,BaseUDF,BaseLDF,BaseSPD,BaseINT,Notes
+Vahn,Vahn,Vahn,vahn,Meta,Fire,(Fire),(Water),"(Knives,Swords,Knuckles)",False,180,20,100,24,16,12,19,9,Balanced offense and defense; weak at water-element Seru.
+Noa,Noa,Noa,noa,Terra,Wind,(Wind),"(Thunder,Earth)","(Claw,Feral)",True,150,10,120,21,13,11,30,3,Excellent agility and speed. The only left-handed party member; her Arms button is the right input direction.
+Gala,Gala,Gala,gala,Ozma,Thunder,(Thunder),"(Wind,Water)","(Club,Mace)",False,210,40,80,30,43,30,15,20,Strongest melee output of the three; slower turn order.
+Terra,Terra,Terra,terra,,None,,,,False,400,200,200,45,20,17,45,25,"Wolf that raised Noa; roster slot 3. Cannot equip weapons or armor. Joins strong and plateaus: highest starting stats of the party, lowest ceilings at level 99."

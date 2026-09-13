@@ -1,0 +1,79 @@
+/* 20_popup.css - Popup de item recebido (ex-<style> inline do popup.html) */
+
+/* Container do Popup na parte inferior da tela */
+.popup-container {
+    width: 360px;
+    /* Popup menor */
+    height: 60px;
+    /* Altura menor */
+    position: absolute;
+    bottom: 80px;
+    /* Posição ativa no rodapé */
+    left: 50%;
+    transform: translate(-50%, 40px); /* Inicia mais baixo */
+    transform-origin: center center;
+    opacity: 0; /* Inicia invisível */
+    z-index: 10;
+    font-family: 'MedievalSharp', cursive;
+    transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.5s ease; /* Animação elástica na entrada */
+}
+
+.popup-container.show {
+    transform: translate(-50%, 0);
+    opacity: 1;
+}
+
+.popup-container.hide {
+    transform: translate(-50%, -40px); /* Sobe ao sair */
+    opacity: 0;
+    transition: transform 0.4s cubic-bezier(0.6, -0.28, 0.735, 0.045), opacity 0.4s ease; /* Acelera na saída */
+}
+
+/* Aparência do Card seguindo o Layout do Menu com cores sólidas/gradientes */
+.popup-card {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    background: linear-gradient(180deg, #1b1e75, #020a18);
+    /* Degradê sem transparência alpha */
+    border: 2px solid var(--border-gold-dim);
+    /* Cor de borda sólida */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px 20px;
+    position: relative;
+}
+
+/* Conteúdo do Item */
+.popup-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #e8dcc8;
+    /* Cor sólida */
+    text-shadow: 1px 1px 2px #000000;
+    /* Sombra sólida */
+}
+
+.item-name {
+    color: #f0d078;
+    /* Cor sólida */
+    font-family: 'MedievalSharp', cursive;
+    font-size: 24px;
+}
+
+.item-multiply {
+    color: #5a5244;
+    /* Cor sólida */
+    font-size: 24px;
+}
+
+.item-qty {
+    color: #e8dcc8;
+    /* Cor sólida */
+    font-size: 24px;
+}

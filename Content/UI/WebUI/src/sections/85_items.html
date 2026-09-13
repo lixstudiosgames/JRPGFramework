@@ -1,0 +1,95 @@
+<!-- ============ SEÇÃO: ITENS (inventário) ============
+     Abre do menu de pausa (opção "items") e volta para ele ao fechar, mesmo
+     padrão de Options/Save/Load/Party.
+
+     UM card grande com tudo dentro: filtros no topo, lista à esquerda,
+     descrição à direita. Espelha a loja de propósito — quem aprendeu a navegar
+     numa navega na outra. -->
+<div id="screen-items" class="ui-section">
+    <div id="items-layout" style="opacity: 0; transition: opacity 0.15s ease;">
+
+        <div id="items-header">
+            <div id="items-header-top">
+                <div id="items-title-box" class="jrpg-card">
+                    <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+                    <div id="items-title">ITEMS</div>
+                </div>
+                <div id="items-gold-group">
+                    <span id="items-gold-label">GOLD</span>
+                    <span id="items-gold">0</span>
+                </div>
+            </div>
+            <div id="items-header-rule"></div>
+        </div>
+
+        <!-- O card único -->
+        <div id="items-panel" class="jrpg-card">
+            <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+
+            <!-- Filtros DENTRO do card. As setinhas são só visuais: quem troca
+                 de filtro é esquerda/direita, sem precisar confirmar. -->
+            <div id="items-filterbar">
+                <span class="items-filter-arrow arrow-left">&#9664;</span>
+                <div id="items-filters"></div>
+                <span class="items-filter-arrow arrow-right">&#9654;</span>
+            </div>
+
+            <div id="items-body">
+                <div id="items-list">
+                    <div id="items-list-rows"></div>
+                    <div id="items-list-empty">— Nothing —</div>
+                </div>
+
+                <div id="items-detail">
+                    <div id="items-detail-head">
+                        <span id="items-detail-icon"></span>
+                        <div id="items-detail-titles">
+                            <span id="items-detail-name">—</span>
+                            <span id="items-detail-cat"></span>
+                        </div>
+                    </div>
+
+                    <div id="items-detail-rule"></div>
+
+                    <!-- O que o item MELHORA. Só o efeito em si — nada de
+                         "melhor para o Vahn", isso é assunto da loja. -->
+                    <div id="items-detail-effects"></div>
+
+                    <div id="items-detail-desc"></div>
+
+                    <div id="items-detail-foot">
+                        <span id="items-detail-qty-label">You have</span>
+                        <span id="items-detail-qty">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Confirmação de descartar. FICA FORA do layout escalado: o véu é
+         position:fixed para cobrir o viewport inteiro em ultrawide. -->
+    <div id="items-confirm">
+        <div id="items-confirm-card" class="jrpg-card">
+            <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+
+            <div id="items-confirm-text">Discard?</div>
+            <div id="items-confirm-sub">This item is gone for good.</div>
+            <ul id="items-confirm-options">
+                <li class="items-confirm-item selected" data-answer="yes">Yes</li>
+                <li class="items-confirm-item" data-answer="no">No</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Atalhos: FORA do #items-layout (position:fixed dentro de transform
+         ancoraria no layout, não no viewport). -->
+    <div class="jrpg-hints">
+        <div id="items-hints" class="jrpg-hints-row">
+            <span class="sl-hint"><span class="key-badge">&#9664;&#9654;</span> Filter</span>
+            <span class="sl-hint"><span class="key-badge">&#8593;&#8595;</span> Item</span>
+            <span class="sl-hint"><span class="key-badge">Del</span> Discard</span>
+            <span class="sl-hint"><span class="key-badge">Esc</span> Back</span>
+        </div>
+    </div>
+</div>

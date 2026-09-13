@@ -1,0 +1,87 @@
+<!-- ============ SEÇÃO: MAIN MENU (tela de título) ============ -->
+<!-- SEM background: a cena 3D do jogo aparece por trás. Sem logo por enquanto. -->
+<div id="screen-mainmenu" class="ui-section">
+
+    <!-- Scrim de legibilidade do rodapé: faixa escura com fade para cima, para o
+         texto não sumir por cima da cena 3D. Fica FORA do #mainmenu-layout de
+         propósito: um position:fixed dentro de um elemento com transform passa a
+         se posicionar por ele, e o layout é escalado por --scale-factor. -->
+    <div id="mm-scrim-bottom" class="animated-item"></div>
+
+    <div id="mainmenu-layout" style="opacity: 0; transition: opacity 0.15s ease;">
+
+        <!-- Opções principais -->
+        <div id="mm-items">
+            <div class="mm-item animated-item selected" data-action="newgame">
+                <span class="mm-item-text">New Game</span>
+            </div>
+            <div class="mm-item animated-item" data-action="continue">
+                <span class="mm-item-text">Continue</span>
+            </div>
+            <div class="mm-item animated-item" data-action="options">
+                <span class="mm-item-text">Options</span>
+            </div>
+            <div class="mm-item animated-item" data-action="quit">
+                <span class="mm-item-text">Quit</span>
+            </div>
+        </div>
+
+        <!-- Versão / build (canto inferior esquerdo) -->
+        <div id="mm-copyright" class="animated-item">
+            <div id="mm-copy-build">
+                <span id="mm-version">v0.1.0</span>
+                <span class="mm-copy-sep">·</span>
+                <span id="mm-build">Build 2026.08</span>
+            </div>
+            <div id="mm-copy-legal">Fan remake made by Lix Studios</div>
+        </div>
+
+        <!-- Apoio ao projeto: 3 balõezinhos centralizados no rodapé -->
+        <div id="mm-support" class="animated-item">
+            <div class="mm-link" data-url="https://www.patreon.com/cw/LegendofLegaiaRemake" title="Support the project on Patreon">
+                <span class="mm-link-icon">
+                    <svg viewBox="0 0 24 24" fill="none">
+                        <circle cx="15" cy="9" r="6" fill="currentColor" />
+                        <rect x="3" y="3" width="3.6" height="18" fill="currentColor" />
+                    </svg>
+                </span>
+                <span class="mm-link-name">Patreon</span>
+            </div>
+
+            <div class="mm-link" data-url="https://www.youtube.com/@StudiosLix" title="Watch the devlogs on YouTube">
+                <span class="mm-link-icon">
+                    <svg viewBox="0 0 24 24" fill="none">
+                        <rect x="1.5" y="5" width="21" height="14" rx="4" fill="currentColor" />
+                        <path d="M10 9.2 L15.5 12 L10 14.8 Z" fill="#0a1628" />
+                    </svg>
+                </span>
+                <span class="mm-link-name">YouTube</span>
+            </div>
+
+            <div class="mm-link" data-url="https://lixstudios.itch.io/legend-of-legaia-remake" title="Play the latest build on itch.io">
+                <span class="mm-link-icon">
+                    <svg viewBox="0 0 24 24" fill="none">
+                        <path d="M12 3 V13" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
+                        <path d="M7.5 9.5 L12 14 L16.5 9.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                        <path d="M4 17 H20" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
+                    </svg>
+                </span>
+                <span class="mm-link-name">itch.io</span>
+            </div>
+        </div>
+
+        <!-- Atalhos de navegação (canto inferior direito) -->
+        </div>
+
+    
+
+    <!-- Atalhos de navegação: FICAM FORA do layout escalado.
+    O position:fixed do .jrpg-hints ancora no viewport, e dentro de um
+    elemento com transform ele ancoraria no próprio layout. -->
+    <div class="jrpg-hints align-right">
+    <div id="mm-hints" class="jrpg-hints-row">
+    <span class="mm-hint"><span class="key-badge">&#8593;&#8595;</span> Navigate</span>
+    <span class="mm-hint"><span class="key-badge">Enter</span> Confirm</span>
+    </div>
+    </div>
+</div>

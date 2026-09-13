@@ -1,0 +1,594 @@
+/* 50_saveload.css - Tela de Save/Load (estátua) | Tema Dark Realms (Gold & Blue) */
+
+/* ============================================================
+   LAYOUT RAIZ (mesmo padrão 1920x1080 escalado do menu)
+
+   Orçamento vertical da view de grid (tudo somado tem que caber
+   nos 1080 do canvas escalado):
+     title-box  ~67  + rule 19 + margem 22
+     grid       490 (3 x 150 + 2 x 20) + margem 22
+     detail     220
+     ------------------------------------------- ~840
+   (o rodapé de atalhos não entra na conta: é .jrpg-hints, fixo no
+    viewport, fora do fluxo — ver 00_global.css)
+   Mexeu nas alturas abaixo? Refaz essa conta.
+   ============================================================ */
+
+#saveload-layout {
+    width: 1920px;
+    height: 1080px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(var(--scale-factor, 1));
+    transform-origin: center center;
+    z-index: 1;
+}
+
+.saveload-view {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.saveload-view.view-active {
+    display: flex;
+}
+
+/* Largura de conteúdo ÚNICA: header, grid e card de detalhes usam a mesma.
+   O card de detalhes não pode passar da largura do grid. */
+:root {
+    --sl-content-w: 830px;   /* 5 x 150 + 4 x 20 — o card de detalhes nunca
+                                 pode passar da largura do grid */
+    --sl-slot: 150px;
+    --sl-gap: 20px;
+}
+
+/* ============================================================
+   HEADER: BOX COM AS ABAS SAVE / LOAD
+
+   Duas abas dentro da box dourada, com as setinhas ◀ ▶ das pontas.
+   As setas são SÓ VISUAIS (pointer-events: none) — quem troca de aba é
+   Q/E no teclado e LB/RB no controle, igual à tela de Options. Assim
+   left/right continuam livres para navegar o grid.
+   ============================================================ */
+
+#saveload-header {
+    width: var(--sl-content-w);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 22px;
+}
+
+/* Aba travada (Continue do main menu: só faz sentido carregar) esconde as
+   setas e apaga a aba que não dá para escolher. */
+#saveload-tabbar.tabs-locked .jrpg-tab-arrow {
+    visibility: hidden;
+}
+
+#saveload-tabbar.tabs-locked .jrpg-tab:not(.selected) {
+    opacity: 0.22;
+}
+
+#saveload-title-box {
+    padding: 6px 22px 8px 22px;
+    border: 1px solid var(--border-gold-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Limitador discreto abaixo da box (mesmo padrão do header de opções) */
+#saveload-header-rule {
+    width: 100%;
+    height: 1px;
+    margin-top: 18px;
+    background: linear-gradient(90deg, transparent, rgba(200, 168, 78, 0.35), transparent);
+}
+
+#saveload-grid {
+    width: var(--sl-content-w);
+    display: grid;
+    grid-template-columns: repeat(5, var(--sl-slot));
+    grid-template-rows: repeat(3, var(--sl-slot));
+    gap: var(--sl-gap);
+    margin-bottom: 22px;
+}
+
+/* --- Slot = SÓ o quadrado da imagem (sem caixa externa, número ou rodapé) --- */
+
+.save-slot {
+    position: relative;
+    overflow: hidden;
+    border: 2px solid var(--border-gold-dim);
+    border-radius: 3px;
+    background: linear-gradient(135deg, var(--bg-mid), var(--bg-dark));
+    transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.slot-thumb {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Véu inferior: assenta a arte no tema escuro e segura o contraste da borda.
+   Sem radial-gradient (o Ultralight desenha círculo em vez de elipse). */
+.slot-veil {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg,
+        rgba(2, 8, 24, 0.10) 0%,
+        rgba(2, 8, 24, 0.00) 40%,
+        rgba(2, 8, 24, 0.55) 100%);
+}
+
+/* Slot vazio: arte apagada + etiqueta DENTRO do quadrado (nada abaixo dele) */
+.save-slot.slot-empty .slot-thumb {
+    filter: grayscale(1) brightness(0.3);
+    opacity: 0.5;
+}
+
+.slot-empty-tag {
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    text-align: center;
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 4px;
+    text-indent: 4px;
+    color: var(--text-dim);
+    pointer-events: none;
+}
+
+.save-slot.slot-empty .slot-empty-tag {
+    display: block;
+}
+
+/* Hover: só destaca (quem move o cursor é o clique). Mais discreto que o
+   selecionado, para os dois não se confundirem quando o mouse passa por cima
+   de um slot que não é o atual. */
+.save-slot:hover:not(.selected) {
+    border-color: rgba(200, 168, 78, 0.6);
+}
+
+.save-slot:hover:not(.selected) .slot-thumb {
+    filter: brightness(1.12);
+}
+
+/* --- Seleção (padrão dourado do tema) --- */
+
+.save-slot.selected {
+    border-color: var(--border-gold);
+    box-shadow: var(--glow-gold);
+    transform: scale(1.06);
+    z-index: 2;
+}
+
+.save-slot.selected .slot-veil {
+    background: linear-gradient(180deg,
+        rgba(212, 168, 67, 0.10) 0%,
+        rgba(2, 8, 24, 0.00) 45%,
+        rgba(2, 8, 24, 0.45) 100%);
+}
+
+.save-slot.selected.slot-empty .slot-thumb {
+    filter: grayscale(1) brightness(0.45);
+    opacity: 0.65;
+}
+
+.save-slot.selected .slot-empty-tag {
+    color: var(--gold);
+}
+
+/* Flash de confirmação após salvar */
+.save-slot.slot-saved-flash {
+    animation: slotSavedFlash 0.5s ease-out;
+}
+
+@keyframes slotSavedFlash {
+    0%   { box-shadow: var(--glow-gold-strong); border-color: var(--gold-bright); }
+    100% { box-shadow: var(--glow-gold); border-color: var(--border-gold); }
+}
+
+/* ============================================================
+   ANIMAÇÃO DE ENTRADA
+
+   Os slots sobem em onda (o delay por linha/coluna é inline, posto no
+   50_saveload.js). A classe .slot-rise só entra quando o grid é montado
+   ao ENTRAR na tela: no rebuild depois de um save o grid aparece parado,
+   senão a tela inteira pisca a cada gravação.
+
+   fill-mode 'both' segura o slot invisível durante o próprio delay.
+   ============================================================ */
+
+.save-slot.slot-rise {
+    animation: slotRise 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes slotRise {
+    0%   { opacity: 0; transform: translateY(72px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Header e card de detalhes: DOM persistente, então o JS reinicia a
+   animação trocando .sl-enter (remove -> reflow -> adiciona). */
+
+#saveload-grid-view.sl-enter #saveload-title-box {
+    animation: slTitleDrop 0.40s ease-out both;
+}
+
+#saveload-grid-view.sl-enter #saveload-header-rule {
+    animation: slFadeIn 0.50s ease-out 0.18s both;
+}
+
+#saveload-grid-view.sl-enter #saveload-detail {
+    animation: slDetailRise 0.45s ease-out 0.30s both;
+}
+
+@keyframes slTitleDrop {
+    0%   { opacity: 0; transform: translateY(-30px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slFadeIn {
+    0%   { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+@keyframes slDetailRise {
+    0%   { opacity: 0; transform: translateY(40px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   CARD DE DETALHES (abaixo do grid)
+   Mesma largura do grid — nunca ultrapassa o limite dos slots.
+   Conteúdo: descrição em cima, os 3 cards de personagem embaixo.
+   (Sem retrato do slot aqui: a arte já é o próprio quadrado do grid.)
+   ============================================================ */
+
+#saveload-detail {
+    width: var(--sl-content-w);
+    height: 220px;
+    border: 1px solid var(--border-gold-dim);
+    display: flex;
+    flex-direction: column;
+    padding: 18px 26px;
+}
+
+#saveload-detail.detail-empty {
+    align-items: center;
+    justify-content: center;
+}
+
+#saveload-detail-empty {
+    display: none;
+    font-family: 'Cinzel', serif;
+    font-size: 26px;
+    letter-spacing: 6px;
+    text-indent: 6px;
+    color: var(--text-dim);
+}
+
+#saveload-detail.detail-empty #saveload-detail-empty {
+    display: block;
+}
+
+#saveload-detail.detail-empty #saveload-detail-content {
+    display: none;
+}
+
+#saveload-detail-content {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+}
+
+/* --- Descrição (linha de cima) --- */
+
+#detail-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 32px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-gold-dim);
+    flex-shrink: 0;
+}
+
+#detail-head-info {
+    min-width: 0;
+}
+
+#detail-map {
+    font-family: 'Cinzel', serif;
+    font-weight: 700;
+    font-size: 24px;
+    color: var(--gold);
+    letter-spacing: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#detail-date {
+    font-family: 'Cinzel', serif;
+    font-size: 15px;
+    color: var(--text-secondary);
+    letter-spacing: 1px;
+    margin-top: 2px;
+    white-space: nowrap;
+}
+
+#detail-head-stats {
+    display: flex;
+    align-items: baseline;
+    gap: 24px;
+    flex-shrink: 0;
+}
+
+.detail-stat-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.detail-stat-label {
+    font-family: 'Cinzel', serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-indent: 3px;
+    color: var(--text-secondary);
+}
+
+.detail-stat-val {
+    font-family: 'Cinzel', serif;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--gold);
+}
+
+/* --- Cards dos 3 personagens (linha de baixo) --- */
+
+#detail-party {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 14px;
+    min-height: 0;
+}
+
+.detail-member {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 12px;
+    border: 1px solid var(--border-gold-dim);
+    border-radius: 3px;
+    background: linear-gradient(180deg, rgba(20,35,60,.45) 0%, rgba(6,10,18,.65) 100%);
+    min-width: 0;
+}
+
+.detail-member-portrait {
+    width: 64px;
+    height: 64px;
+    border: 1px solid var(--border-gold-dim);
+    border-radius: 3px;
+    overflow: hidden;
+    background: linear-gradient(135deg, var(--bg-mid), var(--bg-dark));
+    flex-shrink: 0;
+}
+
+.detail-member-portrait img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.detail-member-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 1px;
+    white-space: nowrap;
+}
+
+/* Mesmas cores dos cards de status do menu de pausa (10_menu.css):
+   LV no azul do .char-level-label, AP no vermelho do .ap-text. */
+.detail-member-lv {
+    color: var(--mp-blue-bright);
+}
+
+.detail-member-hp {
+    color: var(--hp-green-bright);
+}
+
+.detail-member-mp {
+    color: var(--mp-blue-bright);
+}
+
+.detail-member-ap {
+    color: var(--ap-red-bright);
+}
+
+/* ============================================================
+   RODAPÉ: ATALHOS DE NAVEGAÇÃO (mesmo padrão de #options-hints)
+   ============================================================ */
+
+.sl-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    letter-spacing: 2px;
+    color: var(--text-primary);
+    text-transform: uppercase;
+}
+
+/* ============================================================
+   OVERLAY DE CONFIRMAÇÃO (overwrite)
+   ============================================================ */
+
+/* position: fixed (não absolute): o véu tem que cobrir o VIEWPORT, não o
+   canvas 1920x1080 escalado — em ultrawide um absolute deixaria as laterais
+   sem escurecer. Só o card herda a escala, via transform próprio. */
+#saveload-confirm {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(2, 8, 24, 0.65);
+    z-index: 10;
+    align-items: center;
+    justify-content: center;
+}
+
+#saveload-confirm.view-active {
+    display: flex;
+}
+
+#saveload-confirm-card {
+    width: 460px;
+    padding: 32px 40px;
+    border: 1px solid var(--border-gold-dim);
+    text-align: center;
+    transform: scale(var(--scale-factor, 1));
+    transform-origin: center center;
+}
+
+#saveload-confirm-text {
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    font-size: 26px;
+    letter-spacing: 2px;
+    color: var(--text-primary);
+    margin-bottom: 22px;
+}
+
+#saveload-confirm-options {
+    list-style: none;
+    display: flex;
+    justify-content: center;
+    gap: 48px;
+}
+
+/* --- Yes / No (compartilhado com o #menu-confirm do menu de pausa) ---
+
+   Mesmo tratamento das abas de Options (.opt-tab): o realce é um FLARE embaixo
+   do texto — halo suave (::before) + núcleo com falloff nas pontas (::after) —
+   que aparece parcial no hover e completo (pulsando) no selecionado.
+   NADA de radial-gradient: o Ultralight desenha círculo em vez de elipse. */
+
+.confirm-option {
+    position: relative;
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    font-size: 30px;
+    letter-spacing: 3px;
+    /* +3px à esquerda compensa o vão do letter-spacing depois da última letra */
+    padding: 6px 22px 14px 25px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: color 0.25s ease, text-shadow 0.25s ease;
+}
+
+.confirm-option::before {
+    content: "";
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    width: 46%;
+    height: 2px;
+    transform: translateX(-50%);
+    pointer-events: none;
+    opacity: 0;
+    border-radius: 999px;
+    background: rgba(240, 208, 120, 0.45);
+    box-shadow: 0 0 16px 5px rgba(240, 208, 120, 0.22),
+                0 0 34px 10px rgba(212, 168, 67, 0.12);
+    transition: opacity 0.3s ease;
+}
+
+.confirm-option::after {
+    content: "";
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    transform: translateX(-50%);
+    pointer-events: none;
+    opacity: 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(212, 168, 67, 0.45) 18%,
+        var(--gold-bright) 50%,
+        rgba(212, 168, 67, 0.45) 82%,
+        transparent 100%);
+    box-shadow: 0 0 10px rgba(240, 208, 120, 0.5);
+    transition: width 0.3s ease, opacity 0.3s ease;
+}
+
+.confirm-option:hover {
+    color: var(--text-secondary);
+    text-shadow: 0 0 12px rgba(212, 168, 67, 0.35);
+}
+
+.confirm-option:hover::before {
+    opacity: 0.5;
+}
+
+.confirm-option:hover::after {
+    width: 55%;
+    opacity: 0.75;
+}
+
+.confirm-option.selected {
+    color: var(--gold);
+    text-shadow: 0 0 26px rgba(212, 168, 67, 0.35), 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.confirm-option.selected::before {
+    opacity: 1;
+    animation: optFlareBloomPulse 2.2s ease-in-out infinite;
+}
+
+.confirm-option.selected::after {
+    width: 82%;
+    opacity: 1;
+    animation: optFlareCorePulse 2.2s ease-in-out infinite;
+}
+
+/* Mesma proteção do Options: sem isto a transição de `width` roda ao sair de
+   display:none e o flare pisca como um ponto antes de virar faixa. */
+#screen-saveload.flare-instant .confirm-option::before,
+#screen-saveload.flare-instant .confirm-option::after,
+#screen-menu.flare-instant .confirm-option::before,
+#screen-menu.flare-instant .confirm-option::after {
+    transition: none;
+    animation: none;
+}

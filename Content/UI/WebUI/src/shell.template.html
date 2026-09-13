@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JRPG UI Shell</title>
+    <style>
+@@CSS@@
+    </style>
+</head>
+<body>
+    <!-- Âncora de repaint: 1px quase invisível SEMPRE presente. Garante que
+         todo repaint da página gere ao menos um comando de desenho no GPU
+         driver — sem isso, esconder a última seção deixa a página vazia,
+         o Ultralight não emite comandos (bDidDraw/HasPendingCommands) e o
+         frame final nunca é apresentado: a UI fica congelada na tela. -->
+    <div id="ul-repaint-anchor"></div>
+@@SECTIONS@@
+    <script>
+@@SCRIPTS@@
+    </script>
+</body>
+</html>

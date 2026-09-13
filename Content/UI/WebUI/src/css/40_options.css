@@ -1,0 +1,672 @@
+/* 40_options.css - Tela de Opções | Tema Dark Realms (Gold & Blue) */
+
+/* ============================================================
+   FUNDO DA TELA (única tela do shell com background)
+   Fica FORA do canvas 1920x1080 escalado: position fixed cobrindo
+   o viewport inteiro, senão sobra borda em aspect ratios diferentes.
+   ============================================================ */
+
+#options-bg {
+    position: fixed;
+    /* Offsets explícitos em vez de `inset: 0` — o shorthand não é confiável no
+       WebKit do Ultralight, e um bg colapsado deixaria a tela sem fundo. */
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 0;
+    overflow: hidden;
+    /* Fade CURTO de propósito: o fundo é quase opaco, então um fade longo deixa
+       uma "faixa preta translúcida" por cima da cena 3D antes do menu entrar.
+       Quem faz a transição suave são os blocos (header/corpo/atalhos). */
+    opacity: 0;
+    transition: opacity 0.28s ease; /* SAÍDA (some depois do conteúdo) */
+    /* Só linear-gradient: o Ultralight desenha radial-gradient(ellipse) como
+       círculo, o que criava manchas redondas no fundo. */
+    background:
+        linear-gradient(160deg, rgba(16, 34, 66, 0.55) 0%, transparent 48%),
+        linear-gradient(205deg, rgba(24, 18, 56, 0.45) 0%, transparent 42%),
+        linear-gradient(180deg, rgba(2, 10, 24, 0.95) 0%, rgba(2, 8, 20, 0.90) 100%);
+}
+
+#options-bg.anim-in {
+    opacity: 1;
+    transition: opacity 0.18s ease; /* ENTRADA rápida */
+}
+
+/* Blocos da tela entram escalonados (header -> corpo -> atalhos).
+   A duração da SAÍDA fica na regra base e a da ENTRADA na .anim-in: ao tirar a
+   classe vale a base, ao pôr vale a .anim-in. Assim o conteúdo some ANTES do
+   fundo — senão os cards semitransparentes ficam aparecendo sobre a cena 3D. */
+#options-header,
+#options-body {
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity 0.16s ease, transform 0.2s ease;
+}
+
+#options-header.anim-in,
+#options-body.anim-in {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.4s ease, transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#options-vignette {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    box-shadow: inset 0 0 240px rgba(0, 0, 0, 0.85);
+}
+
+/* --- Partículas douradas (CSS puro; nada de setInterval/rAF aqui) --- */
+
+#options-particles {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+}
+
+.opt-particle {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    border-radius: 50%;
+    background: var(--gold);
+    opacity: 0;
+    will-change: transform, opacity;
+    animation: optFloatParticle 8s infinite ease-in-out;
+}
+
+.opt-particle:nth-child(1)  { left: 5%;  top: 15%; animation-delay: 0s;   animation-duration: 7s; }
+.opt-particle:nth-child(2)  { left: 15%; top: 55%; animation-delay: 1.5s; animation-duration: 9s; }
+.opt-particle:nth-child(3)  { left: 30%; top: 30%; animation-delay: 3s;   animation-duration: 6s; }
+.opt-particle:nth-child(4)  { left: 45%; top: 72%; animation-delay: 0.5s; animation-duration: 8s; }
+.opt-particle:nth-child(5)  { left: 60%; top: 10%; animation-delay: 2s;   animation-duration: 10s; }
+.opt-particle:nth-child(6)  { left: 75%; top: 85%; animation-delay: 4s;   animation-duration: 7.5s; }
+.opt-particle:nth-child(7)  { left: 85%; top: 45%; animation-delay: 1s;   animation-duration: 8.5s; }
+.opt-particle:nth-child(8)  { left: 25%; top: 8%;  animation-delay: 2.5s; animation-duration: 6.5s; }
+.opt-particle:nth-child(9)  { left: 50%; top: 50%; animation-delay: 3.5s; animation-duration: 9.5s; }
+.opt-particle:nth-child(10) { left: 92%; top: 25%; animation-delay: 0.8s; animation-duration: 7.2s; }
+.opt-particle:nth-child(11) { left: 40%; top: 92%; animation-delay: 1.8s; animation-duration: 8.8s; }
+.opt-particle:nth-child(12) { left: 70%; top: 62%; animation-delay: 4.2s; animation-duration: 6.8s; }
+
+@keyframes optFloatParticle {
+    0%, 100% { opacity: 0;    transform: translateY(0) scale(1); }
+    25%      { opacity: 0.5; }
+    50%      { opacity: 0.25; transform: translateY(-50px) scale(1.8); }
+    75%      { opacity: 0.4; }
+}
+
+/* Brasas: maiores, mais lentas, sobem da base da tela */
+.opt-ember {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--gold-light), transparent);
+    opacity: 0;
+    will-change: transform, opacity;
+    animation: optFloatEmber 12s infinite ease-in-out;
+}
+
+.opt-ember:nth-child(13) { left: 20%; top: 84%; animation-delay: 0s; }
+.opt-ember:nth-child(14) { left: 50%; top: 92%; animation-delay: 3s; }
+.opt-ember:nth-child(15) { left: 80%; top: 78%; animation-delay: 6s; }
+.opt-ember:nth-child(16) { left: 35%; top: 88%; animation-delay: 1.5s; }
+
+@keyframes optFloatEmber {
+    0%   { opacity: 0;   transform: translateY(0) translateX(0); }
+    10%  { opacity: 0.8; }
+    50%  { opacity: 0.4; transform: translateY(-200px) translateX(30px); }
+    90%  { opacity: 0.1; }
+    100% { opacity: 0;   transform: translateY(-400px) translateX(-20px); }
+}
+
+/* ============================================================
+   LAYOUT RAIZ (canvas 1920x1080 escalado — mesmo padrão das demais telas)
+   ============================================================ */
+
+#options-layout {
+    width: 1920px;
+    height: 1080px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(var(--scale-factor, 1));
+    transform-origin: center center;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 56px 120px 40px 120px;
+}
+
+/* ============================================================
+   HEADER: TÍTULO + ABAS SUPERIORES
+   ============================================================ */
+
+#options-header {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+/* Barra de abas: setinhas animadas nas pontas + labels juntos (sem caixa).
+   As setas são SÓ VISUAIS (pointer-events: none) — quem troca de aba é
+   Q/E no teclado e LB/RB no controle. */
+#options-tabbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#options-tabs {
+    display: flex;
+    gap: 0;
+}
+
+.opt-tab-arrow {
+    font-size: 13px;
+    color: var(--gold);
+    pointer-events: none;
+    opacity: 0.45;
+    will-change: transform, opacity;
+}
+
+/* Piscada ao trocar de aba (só a seta do lado para onde foi) */
+.opt-tab-arrow.arrow-kick {
+    animation: optArrowKick 0.32s ease;
+}
+
+@keyframes optArrowKick {
+    0%   { opacity: 1; transform: scale(1);    text-shadow: none; }
+    40%  { opacity: 1; transform: scale(1.55); text-shadow: 0 0 14px var(--gold-bright); }
+    100% { opacity: 0.45; transform: scale(1); text-shadow: none; }
+}
+
+.opt-tab-arrow.arrow-left {
+    animation: optArrowPulseLeft 1.6s ease-in-out infinite;
+}
+
+.opt-tab-arrow.arrow-right {
+    animation: optArrowPulseRight 1.6s ease-in-out infinite;
+}
+
+/* O kick substitui o pulso enquanto roda */
+.opt-tab-arrow.arrow-kick.arrow-left,
+.opt-tab-arrow.arrow-kick.arrow-right {
+    animation: optArrowKick 0.32s ease;
+}
+
+@keyframes optArrowPulseLeft {
+    0%, 100% { transform: translateX(0);    opacity: 0.4; }
+    50%      { transform: translateX(-5px); opacity: 1; }
+}
+
+@keyframes optArrowPulseRight {
+    0%, 100% { transform: translateX(0);   opacity: 0.4; }
+    50%      { transform: translateX(5px); opacity: 1; }
+}
+
+.opt-tab {
+    position: relative;
+    padding: 10px 20px 12px 20px;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: color 0.25s ease, text-shadow 0.25s ease;
+}
+
+/* FLARE em baixo do texto (não é uma linha): halo suave (::before) + núcleo
+   luminoso com falloff nas pontas (::after), os dois pulsando.
+
+   ATENÇÃO: NADA de radial-gradient aqui. O Ultralight ignora a proporção do
+   `ellipse` e desenha um CÍRCULO (vira uma bola no jogo, mesmo funcionando no
+   Chrome). O halo é feito com box-shadow (blur + spread) e o falloff
+   horizontal com linear-gradient — os dois renderizam certo no engine. */
+.opt-tab::before {
+    content: "";
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    width: 46%;
+    height: 2px;
+    transform: translateX(-50%);
+    pointer-events: none;
+    opacity: 0;
+    border-radius: 999px;
+    background: rgba(240, 208, 120, 0.45);
+    box-shadow: 0 0 16px 5px rgba(240, 208, 120, 0.22),
+                0 0 34px 10px rgba(212, 168, 67, 0.12);
+    transition: opacity 0.3s ease;
+}
+
+.opt-tab::after {
+    content: "";
+    position: absolute;
+    bottom: 3px;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    transform: translateX(-50%);
+    pointer-events: none;
+    opacity: 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(212, 168, 67, 0.45) 18%,
+        var(--gold-bright) 50%,
+        rgba(212, 168, 67, 0.45) 82%,
+        transparent 100%);
+    box-shadow: 0 0 10px rgba(240, 208, 120, 0.5);
+    transition: width 0.3s ease, opacity 0.3s ease;
+}
+
+.opt-tab:hover {
+    color: var(--text-secondary);
+    text-shadow: 0 0 12px rgba(212, 168, 67, 0.35);
+}
+
+.opt-tab:hover::before {
+    opacity: 0.5;
+}
+
+.opt-tab:hover::after {
+    width: 55%;
+    opacity: 0.75;
+}
+
+/* Cor de destaque = a do antigo título "OPTIONS" (dourado do tema + brilho) */
+.opt-tab.selected {
+    color: var(--gold);
+    text-shadow: 0 0 26px rgba(212, 168, 67, 0.35), 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* Mesma proteção do main menu: sem isto, ao sair de display:none a transição de
+   `width` roda do zero e o flare pisca como um ponto circular antes de virar
+   faixa. O JS liga a classe por ~1 frame ao abrir a tela. */
+#screen-options.flare-instant .opt-tab::before,
+#screen-options.flare-instant .opt-tab::after,
+#screen-options.flare-instant .opt-tab.selected::before,
+#screen-options.flare-instant .opt-tab.selected::after {
+    transition: none;
+    animation: none;
+}
+
+.opt-tab.selected::before {
+    opacity: 1;
+    animation: optFlareBloomPulse 2.2s ease-in-out infinite;
+}
+
+.opt-tab.selected::after {
+    width: 82%;
+    opacity: 1;
+    animation: optFlareCorePulse 2.2s ease-in-out infinite;
+}
+
+/* O bloom já usa translateX(-50%) — os keyframes precisam repetir, senão o
+   flare "pula" para a esquerda ao começar a animação. */
+@keyframes optFlareBloomPulse {
+    0%, 100% { opacity: 0.7; transform: translateX(-50%) scale(0.92); }
+    50%      { opacity: 1;   transform: translateX(-50%) scale(1.08); }
+}
+
+@keyframes optFlareCorePulse {
+    0%, 100% { opacity: 0.8; }
+    50%      { opacity: 1; }
+}
+
+/* Limitador do header: linha discreta (o brilho de verdade é o flare da aba) */
+#options-header-rule {
+    width: 100%;
+    height: 1px;
+    margin-top: 20px;
+    background: linear-gradient(90deg, transparent, rgba(200, 168, 78, 0.35), transparent);
+}
+
+/* ============================================================
+   CORPO: LISTA DE SETTINGS + PAINEL DE DESCRIÇÃO
+   ============================================================ */
+
+#options-body {
+    width: 100%;
+    height: 700px;
+    margin-top: 28px;
+    display: flex;
+    gap: 32px;
+    flex-shrink: 0;
+}
+
+#options-list {
+    flex: 1;
+    padding: 22px 12px 22px 26px;
+    border: 2px solid var(--border-gold-dim);
+    /* SEM overflow:hidden: as .corner ficam em -2px (fora da caixa) e seriam
+       cortadas. Quem rola é o #options-rows. */
+}
+
+#options-rows {
+    position: relative; /* offsetParent das linhas — usado pelo ensureVisible do JS */
+    height: 100%;
+    overflow-y: auto;
+    padding-right: 14px;
+}
+
+#options-rows::-webkit-scrollbar {
+    width: 5px;
+}
+
+#options-rows::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+#options-rows::-webkit-scrollbar-thumb {
+    background: var(--border-gold-dim);
+}
+
+/* --- Título de grupo (Display / Graphics / Volumes / ...) --- */
+
+.opt-group-title {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    height: 44px;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: var(--gold);
+    opacity: 0.9;
+}
+
+.opt-group-title::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(200, 168, 78, 0.35), transparent);
+}
+
+.opt-group-title.spaced {
+    margin-top: 16px;
+}
+
+/* --- Linha de setting --- */
+
+.opt-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 45px;
+    padding: 0 14px;
+    border-left: 2px solid transparent;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+    /* z-index 0 num elemento posicionado CRIA stacking context — é o que
+       segura o ::after em z-index -1 entre o fundo da linha e o conteúdo.
+       Sem isto o pseudo cairia atrás do card da lista (opaco) e sumiria. */
+    position: relative;
+    z-index: 0;
+}
+
+/* Camada de brilho da linha realçada, atrás do conteúdo. Fica invisível até a
+   linha pegar hover/seleção; é ela que respira (jrpgSelectBreath, 00_global.css)
+   — mesmo efeito do item selecionado do menu de pausa. */
+.opt-row::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: -1;
+    opacity: 0;
+    pointer-events: none;
+    background: linear-gradient(90deg,
+        rgba(212, 168, 67, 0.26) 0%,
+        rgba(212, 168, 67, 0.08) 52%,
+        transparent 100%);
+}
+
+/* O mouseenter da linha já move a seleção (40_options.js), então na prática
+   quem respira é .selected — o :hover cobre o intervalo antes disso. */
+.opt-row.selected::after,
+.opt-row:hover:not(.opt-static)::after {
+    opacity: 1;
+    animation: jrpgSelectBreath 2.2s ease-in-out infinite;
+}
+
+.opt-row .opt-row-label {
+    font-size: 22px;
+    letter-spacing: 1.5px;
+    color: var(--text-secondary);
+    transition: color 0.2s ease, text-shadow 0.2s ease;
+}
+
+.opt-row:hover {
+    background: rgba(200, 168, 78, 0.04);
+}
+
+.opt-row.selected {
+    background: rgba(200, 168, 78, 0.08);
+    border-left-color: var(--gold);
+}
+
+.opt-row.selected .opt-row-label {
+    color: var(--gold-light);
+    text-shadow: 0 0 12px rgba(212, 168, 67, 0.3);
+}
+
+/* Linha estática (aviso "coming soon") — não navegável */
+.opt-row.opt-static {
+    cursor: default;
+    justify-content: center;
+    color: var(--text-dim);
+    font-size: 15px;
+    letter-spacing: 2px;
+    height: auto;
+    padding: 26px 14px;
+    text-align: center;
+}
+
+.opt-row.opt-static:hover {
+    background: transparent;
+}
+
+/* Linha estática nunca é navegável: sem véu e sem respiro em hipótese alguma */
+.opt-row.opt-static::after {
+    display: none;
+}
+
+/* --- Controle: cycler (◀ valor ▶) --- */
+
+.opt-cycler {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 260px;
+    justify-content: flex-end;
+}
+
+.opt-arrow {
+    width: 22px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-dim);
+    opacity: 0;
+    transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.opt-row.selected .opt-arrow {
+    opacity: 1;
+    color: var(--gold);
+}
+
+.opt-arrow:hover {
+    color: var(--gold-bright);
+    text-shadow: 0 0 10px var(--gold);
+}
+
+.opt-value {
+    min-width: 190px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: var(--text-primary);
+}
+
+.opt-row.selected .opt-value {
+    color: var(--gold-bright);
+    text-shadow: 0 0 14px rgba(212, 168, 67, 0.35);
+}
+
+/* Pulso rápido ao trocar o valor */
+.opt-value.value-changed {
+    animation: optValuePulse 0.28s ease;
+}
+
+@keyframes optValuePulse {
+    0%   { transform: scale(1);    }
+    45%  { transform: scale(1.12); }
+    100% { transform: scale(1);    }
+}
+
+/* --- Controle: slider (volumes) --- */
+
+.opt-slider {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 260px;
+    justify-content: flex-end;
+}
+
+.opt-slider-track {
+    position: relative;
+    width: 200px;
+    height: 6px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--border-gold-dim);
+}
+
+.opt-slider-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background: linear-gradient(90deg, var(--border-gold-dim), var(--gold));
+    transition: width 0.12s linear;
+}
+
+.opt-slider-thumb {
+    position: absolute;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    margin-left: -6px;
+    transform: translateY(-50%) rotate(45deg);
+    background: var(--gold);
+    box-shadow: 0 0 10px rgba(212, 168, 67, 0.5);
+    transition: left 0.12s linear;
+}
+
+.opt-row.selected .opt-slider-thumb {
+    background: var(--gold-bright);
+    box-shadow: 0 0 16px rgba(212, 168, 67, 0.8);
+}
+
+.opt-slider-value {
+    width: 45px;
+    text-align: right;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.opt-row.selected .opt-slider-value {
+    color: var(--gold-bright);
+}
+
+/* --- Controle: keybinding (somente leitura por enquanto) --- */
+
+.opt-keybind {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 260px;
+    justify-content: flex-end;
+}
+
+/* ============================================================
+   PAINEL DE DESCRIÇÃO (lado direito)
+   ============================================================ */
+
+#options-desc {
+    width: 520px;
+    flex-shrink: 0;
+    padding: 30px 32px;
+    border: 2px solid var(--border-gold-dim);
+    display: flex;
+    flex-direction: column;
+}
+
+#options-desc-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--gold-light);
+    text-align: center;
+    text-shadow: 0 0 16px rgba(212, 168, 67, 0.3);
+}
+
+#options-desc-rule {
+    height: 1px;
+    margin: 18px 0 22px 0;
+    background: linear-gradient(90deg, transparent, rgba(200, 168, 78, 0.4), transparent);
+}
+
+#options-desc-text {
+    font-size: 22px;
+    line-height: 1.85;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+/* Fade curtinho a cada troca de seleção */
+#options-desc.desc-swap #options-desc-title,
+#options-desc.desc-swap #options-desc-text {
+    animation: optDescIn 0.22s ease;
+}
+
+@keyframes optDescIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   RODAPÉ: ATALHOS DE NAVEGAÇÃO
+   ============================================================ */
+
+.opt-hint {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    letter-spacing: 2px;
+    color: var(--text-primary);
+    text-transform: uppercase;
+}

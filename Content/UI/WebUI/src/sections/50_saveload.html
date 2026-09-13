@@ -1,0 +1,91 @@
+<!-- ============ SEÇÃO: SAVE / LOAD (estátua de save) ============ -->
+<div id="screen-saveload" class="ui-section">
+    <div id="saveload-layout" style="opacity: 0; transition: opacity 0.15s ease;">
+
+        <!-- VIEW ÚNICA: abas Save/Load + grid de 15 slots (5x3) + detalhes.
+             Não existe mais tela de escolha Save/Load: JRPGSaveLoad.open() cai
+             direto no grid e a aba troca com Q/E (LB/RB no controle). -->
+        <div id="saveload-grid-view" class="saveload-view">
+            <div id="saveload-header">
+                <div id="saveload-title-box" class="jrpg-card">
+                    <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+
+                    <!-- As setinhas são SÓ VISUAIS (pointer-events: none), igual
+                         às de Options: quem troca de aba é Q/E e LB/RB. -->
+                    <div id="saveload-tabbar" class="jrpg-tabbar">
+                        <span class="jrpg-tab-arrow arrow-left">&#9664;</span>
+                        <div id="saveload-tabs" class="jrpg-tabs">
+                            <div class="jrpg-tab selected" data-tab="save">Save</div>
+                            <div class="jrpg-tab" data-tab="load">Load</div>
+                        </div>
+                        <span class="jrpg-tab-arrow arrow-right">&#9654;</span>
+                    </div>
+                </div>
+                <div id="saveload-header-rule"></div>
+            </div>
+
+            <!-- Os 15 .save-slot são gerados pelo JS (50_saveload.js) -->
+            <div id="saveload-grid"></div>
+
+            <div id="saveload-detail" class="jrpg-card">
+                <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+
+                <div id="saveload-detail-empty">— No Data —</div>
+
+                <div id="saveload-detail-content">
+                    <!-- Descrição do save -->
+                    <div id="detail-header">
+                        <div id="detail-head-info">
+                            <div id="detail-map">???</div>
+                            <div id="detail-date">--</div>
+                        </div>
+                        <div id="detail-head-stats">
+                            <div class="detail-stat-row">
+                                <span class="detail-stat-label">TIME</span>
+                                <span class="detail-stat-val" id="detail-time">--:--:--</span>
+                            </div>
+                            <div class="detail-stat-row">
+                                <span class="detail-stat-label">GOLD</span>
+                                <span class="detail-stat-val" id="detail-gold">--</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cards da party (placeholders até o PartySubsystem existir) -->
+                    <div id="detail-party"></div>
+                </div>
+            </div>
+
+            <!-- Atalhos de navegação (rodapé), mesmo padrão da tela de Options -->
+            </div>
+        </div>
+
+    <!-- Atalhos de navegação: FICAM FORA do layout escalado.
+    O position:fixed do .jrpg-hints ancora no viewport, e dentro de um
+    elemento com transform ele ancoraria no próprio layout. -->
+    <div class="jrpg-hints">
+    <div id="saveload-hints" class="jrpg-hints-row">
+    <span class="sl-hint"><span class="key-badge">Q</span><span class="key-badge">E</span> Switch Tab</span>
+    <span class="sl-hint"><span class="key-badge">&#8593;&#8595;&#9664;&#9654;</span> Navigate</span>
+    <span class="sl-hint"><span class="key-badge">Enter</span> Confirm</span>
+    <span class="sl-hint"><span class="key-badge">Esc</span> Back</span>
+    </div>
+    </div>
+    </div>
+
+    <!-- OVERLAY: confirmação de sobrescrever slot ocupado.
+         FICA FORA do #saveload-layout pelo mesmo motivo do #menu-confirm: o
+         véu é position:fixed para cobrir o viewport inteiro em ultrawide. -->
+    <div id="saveload-confirm">
+        <div id="saveload-confirm-card" class="jrpg-card">
+            <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+
+            <div id="saveload-confirm-text">Overwrite this record?</div>
+            <ul id="saveload-confirm-options">
+                <li class="confirm-option" data-choice="yes">Yes</li>
+                <li class="confirm-option selected" data-choice="no">No</li>
+            </ul>
+        </div>
+    
+
+</div>

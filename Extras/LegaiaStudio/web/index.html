@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legaia Studio</title>
+    <link rel="stylesheet" href="/css/studio.css">
+</head>
+<body>
+
+<div id="shell">
+
+    <!-- ================= PAINEL LATERAL ================= -->
+    <aside id="side">
+        <div id="brand">
+            <h1>Legaia</h1>
+            <span>Studio</span>
+        </div>
+
+        <nav>
+            <div class="nav-group">
+                <div class="nav-title">Dados</div>
+                <div id="nav-tables"></div>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-title">Ferramentas</div>
+                <button class="nav-item" data-go="overview">
+                    <span class="nav-ico" data-ico="grid"></span>
+                    <span class="nav-label">Visão geral</span>
+                </button>
+                <button class="nav-item" data-go="validation">
+                    <span class="nav-ico" data-ico="check"></span>
+                    <span class="nav-label">Validação</span>
+                    <span class="nav-badge" id="nav-findings"></span>
+                </button>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-title">Build</div>
+                <div id="nav-builds"></div>
+            </div>
+        </nav>
+
+        <div id="side-foot">
+            <div id="side-paths"></div>
+        </div>
+    </aside>
+
+    <!-- ================= CONTEÚDO ================= -->
+    <main id="main">
+        <div id="banner"></div>
+        <div id="views"></div>
+    </main>
+
+</div>
+
+<!-- Painel de log dos builds -->
+<div id="logpanel">
+    <div class="log-head">
+        <span id="log-title">Build</span>
+        <span id="log-state"></span>
+        <button id="log-close" title="Fechar">&#10005;</button>
+    </div>
+    <pre id="log-body"></pre>
+</div>
+
+<!-- Diálogo de confirmação -->
+<div id="modal">
+    <div class="modal-card">
+        <div class="modal-title" id="modal-title">Confirmar</div>
+        <div class="modal-text" id="modal-text"></div>
+        <div class="modal-actions">
+            <button class="btn" id="modal-no">Cancelar</button>
+            <button class="btn danger" id="modal-yes">Confirmar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Seletor de item (adicionar ao estoque da loja) -->
+<div id="picker">
+    <div class="picker-card">
+        <div class="picker-head">
+            <span id="picker-title">Adicionar item</span>
+            <button id="picker-close" title="Fechar">&#10005;</button>
+        </div>
+        <input id="picker-search" type="search" placeholder="Buscar pelo nome…">
+        <div id="picker-list"></div>
+    </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="/js/studio.js"></script>
+</body>
+</html>
