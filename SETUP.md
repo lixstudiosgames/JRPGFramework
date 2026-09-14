@@ -131,5 +131,5 @@ final build, not to the plugin itself.
 | [`Docs/README.md`](Docs/README.md) | Documentation index |
 | [`Docs/ARCHITECTURE.md`](Docs/ARCHITECTURE.md) | How the plugin fits together, and the rules that must not be broken |
 | [`Docs/STRUCTURE.md`](Docs/STRUCTURE.md) | File-by-file tree: what exists, what is a stub, what is planned |
-| [`Docs/BATTLE_ROADMAP.md`](Docs/BATTLE_ROADMAP.md) | The one unimplemented system, in 8 phases |
+| [`Docs/BATTLE_ROADMAP.md`](Docs/BATTLE_ROADMAP.md) | The largest unimplemented system, in 8 phases |
 | [`Docs/Guides/`](Docs/Guides/) | How to use each system |
