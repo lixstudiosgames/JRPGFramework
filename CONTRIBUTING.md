@@ -15,7 +15,8 @@ and how changes get in.
    reintroduces a problem someone already paid for. A PR that trips over one will get sent
    back with a pointer to it.
 3. **Check [`Docs/STRUCTURE.md`](Docs/STRUCTURE.md)** for what exists (✅), what is a stub
-   (🟡) and what is planned (⬜). Nearly everything is done except battle.
+   (🟡) and what is planned (⬜). Battle is the largest gap;
+   Dialogue, Cutscene and Localization are also unwritten.
 
 ### The Ultralight SDK is not in this repository
 
@@ -103,7 +104,9 @@ and close the struct with `\n};`. Use `Public/Shop/ShopData.h` as the model.
 
 ## The battle system
 
-Battle and Arts are the only unimplemented systems — 71 lines of stubs. The plan is in
+Battle and Arts are the only *stubbed* systems — 71 lines that log a TODO — and the only
+ones with a plan written. (Dialogue, Cutscene and Localization are unwritten too, but have
+no files yet; see [`Docs/STRUCTURE.md`](Docs/STRUCTURE.md).) The plan is in
 [`Docs/BATTLE_ROADMAP.md`](Docs/BATTLE_ROADMAP.md): 8 phases, each ending in something you can
 run and watch work. **Read it before starting anything battle-related**, because the phases
 have real dependencies and the early ones unblock the rest.
