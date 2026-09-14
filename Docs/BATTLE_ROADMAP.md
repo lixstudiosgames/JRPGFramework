@@ -3,7 +3,9 @@
 **JRPGFramework — Legend of Legaia Remake**
 Approved 2026-09-13. **Nothing implemented yet.**
 
-This is the only unimplemented system left in the plugin, and the largest. Everything
+This is the largest unimplemented system left in the plugin, and the only one with stub
+files already in place. (Dialogue, Cutscene and Localization are also unwritten - see
+[STRUCTURE.md](STRUCTURE.md).) Everything
 else — Core, Save/Load, Inventory, World State, Shop, Audio, Camera, Party, Status, WebUI —
 is done and will be consumed by the battle system rather than rewritten.
 

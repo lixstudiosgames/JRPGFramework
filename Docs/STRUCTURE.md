@@ -190,6 +190,53 @@ JRPGFramework/
 | **Status** | ✅ complete (data) | Equipment in 5 slots with `CanEquip` read from `DT_Items`, conditions, Ra-Seru (1..9), elemental affinity, and the original's `effective ( base )` display. The equip screen is still missing |
 | **Arts / Battle** | 🟡 stubs | They receive calls from the inventory but hold no state. See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
 
+---
+
+## Planned systems
+
+Three systems have no implementation yet. They are listed here because groundwork for them
+already exists in shipped code — knowing what is already reserved saves rebuilding it.
+
+### Dialogue
+
+| Already in place | Where |
+|---|---|
+| `OpenDialogue(FText Speaker, FText Text, TArray<FText> Options)` — **final signature**; the JS side only logs | `Public/UI/WebUISubsystem.h` |
+| `DialogueActive` UI state, which already blocks the pause menu | `EJRPGUIState` |
+| Shell section, CSS and a JS placeholder | `Content/UI/WebUI/src/*/30_dialogue.*` |
+| **Shot-reverse-shot conversation camera — fully implemented** | `UCameraSubsystem::StartConversation` / `FocusSpeaker` / `EndConversation` |
+
+The camera half is done: `FocusSpeaker` frames over the listener's shoulder onto the speaker
+and alternates sides correctly, respecting the 180° rule. What is missing is the system
+itself — a node/choice/condition format, its runtime, and an editor for it. Conditions can
+read `UWorldStateSubsystem` event flags, which already exist.
+
+### Cutscene
+
+Nothing written. It makes sense after Dialogue, and the camera pieces it would need are
+already there: `FocusOnLevelCamera`, the 13 framing presets and `AJRPGCameraZone`.
+
+### Localization
+
+| Already in place | Where |
+|---|---|
+| `FText` on every player-facing string (item names, character names, shop names, difficulty) | across the data structs |
+| `NSLOCTEXT` on the built-in difficulty names and descriptions | `Private/Core/CoreSubsystem.cpp` |
+| A **Language** cycler (English / Português BR) on the Options screen | `src/js/40_options.js` |
+
+What is missing is everything that makes it work: culture switching at runtime, a string
+table or `.locres` pipeline, and the WebUI's own text — the shell's strings are hardcoded in
+the section files, so they need a mechanism of their own rather than Unreal's. The Language
+cycler currently changes nothing.
+
+> Worth checking before starting: the built-in difficulty **descriptions** inside `NSLOCTEXT`
+> in `CoreSubsystem.cpp` are written in Portuguese, while rule 38 in
+> [ARCHITECTURE.md](ARCHITECTURE.md) states that every player-facing string is English. If
+> those descriptions reach the Options screen, that is a rule violation to fix in code — not
+> a documentation issue.
+
+---
+
 ### Known gaps in shipped systems
 
 - **Equip screen** in the WebUI (Status works; there is no UI for it).
