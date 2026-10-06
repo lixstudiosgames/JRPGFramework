@@ -13,9 +13,10 @@
  * O cenário estático não precisa disto — o shader lê o distance field.
  *
  * A força escala com a velocidade do dono (GetVelocity): parado não mexe, a não ser que
- * IdleStrength > 0. Só o jogador deixa rastro (bLeavesTrail); os outros ocupam um slot
- * cada. Quem entra nos 8 slots do shader é decidido por UJRPGMistSubsystem — o custo não
- * cresce com o número de componentes.
+ * IdleStrength > 0. O pawn controlado pelo jogador deixa rastro sozinho (desligue
+ * bLeavesTrail para não deixar); os outros ocupam um slot cada. Quem entra nos 8 slots
+ * do shader é decidido por UJRPGMistSubsystem — o custo não cresce com o número de
+ * componentes.
  *
  * Sem tick próprio: só se registra no subsistema.
  */
@@ -29,7 +30,7 @@ public:
 
 	/** Raio em uu da área afetada. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist", meta = (ClampMin = "1.0"))
-	float Radius = 140.0f;
+	float Radius = 220.0f;
 
 	/** Força máxima (atingida em FullSpeed). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist", meta = (ClampMin = "0.0"))
@@ -51,9 +52,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist", meta = (ClampMin = "0.0"))
 	float SwirlScale = 1.0f;
 
-	/** Deixa um rastro que se fecha devagar. Use só no jogador — o rastro ocupa vários slots. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist")
-	bool bLeavesTrail = false;
+	/**
+	 * Deixa um rastro que se fecha devagar. Só vale para o pawn controlado pelo jogador — o
+	 * rastro ocupa vários slots do shader, então NPCs nunca deixam rastro.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Trail")
+	bool bLeavesTrail = true;
+
+	/** Segundos até o rastro se fechar. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Trail", meta = (ClampMin = "0.2"))
+	float TrailLifetime = 4.0f;
+
+	/** Quanto o rastro alarga até sumir (0 = mesma largura, 1 = dobra). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Trail", meta = (ClampMin = "0.0"))
+	float TrailWidening = 0.8f;
 
 	/** Força atual (0..Strength) pela velocidade do dono. */
 	float GetCurrentStrength(FVector& OutVelocity) const;

@@ -157,3 +157,170 @@ float2 JRPGMistFromPacked(
 		SurfaceDist, SurfaceGrad, Scene.x, Scene.y, Scene.z,
 		Slot, Dir, Interaction.x, Interaction.y);
 }
+
+// Hash por linha (0..1), estável no tempo
+float JRPGMistHash(float N)
+{
+	return frac(sin(N * 12.9898) * 43758.5453);
+}
+
+// Modo FlowLines: "fumaça de túnel de vento". Poucas linhas na direção do fluxo, curvando em
+// S, com traços (trails) correndo por elas. Cabeça do traço na frente, cauda esmaecendo.
+// As linhas desviam dos objetos pelo distance field e são entortadas por quem passa.
+float2 JRPGMistFlowLines(
+	float3 WorldPos, float Time, Texture2D NoiseTex, SamplerState NoiseTexSampler,
+	float FloorZ, float Density, float HeightFalloff, float NoiseScale,
+	float2 FlowDir, float FlowSpeed, float Spacing, float Sharpness, float Coverage,
+	float CurveAmount, float CurveLength, float CurveDrift,
+	float DashLength, float DashFill,
+	float4 BoxXY, float EdgeFade,
+	float SurfaceDist, float3 SurfaceGrad, float PoolDistance, float FlowAround,
+	float4 Slot[JRPG_MIST_SLOTS], float4 Dir[JRPG_MIST_SLOTS], float ClearStrength, float SwirlStrength)
+{
+	float Clear;
+	const float2 SwirlOffset = JRPGMistDisturb(WorldPos.xy, Slot, Dir, SwirlStrength, Clear);
+
+	const float DirLen = length(FlowDir);
+	const float2 D = DirLen > 1e-4 ? FlowDir / DirLen : float2(1.0, 0.0);
+	const float2 Perp = float2(-D.y, D.x);
+
+	const float2 Pw = WorldPos.xy + SwirlOffset;
+	const float Along = dot(Pw, D);
+	float Across = dot(Pw, Perp);
+
+	// Obstáculos: perto de uma superfície a linha é empurrada para o lado, contornando
+	const float Near = saturate(1.0 - SurfaceDist / max(PoolDistance, 1.0));
+	const float2 GradXY = SurfaceGrad.xy;
+	const float GradLen = length(GradXY);
+	const float2 GradDir = GradLen > 1e-4 ? GradXY / GradLen : float2(0.0, 0.0);
+	Across -= dot(GradDir, Perp) * FlowAround * Near * PoolDistance;
+
+	// Curvas em S: dois senos com frequência e fase diferentes. Variam devagar na direção
+	// transversal, então linhas vizinhas curvam juntas. Ruído de textura aqui fica serrilhado
+	// (tem detalhe fino demais) — os senos dão curvas lisas e ainda são mais baratos.
+	const float K = 6.2831853 / max(CurveLength, 1.0);
+	const float Bend = 0.6 * sin(Along * K + Across * K * 0.35 + Time * CurveDrift)
+	                 + 0.4 * sin(Along * K * 1.9 - Across * K * 0.5 + 1.7 - Time * CurveDrift * 0.7);
+	Across += Bend * CurveAmount;
+
+	// Linhas paralelas; cada uma tem sua presença, velocidade e fase
+	const float LineCoord = Across / max(Spacing, 1.0);
+	const float LineId = floor(LineCoord + 0.5);
+	const float FromCenter = abs(LineCoord - LineId) * 2.0;
+	const float Line = pow(saturate(1.0 - FromCenter), max(Sharpness, 1.0));
+	const float Present = saturate((saturate(Coverage) - JRPGMistHash(LineId)) * 20.0);
+	const float Speed = FlowSpeed * (0.75 + 0.5 * JRPGMistHash(LineId + 17.0));
+
+	// Traços correndo na direção do fluxo
+	const float Phase = frac((Along - Time * Speed) / max(DashLength, 1.0) + JRPGMistHash(LineId + 41.0));
+	const float Fill = clamp(DashFill, 0.05, 1.0);
+	const float S = saturate(Phase / Fill);
+	const float Streak = Phase < Fill ? S * S * (1.0 - smoothstep(0.9, 1.0, S)) : 0.0;
+
+	const float Height = exp(-max(WorldPos.z - FloorZ, 0.0) / max(HeightFalloff, 1.0));
+	const float Solid = saturate(SurfaceDist * 0.1);
+	const float EdgeDist = min(min(WorldPos.x - BoxXY.x, BoxXY.z - WorldPos.x),
+	                           min(WorldPos.y - BoxXY.y, BoxXY.w - WorldPos.y));
+	const float Edge = smoothstep(0.0, 1.0, saturate(EdgeDist / max(EdgeFade, 1.0)));
+	const float Open = 1.0 - saturate(Clear * ClearStrength);
+
+	// As linhas cobrem pouco da área: 3x de densidade deixa o mesmo Density com peso visual
+	// parecido nos dois modos
+	const float Strand = Line * Present * Streak * Height * Edge * Open;
+	return float2(max(Density * 3.0 * Strand * Solid, 0.0), Strand);
+}
+
+
+// Modo PulseRings: ondas circulares saindo do centro em pulsos (um anel a cada Interval
+// segundos, viajando a Speed uu/s) e, opcionalmente, linhas radiais. Os anéis somem perto
+// de MaxRadius; Wiggle entorta os anéis com ruído para não ficarem círculos perfeitos.
+float2 JRPGMistPulseRings(
+	float3 WorldPos, float Time, Texture2D NoiseTex, SamplerState NoiseTexSampler,
+	float FloorZ, float Density, float HeightFalloff, float NoiseScale,
+	float2 Center, float Speed, float Interval, float RingWidth, float Wiggle,
+	float MaxRadius, float RadialCount, float RadialAmount, float RadialSharpness, float RadialSpin,
+	float4 BoxXY, float EdgeFade, float SurfaceDist,
+	float4 Slot[JRPG_MIST_SLOTS], float4 Dir[JRPG_MIST_SLOTS], float ClearStrength, float SwirlStrength)
+{
+	float Clear;
+	const float2 SwirlOffset = JRPGMistDisturb(WorldPos.xy, Slot, Dir, SwirlStrength, Clear);
+
+	const float2 D = WorldPos.xy + SwirlOffset - Center;
+	float R = length(D);
+	const float Angle = atan2(D.y, D.x);
+
+	// Ondulação: desloca o raio por um ruído amostrado no ângulo e no tempo
+	const float2 WiggleUV = float2(Angle * 0.159155 * 4.0, R / max(NoiseScale, 1.0) - Time * 0.05);
+	R += (NoiseTex.SampleLevel(NoiseTexSampler, WiggleUV, 0).r * 2.0 - 1.0) * Wiggle;
+
+	// Anéis: um a cada Interval segundos, então a distância entre anéis é Speed * Interval
+	const float Spacing = max(Speed * max(Interval, 0.05), 1.0);
+	const float Phase = frac((R - Time * Speed) / Spacing);
+	const float ToRing = min(Phase, 1.0 - Phase) * Spacing;
+	const float Width = max(RingWidth, 1.0);
+	const float Ring = exp(-(ToRing * ToRing) / (Width * Width));
+
+	// Linhas radiais girando devagar
+	float Spokes = 0.0;
+	if (RadialCount >= 1.0)
+	{
+		const float A = frac((Angle + Time * RadialSpin) * 0.159155 * floor(RadialCount));
+		Spokes = pow(saturate(1.0 - abs(2.0 * A - 1.0)), max(RadialSharpness, 1.0)) * RadialAmount;
+	}
+
+	// Nasce suave no centro e some perto do raio máximo
+	const float MaxR = max(MaxRadius, 1.0);
+	const float Fade = smoothstep(0.0, Width * 2.0, R) * (1.0 - smoothstep(MaxR * 0.6, MaxR, R));
+
+	const float Height = exp(-max(WorldPos.z - FloorZ, 0.0) / max(HeightFalloff, 1.0));
+	const float Solid = saturate(SurfaceDist * 0.1);
+	const float EdgeDist = min(min(WorldPos.x - BoxXY.x, BoxXY.z - WorldPos.x),
+	                           min(WorldPos.y - BoxXY.y, BoxXY.w - WorldPos.y));
+	const float Edge = smoothstep(0.0, 1.0, saturate(EdgeDist / max(EdgeFade, 1.0)));
+	const float Open = 1.0 - saturate(Clear * ClearStrength);
+
+	const float Shape = saturate(Ring + Spokes) * Fade * Height * Edge * Open;
+	return float2(max(Density * 3.0 * Shape * Solid, 0.0), Shape);
+}
+
+// Entrada atual do Custom node (MF_JRPGMist): JRPGMistFromPacked + o modo e os parâmetros dos
+// outros modos, na ordem que AJRPGMistVolume::ApplyMistParameters escreve. Os mesmos vetores
+// mudam de significado com o modo:
+//   Mode 0 GroundMist: Flow/FlowLines/FlowDash não são usados
+//   Mode 1 FlowLines:  Flow      = Mode, DirX, DirY, FlowSpeed
+//                      FlowLines = Spacing, Sharpness, Coverage, CurveAmount
+//                      FlowDash  = DashLength, DashFill, AvoidDistance, AvoidStrength
+//                      Interaction.zw = CurveLength, CurveDrift
+//   Mode 2 PulseRings: Flow      = Mode, CenterX, CenterY, Speed
+//                      FlowLines = Interval, RingWidth, MaxRadius, Wiggle
+//                      FlowDash  = RadialCount, RadialAmount, RadialSharpness, RadialSpin
+float2 JRPGMistFromPacked2(
+	float3 WorldPos, float Time, Texture2D NoiseTex, SamplerState NoiseTexSampler,
+	float4 ShapeA, float4 ShapeB, float4 Ribbons, float4 Scene, float4 Interaction, float4 BoxXY,
+	float4 Flow, float4 FlowLines, float4 FlowDash,
+	float SurfaceDist, float3 SurfaceGrad,
+	float4 Slot[JRPG_MIST_SLOTS], float4 Dir[JRPG_MIST_SLOTS])
+{
+	if (Flow.x > 1.5)
+	{
+		return JRPGMistPulseRings(WorldPos, Time, NoiseTex, NoiseTexSampler,
+			ShapeA.x, ShapeA.y, ShapeA.z, ShapeA.w,
+			Flow.yz, Flow.w, FlowLines.x, FlowLines.y, FlowLines.w,
+			FlowLines.z, FlowDash.x, FlowDash.y, FlowDash.z, FlowDash.w,
+			BoxXY, Scene.w, SurfaceDist,
+			Slot, Dir, Interaction.x, Interaction.y);
+	}
+	if (Flow.x > 0.5)
+	{
+		return JRPGMistFlowLines(WorldPos, Time, NoiseTex, NoiseTexSampler,
+			ShapeA.x, ShapeA.y, ShapeA.z, ShapeA.w,
+			Flow.yz, Flow.w, FlowLines.x, FlowLines.y, FlowLines.z,
+			FlowLines.w, Interaction.z, Interaction.w,
+			FlowDash.x, FlowDash.y,
+			BoxXY, Scene.w,
+			SurfaceDist, SurfaceGrad, FlowDash.z, FlowDash.w,
+			Slot, Dir, Interaction.x, Interaction.y);
+	}
+	return JRPGMistFromPacked(WorldPos, Time, NoiseTex, NoiseTexSampler,
+		ShapeA, ShapeB, Ribbons, Scene, Interaction, BoxXY, SurfaceDist, SurfaceGrad, Slot, Dir);
+}

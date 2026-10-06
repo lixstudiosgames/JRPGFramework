@@ -1,5 +1,6 @@
 #include "World/JRPGMistVolume.h"
 #include "World/JRPGMistSubsystem.h"
+#include "Components/ArrowComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/GameInstance.h"
@@ -22,6 +23,9 @@ namespace JRPGMistParams
 	static const FName Scene(TEXT("Scene"));          // PoolDistance, PoolAmount, FlowAround, EdgeFade
 	static const FName Interaction(TEXT("Interaction")); // ClearStrength, SwirlStrength, -, -
 	static const FName BoxXY(TEXT("BoxXY"));          // MinX, MinY, MaxX, MaxY
+	static const FName Flow(TEXT("Flow"));            // Mode, DirX, DirY, FlowSpeed
+	static const FName FlowLines(TEXT("FlowLines"));  // Spacing, Sharpness, Coverage, Curve
+	static const FName FlowDash(TEXT("FlowDash"));    // TrailLength, TrailFill, AvoidDistance, AvoidStrength
 }
 
 AJRPGMistVolume::AJRPGMistVolume()
@@ -69,6 +73,19 @@ AJRPGMistVolume::AJRPGMistVolume()
 		EditorOutline->ShapeColor = FColor(120, 160, 255);
 		EditorOutline->SetHiddenInGame(true);
 		EditorOutline->bIsEditorOnly = true;
+	}
+
+	EditorFlowArrow = CreateEditorOnlyDefaultSubobject<UArrowComponent>(TEXT("EditorFlowArrow"));
+	if (EditorFlowArrow)
+	{
+		EditorFlowArrow->SetupAttachment(Root);
+		// Escala absoluta: a escala do ator é o tamanho da caixa, não da seta
+		EditorFlowArrow->SetUsingAbsoluteScale(true);
+		EditorFlowArrow->SetRelativeLocation(FVector(0.0f, 0.0f, 50.0f));
+		EditorFlowArrow->ArrowSize = 4.0f;
+		EditorFlowArrow->ArrowColor = FColor(120, 160, 255);
+		EditorFlowArrow->SetHiddenInGame(true);
+		EditorFlowArrow->bIsEditorOnly = true;
 	}
 #endif
 
@@ -119,9 +136,106 @@ void AJRPGMistVolume::ApplyMistParameters()
 	MistMID->SetVectorParameterValue(JRPGMistParams::ShapeB, FLinearColor(Wind.X, Wind.Y, WarpStrength, WarpSpin));
 	MistMID->SetVectorParameterValue(JRPGMistParams::Ribbons, FLinearColor(RibbonSharpness, RibbonAmount, RibbonStretch, RibbonCoverage));
 	MistMID->SetVectorParameterValue(JRPGMistParams::Scene, FLinearColor(PoolDistance, PoolAmount, FlowAround, EdgeFade));
-	MistMID->SetVectorParameterValue(JRPGMistParams::Interaction, FLinearColor(ClearStrength, SwirlStrength, 0.0f, 0.0f));
+	// Interaction.zw = curva das Flow Lines (os outros modos ignoram)
+	MistMID->SetVectorParameterValue(JRPGMistParams::Interaction, FLinearColor(ClearStrength, SwirlStrength, CurveLength, CurveDrift));
 	MistMID->SetVectorParameterValue(JRPGMistParams::BoxXY, FLinearColor(
 		Bounds.Min.X, Bounds.Min.Y, Bounds.Max.X, Bounds.Max.Y));
+
+	// Flow / FlowLines / FlowDash mudam de significado com o modo (ver JRPGMistFromPacked2)
+	if (Mode == EJRPGMistMode::PulseRings)
+	{
+		const FVector Center = GetActorLocation();
+		MistMID->SetVectorParameterValue(JRPGMistParams::Flow, FLinearColor(2.0f, Center.X, Center.Y, PulseSpeed));
+		MistMID->SetVectorParameterValue(JRPGMistParams::FlowLines, FLinearColor(PulseInterval, RingWidth, PulseMaxRadius, RingWiggle));
+		MistMID->SetVectorParameterValue(JRPGMistParams::FlowDash, FLinearColor(float(RadialLines), RadialAmount, RadialSharpness, RadialSpin));
+	}
+	else
+	{
+		const FVector2D FlowDir = GetFlowDirection();
+		const float ModeValue = Mode == EJRPGMistMode::FlowLines ? 1.0f : 0.0f;
+		MistMID->SetVectorParameterValue(JRPGMistParams::Flow, FLinearColor(ModeValue, FlowDir.X, FlowDir.Y, FlowSpeed));
+		MistMID->SetVectorParameterValue(JRPGMistParams::FlowLines, FLinearColor(LineSpacing, LineSharpness, LineCoverage, LineCurve));
+		MistMID->SetVectorParameterValue(JRPGMistParams::FlowDash, FLinearColor(TrailLength, TrailFill, AvoidDistance, AvoidStrength));
+	}
+}
+
+void AJRPGMistVolume::ApplyModePreset(EJRPGMistMode NewMode)
+{
+	Mode = NewMode;
+
+	// Presets afinados olhando o resultado no editor (World Map / TestMap). A densidade é por
+	// metro; os modos de linha já multiplicam por 3 no shader
+	switch (NewMode)
+	{
+	case EJRPGMistMode::GroundMist:
+		Density = 1.0f;
+		HeightFalloff = 90.0f;
+		NoiseScale = 2400.0f;
+		Wind = FVector2D(25.0f, 10.0f);
+		WarpStrength = 0.5f;
+		WarpSpin = 0.05f;
+		RibbonSharpness = 10.0f;
+		RibbonAmount = 0.7f;
+		RibbonStretch = 3.5f;
+		RibbonCoverage = 0.55f;
+		break;
+
+	case EJRPGMistMode::FlowLines:
+		Density = 2.0f;
+		HeightFalloff = 120.0f;
+		FlowSpeed = 300.0f;
+		LineSpacing = 260.0f;
+		LineSharpness = 2.5f;
+		LineCoverage = 0.5f;
+		LineCurve = 350.0f;
+		CurveLength = 1600.0f;
+		CurveDrift = 0.15f;
+		TrailLength = 1800.0f;
+		TrailFill = 0.75f;
+		AvoidDistance = 250.0f;
+		AvoidStrength = 1.0f;
+		break;
+
+	case EJRPGMistMode::PulseRings:
+		Density = 2.0f;
+		HeightFalloff = 120.0f;
+		NoiseScale = 2400.0f;
+		PulseInterval = 1.5f;
+		PulseSpeed = 400.0f;
+		RingWidth = 70.0f;
+		PulseMaxRadius = 1800.0f;
+		RingWiggle = 40.0f;
+		RadialLines = 12;
+		RadialAmount = 0.4f;
+		RadialSharpness = 6.0f;
+		RadialSpin = 0.1f;
+		break;
+	}
+
+	ApplyMistParameters();
+}
+
+#if WITH_EDITOR
+void AJRPGMistVolume::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	// Trocar o modo no dropdown carrega o preset dele antes do OnConstruction reaplicar tudo
+	if (PropertyChangedEvent.GetMemberPropertyName() == GET_MEMBER_NAME_CHECKED(AJRPGMistVolume, Mode))
+	{
+		ApplyModePreset(Mode);
+	}
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+#endif
+
+FVector2D AJRPGMistVolume::GetFlowDirection() const
+{
+	FVector Dir = GetActorForwardVector();
+	if (IsValid(FlowTarget))
+	{
+		Dir = FlowTarget->GetActorLocation() - GetActorLocation();
+	}
+	const FVector2D Dir2D(Dir.X, Dir.Y);
+	return Dir2D.IsNearlyZero() ? FVector2D(1.0f, 0.0f) : Dir2D.GetSafeNormal();
 }
 
 UMaterialParameterCollection* AJRPGMistVolume::GetParameterCollection() const

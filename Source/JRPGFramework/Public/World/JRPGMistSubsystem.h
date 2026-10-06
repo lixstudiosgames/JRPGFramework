@@ -15,8 +15,8 @@ class UMaterialParameterCollection;
  *
  * O shader (Shaders/JRPGMist.ush) tem 8 slots fixos — o custo por froxel não depende de
  * quantos UJRPGMistDisturberComponent existem no mapa. A divisão:
- *  - o dono com bLeavesTrail (o jogador) ocupa 1 slot com a posição atual + TrailSlots-1
- *    pontos de rastro, que envelhecem e se fecham em TrailLifetime segundos;
+ *  - o pawn do jogador (se o componente dele tem bLeavesTrail) ocupa 1 slot com a posição
+ *    atual + TrailSlots-1 pontos de rastro, que se fecham em TrailLifetime segundos;
  *  - os slots que sobram vão para os outros disturbers mais próximos da câmera.
  *
  * Só tica com algum AJRPGMistVolume no mundo. Volumes e disturbers se registram sozinhos
@@ -33,10 +33,7 @@ public:
 	static constexpr int32 NumSlots = 8;
 
 	/** Slots usados pelo dono do rastro (posição atual + pontos de rastro). */
-	static constexpr int32 TrailSlots = 5;
-
-	/** Segundos até um ponto do rastro se fechar. */
-	static constexpr float TrailLifetime = 2.0f;
+	static constexpr int32 TrailSlots = 6;
 
 	void RegisterVolume(AJRPGMistVolume* Volume);
 	void UnregisterVolume(AJRPGMistVolume* Volume);

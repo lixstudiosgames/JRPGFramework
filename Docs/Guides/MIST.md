@@ -19,6 +19,21 @@ and changes color with the time of day.
 
 ---
 
+## Modes
+
+Pick one in the volume's **Mode** dropdown. Changing it loads that mode's preset (density, height and
+its own parameters) and hides the other modes' options in Details. At runtime, call
+`ApplyModePreset(NewMode)` from Blueprint.
+
+| Mode | What it draws | Direction / center |
+|---|---|---|
+| **Ground Mist** | Broad soft mist with strands and slow swirls (the reference look) | Drifts with `Wind` |
+| **Flow Lines** | A few lines curving in S shapes with trails running along them, like smoke in a wind tunnel. They bend around objects | The actor's arrow (rotate it in yaw), or toward `FlowTarget` if set |
+| **Pulse Rings** | Concentric rings sent out in pulses from the center, plus optional radial lines | The actor's pivot is the center |
+
+Thin features blur in volumetric fog: one grid cell covers ~16 screen pixels. Keep `LineSharpness`
+around 2–4 and `RingWidth` above ~40 uu, or lines read as rain streaks.
+
 ## How it works
 
 **Shape.** The shader samples a tiling noise texture in world XY, because the camera looks down.
@@ -40,9 +55,9 @@ mesh distance fields (`r.GenerateMeshDistanceFields=True`).
 reach the fog on its own, so anything animated or simulated needs `UJRPGMistDisturberComponent`.
 - The mist parts around its owner and swirls to either side of its path, like a wake.
 - Strength scales with the owner's speed. A barrel at rest does nothing, and a rolling one cuts through.
-- The player (`bLeavesTrail = true`) also leaves a trail that closes over 2 seconds.
+- The player-controlled pawn also leaves a trail that closes over `TrailLifetime` seconds (4 by default).
 
-**Fixed cost.** The shader always has 8 slots. The player takes 5: the current position plus 4 trail
+**Fixed cost.** The shader always has 8 slots. The player takes 6: the current position plus 5 trail
 points. The 3 left go to the other disturbers closest to the camera. Adding NPCs never makes the shader
 more expensive.
 
@@ -64,8 +79,8 @@ Nothing has to be built by hand. The recipe below is for rebuilding or changing 
 
 ### Why the graph lives in a Material Function
 
-Editing a Material recompiles it on **every** change, and the Custom node has 27 inputs that the editor
-only accepts one at a time. Adding them straight into the Material fired 27 back-to-back recompiles, and
+Editing a Material recompiles it on **every** change, and the Custom node has 30 inputs that the editor
+only accepts one at a time. Adding them straight into the Material fired one recompile per input, and
 the editor crashed inside the shader preprocessor (300+ cancelled shader jobs). A Material Function
 doesn't compile on its own, so the graph is built there and the Material compiles once.
 
@@ -90,18 +105,19 @@ Import `Extras/Mist/T_JRPGMistNoise.png` into `Content/World/Mist/` with sRGB **
 ```hlsl
 float4 S[8] = { Slot0, Slot1, Slot2, Slot3, Slot4, Slot5, Slot6, Slot7 };
 float4 D[8] = { Dir0, Dir1, Dir2, Dir3, Dir4, Dir5, Dir6, Dir7 };
-return JRPGMistFromPacked(WorldPos, Time, NoiseTex, NoiseTexSampler,
-    ShapeA, ShapeB, Ribbons, Scene, Interaction, BoxXY, SurfaceDist, SurfaceGrad, S, D);
+return JRPGMistFromPacked2(WorldPos, Time, NoiseTex, NoiseTexSampler,
+    ShapeA, ShapeB, Ribbons, Scene, Interaction, BoxXY, Flow, FlowLines, FlowDash,
+    SurfaceDist, SurfaceGrad, S, D);
 ```
 
-**The 27 inputs**, named exactly:
+**The 30 inputs**, named exactly:
 
 | Input | Connected to |
 |---|---|
 | `WorldPos` | Absolute World Position (`XYZ`) |
 | `Time` | Time |
 | `NoiseTex` | Texture Object `T_JRPGMistNoise`, sampler type **Masks** (a Masks texture in a Color sampler fails to compile) |
-| `ShapeA`, `ShapeB`, `Ribbons`, `Scene`, `Interaction`, `BoxXY` | Vector Parameters with the same names (`RGBA` output). `AJRPGMistVolume` overwrites them |
+| `ShapeA`, `ShapeB`, `Ribbons`, `Scene`, `Interaction`, `BoxXY`, `Flow`, `FlowLines`, `FlowDash` | Vector Parameters with the same names (`RGBA` output). `AJRPGMistVolume` overwrites them; `Flow`/`FlowLines`/`FlowDash` change meaning with the mode (see `JRPGMistFromPacked2` in the shader) |
 | `SurfaceDist` | Quality Switch: **Default** = `DistanceToNearestSurface`, **Low** = constant `100000` |
 | `SurfaceGrad` | Quality Switch: **Default** = `DistanceFieldGradient`, raw, **Low** = constant `(0,0,0)`. Don't add a `Normalize` node: the shader normalizes safely, and `Normalize` returns NaN wherever the gradient is zero |
 | `Slot0`…`Slot7`, `Dir0`…`Dir7` | Collection Parameter nodes from `MPC_JRPGMist` |
@@ -146,8 +162,9 @@ The graph is one Material Function Call node with `MF_JRPGMist`:
      The default is 40 × 40 × 4 = 4000 × 4000 × 400 uu. A blue outline shows the box in the editor
      (hidden in game), because a volume material is invisible in the viewport on its own.
    - Keep the box unrotated, or at most yawed. The side fade follows the axis-aligned bounds.
-3. **Add `UJRPGMistDisturberComponent` to the player pawn's Blueprint** with `bLeavesTrail = true`.
-   `IdleStrength` ~0.3 keeps a small clearing around a standing player.
+3. **Add `UJRPGMistDisturberComponent` to the player pawn's Blueprint.** It detects that it is on the
+   player and leaves the trail on its own. `IdleStrength` ~0.3 keeps a small clearing around a
+   standing player.
 4. **Add the same component to NPCs, enemies and physics props** with `bLeavesTrail = false`.
 5. **Lamps:** give them `Volumetric Scattering Intensity`. Enable **Cast Volumetric Shadow** on 1–2
    lights per area at most, because it is the most expensive part of volumetric fog.
@@ -174,7 +191,27 @@ The graph is one Material Function Call node with `MF_JRPGMist`:
 | Interaction | `ClearStrength` | How much the mist parts around a disturber (0..1) |
 | | `SwirlStrength` | Maximum swirl angle (radians) |
 
-Changing values at runtime? Call `ApplyMistParameters()`.
+**Flow Lines** (`Flow` category): `FlowTarget`, `FlowSpeed`, `LineSpacing`, `LineSharpness`,
+`LineCoverage` (fewer lines when lower), `LineCurve` and `CurveLength` (the S curves), `CurveDrift`
+(how fast the curves change), `TrailLength` and `TrailFill` (the streaks), `AvoidDistance` and
+`AvoidStrength` (how the lines bend around objects).
+
+**Pulse Rings** (`Pulse` category): `PulseInterval` (seconds between rings), `PulseSpeed`,
+`RingWidth`, `PulseMaxRadius` (where the wave fades out), `RingWiggle`, `RadialLines` (0 = rings only),
+`RadialAmount`, `RadialSharpness`, `RadialSpin`.
+
+Every parameter is `BlueprintReadWrite`. After changing values at runtime, call `ApplyMistParameters()`.
+
+### Trail (`UJRPGMistDisturberComponent`)
+
+| Parameter | Effect |
+|---|---|
+| `Radius` | Size of the clearing around the owner (220 uu) |
+| `Strength`, `MinSpeed`, `FullSpeed`, `IdleStrength` | How strongly it parts the mist, scaled by speed |
+| `SwirlScale` | 0 = only parts the mist, 1 = full swirl |
+| `bLeavesTrail` | On by default. Only the **player-controlled pawn** leaves a trail; it is picked automatically |
+| `TrailLifetime` | Seconds until the trail closes (4) |
+| `TrailWidening` | How much the trail widens as it closes (0.8 = almost doubles) |
 
 ## Performance
 

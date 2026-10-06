@@ -4,6 +4,7 @@
 #include "Camera/PlayerCameraManager.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Materials/MaterialParameterCollection.h"
 #include "Materials/MaterialParameterCollectionInstance.h"
@@ -99,11 +100,13 @@ void UJRPGMistSubsystem::Tick(float DeltaTime)
 	TArray<FSlot> Slots;
 	Slots.Reserve(NumSlots);
 
-	// 1) O jogador (bLeavesTrail): posição atual + rastro
+	// 1) O pawn do jogador: posição atual + rastro. Detectado sozinho — não depende de
+	// alguém lembrar de marcar o componente certo
 	const UJRPGMistDisturberComponent* Owner = nullptr;
 	for (const TWeakObjectPtr<UJRPGMistDisturberComponent>& D : Disturbers)
 	{
-		if (D->bLeavesTrail)
+		const APawn* Pawn = Cast<APawn>(D->GetOwner());
+		if (D->bLeavesTrail && Pawn && Pawn->IsPlayerControlled())
 		{
 			Owner = D.Get();
 			break;
@@ -169,12 +172,14 @@ void UJRPGMistSubsystem::UpdateTrail(const UJRPGMistDisturberComponent* Owner, f
 	{
 		P.Age += DeltaTime;
 	}
-	Trail.RemoveAll([](const FTrailPoint& P) { return P.Age >= TrailLifetime; });
-
 	if (!Owner || !Owner->GetOwner())
 	{
+		Trail.Reset();
 		return;
 	}
+
+	const float Lifetime = FMath::Max(Owner->TrailLifetime, 0.2f);
+	Trail.RemoveAll([Lifetime](const FTrailPoint& P) { return P.Age >= Lifetime; });
 
 	FVector Velocity;
 	const float Strength = Owner->GetCurrentStrength(Velocity);
@@ -189,10 +194,10 @@ void UJRPGMistSubsystem::UpdateTrail(const UJRPGMistDisturberComponent* Owner, f
 		S.Dir = FLinearColor(Dir.X, Dir.Y, Owner->SwirlScale, 0.0f);
 	}
 
-	// Um ponto novo a cada TrailLifetime / (pontos) segundos andando: os pontos cobrem os
-	// últimos TrailLifetime segundos, qualquer que seja a velocidade
+	// Um ponto novo a cada Lifetime / (pontos) segundos andando: os pontos cobrem os
+	// últimos Lifetime segundos, qualquer que seja a velocidade
 	constexpr int32 MaxPoints = TrailSlots - 1;
-	constexpr float PushInterval = TrailLifetime / MaxPoints;
+	const float PushInterval = Lifetime / MaxPoints;
 	TimeSinceTrailPush += DeltaTime;
 	const bool bMoving = !Dir.IsZero() && Strength > Owner->IdleStrength;
 	if (bMoving && TimeSinceTrailPush >= PushInterval)
@@ -208,9 +213,10 @@ void UJRPGMistSubsystem::UpdateTrail(const UJRPGMistDisturberComponent* Owner, f
 	// Pontos do rastro: enfraquecem e alargam com a idade (a esteira se espalha e fecha)
 	for (const FTrailPoint& P : Trail)
 	{
-		const float Life = 1.0f - P.Age / TrailLifetime;
+		const float Life = 1.0f - P.Age / Lifetime;
 		FSlot& S = OutSlots.AddDefaulted_GetRef();
-		S.Slot = FLinearColor(P.Position.X, P.Position.Y, Owner->Radius * (1.0f + 0.6f * (1.0f - Life)), P.Strength * Life);
+		S.Slot = FLinearColor(P.Position.X, P.Position.Y,
+			Owner->Radius * (1.0f + Owner->TrailWidening * (1.0f - Life)), P.Strength * Life);
 		S.Dir = FLinearColor(P.Direction.X, P.Direction.Y, Owner->SwirlScale, 0.0f);
 	}
 }
