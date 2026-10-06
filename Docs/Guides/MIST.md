@@ -43,13 +43,15 @@ shader, with one extra texture read.
 
 ## How it works
 
-**Shape.** The shader samples a tiling noise texture in world XY, because the camera looks down.
+**Shape.** The shader samples a tiling noise texture in world XY, because the camera looks down. The main
+layers are *pseudo-3D*: two reads offset by height slices and blended. Pure 2D noise is identical from top
+to bottom, so a thick mist turned into vertical streaks.
 1. A slow, rotating **warp field** offsets every other sample. That is what turns noise into swirls.
 2. A **base layer** gives broad soft mist.
 3. A **strand layer** is stretched along the wind and sharpened with a ridge, `pow(1 - |2n - 1|, k)`. It
    only shows over part of the area (`RibbonCoverage`). Strands everywhere look like marble.
-4. Density falls off **exponentially with height** from the box floor, and **fades at the box's side
-   walls**.
+4. Density is full up to near `Thickness` and fades at the top (`TopSoftness`), measured from the
+   terrain or the pivot. It also **fades at the box's side walls**.
 
 **Scenery, with no component.** The shader reads the **Global Distance Field**. The project generates
 mesh distance fields (`r.GenerateMeshDistanceFields=True`).
@@ -172,7 +174,20 @@ The graph is one Material Function Call node with `MF_JRPGMist`:
 3. **Add `UJRPGMistDisturberComponent` to the player pawn's Blueprint.** It detects that it is on the
    player and leaves the trail on its own. `IdleStrength` ~0.3 keeps a small clearing around a
    standing player.
-4. **Add the same component to NPCs, enemies and physics props** with `bLeavesTrail = false`.
+4. **Add the same component to NPCs, enemies and physics props.** They part the mist but never leave a
+   trail; only the player does.
+
+### Holes, pits and slopes
+
+With `bFollowGround` on, the mist's height is measured from the nearest surface, not from the pivot. It
+hugs the terrain: it runs down slopes, settles into pits and stays thin over high ground.
+
+- **The mist only exists inside the box.** To fill a hole, put the pivot at the **bottom of the hole**
+  and make the box tall enough to reach above the surrounding ground plus `Thickness`.
+- Near walls the distance to the nearest surface is small, so the mist gets denser along them. Inside a
+  narrow pit it fills the pit.
+- With material quality Low there is no distance field, and height falls back to the pivot. That is a
+  flat layer that won't enter holes.
 5. **Lamps:** give them `Volumetric Scattering Intensity`. Enable **Cast Volumetric Shadow** on 1–2
    lights per area at most, because it is the most expensive part of volumetric fog.
 
@@ -183,7 +198,9 @@ The graph is one Material Function Call node with `MF_JRPGMist`:
 | Look | `Density` | Extinction at the floor. Keep it small, because volumetric fog accumulates along the view ray |
 | | `Albedo` | How much light the mist scatters, per channel. ~0.95 = white (the default): the final color is the light hitting it. Lower values darken and tint it |
 | | `RibbonGlow` | Self-glow on the strands. Black = off. A faint blue reads as "magical" without any light |
-| | `HeightFalloff` | Height where density drops to ~37%. Lower = hugs the ground |
+| | `Thickness` | Thickness of the mist in uu: dense up to near it, fading at the top. Raise this (not the density) for a deeper mist; keep the box taller than it |
+| | `TopSoftness` | How much of the thickness is a soft fade at the top (0.05..1) |
+| | `bFollowGround` | Measures height from the terrain (distance field) instead of the pivot, so the mist follows slopes and flows down into holes. On by default |
 | | `NoiseScale` | Size of one noise tile in uu. Bigger = bigger swirls |
 | | `Wind` | Drift in uu/s; the mist moves *with* it. **Keep it slow**: fast motion smears under temporal reprojection |
 | | `WarpStrength`, `WarpSpin` | How much and how fast the swirls twist |

@@ -91,9 +91,24 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look")
 	FLinearColor RibbonGlow = FLinearColor(0.0f, 0.0f, 0.0f);
 
-	/** Altura em uu em que a densidade cai para ~37%. Menor = mais rente ao chão. */
+	/**
+	 * Espessura da névoa em uu. Densa até perto dela, esmaecendo no topo (TopSoftness). Deixe a
+	 * caixa mais alta que isto — o que passa do topo da caixa é cortado.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look", meta = (ClampMin = "1.0"))
-	float HeightFalloff = 90.0f;
+	float Thickness = 200.0f;
+
+	/** Quanto da espessura é transição suave no topo (0.05..1). 1 = esmaece desde o chão. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look", meta = (ClampMin = "0.05", ClampMax = "1.0"))
+	float TopSoftness = 0.7f;
+
+	/**
+	 * Mede a altura a partir do terreno (distance field), não do pivô: a névoa segue o relevo e
+	 * desce em buracos e depressões. Para cobrir um buraco, ponha o pivô no fundo dele. Sem
+	 * distance field (preset Low) volta a medir pelo pivô.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look")
+	bool bFollowGround = true;
 
 	/** Tamanho de um "tile" do ruído em uu. Maior = redemoinhos maiores. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look", meta = (ClampMin = "1.0"))

@@ -17,7 +17,7 @@ namespace JRPGMistParams
 {
 	static const FName Albedo(TEXT("Albedo"));
 	static const FName RibbonGlow(TEXT("RibbonGlow"));
-	static const FName ShapeA(TEXT("ShapeA"));        // FloorZ, Density, HeightFalloff, NoiseScale
+	static const FName ShapeA(TEXT("ShapeA"));        // FloorZ, Density, Thickness, NoiseScale
 	static const FName ShapeB(TEXT("ShapeB"));        // WindX, WindY, WarpStrength, WarpSpin
 	static const FName Ribbons(TEXT("Ribbons"));      // Sharpness, Amount, Stretch, Coverage
 	static const FName Scene(TEXT("Scene"));          // PoolDistance, PoolAmount, FlowAround, EdgeFade
@@ -26,7 +26,7 @@ namespace JRPGMistParams
 	static const FName Flow(TEXT("Flow"));            // Mode, DirX, DirY, FlowSpeed
 	static const FName FlowLines(TEXT("FlowLines"));  // Spacing, Width, Coverage, Curve
 	static const FName FlowDash(TEXT("FlowDash"));    // TrailLength, TrailFill, AvoidDistance, AvoidStrength
-	static const FName FlowEddy(TEXT("FlowEddy"));    // EddyStrength, EddySize, LineDensity, -
+	static const FName FlowEddy(TEXT("FlowEddy"));    // EddyStrength, EddySize, LineDensity, Layer
 }
 
 AJRPGMistVolume::AJRPGMistVolume()
@@ -133,7 +133,7 @@ void AJRPGMistVolume::ApplyMistParameters()
 
 	MistMID->SetVectorParameterValue(JRPGMistParams::Albedo, Albedo);
 	MistMID->SetVectorParameterValue(JRPGMistParams::RibbonGlow, RibbonGlow);
-	MistMID->SetVectorParameterValue(JRPGMistParams::ShapeA, FLinearColor(FloorZ, Density, HeightFalloff, NoiseScale));
+	MistMID->SetVectorParameterValue(JRPGMistParams::ShapeA, FLinearColor(FloorZ, Density, Thickness, NoiseScale));
 	// Ground + Flow: o vento da névoa de chão é a direção do fluxo — os dois vão para o mesmo
 	// lado; a névoa anda a GroundDriftRatio da velocidade das linhas
 	FVector2D GroundWind = Wind;
@@ -164,9 +164,12 @@ void AJRPGMistVolume::ApplyMistParameters()
 			: Mode == EJRPGMistMode::GroundAndFlow ? 3.0f : 0.0f;
 		MistMID->SetVectorParameterValue(JRPGMistParams::Flow, FLinearColor(ModeValue, FlowDir.X, FlowDir.Y, FlowSpeed));
 		MistMID->SetVectorParameterValue(JRPGMistParams::FlowLines, FLinearColor(LineSpacing, LineWidth, LineCoverage, LineCurve));
-		MistMID->SetVectorParameterValue(JRPGMistParams::FlowEddy, FLinearColor(EddyStrength, EddySize, LineDensity, 0.0f));
 		MistMID->SetVectorParameterValue(JRPGMistParams::FlowDash, FLinearColor(TrailLength, TrailFill, AvoidDistance, AvoidStrength));
 	}
+
+	// Camada (todos os modos): TopSoftness + 2 com Follow Ground — ver JRPGMistLayer no shader
+	const float LayerPacked = FMath::Clamp(TopSoftness, 0.05f, 1.0f) + (bFollowGround ? 2.0f : 0.0f);
+	MistMID->SetVectorParameterValue(JRPGMistParams::FlowEddy, FLinearColor(EddyStrength, EddySize, LineDensity, LayerPacked));
 }
 
 void AJRPGMistVolume::ApplyModePreset(EJRPGMistMode NewMode)
@@ -179,7 +182,8 @@ void AJRPGMistVolume::ApplyModePreset(EJRPGMistMode NewMode)
 	{
 	case EJRPGMistMode::GroundAndFlow:
 		Density = 1.0f;
-		HeightFalloff = 100.0f;
+		Thickness = 220.0f;
+		TopSoftness = 0.7f;
 		NoiseScale = 2400.0f;
 		WarpStrength = 0.5f;
 		WarpSpin = 0.05f;
@@ -206,7 +210,8 @@ void AJRPGMistVolume::ApplyModePreset(EJRPGMistMode NewMode)
 
 	case EJRPGMistMode::GroundMist:
 		Density = 1.0f;
-		HeightFalloff = 90.0f;
+		Thickness = 200.0f;
+		TopSoftness = 0.7f;
 		NoiseScale = 2400.0f;
 		Wind = FVector2D(25.0f, 10.0f);
 		WarpStrength = 0.5f;
@@ -219,7 +224,8 @@ void AJRPGMistVolume::ApplyModePreset(EJRPGMistMode NewMode)
 
 	case EJRPGMistMode::FlowLines:
 		Density = 2.0f;
-		HeightFalloff = 120.0f;
+		Thickness = 180.0f;
+		TopSoftness = 0.6f;
 		FlowSpeed = 300.0f;
 		LineSpacing = 260.0f;
 		LineWidth = 55.0f;
@@ -238,7 +244,8 @@ void AJRPGMistVolume::ApplyModePreset(EJRPGMistMode NewMode)
 
 	case EJRPGMistMode::PulseRings:
 		Density = 2.0f;
-		HeightFalloff = 120.0f;
+		Thickness = 180.0f;
+		TopSoftness = 0.6f;
 		NoiseScale = 2400.0f;
 		PulseInterval = 1.5f;
 		PulseSpeed = 400.0f;
