@@ -87,7 +87,12 @@ float2 JRPGMistEvaluate(
 	// 2) Cenário: perto de uma superfície o fluxo corre pela tangente dela (contorna a casa
 	// em vez de atravessar) e a névoa se acumula na base
 	const float Near = saturate(1.0 - SurfaceDist / max(PoolDistance, 1.0));
-	const float2 Tangent = float2(-SurfaceGrad.y, SurfaceGrad.x);
+	// O gradiente chega cru (DistanceFieldGradient): normaliza aqui, porque longe das
+	// superfícies ele é zero e Normalize no grafo daria NaN
+	const float2 GradXY = SurfaceGrad.xy;
+	const float GradLen = length(GradXY);
+	const float2 GradDir = GradLen > 1e-4 ? GradXY / GradLen : float2(0.0, 0.0);
+	const float2 Tangent = float2(-GradDir.y, GradDir.x);
 
 	// 3) Domain warp: um campo lento (R/G independentes) desloca todas as amostras e gira
 	// devagar. É isso que transforma o ruído em redemoinhos.

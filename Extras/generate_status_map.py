@@ -98,8 +98,8 @@ SYSTEMS = [
         S("Camera", OK, 3, "13 presets, 8 shakes, level cameras + zones, conversation, FrameGroup / Orbit",
           "13 presets, 8 tremores, câmeras de nível + zonas, conversa, FrameGroup / Orbit", "Câmera"),
         S("Data", OK, 1.5, "8 DataTables as CSV, the source of truth", "8 DataTables em CSV, a fonte da verdade", "Dados"),
-        S("Mist", PARTIAL, 2, "Living volumetric mist: C++ and shader done, material assets still to be built in the editor",
-          "Névoa volumétrica viva: C++ e shader prontos, falta montar os assets do material no editor", "Névoa"),
+        S("Mist", PARTIAL, 2, "Living volumetric mist: C++, shader and material done; not tuned in a map yet",
+          "Névoa volumétrica viva: C++, shader e material prontos; falta ajustar num mapa", "Névoa"),
     ],
     [  # linha 3
         S("WebUI", OK, 4, "HTML SPA shell: menu, items, party, shop, save/load, options, main menu, dev screen; gamepad + keyboard + mouse, responsive scaling",

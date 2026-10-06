@@ -28,7 +28,7 @@
 <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line class="hatch" x1="0" y1="0" x2="0" y2="6" stroke-width="1.5" stroke-opacity=".55"/></pattern></defs>
 <rect class="bg" width="900" height="446" rx="6"/>
 <text class="t1" x="16" y="34" font-size="24" font-weight="600">Status</text>
-<text class="t2" x="884" y="34" font-size="12" text-anchor="end">Legend of Legaia Remake · JRPGFramework · dev @ 882357c · 2026-10-06</text>
+<text class="t2" x="884" y="34" font-size="12" text-anchor="end">Legend of Legaia Remake · JRPGFramework · dev @ 7f1aeec · 2026-10-06</text>
 <line class="rule" x1="16" y1="44" x2="884" y2="44" stroke-width="1"/>
 <rect class="badge-k" x="16" y="56" width="79.6" height="22" rx="3"/>
 <rect class="partial" x="92.6" y="56" width="48.8" height="22" rx="3"/>
@@ -325,7 +325,7 @@
 <text class="badge-t" x="732.8" y="201.0" font-size="11" text-anchor="middle" pointer-events="none">Câmera</text>
 <rect class="ok" x="778.5" y="169.5" width="44.2" height="55.0"><title>Dados: 8 DataTables em CSV, a fonte da verdade</title></rect>
 <text class="badge-t" x="800.6" y="201.0" font-size="11" text-anchor="middle" pointer-events="none">Dados</text>
-<rect class="partial" x="823.7" y="169.5" width="59.3" height="55.0"><title>Névoa: Névoa volumétrica viva: C++ e shader prontos, falta montar os assets do material no editor</title></rect>
+<rect class="partial" x="823.7" y="169.5" width="59.3" height="55.0"><title>Névoa: Névoa volumétrica viva: C++, shader e material prontos; falta ajustar num mapa</title></rect>
 <rect x="823.7" y="169.5" width="59.3" height="55.0" fill="url(#hatch)" pointer-events="none"/>
 <text class="txt-dark" x="853.4" y="201.0" font-size="11" text-anchor="middle" pointer-events="none">Névoa</text>
 <rect class="ok" x="462.0" y="225.5" width="139.7" height="49.0"><title>WebUI: Shell SPA em HTML: menu, itens, party, loja, save/load, opções, menu principal, tela de dev; gamepad + teclado + mouse, escala responsiva</title></rect>

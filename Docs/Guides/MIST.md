@@ -14,7 +14,7 @@ and changes color with the time of day.
 | `AJRPGMistVolume` | `Public/World/JRPGMistVolume.h` | The box you drop in a level. Holds every look parameter |
 | `UJRPGMistDisturberComponent` | `Public/World/JRPGMistDisturberComponent.h` | Goes on whatever moves and should stir the mist |
 | `UJRPGMistSubsystem` | `Public/World/JRPGMistSubsystem.h` | Picks who fills the shader's 8 slots each frame and writes them to the MPC |
-| `M_JRPGMist`, `MI_JRPGMist_Default`, `MPC_JRPGMist`, `T_JRPGMistNoise` | `Content/World/Mist/` | Editor assets, built once from the recipe below |
+| `M_JRPGMist`, `MF_JRPGMist`, `MI_JRPGMist_Default`, `MPC_JRPGMist`, `T_JRPGMistNoise` | `Content/World/Mist/` | The material assets, shipped with the plugin |
 | `generate_mist_noise.py` | `Extras/` | Generates `Extras/Mist/T_JRPGMistNoise.png` |
 
 ---
@@ -48,66 +48,44 @@ more expensive.
 
 ---
 
-## One-time setup: the assets
+## The assets
 
-They live in the plugin, under `Content/World/Mist/`. The C++ looks for them at those exact paths.
+They ship with the plugin, in `Content/World/Mist/`, and the C++ looks for them at those exact paths:
 
-### 1. `T_JRPGMistNoise`
+| Asset | What it is |
+|---|---|
+| `T_JRPGMistNoise` | Tiling noise. sRGB off, Masks, Wrap/Wrap, NoMipmaps |
+| `MPC_JRPGMist` | 16 vector parameters, `Slot0`…`Slot7` and `Dir0`…`Dir7`, written by `UJRPGMistSubsystem` |
+| `MF_JRPGMist` | The whole graph, including the Custom node that calls `JRPGMist.ush` |
+| `M_JRPGMist` | Volume / Additive. Only a call to `MF_JRPGMist` wired to the outputs |
+| `MI_JRPGMist_Default` | Instance of `M_JRPGMist`, the default of `AJRPGMistVolume` |
+
+Nothing has to be built by hand. The recipe below is for rebuilding or changing them.
+
+### Why the graph lives in a Material Function
+
+Editing a Material recompiles it on **every** change, and the Custom node has 27 inputs that the editor
+only accepts one at a time. Adding them straight into the Material fired 27 back-to-back recompiles, and
+the editor crashed inside the shader preprocessor (300+ cancelled shader jobs). A Material Function
+doesn't compile on its own, so the graph is built there and the Material compiles once.
+
+**If you change the graph, edit `MF_JRPGMist`, not `M_JRPGMist`.**
+
+### Rebuilding `T_JRPGMistNoise`
 
 ```bash
 python Extras/generate_mist_noise.py
 ```
 
-Import `Extras/Mist/T_JRPGMistNoise.png` into `Content/World/Mist/`, then set:
+Import `Extras/Mist/T_JRPGMistNoise.png` into `Content/World/Mist/` with sRGB **off**, Compression
+**Masks (no sRGB)**, X/Y tiling **Wrap**, Mip Gen **NoMipmaps**. The shader always reads mip 0.
 
-| Setting | Value |
-|---|---|
-| sRGB | **off** |
-| Compression Settings | **Masks (no sRGB)** |
-| X-axis / Y-axis Tiling Method | **Wrap** |
-| Mip Gen Settings | **NoMipmaps** (the shader always reads mip 0) |
-
-### 2. `MPC_JRPGMist`
-
-A Material Parameter Collection with **16 vector parameters**, all with default `(0,0,0,0)`:
-`Slot0`…`Slot7` and `Dir0`…`Dir7`. The names must match exactly.
-
-### 3. `M_JRPGMist`
-
-| Setting | Value |
-|---|---|
-| Material Domain | **Volume** |
-| Blend Mode | **Additive** (required by Volume) |
-
-**Parameters** (Vector Parameter nodes, names exact): `Albedo`, `RibbonGlow`, `ShapeA`, `ShapeB`,
-`Ribbons`, `Scene`, `Interaction`, `BoxXY`. The actor overwrites all of them, so defaults only matter in
-the material preview.
-
-**Texture:** a Texture Object node with `T_JRPGMistNoise`.
-
-**Distance field, behind a Quality Switch:**
-- **Default** pin:
-  - `SurfaceDist` = `DistanceToNearestSurface` (Position: Absolute World Position);
-  - `SurfaceGrad` = `Normalize(DistanceFieldGradient)`.
-- **Low** pin: `SurfaceDist` = constant `100000`, `SurfaceGrad` = constant `(0,0,0)`.
-
-The Low preset then skips the distance field entirely.
+### `MF_JRPGMist`, the graph
 
 **Custom node:**
 - Output Type: **CMOT Float 2**.
 - Include File Paths: `/Plugin/JRPGFramework/JRPGMist.ush`.
-- Inputs, in any order, named exactly:
-
-| Input | Connect to |
-|---|---|
-| `WorldPos` | Absolute World Position |
-| `Time` | Time |
-| `NoiseTex` | the Texture Object |
-| `ShapeA`, `ShapeB`, `Ribbons`, `Scene`, `Interaction`, `BoxXY` | the vector parameters with the same names |
-| `SurfaceDist`, `SurfaceGrad` | the Quality Switch outputs above |
-| `Slot0`…`Slot7`, `Dir0`…`Dir7` | Collection Parameter nodes from `MPC_JRPGMist` |
-
-Code:
+- Code:
 
 ```hlsl
 float4 S[8] = { Slot0, Slot1, Slot2, Slot3, Slot4, Slot5, Slot6, Slot7 };
@@ -116,17 +94,40 @@ return JRPGMistFromPacked(WorldPos, Time, NoiseTex, NoiseTexSampler,
     ShapeA, ShapeB, Ribbons, Scene, Interaction, BoxXY, SurfaceDist, SurfaceGrad, S, D);
 ```
 
-**Outputs:**
+**The 27 inputs**, named exactly:
 
-| Material pin | Value |
+| Input | Connected to |
 |---|---|
-| Base Color (Albedo) | `Albedo` |
-| Extinction | Custom `.r` |
-| Emissive Color | `RibbonGlow` × Custom `.g` |
+| `WorldPos` | Absolute World Position (`XYZ`) |
+| `Time` | Time |
+| `NoiseTex` | Texture Object `T_JRPGMistNoise`, sampler type **Masks** (a Masks texture in a Color sampler fails to compile) |
+| `ShapeA`, `ShapeB`, `Ribbons`, `Scene`, `Interaction`, `BoxXY` | Vector Parameters with the same names (`RGBA` output). `AJRPGMistVolume` overwrites them |
+| `SurfaceDist` | Quality Switch: **Default** = `DistanceToNearestSurface`, **Low** = constant `100000` |
+| `SurfaceGrad` | Quality Switch: **Default** = `DistanceFieldGradient`, raw, **Low** = constant `(0,0,0)`. Don't add a `Normalize` node: the shader normalizes safely, and `Normalize` returns NaN wherever the gradient is zero |
+| `Slot0`…`Slot7`, `Dir0`…`Dir7` | Collection Parameter nodes from `MPC_JRPGMist` |
 
-### 4. `MI_JRPGMist_Default`
+**The 3 Function Outputs:**
 
-A Material Instance of `M_JRPGMist` with nothing overridden. `AJRPGMistVolume` points to it by default.
+| Output | Value |
+|---|---|
+| `Albedo` | Vector Parameter `Albedo` (`RGB`) |
+| `Extinction` | Custom `.r` (Component Mask R) |
+| `Emissive` | Vector Parameter `RibbonGlow` (`RGB`) × Custom `.g` |
+
+### `M_JRPGMist`
+
+| Setting | Value |
+|---|---|
+| Material Domain | **Volume** |
+| Blend Mode | **Additive** (required by Volume) |
+
+The graph is one Material Function Call node with `MF_JRPGMist`:
+
+| Function output | Material pin |
+|---|---|
+| `Albedo` | Base Color (Albedo) |
+| `Extinction` | Extinction (internally `MP_SubsurfaceColor`) |
+| `Emissive` | Emissive Color |
 
 ---
 
