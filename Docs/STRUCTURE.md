@@ -41,7 +41,11 @@ JRPGFramework/
 │   │   │   ├── WorldStateSubsystem.h ✅         ← event flags, chests, Revival Trees, bIsInField
 │   │   │   │                                       (gates the SAVE tab) + reset/load
 │   │   │   ├── EventFlag.h ✅
-│   │   │   └── RevivalTreeState.h ✅
+│   │   │   ├── RevivalTreeState.h ✅
+│   │   │   ├── JRPGMistVolume.h ✅              ← box of living mist injected into the volumetric
+│   │   │   │                                       fog (shader in Shaders/JRPGMist.ush)
+│   │   │   ├── JRPGMistDisturberComponent.h ✅  ← goes on whatever moves and should stir the mist
+│   │   │   └── JRPGMistSubsystem.h ✅           ← picks the shader's 8 slots, writes MPC_JRPGMist
 │   │   │
 │   │   ├── UI/ ✅                               ← WEBUI VIA ULTRALIGHT 1.4 (GPU mode, D3D11)
 │   │   │   ├── WebUISubsystem.h ✅              ← owns the shell: OpenDevMenu/RunDevCommand (dev
@@ -104,7 +108,8 @@ JRPGFramework/
 │       ├── Core/ ✅        (CoreSubsystem.cpp ✅, JRPGGameInstance.cpp ✅)
 │       ├── Save/ ✅        (SaveSubsystem.cpp ✅, JRPGSaveGame.cpp ✅)
 │       ├── Inventory/ ✅   (InventorySubsystem.cpp ✅)
-│       ├── World/ ✅       (WorldStateSubsystem.cpp ✅)
+│       ├── World/ ✅       (WorldStateSubsystem.cpp ✅, JRPGMistVolume.cpp ✅,
+│       │                    JRPGMistDisturberComponent.cpp ✅, JRPGMistSubsystem.cpp ✅)
 │       ├── Shop/ ✅        (ShopSubsystem.cpp ✅)
 │       ├── Audio/ ✅       (AudioSubsystem.cpp ✅, JRPGSettingsSave.cpp ✅)
 │       ├── Camera/ ✅      (CameraSubsystem.cpp ✅, CameraData.cpp ✅, JRPGCameraActor.cpp ✅,
@@ -118,6 +123,10 @@ JRPGFramework/
 │       ├── Status/ ✅      (StatusSubsystem.cpp ✅)
 │       ├── Arts/ 🟡        (ArtsSubsystem.cpp 🟡)
 │       └── Battle/ 🟡      (BattleSubsystem.cpp 🟡)
+│
+├── Shaders/ ✅                                  ← mapped to /Plugin/JRPGFramework
+│   ├── UltralightBlitShader.usf ✅              ← full-screen blit of the Ultralight texture (JRPGWebBrowser)
+│   └── JRPGMist.ush ✅                          ← the living mist (included by M_JRPGMist)
 │
 ├── Content/
 │   ├── UI/
@@ -161,6 +170,8 @@ JRPGFramework/
     ├── generate_shops_csv.py ✅                 ← shops.toml → DT_Shops.csv
     ├── generate_characters_csv.py ✅            ← characters.toml → DT_Characters.csv
     ├── generate_progression_csv.py ✅           ← formula → DT_LevelCurve.csv + DT_Difficulty.csv
+    ├── generate_mist_noise.py ✅                ← tiling noise for the mist → Mist/T_JRPGMistNoise.png
+    ├── generate_status_map.py ✅                ← status map in the root README
     └── download_fonts.py ✅                     ← verifies/downloads the WebUI's local fonts
 ```
 
@@ -184,6 +195,7 @@ JRPGFramework/
 | **Save/Load** | ✅ complete | 15 slots, automatic gather/restore, map change + teleport, save versioning |
 | **Shop** | ✅ complete | `DT_Shops` (32), atomic buy/sell, featured items gated by platinum_card, flag gating |
 | **Audio** | ✅ complete | BGM persisting across maps with crossfade, 4 channels saved in `JRPGSettings` |
+| **Mist** | 🟡 code done | Living volumetric mist (strands, swirls, flows around scenery, parts around movers). C++ and shader done; the material assets are built in the editor from [MIST.md](Guides/MIST.md) |
 | **Camera** | ✅ complete | 13 presets (+DOF), automatic restore when the UI closes, 8 shakes, manual camera + zone, conversation and FrameGroup/Orbit ready |
 | **WebUI** | ✅ complete | SPA shell, 7 screens, gamepad + keyboard + mouse with their own rules, responsive scaling |
 | **Party** | ✅ complete (data) | Roster vs formation, 3 states per character, XP split among survivors as in the original, level-up with jitter, whole-roster save. The UI does not follow the formation yet |

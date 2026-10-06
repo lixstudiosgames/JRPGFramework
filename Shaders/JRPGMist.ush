@@ -1,0 +1,154 @@
+// JRPGMist.ush
+// Densidade da névoa viva (JRPGMist), avaliada por froxel dentro da Volumetric Fog.
+//
+// Chamado pelo Custom node do M_JRPGMist (domínio Volume). Receita do material em
+// Docs/Guides/MIST.md. O resultado vai para Extinction; o segundo canal é a máscara das
+// faixas, usada para o brilho opcional (Emissive).
+//
+// Unidades: tudo em uu do mundo, exceto onde dito. A névoa é pensada para câmera de cima,
+// então o ruído é amostrado em XY do mundo e a altura vira só uma máscara.
+//
+// Custo por froxel: 4 SampleLevel do ruído (warp, base, fios, cobertura) + loop de 8 slots
+// (só ALU). O distance field, quando ligado no material, chega pronto como entrada
+// (1 amostra do Global DF + gradiente).
+//
+// Volumetric fog não tem derivadas confiáveis: sempre SampleLevel com mip 0.
+
+#pragma once
+
+#define JRPG_MIST_SLOTS 8
+
+// Gira v pelo ângulo a (radianos)
+float2 JRPGMistRotate(float2 v, float a)
+{
+	float s, c;
+	sincos(a, s, c);
+	return float2(c * v.x - s * v.y, s * v.x + c * v.y);
+}
+
+// Interação com quem mexe a névoa (jogador, NPCs, props).
+// Slot[i] = (X, Y, Raio, Força)  — força já inclui idade do rastro e velocidade.
+// Dir[i]  = (DirX, DirY, Giro, 0) — direção normalizada do movimento e escala do redemoinho.
+// Devolve o deslocamento em uu a aplicar na coordenada do ruído (redemoinho) e, em OutClear,
+// o quanto a névoa abre neste ponto (0..1).
+float2 JRPGMistDisturb(float2 WorldXY, float4 Slot[JRPG_MIST_SLOTS], float4 Dir[JRPG_MIST_SLOTS],
+	float SwirlStrength, out float OutClear)
+{
+	float2 Offset = 0;
+	OutClear = 0;
+
+	[unroll]
+	for (int i = 0; i < JRPG_MIST_SLOTS; i++)
+	{
+		const float4 S = Slot[i];
+		if (S.w <= 0.0) continue;
+
+		const float2 D = WorldXY - S.xy;
+		const float R = max(S.z, 1.0);
+		const float G = exp(-dot(D, D) / (R * R)) * S.w;
+
+		OutClear = max(OutClear, G);
+
+		// Lado do eixo do movimento: cada lado gira para um sentido, formando o par de
+		// vórtices de uma esteira. O giro vai a zero suavemente no eixo — um sign() aqui
+		// rasga a névoa numa linha reta ao longo do rastro. Sem direção (parado), não gira.
+		const float Side = (Dir[i].x * D.y - Dir[i].y * D.x) / R;
+		const float Angle = SwirlStrength * Dir[i].z * G * clamp(Side * 1.5, -1.0, 1.0);
+		Offset += JRPGMistRotate(D, Angle) - D;
+	}
+	return Offset;
+}
+
+// Avaliação principal. Devolve (densidade, máscara das faixas).
+//
+// Forma = névoa base larga e suave + fios finos esticados na direção do vento, presentes
+// só em parte da área (RibbonCoverage). Fios em todo lugar viram mármore.
+float2 JRPGMistEvaluate(
+	float3 WorldPos, float Time, Texture2D NoiseTex, SamplerState NoiseTexSampler,
+	// forma
+	float FloorZ, float Density, float HeightFalloff, float NoiseScale, float2 Wind,
+	float WarpStrength, float WarpSpin, float RibbonSharpness, float RibbonAmount,
+	float RibbonStretch, float RibbonCoverage,
+	// caixa: (MinX, MinY, MaxX, MaxY) e largura do esmaecimento nas bordas
+	float4 BoxXY, float EdgeFade,
+	// cenário (distance field). Sem DF: SurfaceDist grande e SurfaceGrad 0.
+	float SurfaceDist, float3 SurfaceGrad, float PoolDistance, float PoolAmount, float FlowAround,
+	// interação
+	float4 Slot[JRPG_MIST_SLOTS], float4 Dir[JRPG_MIST_SLOTS], float ClearStrength, float SwirlStrength)
+{
+	const float Scale = max(NoiseScale, 1.0);
+
+	// 1) Interação: redemoinho em volta de quem passa e abertura da névoa
+	float Clear;
+	const float2 SwirlOffset = JRPGMistDisturb(WorldPos.xy, Slot, Dir, SwirlStrength, Clear);
+	const float2 P = (WorldPos.xy + SwirlOffset) / Scale;
+	const float2 Drift = Wind * Time / Scale;
+
+	// 2) Cenário: perto de uma superfície o fluxo corre pela tangente dela (contorna a casa
+	// em vez de atravessar) e a névoa se acumula na base
+	const float Near = saturate(1.0 - SurfaceDist / max(PoolDistance, 1.0));
+	const float2 Tangent = float2(-SurfaceGrad.y, SurfaceGrad.x);
+
+	// 3) Domain warp: um campo lento (R/G independentes) desloca todas as amostras e gira
+	// devagar. É isso que transforma o ruído em redemoinhos.
+	float2 Warp = NoiseTex.SampleLevel(NoiseTexSampler, P * 0.5 + Drift * 0.5, 0).rg * 2.0 - 1.0;
+	Warp = JRPGMistRotate(Warp, Time * WarpSpin);
+	Warp += Tangent * (FlowAround * Near);
+	const float2 Q = P + Warp * WarpStrength;
+
+	// 4) Névoa base: larga e suave
+	const float Base = smoothstep(0.2, 0.8, NoiseTex.SampleLevel(NoiseTexSampler, Q * 0.6 + Drift, 0).r);
+
+	// 5) Fios: ruído esticado ao longo do vento + ridge, que realça onde o ruído cruza o meio
+	const float WindLen = length(Wind);
+	const float2 WindDir = WindLen > 0.001 ? Wind / WindLen : float2(1.0, 0.0);
+	const float2 WindPerp = float2(-WindDir.y, WindDir.x);
+	const float Along = dot(Q, WindDir) / max(RibbonStretch, 1.0);
+	const float Across = dot(Q, WindPerp);
+	const float2 R = (Along * WindDir + Across * WindPerp) * 1.5;
+	const float N = NoiseTex.SampleLevel(NoiseTexSampler, R + Drift, 0).r;
+	const float Ribbon = pow(saturate(1.0 - abs(2.0 * N - 1.0)), max(RibbonSharpness, 0.01));
+	const float Coverage = smoothstep(1.0 - saturate(RibbonCoverage), 1.0,
+		NoiseTex.SampleLevel(NoiseTexSampler, Q * 0.3 - Drift * 0.2 + 0.5, 0).g);
+	const float Strands = Ribbon * Coverage;
+
+	const float Shape = Base * (1.0 - 0.5 * saturate(RibbonAmount)) + Strands * RibbonAmount;
+
+	// 6) Rente ao chão
+	const float Height = exp(-max(WorldPos.z - FloorZ, 0.0) / max(HeightFalloff, 1.0));
+
+	// 7) Não atravessa paredes (DF ~0 dentro/na superfície) e acumula perto delas
+	const float Solid = saturate(SurfaceDist * 0.1);
+	const float Pool = 1.0 + PoolAmount * Near;
+
+	// 8) Bordas laterais da caixa: sem isto a névoa termina num "muro" reto
+	const float EdgeDist = min(min(WorldPos.x - BoxXY.x, BoxXY.z - WorldPos.x),
+	                           min(WorldPos.y - BoxXY.y, BoxXY.w - WorldPos.y));
+	const float Edge = smoothstep(0.0, 1.0, saturate(EdgeDist / max(EdgeFade, 1.0)));
+
+	const float Open = 1.0 - saturate(Clear * ClearStrength);
+	const float Result = max(Density * Shape * Height * Pool * Solid * Open * Edge, 0.0);
+	return float2(Result, Strands * Height * Open * Edge);
+}
+
+// Entrada usada pelo Custom node do M_JRPGMist: os escalares chegam empacotados em vetores,
+// na mesma ordem que AJRPGMistVolume::ApplyMistParameters escreve.
+//   ShapeA      = FloorZ, Density, HeightFalloff, NoiseScale
+//   ShapeB      = WindX, WindY, WarpStrength, WarpSpin
+//   Ribbons     = Sharpness, Amount, Stretch, Coverage
+//   Scene       = PoolDistance, PoolAmount, FlowAround, EdgeFade
+//   BoxXY       = MinX, MinY, MaxX, MaxY (caixa em XY do mundo)
+//   Interaction = ClearStrength, SwirlStrength, -, -
+float2 JRPGMistFromPacked(
+	float3 WorldPos, float Time, Texture2D NoiseTex, SamplerState NoiseTexSampler,
+	float4 ShapeA, float4 ShapeB, float4 Ribbons, float4 Scene, float4 Interaction, float4 BoxXY,
+	float SurfaceDist, float3 SurfaceGrad,
+	float4 Slot[JRPG_MIST_SLOTS], float4 Dir[JRPG_MIST_SLOTS])
+{
+	return JRPGMistEvaluate(WorldPos, Time, NoiseTex, NoiseTexSampler,
+		ShapeA.x, ShapeA.y, ShapeA.z, ShapeA.w, ShapeB.xy, ShapeB.z, ShapeB.w,
+		Ribbons.x, Ribbons.y, Ribbons.z, Ribbons.w,
+		BoxXY, Scene.w,
+		SurfaceDist, SurfaceGrad, Scene.x, Scene.y, Scene.z,
+		Slot, Dir, Interaction.x, Interaction.y);
+}
