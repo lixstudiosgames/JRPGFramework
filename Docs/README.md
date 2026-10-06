@@ -70,6 +70,10 @@ remain for reference.
 [LegaiaStudio](../Extras/LegaiaStudio/README.md) — a local web panel that edits the CSVs
 record by record and runs the builds.
 
+`python Extras/generate_status_map.py` regenerates the status map in the root README
+(`Docs/status/map.en.svg` and `map.pt-BR.svg`). Update the tables at the top of the script when a
+system or a battle phase changes state.
+
 ---
 
 ## Conventions
