@@ -168,23 +168,16 @@ This project stands on other people's work.
 - **[legend-of-legaia-re][re]** by [andrewaltimit](https://github.com/andrewaltimit) (MIT / Unlicense).
   This reverse-engineering project of the original game, written in Rust, is the specification this
   remake reads from. The XP curve, stat growth, item, shop and character tables, and the whole battle
-  design in the roadmap come from its research and documentation. Extracting meshes, animations and
-  textures from the disc also goes through its tools. **Thank you.**
+  design in the roadmap come from its research and documentation. **Thank you.**
+- **[DuckStation](https://github.com/stenzek/duckstation)** by stenzek. The character and enemy meshes
+  used in the game project are extracted with its 3D dump. They are not part of this repository.
 - **[Ultralight][ul]** by Ultralight, Inc. is the HTML renderer behind the whole UI. It is used under
   the Ultralight Free License, and its `NOTICES.md` must appear in the credits of any shipped build.
-- **[Unreal Engine](https://www.unrealengine.com/)** by Epic Games.
-- **[Cinzel](https://fonts.google.com/specimen/Cinzel)** by Natanael Gama and
-  **[MedievalSharp](https://fonts.google.com/specimen/MedievalSharp)** by Wojciech Kalinowski are the UI
-  typefaces, used under the SIL Open Font License 1.1 and fetched from [Google Fonts](https://fonts.google.com/).
-- **[DuckStation](https://github.com/stenzek/duckstation)** by stenzek. Its 3D dump produced the
-  field-form character meshes used in the game project. They are not part of this repository.
-- The status map's visual style follows the one in
-  [god-of-war-recomp](https://github.com/KIexster/god-of-war-recomp) by KIexster. The generator here is
-  a separate implementation.
 - ***Legend of Legaia*** (1998) was developed by Contrail and Prokion and published by Sony Computer
   Entertainment. It is the game this remake is a love letter to.
 
 **LIX Studios:** [itch.io](https://lixstudios.itch.io/legend-of-legaia-remake) ·
+[YouTube](https://www.youtube.com/@LixStudiosGames) ·
 [Patreon](https://www.patreon.com/cw/LegendofLegaiaRemake)
 
 ---
