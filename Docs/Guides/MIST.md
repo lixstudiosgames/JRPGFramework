@@ -35,10 +35,11 @@ its own parameters) and hides the other modes' options in Details. At runtime, c
 Thin features blur in volumetric fog: one grid cell covers ~16 screen pixels. Keep `LineWidth` above
 ~30 uu and `RingWidth` above ~40 uu, or lines read as rain streaks.
 
-**Flow Lines are a fake fluid, not a simulation.** The S curves and a layer of large eddies are
-*advected*: they travel downstream with the flow instead of waving in place, which is what makes it read
-as liquid. The eddies push the lines sideways, stretch the streaks and make the line width breathe. It is
-all math in the shader, with one extra texture read, so it costs about the same as a still pattern.
+**Flow Lines are a fake fluid, not a simulation.** The *paths* stay in place and only sway slowly;
+the streaks are what run along them, like smoke following a current. (Moving the curves themselves made
+each whole line slide sideways in X, which doesn't read as flow.) A layer of large eddies, wobbling in
+place, bends the paths, stretches the streaks and makes the line width breathe. It is all math in the
+shader, with one extra texture read.
 
 ## How it works
 
@@ -184,7 +185,7 @@ The graph is one Material Function Call node with `MF_JRPGMist`:
 | | `RibbonGlow` | Self-glow on the strands. Black = off. A faint blue reads as "magical" without any light |
 | | `HeightFalloff` | Height where density drops to ~37%. Lower = hugs the ground |
 | | `NoiseScale` | Size of one noise tile in uu. Bigger = bigger swirls |
-| | `Wind` | Drift in uu/s. **Keep it slow**: fast motion smears under temporal reprojection |
+| | `Wind` | Drift in uu/s; the mist moves *with* it. **Keep it slow**: fast motion smears under temporal reprojection |
 | | `WarpStrength`, `WarpSpin` | How much and how fast the swirls twist |
 | | `RibbonSharpness` | Higher = thinner strands |
 | | `RibbonAmount` | Weight of the strands over the base mist |

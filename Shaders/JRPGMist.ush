@@ -96,13 +96,15 @@ float2 JRPGMistEvaluate(
 
 	// 3) Domain warp: um campo lento (R/G independentes) desloca todas as amostras e gira
 	// devagar. É isso que transforma o ruído em redemoinhos.
-	float2 Warp = NoiseTex.SampleLevel(NoiseTexSampler, P * 0.5 + Drift * 0.5, 0).rg * 2.0 - 1.0;
+	// O padrão anda NO sentido do vento: amostra em (posição - vento * t), na mesma escala
+	// de cada camada. Com +Drift a névoa ia ao contrário do Wind
+	float2 Warp = NoiseTex.SampleLevel(NoiseTexSampler, (P - Drift) * 0.5, 0).rg * 2.0 - 1.0;
 	Warp = JRPGMistRotate(Warp, Time * WarpSpin);
 	Warp += Tangent * (FlowAround * Near);
 	const float2 Q = P + Warp * WarpStrength;
 
 	// 4) Névoa base: larga e suave
-	const float Base = smoothstep(0.2, 0.8, NoiseTex.SampleLevel(NoiseTexSampler, Q * 0.6 + Drift, 0).r);
+	const float Base = smoothstep(0.2, 0.8, NoiseTex.SampleLevel(NoiseTexSampler, (Q - Drift) * 0.6, 0).r);
 
 	// 5) Fios: ruído esticado ao longo do vento + ridge, que realça onde o ruído cruza o meio
 	const float WindLen = length(Wind);
@@ -111,10 +113,10 @@ float2 JRPGMistEvaluate(
 	const float Along = dot(Q, WindDir) / max(RibbonStretch, 1.0);
 	const float Across = dot(Q, WindPerp);
 	const float2 R = (Along * WindDir + Across * WindPerp) * 1.5;
-	const float N = NoiseTex.SampleLevel(NoiseTexSampler, R + Drift, 0).r;
+	const float N = NoiseTex.SampleLevel(NoiseTexSampler, R - Drift * 1.5, 0).r;
 	const float Ribbon = pow(saturate(1.0 - abs(2.0 * N - 1.0)), max(RibbonSharpness, 0.01));
 	const float Coverage = smoothstep(1.0 - saturate(RibbonCoverage), 1.0,
-		NoiseTex.SampleLevel(NoiseTexSampler, Q * 0.3 - Drift * 0.2 + 0.5, 0).g);
+		NoiseTex.SampleLevel(NoiseTexSampler, (Q - Drift) * 0.3 + 0.5, 0).g);
 	const float Strands = Ribbon * Coverage;
 
 	const float Shape = Base * (1.0 - 0.5 * saturate(RibbonAmount)) + Strands * RibbonAmount;
@@ -168,9 +170,9 @@ float JRPGMistHash(float N)
 // S, com traços (trails) correndo por elas. Cabeça do traço na frente, cauda esmaecendo.
 // As linhas desviam dos objetos pelo distance field e são entortadas por quem passa.
 //
-// Fluido fake, sem simulação: as curvas e os redemoinhos são ADVECTADOS — viajam correnteza
-// abaixo com o fluxo em vez de ondular parados, que é o que faz parecer líquido. Uma camada
-// de redemoinhos (ruído grande, também advectado) empurra as linhas e faz a largura respirar.
+// Fluido fake, sem simulação: os caminhos ficam no lugar (só balançam devagar) e os traços
+// correm por eles, como fumaça seguindo uma corrente. Uma camada de redemoinhos (ruído grande,
+// mexendo no lugar) entorta os caminhos, estica os traços e faz a largura respirar.
 float2 JRPGMistFlowLines(
 	float3 WorldPos, float Time, Texture2D NoiseTex, SamplerState NoiseTexSampler,
 	float FloorZ, float Density, float HeightFalloff, float NoiseScale,
@@ -200,23 +202,25 @@ float2 JRPGMistFlowLines(
 	const float2 GradDir = GradLen > 1e-4 ? GradXY / GradLen : float2(0.0, 0.0);
 	Across -= dot(GradDir, Perp) * FlowAround * Near * PoolDistance;
 
-	// Advecção: o campo das curvas e dos redemoinhos anda com o fluxo (metade da velocidade
-	// dos traços, então os traços "correm" por dentro das curvas)
-	const float Advect = Time * FlowSpeed * 0.5;
-	const float Downstream = Along - Advect;
+	// O CAMINHO das linhas fica no lugar — só balança — e quem corre são os traços ao longo
+	// dele. Transladar o desenho das curvas (advecção, ou Time somado à fase do seno) faz a
+	// linha inteira deslizar em X, que não parece fluxo.
+	const float Sway = sin(Time * CurveDrift) * 0.6;
 
 	// Curvas em S: dois senos com frequência e fase diferentes. Variam devagar na direção
 	// transversal, então linhas vizinhas curvam juntas. Ruído de textura aqui fica serrilhado
 	// (tem detalhe fino demais) — os senos dão curvas lisas e ainda são mais baratos.
 	const float K = 6.2831853 / max(CurveLength, 1.0);
-	const float Bend = 0.6 * sin(Downstream * K + Across * K * 0.35 + Time * CurveDrift)
-	                 + 0.4 * sin(Downstream * K * 1.9 - Across * K * 0.5 + 1.7 - Time * CurveDrift * 0.7);
+	const float Bend = 0.6 * sin(Along * K + Across * K * 0.35 + Sway)
+	                 + 0.4 * sin(Along * K * 1.9 - Across * K * 0.5 + 1.7 - Sway * 0.7);
 	Across += Bend * CurveAmount;
 
 	// Redemoinhos: ruído em escala grande (o detalhe fino do fBm fica pequeno perto da
-	// amplitude), advectado. Empurra as linhas de lado e estica/comprime os traços
+	// amplitude). A amostra gira num círculo pequeno com o tempo: os redemoinhos mexem no
+	// lugar em vez de arrastar as linhas. Empurram as linhas de lado e esticam os traços
+	const float2 EddyWobble = 0.06 * float2(cos(Time * CurveDrift * 0.8), sin(Time * CurveDrift * 0.6));
 	const float2 Eddy = NoiseTex.SampleLevel(NoiseTexSampler,
-		float2(Downstream, Across) / max(EddyScale, 1.0), 0).rg * 2.0 - 1.0;
+		float2(Along, Across) / max(EddyScale, 1.0) + EddyWobble, 0).rg * 2.0 - 1.0;
 	Across += Eddy.x * EddyStrength;
 	const float AlongW = Along + Eddy.y * EddyStrength * 0.5;
 
