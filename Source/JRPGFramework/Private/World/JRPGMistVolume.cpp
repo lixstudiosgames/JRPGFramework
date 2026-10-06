@@ -24,8 +24,9 @@ namespace JRPGMistParams
 	static const FName Interaction(TEXT("Interaction")); // ClearStrength, SwirlStrength, -, -
 	static const FName BoxXY(TEXT("BoxXY"));          // MinX, MinY, MaxX, MaxY
 	static const FName Flow(TEXT("Flow"));            // Mode, DirX, DirY, FlowSpeed
-	static const FName FlowLines(TEXT("FlowLines"));  // Spacing, Sharpness, Coverage, Curve
+	static const FName FlowLines(TEXT("FlowLines"));  // Spacing, Width, Coverage, Curve
 	static const FName FlowDash(TEXT("FlowDash"));    // TrailLength, TrailFill, AvoidDistance, AvoidStrength
+	static const FName FlowEddy(TEXT("FlowEddy"));    // EddyStrength, EddySize, LineDensity, -
 }
 
 AJRPGMistVolume::AJRPGMistVolume()
@@ -133,7 +134,14 @@ void AJRPGMistVolume::ApplyMistParameters()
 	MistMID->SetVectorParameterValue(JRPGMistParams::Albedo, Albedo);
 	MistMID->SetVectorParameterValue(JRPGMistParams::RibbonGlow, RibbonGlow);
 	MistMID->SetVectorParameterValue(JRPGMistParams::ShapeA, FLinearColor(FloorZ, Density, HeightFalloff, NoiseScale));
-	MistMID->SetVectorParameterValue(JRPGMistParams::ShapeB, FLinearColor(Wind.X, Wind.Y, WarpStrength, WarpSpin));
+	// Ground + Flow: o vento da névoa de chão é a direção do fluxo — os dois vão para o mesmo
+	// lado; a névoa anda a GroundDriftRatio da velocidade das linhas
+	FVector2D GroundWind = Wind;
+	if (Mode == EJRPGMistMode::GroundAndFlow)
+	{
+		GroundWind = GetFlowDirection() * FlowSpeed * GroundDriftRatio;
+	}
+	MistMID->SetVectorParameterValue(JRPGMistParams::ShapeB, FLinearColor(GroundWind.X, GroundWind.Y, WarpStrength, WarpSpin));
 	MistMID->SetVectorParameterValue(JRPGMistParams::Ribbons, FLinearColor(RibbonSharpness, RibbonAmount, RibbonStretch, RibbonCoverage));
 	MistMID->SetVectorParameterValue(JRPGMistParams::Scene, FLinearColor(PoolDistance, PoolAmount, FlowAround, EdgeFade));
 	// Interaction.zw = curva das Flow Lines (os outros modos ignoram)
@@ -152,9 +160,11 @@ void AJRPGMistVolume::ApplyMistParameters()
 	else
 	{
 		const FVector2D FlowDir = GetFlowDirection();
-		const float ModeValue = Mode == EJRPGMistMode::FlowLines ? 1.0f : 0.0f;
+		const float ModeValue = Mode == EJRPGMistMode::FlowLines ? 1.0f
+			: Mode == EJRPGMistMode::GroundAndFlow ? 3.0f : 0.0f;
 		MistMID->SetVectorParameterValue(JRPGMistParams::Flow, FLinearColor(ModeValue, FlowDir.X, FlowDir.Y, FlowSpeed));
-		MistMID->SetVectorParameterValue(JRPGMistParams::FlowLines, FLinearColor(LineSpacing, LineSharpness, LineCoverage, LineCurve));
+		MistMID->SetVectorParameterValue(JRPGMistParams::FlowLines, FLinearColor(LineSpacing, LineWidth, LineCoverage, LineCurve));
+		MistMID->SetVectorParameterValue(JRPGMistParams::FlowEddy, FLinearColor(EddyStrength, EddySize, LineDensity, 0.0f));
 		MistMID->SetVectorParameterValue(JRPGMistParams::FlowDash, FLinearColor(TrailLength, TrailFill, AvoidDistance, AvoidStrength));
 	}
 }
@@ -167,6 +177,33 @@ void AJRPGMistVolume::ApplyModePreset(EJRPGMistMode NewMode)
 	// metro; os modos de linha já multiplicam por 3 no shader
 	switch (NewMode)
 	{
+	case EJRPGMistMode::GroundAndFlow:
+		Density = 1.0f;
+		HeightFalloff = 100.0f;
+		NoiseScale = 2400.0f;
+		WarpStrength = 0.5f;
+		WarpSpin = 0.05f;
+		RibbonSharpness = 10.0f;
+		RibbonAmount = 0.7f;
+		RibbonStretch = 3.5f;
+		RibbonCoverage = 0.55f;
+		FlowSpeed = 300.0f;
+		LineSpacing = 260.0f;
+		LineWidth = 55.0f;
+		LineCoverage = 0.45f;
+		LineCurve = 300.0f;
+		CurveLength = 1600.0f;
+		CurveDrift = 0.15f;
+		EddyStrength = 180.0f;
+		EddySize = 5000.0f;
+		LineDensity = 0.8f;
+		GroundDriftRatio = 0.3f;
+		TrailLength = 1800.0f;
+		TrailFill = 0.75f;
+		AvoidDistance = 250.0f;
+		AvoidStrength = 1.0f;
+		break;
+
 	case EJRPGMistMode::GroundMist:
 		Density = 1.0f;
 		HeightFalloff = 90.0f;
@@ -185,9 +222,12 @@ void AJRPGMistVolume::ApplyModePreset(EJRPGMistMode NewMode)
 		HeightFalloff = 120.0f;
 		FlowSpeed = 300.0f;
 		LineSpacing = 260.0f;
-		LineSharpness = 2.5f;
+		LineWidth = 55.0f;
 		LineCoverage = 0.5f;
-		LineCurve = 350.0f;
+		LineCurve = 300.0f;
+		EddyStrength = 180.0f;
+		EddySize = 5000.0f;
+		LineDensity = 1.0f;
 		CurveLength = 1600.0f;
 		CurveDrift = 0.15f;
 		TrailLength = 1800.0f;

@@ -167,11 +167,16 @@ float JRPGMistHash(float N)
 // Modo FlowLines: "fumaça de túnel de vento". Poucas linhas na direção do fluxo, curvando em
 // S, com traços (trails) correndo por elas. Cabeça do traço na frente, cauda esmaecendo.
 // As linhas desviam dos objetos pelo distance field e são entortadas por quem passa.
+//
+// Fluido fake, sem simulação: as curvas e os redemoinhos são ADVECTADOS — viajam correnteza
+// abaixo com o fluxo em vez de ondular parados, que é o que faz parecer líquido. Uma camada
+// de redemoinhos (ruído grande, também advectado) empurra as linhas e faz a largura respirar.
 float2 JRPGMistFlowLines(
 	float3 WorldPos, float Time, Texture2D NoiseTex, SamplerState NoiseTexSampler,
 	float FloorZ, float Density, float HeightFalloff, float NoiseScale,
-	float2 FlowDir, float FlowSpeed, float Spacing, float Sharpness, float Coverage,
+	float2 FlowDir, float FlowSpeed, float Spacing, float Width, float Coverage,
 	float CurveAmount, float CurveLength, float CurveDrift,
+	float EddyStrength, float EddyScale, float LineDensity,
 	float DashLength, float DashFill,
 	float4 BoxXY, float EdgeFade,
 	float SurfaceDist, float3 SurfaceGrad, float PoolDistance, float FlowAround,
@@ -195,24 +200,38 @@ float2 JRPGMistFlowLines(
 	const float2 GradDir = GradLen > 1e-4 ? GradXY / GradLen : float2(0.0, 0.0);
 	Across -= dot(GradDir, Perp) * FlowAround * Near * PoolDistance;
 
+	// Advecção: o campo das curvas e dos redemoinhos anda com o fluxo (metade da velocidade
+	// dos traços, então os traços "correm" por dentro das curvas)
+	const float Advect = Time * FlowSpeed * 0.5;
+	const float Downstream = Along - Advect;
+
 	// Curvas em S: dois senos com frequência e fase diferentes. Variam devagar na direção
 	// transversal, então linhas vizinhas curvam juntas. Ruído de textura aqui fica serrilhado
 	// (tem detalhe fino demais) — os senos dão curvas lisas e ainda são mais baratos.
 	const float K = 6.2831853 / max(CurveLength, 1.0);
-	const float Bend = 0.6 * sin(Along * K + Across * K * 0.35 + Time * CurveDrift)
-	                 + 0.4 * sin(Along * K * 1.9 - Across * K * 0.5 + 1.7 - Time * CurveDrift * 0.7);
+	const float Bend = 0.6 * sin(Downstream * K + Across * K * 0.35 + Time * CurveDrift)
+	                 + 0.4 * sin(Downstream * K * 1.9 - Across * K * 0.5 + 1.7 - Time * CurveDrift * 0.7);
 	Across += Bend * CurveAmount;
 
-	// Linhas paralelas; cada uma tem sua presença, velocidade e fase
+	// Redemoinhos: ruído em escala grande (o detalhe fino do fBm fica pequeno perto da
+	// amplitude), advectado. Empurra as linhas de lado e estica/comprime os traços
+	const float2 Eddy = NoiseTex.SampleLevel(NoiseTexSampler,
+		float2(Downstream, Across) / max(EddyScale, 1.0), 0).rg * 2.0 - 1.0;
+	Across += Eddy.x * EddyStrength;
+	const float AlongW = Along + Eddy.y * EddyStrength * 0.5;
+
+	// Linhas paralelas; cada uma tem sua presença, velocidade e fase. Perfil gaussiano com
+	// largura em uu, que "respira" com o redemoinho
 	const float LineCoord = Across / max(Spacing, 1.0);
 	const float LineId = floor(LineCoord + 0.5);
-	const float FromCenter = abs(LineCoord - LineId) * 2.0;
-	const float Line = pow(saturate(1.0 - FromCenter), max(Sharpness, 1.0));
+	const float ToLine = abs(LineCoord - LineId) * max(Spacing, 1.0);
+	const float W = max(Width, 1.0) * (0.6 + 0.8 * saturate(Eddy.y * 0.5 + 0.5));
+	const float Line = exp(-(ToLine * ToLine) / (W * W));
 	const float Present = saturate((saturate(Coverage) - JRPGMistHash(LineId)) * 20.0);
 	const float Speed = FlowSpeed * (0.75 + 0.5 * JRPGMistHash(LineId + 17.0));
 
 	// Traços correndo na direção do fluxo
-	const float Phase = frac((Along - Time * Speed) / max(DashLength, 1.0) + JRPGMistHash(LineId + 41.0));
+	const float Phase = frac((AlongW - Time * Speed) / max(DashLength, 1.0) + JRPGMistHash(LineId + 41.0));
 	const float Fill = clamp(DashFill, 0.05, 1.0);
 	const float S = saturate(Phase / Fill);
 	const float Streak = Phase < Fill ? S * S * (1.0 - smoothstep(0.9, 1.0, S)) : 0.0;
@@ -227,7 +246,7 @@ float2 JRPGMistFlowLines(
 	// As linhas cobrem pouco da área: 3x de densidade deixa o mesmo Density com peso visual
 	// parecido nos dois modos
 	const float Strand = Line * Present * Streak * Height * Edge * Open;
-	return float2(max(Density * 3.0 * Strand * Solid, 0.0), Strand);
+	return float2(max(Density * 3.0 * LineDensity * Strand * Solid, 0.0), Strand);
 }
 
 
@@ -316,6 +335,7 @@ float2 JRPGMistFromPacked2(
 			ShapeA.x, ShapeA.y, ShapeA.z, ShapeA.w,
 			Flow.yz, Flow.w, FlowLines.x, FlowLines.y, FlowLines.z,
 			FlowLines.w, Interaction.z, Interaction.w,
+			0.0, 1.0, 1.0,
 			FlowDash.x, FlowDash.y,
 			BoxXY, Scene.w,
 			SurfaceDist, SurfaceGrad, FlowDash.z, FlowDash.w,
@@ -323,4 +343,51 @@ float2 JRPGMistFromPacked2(
 	}
 	return JRPGMistFromPacked(WorldPos, Time, NoiseTex, NoiseTexSampler,
 		ShapeA, ShapeB, Ribbons, Scene, Interaction, BoxXY, SurfaceDist, SurfaceGrad, Slot, Dir);
+}
+
+// Entrada atual do Custom node (MF_JRPGMist). JRPGMistFromPacked2 + FlowEddy e o modo 3.
+//   Mode 3 GroundAndFlow: névoa de chão + flow lines somadas, com o mesmo vento (o C++ já
+//                         escreve em ShapeB.xy o vento derivado da direção do fluxo)
+//   FlowEddy  = EddyStrength, EddyScale, LineDensity, -   (modos 1 e 3)
+//   FlowLines.y é a largura das linhas em uu
+float2 JRPGMistFromPacked3(
+	float3 WorldPos, float Time, Texture2D NoiseTex, SamplerState NoiseTexSampler,
+	float4 ShapeA, float4 ShapeB, float4 Ribbons, float4 Scene, float4 Interaction, float4 BoxXY,
+	float4 Flow, float4 FlowLines, float4 FlowDash, float4 FlowEddy,
+	float SurfaceDist, float3 SurfaceGrad,
+	float4 Slot[JRPG_MIST_SLOTS], float4 Dir[JRPG_MIST_SLOTS])
+{
+	const bool bPulse = Flow.x > 1.5 && Flow.x < 2.5;
+	const bool bGround = Flow.x < 0.5 || Flow.x > 2.5;
+	const bool bLines = (Flow.x > 0.5 && Flow.x < 1.5) || Flow.x > 2.5;
+
+	if (bPulse)
+	{
+		return JRPGMistPulseRings(WorldPos, Time, NoiseTex, NoiseTexSampler,
+			ShapeA.x, ShapeA.y, ShapeA.z, ShapeA.w,
+			Flow.yz, Flow.w, FlowLines.x, FlowLines.y, FlowLines.w,
+			FlowLines.z, FlowDash.x, FlowDash.y, FlowDash.z, FlowDash.w,
+			BoxXY, Scene.w, SurfaceDist,
+			Slot, Dir, Interaction.x, Interaction.y);
+	}
+
+	float2 Result = float2(0.0, 0.0);
+	if (bGround)
+	{
+		Result += JRPGMistFromPacked(WorldPos, Time, NoiseTex, NoiseTexSampler,
+			ShapeA, ShapeB, Ribbons, Scene, Interaction, BoxXY, SurfaceDist, SurfaceGrad, Slot, Dir);
+	}
+	if (bLines)
+	{
+		Result += JRPGMistFlowLines(WorldPos, Time, NoiseTex, NoiseTexSampler,
+			ShapeA.x, ShapeA.y, ShapeA.z, ShapeA.w,
+			Flow.yz, Flow.w, FlowLines.x, FlowLines.y, FlowLines.z,
+			FlowLines.w, Interaction.z, Interaction.w,
+			FlowEddy.x, FlowEddy.y, FlowEddy.z,
+			FlowDash.x, FlowDash.y,
+			BoxXY, Scene.w,
+			SurfaceDist, SurfaceGrad, FlowDash.z, FlowDash.w,
+			Slot, Dir, Interaction.x, Interaction.y);
+	}
+	return Result;
 }

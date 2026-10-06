@@ -30,9 +30,15 @@ its own parameters) and hides the other modes' options in Details. At runtime, c
 | **Ground Mist** | Broad soft mist with strands and slow swirls (the reference look) | Drifts with `Wind` |
 | **Flow Lines** | A few lines curving in S shapes with trails running along them, like smoke in a wind tunnel. They bend around objects | The actor's arrow (rotate it in yaw), or toward `FlowTarget` if set |
 | **Pulse Rings** | Concentric rings sent out in pulses from the center, plus optional radial lines | The actor's pivot is the center |
+| **Ground + Flow** | Ground Mist and Flow Lines together, carried by **one** wind: point the arrow right and both go right. The mist drifts at `GroundDriftRatio` (30%) of the lines' speed, because fast broad mist smears under the fog's temporal reprojection | Same as Flow Lines |
 
-Thin features blur in volumetric fog: one grid cell covers ~16 screen pixels. Keep `LineSharpness`
-around 2–4 and `RingWidth` above ~40 uu, or lines read as rain streaks.
+Thin features blur in volumetric fog: one grid cell covers ~16 screen pixels. Keep `LineWidth` above
+~30 uu and `RingWidth` above ~40 uu, or lines read as rain streaks.
+
+**Flow Lines are a fake fluid, not a simulation.** The S curves and a layer of large eddies are
+*advected*: they travel downstream with the flow instead of waving in place, which is what makes it read
+as liquid. The eddies push the lines sideways, stretch the streaks and make the line width breathe. It is
+all math in the shader, with one extra texture read, so it costs about the same as a still pattern.
 
 ## How it works
 
@@ -79,7 +85,7 @@ Nothing has to be built by hand. The recipe below is for rebuilding or changing 
 
 ### Why the graph lives in a Material Function
 
-Editing a Material recompiles it on **every** change, and the Custom node has 30 inputs that the editor
+Editing a Material recompiles it on **every** change, and the Custom node has 31 inputs that the editor
 only accepts one at a time. Adding them straight into the Material fired one recompile per input, and
 the editor crashed inside the shader preprocessor (300+ cancelled shader jobs). A Material Function
 doesn't compile on its own, so the graph is built there and the Material compiles once.
@@ -105,19 +111,19 @@ Import `Extras/Mist/T_JRPGMistNoise.png` into `Content/World/Mist/` with sRGB **
 ```hlsl
 float4 S[8] = { Slot0, Slot1, Slot2, Slot3, Slot4, Slot5, Slot6, Slot7 };
 float4 D[8] = { Dir0, Dir1, Dir2, Dir3, Dir4, Dir5, Dir6, Dir7 };
-return JRPGMistFromPacked2(WorldPos, Time, NoiseTex, NoiseTexSampler,
-    ShapeA, ShapeB, Ribbons, Scene, Interaction, BoxXY, Flow, FlowLines, FlowDash,
+return JRPGMistFromPacked3(WorldPos, Time, NoiseTex, NoiseTexSampler,
+    ShapeA, ShapeB, Ribbons, Scene, Interaction, BoxXY, Flow, FlowLines, FlowDash, FlowEddy,
     SurfaceDist, SurfaceGrad, S, D);
 ```
 
-**The 30 inputs**, named exactly:
+**The 31 inputs**, named exactly:
 
 | Input | Connected to |
 |---|---|
 | `WorldPos` | Absolute World Position (`XYZ`) |
 | `Time` | Time |
 | `NoiseTex` | Texture Object `T_JRPGMistNoise`, sampler type **Masks** (a Masks texture in a Color sampler fails to compile) |
-| `ShapeA`, `ShapeB`, `Ribbons`, `Scene`, `Interaction`, `BoxXY`, `Flow`, `FlowLines`, `FlowDash` | Vector Parameters with the same names (`RGBA` output). `AJRPGMistVolume` overwrites them; `Flow`/`FlowLines`/`FlowDash` change meaning with the mode (see `JRPGMistFromPacked2` in the shader) |
+| `ShapeA`, `ShapeB`, `Ribbons`, `Scene`, `Interaction`, `BoxXY`, `Flow`, `FlowLines`, `FlowDash`, `FlowEddy` | Vector Parameters with the same names (`RGBA` output). `AJRPGMistVolume` overwrites them; `Flow`/`FlowLines`/`FlowDash` change meaning with the mode (see `JRPGMistFromPacked3` in the shader) |
 | `SurfaceDist` | Quality Switch: **Default** = `DistanceToNearestSurface`, **Low** = constant `100000` |
 | `SurfaceGrad` | Quality Switch: **Default** = `DistanceFieldGradient`, raw, **Low** = constant `(0,0,0)`. Don't add a `Normalize` node: the shader normalizes safely, and `Normalize` returns NaN wherever the gradient is zero |
 | `Slot0`…`Slot7`, `Dir0`…`Dir7` | Collection Parameter nodes from `MPC_JRPGMist` |
@@ -191,10 +197,11 @@ The graph is one Material Function Call node with `MF_JRPGMist`:
 | Interaction | `ClearStrength` | How much the mist parts around a disturber (0..1) |
 | | `SwirlStrength` | Maximum swirl angle (radians) |
 
-**Flow Lines** (`Flow` category): `FlowTarget`, `FlowSpeed`, `LineSpacing`, `LineSharpness`,
-`LineCoverage` (fewer lines when lower), `LineCurve` and `CurveLength` (the S curves), `CurveDrift`
-(how fast the curves change), `TrailLength` and `TrailFill` (the streaks), `AvoidDistance` and
-`AvoidStrength` (how the lines bend around objects).
+**Flow Lines** (`Flow` category, also used by Ground + Flow): `FlowTarget`, `FlowSpeed`,
+`LineSpacing`, `LineWidth` (uu), `LineCoverage` (fewer lines when lower), `LineCurve` and `CurveLength`
+(the S curves), `CurveDrift` (how fast the curves change), `EddyStrength` and `EddySize` (the fake-fluid
+eddies), `LineDensity` (lines vs. mist), `TrailLength` and `TrailFill` (the streaks), `AvoidDistance` and
+`AvoidStrength` (how the lines bend around objects). Ground + Flow adds `GroundDriftRatio`.
 
 **Pulse Rings** (`Pulse` category): `PulseInterval` (seconds between rings), `PulseSpeed`,
 `RingWidth`, `PulseMaxRadius` (where the wave fades out), `RingWiggle`, `RadialLines` (0 = rings only),

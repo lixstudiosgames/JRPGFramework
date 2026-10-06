@@ -20,7 +20,9 @@ enum class EJRPGMistMode : uint8
 	/** Poucas linhas finas correndo numa direção, com trails: fumaça de túnel de vento. */
 	FlowLines   UMETA(DisplayName = "Flow Lines"),
 	/** Ondas circulares saindo do pivô em pulsos, com linhas radiais opcionais. */
-	PulseRings  UMETA(DisplayName = "Pulse Rings")
+	PulseRings  UMETA(DisplayName = "Pulse Rings"),
+	/** Névoa de chão + Flow Lines juntas, levadas pelo mesmo vento (a direção do fluxo). */
+	GroundAndFlow UMETA(DisplayName = "Ground + Flow")
 };
 
 /**
@@ -102,27 +104,27 @@ public:
 	FVector2D Wind = FVector2D(25.0f, 10.0f);
 
 	/** Quanto o ruído lento entorta o rápido. É o que forma os redemoinhos. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::GroundMist", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::GroundMist || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float WarpStrength = 0.5f;
 
 	/** Velocidade de giro do campo de warp, em rad/s. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look", meta = (EditCondition = "Mode == EJRPGMistMode::GroundMist", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look", meta = (EditCondition = "Mode == EJRPGMistMode::GroundMist || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float WarpSpin = 0.05f;
 
 	/** Afinação das faixas. Maior = fios mais finos. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look", meta = (ClampMin = "0.01", EditCondition = "Mode == EJRPGMistMode::GroundMist", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look", meta = (ClampMin = "0.01", EditCondition = "Mode == EJRPGMistMode::GroundMist || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float RibbonSharpness = 10.0f;
 
 	/** Peso dos fios sobre a névoa base (0 = só névoa suave). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look", meta = (ClampMin = "0.0", ClampMax = "1.0", EditCondition = "Mode == EJRPGMistMode::GroundMist", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look", meta = (ClampMin = "0.0", ClampMax = "1.0", EditCondition = "Mode == EJRPGMistMode::GroundMist || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float RibbonAmount = 0.7f;
 
 	/** Quanto os fios esticam na direção do vento. 1 = sem esticar. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look", meta = (ClampMin = "1.0", EditCondition = "Mode == EJRPGMistMode::GroundMist", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look", meta = (ClampMin = "1.0", EditCondition = "Mode == EJRPGMistMode::GroundMist || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float RibbonStretch = 3.5f;
 
 	/** Fração da área com fios (0..1). Fios em todo lugar parecem mármore. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look", meta = (ClampMin = "0.0", ClampMax = "1.0", EditCondition = "Mode == EJRPGMistMode::GroundMist", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look", meta = (ClampMin = "0.0", ClampMax = "1.0", EditCondition = "Mode == EJRPGMistMode::GroundMist || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float RibbonCoverage = 0.55f;
 
 	/** Largura em uu do esmaecimento nas bordas laterais da caixa (evita o "muro" de névoa). */
@@ -132,68 +134,88 @@ public:
 	// --- Cenário (distance field; desligado no preset Low) ---
 
 	/** Distância em uu até uma superfície em que a névoa começa a acumular e contornar. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Scene", meta = (ClampMin = "1.0", EditCondition = "Mode == EJRPGMistMode::GroundMist", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Scene", meta = (ClampMin = "1.0", EditCondition = "Mode == EJRPGMistMode::GroundMist || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float PoolDistance = 80.0f;
 
 	/** Quanto a névoa engrossa colada nos objetos (0 = nada). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Scene", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::GroundMist", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Scene", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::GroundMist || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float PoolAmount = 0.8f;
 
 	/** Quanto o fluxo desvia pela tangente dos objetos. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Scene", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::GroundMist", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Scene", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::GroundMist || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float FlowAround = 0.6f;
 
 	// --- Flow Lines (Mode = Flow Lines) ---
 
 	/** Para onde as linhas vão. Vazio = na direção da seta do ator (gire o ator em yaw). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (EditCondition = "Mode == EJRPGMistMode::FlowLines", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (EditCondition = "Mode == EJRPGMistMode::FlowLines || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	TObjectPtr<AActor> FlowTarget;
 
 	/** Velocidade dos traços em uu/s. Cada linha varia ±25%. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (EditCondition = "Mode == EJRPGMistMode::FlowLines", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (EditCondition = "Mode == EJRPGMistMode::FlowLines || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float FlowSpeed = 300.0f;
 
 	/** Distância em uu entre linhas vizinhas. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "1.0", EditCondition = "Mode == EJRPGMistMode::FlowLines", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "1.0", EditCondition = "Mode == EJRPGMistMode::FlowLines || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float LineSpacing = 260.0f;
 
 	/**
-	 * Afinação das linhas. Maior = mais finas. A volumetric fog tem resolução baixa (uma célula
-	 * cobre ~16 px da tela): linhas finas demais borram e parecem chuva. Fique entre 2 e 4.
+	 * Largura de cada linha em uu (ela ainda engrossa e afina com os redemoinhos). A volumetric
+	 * fog tem resolução baixa (uma célula cobre ~16 px da tela): abaixo de ~30 uu borra.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "1.0", EditCondition = "Mode == EJRPGMistMode::FlowLines", EditConditionHides))
-	float LineSharpness = 2.5f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "1.0", EditCondition = "Mode == EJRPGMistMode::FlowLines || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
+	float LineWidth = 55.0f;
+
+	/** Força dos redemoinhos que empurram as linhas, em uu (0 = só as curvas em S). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::FlowLines || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
+	float EddyStrength = 180.0f;
+
+	/** Tamanho dos redemoinhos em uu. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "100.0", EditCondition = "Mode == EJRPGMistMode::FlowLines || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
+	float EddySize = 5000.0f;
+
+	/** Densidade das linhas em relação ao Density (no Ground + Flow, equilibra linhas e névoa). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::FlowLines || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
+	float LineDensity = 1.0f;
+
+	/**
+	 * Ground + Flow: velocidade da névoa de chão como fração do FlowSpeed. A névoa larga
+	 * rápida borra com o temporal reprojection da volumetric fog — por isso ela anda mais
+	 * devagar que as linhas, mas na mesma direção.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
+	float GroundDriftRatio = 0.3f;
 
 	/** Fração das linhas que existem (0..1). Menor = poucas linhas soltas. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "0.0", ClampMax = "1.0", EditCondition = "Mode == EJRPGMistMode::FlowLines", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "0.0", ClampMax = "1.0", EditCondition = "Mode == EJRPGMistMode::FlowLines || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float LineCoverage = 0.5f;
 
 	/** Quanto as linhas curvam para os lados, em uu (0 = retas). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::FlowLines", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::FlowLines || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float LineCurve = 350.0f;
 
 	/** Comprimento de uma curva (de um S) ao longo do fluxo, em uu. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "1.0", EditCondition = "Mode == EJRPGMistMode::FlowLines", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "1.0", EditCondition = "Mode == EJRPGMistMode::FlowLines || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float CurveLength = 1600.0f;
 
 	/** Velocidade com que as curvas mudam de forma, em rad/s (0 = curvas paradas). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (EditCondition = "Mode == EJRPGMistMode::FlowLines", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (EditCondition = "Mode == EJRPGMistMode::FlowLines || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float CurveDrift = 0.15f;
 
 	/** Período de um traço em uu (traço + intervalo até o próximo na mesma linha). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "1.0", EditCondition = "Mode == EJRPGMistMode::FlowLines", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "1.0", EditCondition = "Mode == EJRPGMistMode::FlowLines || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float TrailLength = 1800.0f;
 
 	/** Quanto do período o traço ocupa (0.05..1). 1 = linha quase contínua. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "0.05", ClampMax = "1.0", EditCondition = "Mode == EJRPGMistMode::FlowLines", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "0.05", ClampMax = "1.0", EditCondition = "Mode == EJRPGMistMode::FlowLines || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float TrailFill = 0.75f;
 
 	/** Distância em uu de um objeto em que as linhas começam a desviar. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "1.0", EditCondition = "Mode == EJRPGMistMode::FlowLines", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "1.0", EditCondition = "Mode == EJRPGMistMode::FlowLines || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float AvoidDistance = 250.0f;
 
 	/** Quanto as linhas desviam dos objetos. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::FlowLines", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Flow", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::FlowLines || Mode == EJRPGMistMode::GroundAndFlow", EditConditionHides))
 	float AvoidStrength = 1.0f;
 
 	// --- Pulse Rings (Mode = Pulse Rings). O centro é o pivô do ator ---
