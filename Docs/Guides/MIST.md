@@ -1,6 +1,6 @@
 # Mist (JRPGMist)
 
-A living ground mist: broad soft fog with thin strands stretched along the wind, slow swirls, and a
+A living white ground mist: broad soft fog with thin strands stretched along the wind, slow swirls, and a
 mist that parts around the player and closes behind them. It flows around the scenery on its own and is
 stirred by anything that moves and carries a component.
 
@@ -138,10 +138,14 @@ The graph is one Material Function Call node with `MF_JRPGMist`:
    - make sure **Sky Light Mode is not *Capture Based* with real-time capture**. UDS's own README says
      real-time capture is incompatible with volumetric fog. *Cubemap with Dynamic Color Tinting* works
      on every platform.
-2. **Drop an `AJRPGMistVolume`.**
-   - Set `BoxExtent` to cover the walkable area. The box floor is the mist floor, and ~200 uu of
-     half-height is plenty.
-   - Keep the box unrotated.
+2. **Drop an `AJRPGMistVolume` and rest it on the ground.**
+   - The actor's pivot is the **center of the mist floor**. Put it on the terrain, not floating and not
+     buried: density falls off with height from the pivot, so a pivot 200 uu under the ground leaves
+     almost nothing above it.
+   - **Size comes from the actor's scale.** Use the scale gizmo or *Scale* in Details; 1 = 100 uu.
+     The default is 40 × 40 × 4 = 4000 × 4000 × 400 uu. A blue outline shows the box in the editor
+     (hidden in game), because a volume material is invisible in the viewport on its own.
+   - Keep the box unrotated, or at most yawed. The side fade follows the axis-aligned bounds.
 3. **Add `UJRPGMistDisturberComponent` to the player pawn's Blueprint** with `bLeavesTrail = true`.
    `IdleStrength` ~0.3 keeps a small clearing around a standing player.
 4. **Add the same component to NPCs, enemies and physics props** with `bLeavesTrail = false`.
@@ -153,7 +157,7 @@ The graph is one Material Function Call node with `MF_JRPGMist`:
 | Group | Parameter | Effect |
 |---|---|---|
 | Look | `Density` | Extinction at the floor. Keep it small, because volumetric fog accumulates along the view ray |
-| | `Albedo` | Color the mist scatters from lights |
+| | `Albedo` | How much light the mist scatters, per channel. ~0.95 = white (the default): the final color is the light hitting it. Lower values darken and tint it |
 | | `RibbonGlow` | Self-glow on the strands. Black = off. A faint blue reads as "magical" without any light |
 | | `HeightFalloff` | Height where density drops to ~37%. Lower = hugs the ground |
 | | `NoiseScale` | Size of one noise tile in uu. Bigger = bigger swirls |
@@ -196,9 +200,10 @@ Target: **≤ ~1 ms** for the whole VolumetricFog pass at 1080p on a **GTX 1060 
 
 | Symptom | Cause |
 |---|---|
-| Nothing shows | Volumetric Fog off on UDS's height fog, the sky light in real-time capture, or `MI_JRPGMist_Default` missing (check the log for `JRPGMistVolume`) |
+| Nothing shows | In order of likelihood: the pivot is under the terrain (the floor is the pivot), `Density` too low (it is per meter, start at 1), the volume beyond the height fog's Volumetric Fog *View Distance*, Volumetric Fog off on UDS's height fog, or `MI_JRPGMist_Default` missing (log: `JRPGMistVolume`) |
+| The box snaps back to its size | Fixed: size is the actor scale now. Older placed volumes saved with `BoxExtent` should be deleted and placed again |
 | Mist doesn't react to the player | `MPC_JRPGMist` missing or misnamed parameters (log: `JRPGMistSubsystem`), or no `UJRPGMistDisturberComponent` on the pawn |
 | Ghosting / smearing | Wind or WarpSpin too fast for temporal reprojection. Slow them down |
-| A hard wall of mist | Box rotated, or `EdgeFade` too small |
+| A hard wall of mist | Box pitched/rolled, or `EdgeFade` too small |
 | Mist inside a house | That mesh has no distance field (check *Generate Mesh Distance Fields* and the mesh's DF resolution), or material quality is Low |
 | Material fails to compile with "file not found" | The plugin's `Shaders/` folder is missing next to the `.uplugin`. `build_plugin.py` copies it |

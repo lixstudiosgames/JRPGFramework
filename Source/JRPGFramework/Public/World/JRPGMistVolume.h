@@ -5,6 +5,7 @@
 #include "JRPGMistVolume.generated.h"
 
 class UStaticMeshComponent;
+class UBoxComponent;
 class UMaterialInterface;
 class UMaterialInstanceDynamic;
 class UMaterialParameterCollection;
@@ -18,8 +19,10 @@ class UMaterialParameterCollection;
  * — no projeto, a height fog do Ultra Dynamic Sky, que precisa estar com Volumetric Fog
  * ligado. A luz vem das mesmas luzes que iluminam a volumetric fog.
  *
- * Setup: arraste para o level, ajuste BoxExtent para cobrir a área andável (a base da
- * caixa é o chão da névoa) e mexa nos parâmetros — o preview atualiza no editor.
+ * Setup: arraste para o level e APOIE NO TERRENO — o pivô do ator é o centro do chão da
+ * névoa. O tamanho vem da escala do ator (gizmo de escala ou Scale no Details): escala 1 =
+ * 100 uu. Default 40 x 40 x 4 = 4000 x 4000 x 400 uu. O contorno da caixa aparece no
+ * editor (some no jogo). Os parâmetros atualizam o preview na hora.
  * Quem mexe a névoa (jogador, NPCs) precisa de UJRPGMistDisturberComponent; o cenário
  * estático é lido sozinho pelo distance field.
  *
@@ -33,10 +36,6 @@ class JRPGFRAMEWORK_API AJRPGMistVolume : public AActor
 public:
 	AJRPGMistVolume();
 
-	/** Meia-extensão da caixa em uu. A base da caixa é o chão da névoa. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Mist", meta = (ClampMin = "10.0"))
-	FVector BoxExtent = FVector(2000.0f, 2000.0f, 200.0f);
-
 	/** Material Volume da névoa. Default: MI_JRPGMist_Default do plugin. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Mist")
 	TSoftObjectPtr<UMaterialInterface> MistMaterial;
@@ -47,13 +46,19 @@ public:
 
 	// --- Aparência ---
 
-	/** Densidade (extinction) no chão. Pequena: a volumetric fog acumula ao longo do raio. */
+	/**
+	 * Extinção no chão, por METRO (a volumetric fog divide a extinção do material por 100).
+	 * ~0.5 = véu leve, ~1 = névoa clara, 3+ = parede de névoa.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Mist|Look", meta = (ClampMin = "0.0"))
-	float Density = 0.02f;
+	float Density = 1.0f;
 
-	/** Albedo: cor que a névoa espalha da luz. */
+	/**
+	 * Albedo: quanto da luz a névoa espalha, por canal. Perto de 1 = branca (a cor final é a
+	 * da luz que bate nela — lua, sol, lampiões do UDS). Abaixo de ~0.8 ela escurece e tinge.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Mist|Look")
-	FLinearColor Albedo = FLinearColor(0.55f, 0.65f, 0.9f);
+	FLinearColor Albedo = FLinearColor(0.95f, 0.95f, 0.95f);
 
 	/** Brilho próprio das faixas (0 = desligado). Dá o ar "místico" sem luz nenhuma. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Mist|Look")
@@ -123,8 +128,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Mist|Interaction")
 	float SwirlStrength = 1.6f;
 
+	/** Pivô do ator = centro do chão da névoa. A escala do ator define o tamanho. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Mist")
+	TObjectPtr<USceneComponent> Root;
+
+	/** O cubo com o material de volume (cubo de 100 uu, base no pivô). */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Mist")
 	TObjectPtr<UStaticMeshComponent> MistBox;
+
+#if WITH_EDITORONLY_DATA
+	/** Contorno da caixa, só no editor: o material de volume não aparece no viewport sozinho. */
+	UPROPERTY(VisibleAnywhere, Category = "JRPG|Mist")
+	TObjectPtr<UBoxComponent> EditorOutline;
+#endif
 
 	/** Reaplica todos os parâmetros no material (chame após mudar valores em runtime). */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Mist")

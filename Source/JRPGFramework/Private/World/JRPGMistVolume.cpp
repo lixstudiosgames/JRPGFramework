@@ -1,5 +1,6 @@
 #include "World/JRPGMistVolume.h"
 #include "World/JRPGMistSubsystem.h"
+#include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/StaticMesh.h"
@@ -27,8 +28,16 @@ AJRPGMistVolume::AJRPGMistVolume()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
+	// Pivô no centro do chão; a escala do ator é o tamanho (escala 1 = 100 uu). Nada aqui
+	// reescreve a escala depois — o gizmo do editor manda
+	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+	Root->SetRelativeScale3D(FVector(40.0f, 40.0f, 4.0f));
+	RootComponent = Root;
+
 	MistBox = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MistBox"));
-	RootComponent = MistBox;
+	MistBox->SetupAttachment(Root);
+	// Cubo da engine: 100 uu de lado com pivô no centro — sobe meio cubo para a base ficar no pivô
+	MistBox->SetRelativeLocation(FVector(0.0f, 0.0f, 50.0f));
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	if (CubeMesh.Succeeded())
@@ -47,6 +56,22 @@ AJRPGMistVolume::AJRPGMistVolume()
 	MistBox->bReceivesDecals = false;
 	MistBox->SetGenerateOverlapEvents(false);
 
+#if WITH_EDITORONLY_DATA
+	EditorOutline = CreateEditorOnlyDefaultSubobject<UBoxComponent>(TEXT("EditorOutline"));
+	if (EditorOutline)
+	{
+		EditorOutline->SetupAttachment(Root);
+		EditorOutline->SetRelativeLocation(FVector(0.0f, 0.0f, 50.0f));
+		EditorOutline->SetBoxExtent(FVector(50.0f, 50.0f, 50.0f), false);
+		EditorOutline->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		EditorOutline->SetGenerateOverlapEvents(false);
+		EditorOutline->SetCanEverAffectNavigation(false);
+		EditorOutline->ShapeColor = FColor(120, 160, 255);
+		EditorOutline->SetHiddenInGame(true);
+		EditorOutline->bIsEditorOnly = true;
+	}
+#endif
+
 	// Soft: o CDO não falha se os assets ainda não foram criados no editor
 	MistMaterial = TSoftObjectPtr<UMaterialInterface>(
 		FSoftObjectPath(TEXT("/JRPGFramework/World/Mist/MI_JRPGMist_Default.MI_JRPGMist_Default")));
@@ -57,9 +82,6 @@ AJRPGMistVolume::AJRPGMistVolume()
 void AJRPGMistVolume::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-
-	// Cubo da engine tem 100 uu de lado com pivô no centro
-	MistBox->SetRelativeScale3D(BoxExtent / 50.0f);
 
 	UMaterialInterface* Parent = MistMaterial.LoadSynchronous();
 	if (!Parent)
@@ -86,10 +108,10 @@ void AJRPGMistVolume::ApplyMistParameters()
 		return;
 	}
 
-	// A base da caixa é o chão da névoa; as bordas XY esmaecem. Pensado para caixa sem
-	// rotação (em yaw, só as bordas deixam de bater com a caixa).
-	const FVector Center = GetActorLocation();
-	const float FloorZ = Center.Z - BoxExtent.Z;
+	// O pivô é o chão da névoa; as bordas XY esmaecem pela caixa alinhada aos eixos que
+	// envolve o cubo (com yaw, as bordas seguem essa caixa, não o cubo girado)
+	const float FloorZ = GetActorLocation().Z;
+	const FBox Bounds = MistBox->CalcBounds(MistBox->GetComponentTransform()).GetBox();
 
 	MistMID->SetVectorParameterValue(JRPGMistParams::Albedo, Albedo);
 	MistMID->SetVectorParameterValue(JRPGMistParams::RibbonGlow, RibbonGlow);
@@ -99,7 +121,7 @@ void AJRPGMistVolume::ApplyMistParameters()
 	MistMID->SetVectorParameterValue(JRPGMistParams::Scene, FLinearColor(PoolDistance, PoolAmount, FlowAround, EdgeFade));
 	MistMID->SetVectorParameterValue(JRPGMistParams::Interaction, FLinearColor(ClearStrength, SwirlStrength, 0.0f, 0.0f));
 	MistMID->SetVectorParameterValue(JRPGMistParams::BoxXY, FLinearColor(
-		Center.X - BoxExtent.X, Center.Y - BoxExtent.Y, Center.X + BoxExtent.X, Center.Y + BoxExtent.Y));
+		Bounds.Min.X, Bounds.Min.Y, Bounds.Max.X, Bounds.Max.Y));
 }
 
 UMaterialParameterCollection* AJRPGMistVolume::GetParameterCollection() const
