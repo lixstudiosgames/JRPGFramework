@@ -2,13 +2,16 @@
 #include "World/JRPGMistSubsystem.h"
 #include "Components/ArrowComponent.h"
 #include "Components/BoxComponent.h"
+#include "Components/DirectionalLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialParameterCollection.h"
+#include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
+#include "UObject/UObjectIterator.h"
 
 // Parâmetros do M_JRPGMist. Os escalares vão empacotados em vetores para o Custom node
 // ter menos entradas — a ordem dos componentes tem que bater com a receita em
@@ -23,6 +26,7 @@ namespace JRPGMistParams
 	static const FName Scene(TEXT("Scene"));          // PoolDistance, PoolAmount, FlowAround, EdgeFade
 	static const FName Interaction(TEXT("Interaction")); // ClearStrength, SwirlStrength, -, -
 	static const FName BoxXY(TEXT("BoxXY"));          // MinX, MinY, MaxX, MaxY
+	static const FName SelfLight(TEXT("SelfLight"));  // cor × intensidade; emissive = isto × densidade
 	static const FName Flow(TEXT("Flow"));            // Mode, DirX, DirY, FlowSpeed
 	static const FName FlowLines(TEXT("FlowLines"));  // Spacing, Width, Coverage, Curve
 	static const FName FlowDash(TEXT("FlowDash"));    // TrailLength, TrailFill, AvoidDistance, AvoidStrength
@@ -167,6 +171,9 @@ void AJRPGMistVolume::ApplyMistParameters()
 		MistMID->SetVectorParameterValue(JRPGMistParams::FlowDash, FLinearColor(TrailLength, TrailFill, AvoidDistance, AvoidStrength));
 	}
 
+	CurrentSelfLight = ComputeSelfLight();
+	MistMID->SetVectorParameterValue(JRPGMistParams::SelfLight, SelfLightColor * CurrentSelfLight);
+
 	// Camada (todos os modos): TopSoftness + 2 com Follow Ground — ver JRPGMistLayer no shader
 	const float LayerPacked = FMath::Clamp(TopSoftness, 0.05f, 1.0f) + (bFollowGround ? 2.0f : 0.0f);
 	MistMID->SetVectorParameterValue(JRPGMistParams::FlowEddy, FLinearColor(EddyStrength, EddySize, LineDensity, LayerPacked));
@@ -285,6 +292,45 @@ FVector2D AJRPGMistVolume::GetFlowDirection() const
 	return Dir2D.IsNearlyZero() ? FVector2D(1.0f, 0.0f) : Dir2D.GetSafeNormal();
 }
 
+float AJRPGMistVolume::GetSceneLightLevel() const
+{
+	// A mais forte das directional lights visíveis deste mundo (no UDS: sol ou lua)
+	const UWorld* World = GetWorld();
+	float Level = 0.0f;
+	for (TObjectIterator<UDirectionalLightComponent> It; It; ++It)
+	{
+		const UDirectionalLightComponent* Light = *It;
+		if (!Light || Light->IsTemplate() || Light->GetWorld() != World || !Light->IsVisible() || !Light->bAffectsWorld)
+		{
+			continue;
+		}
+		Level = FMath::Max(Level, Light->Intensity * FLinearColor(Light->LightColor).GetLuminance());
+	}
+	return Level;
+}
+
+float AJRPGMistVolume::ComputeSelfLight() const
+{
+	float Value = SelfLight;
+	if (bAutoNightBoost)
+	{
+		const float Daylight = FMath::Clamp(GetSceneLightLevel() / FMath::Max(DaylightLevel, 0.01f), 0.0f, 1.0f);
+		Value += NightSelfLight * (1.0f - Daylight);
+	}
+	return Value;
+}
+
+void AJRPGMistVolume::UpdateSelfLight()
+{
+	if (!MistMID)
+	{
+		return;
+	}
+	// Transição suave: o UDS muda a luz aos poucos, mas uma troca de clima pode pular
+	CurrentSelfLight = FMath::FInterpTo(CurrentSelfLight, ComputeSelfLight(), 0.5f, 2.0f);
+	MistMID->SetVectorParameterValue(JRPGMistParams::SelfLight, SelfLightColor * CurrentSelfLight);
+}
+
 UMaterialParameterCollection* AJRPGMistVolume::GetParameterCollection() const
 {
 	return ParameterCollection.LoadSynchronous();
@@ -301,10 +347,17 @@ void AJRPGMistVolume::BeginPlay()
 			Mist->RegisterVolume(this);
 		}
 	}
+
+	if (bAutoNightBoost)
+	{
+		GetWorldTimerManager().SetTimer(SelfLightTimer, this, &AJRPGMistVolume::UpdateSelfLight, 0.5f, true);
+	}
 }
 
 void AJRPGMistVolume::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	GetWorldTimerManager().ClearTimer(SelfLightTimer);
+
 	if (const UGameInstance* GI = GetGameInstance())
 	{
 		if (UJRPGMistSubsystem* Mist = GI->GetSubsystem<UJRPGMistSubsystem>())

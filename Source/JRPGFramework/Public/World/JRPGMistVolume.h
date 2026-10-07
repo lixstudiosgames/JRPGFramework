@@ -146,6 +146,40 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look", meta = (ClampMin = "1.0"))
 	float EdgeFade = 400.0f;
 
+	// --- Luz própria (lugares escuros e noite) ---
+	// A volumetric fog só espalha luz: sem luz batendo, a névoa some. A luz própria faz a névoa
+	// emitir um pouco, proporcional à densidade — o formato continua aparecendo no escuro.
+
+	/**
+	 * Luz própria sempre ligada (0 = só a luz da cena). Para cavernas e interiores: o reforço
+	 * automático mede a luz do céu e não sabe que as paredes a bloqueiam. ~0.1 = névoa suave
+	 * visível no escuro; 0.4 já parece iluminada por holofote.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Light", meta = (ClampMin = "0.0"))
+	float SelfLight = 0.0f;
+
+	/** Cor da luz própria. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Light")
+	FLinearColor SelfLightColor = FLinearColor(0.8f, 0.85f, 1.0f);
+
+	/**
+	 * Aumenta a luz própria sozinho quando a cena escurece (noite do UDS, por exemplo). Mede a
+	 * luz das directional lights do mundo a cada 0,5 s e faz a transição suave.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Light")
+	bool bAutoNightBoost = true;
+
+	/** Luz própria somada no escuro total (o dia não soma nada). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Light", meta = (ClampMin = "0.0", EditCondition = "bAutoNightBoost"))
+	float NightSelfLight = 0.1f;
+
+	/**
+	 * Luz das directional lights (intensidade × luminância da cor, em lux) a partir da qual
+	 * conta como dia e o reforço vai a zero. Veja o valor atual com GetSceneLightLevel.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Light", meta = (ClampMin = "0.01", EditCondition = "bAutoNightBoost"))
+	float DaylightLevel = 8.0f;
+
 	// --- Cenário (distance field; desligado no preset Low) ---
 
 	/** Distância em uu até uma superfície em que a névoa começa a acumular e contornar. */
@@ -303,6 +337,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "JRPG|Mist")
 	FVector2D GetFlowDirection() const;
 
+	/** Luz das directional lights do mundo agora (a mais forte), em lux × luminância da cor. */
+	UFUNCTION(BlueprintPure, Category = "JRPG|Mist")
+	float GetSceneLightLevel() const;
+
 	/** Troca o modo e carrega o preset dele (sobrescreve os valores daquele modo). */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Mist")
 	void ApplyModePreset(EJRPGMistMode NewMode);
@@ -325,6 +363,15 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+	/** Luz própria alvo agora: SelfLight + o reforço da noite. */
+	float ComputeSelfLight() const;
+
+	/** Timer do bAutoNightBoost: aproxima a luz própria do alvo e escreve só esse parâmetro. */
+	void UpdateSelfLight();
+
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> MistMID;
+
+	float CurrentSelfLight = 0.0f;
+	FTimerHandle SelfLightTimer;
 };

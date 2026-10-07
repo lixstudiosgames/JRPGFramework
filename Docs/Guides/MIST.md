@@ -137,7 +137,7 @@ return JRPGMistFromPacked3(WorldPos, Time, NoiseTex, NoiseTexSampler,
 |---|---|
 | `Albedo` | Vector Parameter `Albedo` (`RGB`) |
 | `Extinction` | Custom `.r` (Component Mask R) |
-| `Emissive` | Vector Parameter `RibbonGlow` (`RGB`) × Custom `.g` |
+| `Emissive` | `RibbonGlow` (`RGB`) × Custom `.g` + `SelfLight` (`RGB`) × Custom `.r` |
 
 ### `M_JRPGMist`
 
@@ -190,6 +190,24 @@ hugs the terrain: it runs down slopes, settles into pits and stays thin over hig
   flat layer that won't enter holes.
 5. **Lamps:** give them `Volumetric Scattering Intensity`. Enable **Cast Volumetric Shadow** on 1–2
    lights per area at most, because it is the most expensive part of volumetric fog.
+
+## Dark places and night
+
+Volumetric fog only **scatters** light. With nothing lighting it, at night or in a dark corridor, the
+mist disappears. Two settings fix that, in the `Light` category:
+
+| Setting | What it does | When to use |
+|---|---|---|
+| `SelfLight` + `SelfLightColor` | The mist emits a little light, proportional to its own density, so dense parts glow more and the shape (strands, swirls, the player's trail) stays readable | Interiors, caves, dungeons. Start at **0.1**; 0.4 already looks spot-lit |
+| `bAutoNightBoost` (on) + `NightSelfLight` | Every 0.5 s the volume reads the strongest directional light (UDS's sun or moon) and adds up to `NightSelfLight` (0.1) as it gets dark, fading smoothly. Above `DaylightLevel` (8) it adds nothing | Outdoors with a day/night cycle |
+
+The automatic boost measures the **sky** light. Inside a castle the sun can be up while walls block it,
+and the volume can't know that, so set `SelfLight` on volumes placed indoors. `GetSceneLightLevel()` (Blueprint)
+shows the value it reads.
+
+Real lights still look best. Give lamps and the UDS moon some `Volumetric Scattering Intensity` and the
+mist picks up their color and shadows; self light is the floor that keeps it from vanishing. It is one
+material parameter (emissive = `RibbonGlow` × strands + `SelfLight` × density), so it costs nothing.
 
 ## Parameters (`AJRPGMistVolume`)
 
