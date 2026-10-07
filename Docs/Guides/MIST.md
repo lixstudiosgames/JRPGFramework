@@ -199,7 +199,9 @@ mist disappears. Two settings fix that, in the `Light` category:
 | Setting | What it does | When to use |
 |---|---|---|
 | `SelfLight` + `SelfLightColor` | The mist emits a little light, proportional to its own density, so dense parts glow more and the shape (strands, swirls, the player's trail) stays readable | Interiors, caves, dungeons. Start at **0.1**; 0.4 already looks spot-lit |
-| `bAutoNightBoost` (on) + `NightSelfLight` | Every 0.5 s the volume reads the strongest directional light (UDS's sun or moon) and adds up to `NightSelfLight` (0.1) as it gets dark, fading smoothly. Above `DaylightLevel` (8) it adds nothing | Outdoors with a day/night cycle |
+| `bAutoNightBoost` (on) + `NightSelfLight` | Reads the strongest directional light (UDS's sun or moon) **once**, right after the level starts, and adds up to `NightSelfLight` (0.1) the darker it is. Above `DaylightLevel` (8) it adds nothing. Nothing runs during play | Outdoor levels with a fixed time of day |
+| `bTrackTimeOfDay` (off) | Keeps reading every 0.5 s and fades smoothly as the light changes. Microseconds per volume | A dynamic day/night cycle |
+| `SetSelfLight(Value)` (Blueprint) | Sets the constant self light immediately | Event-driven: your time-of-day system calls it when the hour changes |
 
 The automatic boost measures the **sky** light. Inside a castle the sun can be up while walls block it,
 and the volume can't know that, so set `SelfLight` on volumes placed indoors. `GetSceneLightLevel()` (Blueprint)

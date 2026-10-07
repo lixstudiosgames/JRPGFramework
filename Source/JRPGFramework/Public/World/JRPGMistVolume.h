@@ -163,11 +163,19 @@ public:
 	FLinearColor SelfLightColor = FLinearColor(0.8f, 0.85f, 1.0f);
 
 	/**
-	 * Aumenta a luz própria sozinho quando a cena escurece (noite do UDS, por exemplo). Mede a
-	 * luz das directional lights do mundo a cada 0,5 s e faz a transição suave.
+	 * Aumenta a luz própria sozinho quando a cena é escura (noite do UDS, por exemplo). Mede a
+	 * luz das directional lights UMA vez, logo depois que o level começa — level com horário
+	 * fixo não gasta nada durante o jogo. Para dia dinâmico, ligue bTrackTimeOfDay.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Light")
 	bool bAutoNightBoost = true;
+
+	/**
+	 * Dia dinâmico: continua medindo a cada 0,5 s e faz a transição suave conforme a luz muda.
+	 * Desligado = mede só no começo do level.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Light", meta = (EditCondition = "bAutoNightBoost"))
+	bool bTrackTimeOfDay = false;
 
 	/** Luz própria somada no escuro total (o dia não soma nada). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Light", meta = (ClampMin = "0.0", EditCondition = "bAutoNightBoost"))
@@ -337,6 +345,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "JRPG|Mist")
 	FVector2D GetFlowDirection() const;
 
+	/**
+	 * Troca a luz própria fixa na hora (sem esperar o timer). Para dia dinâmico guiado por
+	 * evento: o sistema de horário chama isto quando a hora muda.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Mist")
+	void SetSelfLight(float NewSelfLight);
+
 	/** Luz das directional lights do mundo agora (a mais forte), em lux × luminância da cor. */
 	UFUNCTION(BlueprintPure, Category = "JRPG|Mist")
 	float GetSceneLightLevel() const;
@@ -366,8 +381,14 @@ private:
 	/** Luz própria alvo agora: SelfLight + o reforço da noite. */
 	float ComputeSelfLight() const;
 
-	/** Timer do bAutoNightBoost: aproxima a luz própria do alvo e escreve só esse parâmetro. */
-	void UpdateSelfLight();
+	/** Escreve só o parâmetro da luz própria. bSnap = vai direto ao alvo, sem transição. */
+	void UpdateSelfLight(bool bSnap);
+
+	/** Medição única do começo do level (bAutoNightBoost sem bTrackTimeOfDay). */
+	void MeasureSelfLightOnce() { UpdateSelfLight(true); }
+
+	/** Medição contínua do dia dinâmico (bTrackTimeOfDay). */
+	void TrackSelfLight() { UpdateSelfLight(false); }
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> MistMID;

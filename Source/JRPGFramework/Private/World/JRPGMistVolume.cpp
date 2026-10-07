@@ -320,15 +320,22 @@ float AJRPGMistVolume::ComputeSelfLight() const
 	return Value;
 }
 
-void AJRPGMistVolume::UpdateSelfLight()
+void AJRPGMistVolume::UpdateSelfLight(bool bSnap)
 {
 	if (!MistMID)
 	{
 		return;
 	}
-	// Transição suave: o UDS muda a luz aos poucos, mas uma troca de clima pode pular
-	CurrentSelfLight = FMath::FInterpTo(CurrentSelfLight, ComputeSelfLight(), 0.5f, 2.0f);
+	// Transição suave no dia dinâmico: o UDS muda a luz aos poucos, mas uma troca de clima pode pular
+	const float Target = ComputeSelfLight();
+	CurrentSelfLight = bSnap ? Target : FMath::FInterpTo(CurrentSelfLight, Target, 0.5f, 2.0f);
 	MistMID->SetVectorParameterValue(JRPGMistParams::SelfLight, SelfLightColor * CurrentSelfLight);
+}
+
+void AJRPGMistVolume::SetSelfLight(float NewSelfLight)
+{
+	SelfLight = FMath::Max(NewSelfLight, 0.0f);
+	UpdateSelfLight(true);
 }
 
 UMaterialParameterCollection* AJRPGMistVolume::GetParameterCollection() const
@@ -348,9 +355,15 @@ void AJRPGMistVolume::BeginPlay()
 		}
 	}
 
-	if (bAutoNightBoost)
+	if (bAutoNightBoost && bTrackTimeOfDay)
 	{
-		GetWorldTimerManager().SetTimer(SelfLightTimer, this, &AJRPGMistVolume::UpdateSelfLight, 0.5f, true);
+		GetWorldTimerManager().SetTimer(SelfLightTimer, this, &AJRPGMistVolume::TrackSelfLight, 0.5f, true);
+	}
+	else if (bAutoNightBoost)
+	{
+		// Uma medição só. Espera um instante: o UDS posiciona sol e lua no BeginPlay dele, que
+		// pode rodar depois deste — medir já agora pegaria a luz sem a hora aplicada
+		GetWorldTimerManager().SetTimer(SelfLightTimer, this, &AJRPGMistVolume::MeasureSelfLightOnce, 0.3f, false);
 	}
 }
 
