@@ -34,6 +34,7 @@ New here? Read [`ARCHITECTURE.md`](ARCHITECTURE.md), then
 | [STATUS.md](Guides/STATUS.md) | Equipment, conditions, Ra-Seru, affinity, the `effective ( base )` stat |
 | [AUDIO.md](Guides/AUDIO.md) | BGM persisting across maps, 4 volume channels |
 | [CAMERA.md](Guides/CAMERA.md) | 13 presets, automatic UI restore, shakes, level cameras and zones |
+| [MIST.md](Guides/MIST.md) | Living volumetric mist: strands and swirls, flows around scenery, parts around the player |
 | [MENU_AND_OPTIONS.md](Guides/MENU_AND_OPTIONS.md) | Main menu and the options screen (visuals done, controls not wired) |
 | [WEBUI_API.md](Guides/WEBUI_API.md) | The shell's API, states, JS contracts, editing workflow |
 | [DEV_MENU.md](Guides/DEV_MENU.md) | The dev screen and its command line (compiled out in Shipping) |

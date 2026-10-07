@@ -37,7 +37,7 @@ API_GROUPS = [
     ("inventory", "Inventory", "Inventário", ["Inventory"], 1),
     ("status", "Status", "Status", ["Status"], 1),
     ("audio", "Audio", "Áudio", ["Audio"], 1),
-    ("world", "World state", "Estado do mundo", ["World"], 1),
+    ("world", "World state + mist", "Estado do mundo + névoa", ["World"], 1),
     ("shop", "Shop", "Loja", ["Shop"], 1),
     ("save", "Save / Load", "Save / Load", ["Save"], 1),
     ("battle", "Battle", "Batalha", ["Battle"], 1),
@@ -98,6 +98,8 @@ SYSTEMS = [
         S("Camera", OK, 3, "13 presets, 8 shakes, level cameras + zones, conversation, FrameGroup / Orbit",
           "13 presets, 8 tremores, câmeras de nível + zonas, conversa, FrameGroup / Orbit", "Câmera"),
         S("Data", OK, 1.5, "8 DataTables as CSV, the source of truth", "8 DataTables em CSV, a fonte da verdade", "Dados"),
+        S("Mist", OK, 2, "Living volumetric mist: 4 modes with presets, follows terrain, player trail, self light at night",
+          "Névoa volumétrica viva: 4 modos com presets, segue o terreno, rastro do jogador, luz própria à noite", "Névoa"),
     ],
     [  # linha 3
         S("WebUI", OK, 4, "HTML SPA shell: menu, items, party, shop, save/load, options, main menu, dev screen; gamepad + keyboard + mouse, responsive scaling",
