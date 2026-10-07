@@ -88,7 +88,7 @@ Nothing has to be built by hand. The recipe below is for rebuilding or changing 
 
 ### Why the graph lives in a Material Function
 
-Editing a Material recompiles it on **every** change, and the Custom node has 31 inputs that the editor
+Editing a Material recompiles it on **every** change, and the Custom node has 32 inputs that the editor
 only accepts one at a time. Adding them straight into the Material fired one recompile per input, and
 the editor crashed inside the shader preprocessor (300+ cancelled shader jobs). A Material Function
 doesn't compile on its own, so the graph is built there and the Material compiles once.
@@ -114,19 +114,19 @@ Import `Extras/Mist/T_JRPGMistNoise.png` into `Content/World/Mist/` with sRGB **
 ```hlsl
 float4 S[8] = { Slot0, Slot1, Slot2, Slot3, Slot4, Slot5, Slot6, Slot7 };
 float4 D[8] = { Dir0, Dir1, Dir2, Dir3, Dir4, Dir5, Dir6, Dir7 };
-return JRPGMistFromPacked3(WorldPos, Time, NoiseTex, NoiseTexSampler,
-    ShapeA, ShapeB, Ribbons, Scene, Interaction, BoxXY, Flow, FlowLines, FlowDash, FlowEddy,
+return JRPGMistFromPacked4(WorldPos, Time, NoiseTex, NoiseTexSampler,
+    ShapeA, ShapeB, Ribbons, Scene, Interaction, BoxXY, Flow, FlowLines, FlowDash, FlowEddy, BoxZ,
     SurfaceDist, SurfaceGrad, S, D);
 ```
 
-**The 31 inputs**, named exactly:
+**The 32 inputs**, named exactly:
 
 | Input | Connected to |
 |---|---|
 | `WorldPos` | Absolute World Position (`XYZ`) |
 | `Time` | Time |
 | `NoiseTex` | Texture Object `T_JRPGMistNoise`, sampler type **Masks** (a Masks texture in a Color sampler fails to compile) |
-| `ShapeA`, `ShapeB`, `Ribbons`, `Scene`, `Interaction`, `BoxXY`, `Flow`, `FlowLines`, `FlowDash`, `FlowEddy` | Vector Parameters with the same names (`RGBA` output). `AJRPGMistVolume` overwrites them; `Flow`/`FlowLines`/`FlowDash` change meaning with the mode (see `JRPGMistFromPacked3` in the shader) |
+| `ShapeA`, `ShapeB`, `Ribbons`, `Scene`, `Interaction`, `BoxXY`, `Flow`, `FlowLines`, `FlowDash`, `FlowEddy`, `BoxZ` | Vector Parameters with the same names (`RGBA` output). `AJRPGMistVolume` overwrites them; `Flow`/`FlowLines`/`FlowDash` change meaning with the mode (see `JRPGMistFromPacked4` in the shader) |
 | `SurfaceDist` | Quality Switch: **Default** = `DistanceToNearestSurface`, **Low** = constant `100000` |
 | `SurfaceGrad` | Quality Switch: **Default** = `DistanceFieldGradient`, raw, **Low** = constant `(0,0,0)`. Don't add a `Normalize` node: the shader normalizes safely, and `Normalize` returns NaN wherever the gradient is zero |
 | `Slot0`…`Slot7`, `Dir0`…`Dir7` | Collection Parameter nodes from `MPC_JRPGMist` |
@@ -184,8 +184,9 @@ hugs the terrain: it runs down slopes, settles into pits and stays thin over hig
 
 - **The mist only exists inside the box.** To fill a hole, put the pivot at the **bottom of the hole**
   and make the box tall enough to reach above the surrounding ground plus `Thickness`.
-- Near walls the distance to the nearest surface is small, so the mist gets denser along them. Inside a
-  narrow pit it fills the pit.
+- Follow Ground only uses the terrain where the nearest surface faces **up** (floors, slopes, the
+  bottom of a pit). Next to a vertical wall the distance is small at every height, so the mist used to
+  climb the whole wall up to the box top. There, height is measured from the pivot instead.
 - With material quality Low there is no distance field, and height falls back to the pivot. That is a
   flat layer that won't enter holes.
 5. **Lamps:** give them `Volumetric Scattering Intensity`. Enable **Cast Volumetric Shadow** on 1–2
@@ -229,6 +230,7 @@ material parameter (emissive = `RibbonGlow` × strands + `SelfLight` × density)
 | | `RibbonStretch` | How long the strands get along the wind |
 | | `RibbonCoverage` | Fraction of the area that has strands |
 | | `EdgeFade` | Fade width at the box's side walls |
+| | `TopFade` | Fade width below the box's top (150 uu): a tall box never ends in a flat cut |
 | Scene | `PoolDistance` | Distance from a surface where pooling and flowing-around start |
 | | `PoolAmount` | How much thicker the mist gets next to objects |
 | | `FlowAround` | How strongly the flow follows surfaces |

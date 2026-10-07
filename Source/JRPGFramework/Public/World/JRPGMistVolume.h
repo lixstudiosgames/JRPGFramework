@@ -188,6 +188,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Light", meta = (ClampMin = "0.01", EditCondition = "bAutoNightBoost"))
 	float DaylightLevel = 8.0f;
 
+	/**
+	 * Largura em uu do esmaecimento no topo da caixa (o EdgeFade, mas para cima). Com a caixa
+	 * alta, a névoa nunca termina num corte reto lá em cima.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Look", meta = (ClampMin = "1.0"))
+	float TopFade = 150.0f;
+
 	// --- Cenário (distance field; desligado no preset Low) ---
 
 	/** Distância em uu até uma superfície em que a névoa começa a acumular e contornar. */

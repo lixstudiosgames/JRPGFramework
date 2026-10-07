@@ -26,6 +26,7 @@ namespace JRPGMistParams
 	static const FName Scene(TEXT("Scene"));          // PoolDistance, PoolAmount, FlowAround, EdgeFade
 	static const FName Interaction(TEXT("Interaction")); // ClearStrength, SwirlStrength, -, -
 	static const FName BoxXY(TEXT("BoxXY"));          // MinX, MinY, MaxX, MaxY
+	static const FName BoxZ(TEXT("BoxZ"));            // TopZ, TopFade, -, -
 	static const FName SelfLight(TEXT("SelfLight"));  // cor × intensidade; emissive = isto × densidade
 	static const FName Flow(TEXT("Flow"));            // Mode, DirX, DirY, FlowSpeed
 	static const FName FlowLines(TEXT("FlowLines"));  // Spacing, Width, Coverage, Curve
@@ -152,6 +153,7 @@ void AJRPGMistVolume::ApplyMistParameters()
 	MistMID->SetVectorParameterValue(JRPGMistParams::Interaction, FLinearColor(ClearStrength, SwirlStrength, CurveLength, CurveDrift));
 	MistMID->SetVectorParameterValue(JRPGMistParams::BoxXY, FLinearColor(
 		Bounds.Min.X, Bounds.Min.Y, Bounds.Max.X, Bounds.Max.Y));
+	MistMID->SetVectorParameterValue(JRPGMistParams::BoxZ, FLinearColor(Bounds.Max.Z, TopFade, 0.0f, 0.0f));
 
 	// Flow / FlowLines / FlowDash mudam de significado com o modo (ver JRPGMistFromPacked2)
 	if (Mode == EJRPGMistMode::PulseRings)
