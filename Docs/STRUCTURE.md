@@ -195,7 +195,7 @@ JRPGFramework/
 | **Save/Load** | ✅ complete | 15 slots, automatic gather/restore, map change + teleport, save versioning |
 | **Shop** | ✅ complete | `DT_Shops` (32), atomic buy/sell, featured items gated by platinum_card, flag gating |
 | **Audio** | ✅ complete | BGM persisting across maps with crossfade, 4 channels saved in `JRPGSettings` |
-| **Mist** | 🟡 not tuned in a map yet | Living volumetric mist (strands, swirls, flows around scenery, parts around movers). C++, shader and material assets done; still to be placed and tuned in a map. See [MIST.md](Guides/MIST.md) |
+| **Mist** | ✅ complete | Living volumetric mist: Ground Mist, Flow Lines, Pulse Rings and Ground + Flow, with presets; follows terrain into holes, parts around the player and movers, self light for dark places. See [MIST.md](Guides/MIST.md) |
 | **Camera** | ✅ complete | 13 presets (+DOF), automatic restore when the UI closes, 8 shakes, manual camera + zone, conversation and FrameGroup/Orbit ready |
 | **WebUI** | ✅ complete | SPA shell, 7 screens, gamepad + keyboard + mouse with their own rules, responsive scaling |
 | **Party** | ✅ complete (data) | Roster vs formation, 3 states per character, XP split among survivors as in the original, level-up with jitter, whole-roster save. The UI does not follow the formation yet |
