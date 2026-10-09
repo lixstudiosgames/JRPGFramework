@@ -13,7 +13,7 @@ and changes color with the time of day.
 | `JRPGMist.ush` | `Shaders/` | The HLSL: domain warp, strands, height, distance field, parting and swirls |
 | `AJRPGMistVolume` | `Public/World/JRPGMistVolume.h` | The box you drop in a level. Holds every look parameter |
 | `UJRPGMistDisturberComponent` | `Public/World/JRPGMistDisturberComponent.h` | Goes on whatever moves and should stir the mist |
-| `UJRPGMistSubsystem` | `Public/World/JRPGMistSubsystem.h` | Picks who fills the shader's 8 slots each frame and writes them to the MPC |
+| `UJRPGMistSubsystem` | `Public/World/JRPGMistSubsystem.h` | Picks who fills the shader's slots each frame and writes them to the MPC, and paints the player's trail into the trail texture |
 | `M_JRPGMist`, `MF_JRPGMist`, `MI_JRPGMist_Default`, `MPC_JRPGMist`, `T_JRPGMistNoise` | `Content/World/Mist/` | The material assets, shipped with the plugin |
 | `generate_mist_noise.py` | `Extras/` | Generates `Extras/Mist/T_JRPGMistNoise.png` |
 
@@ -31,6 +31,7 @@ its own parameters) and hides the other modes' options in Details. At runtime, c
 | **Flow Lines** | A few lines curving in S shapes with trails running along them, like smoke in a wind tunnel. They bend around objects | The actor's arrow (rotate it in yaw), or toward `FlowTarget` if set |
 | **Pulse Rings** | Concentric rings sent out in pulses from the center, plus optional radial lines | The actor's pivot is the center |
 | **Ground + Flow** | Ground Mist and Flow Lines together, carried by **one** wind: point the arrow right and both go right. The mist drifts at `GroundDriftRatio` (30%) of the lines' speed, because fast broad mist smears under the fog's temporal reprojection | Same as Flow Lines |
+| **Air (Clouds + Flow)** | The ground mist (strands, pooling, flowing around objects, same settings) in small clouds, plus Flow Lines, **floating in the air**, filling the box. Goes in its **own box**, separate from the ground mist, so each has its own settings. Each air line sits at a random height | Same as Flow Lines |
 
 Thin features blur in volumetric fog: one grid cell covers ~16 screen pixels. Keep `LineWidth` above
 ~30 uu and `RingWidth` above ~40 uu, or lines read as rain streaks.
@@ -40,6 +41,39 @@ the streaks are what run along them, like smoke following a current. (Moving the
 each whole line slide sideways in X, which doesn't read as flow.) A layer of large eddies, wobbling in
 place, bends the paths, stretches the streaks and makes the line width breathe. It is all math in the
 shader, with one extra texture read.
+
+### Air: a second box for the mist in the air
+
+Raising the box alone doesn't lift the mist: `Thickness` keeps it on the ground. For mist in the air,
+place **two volumes**, each with its own settings (density, Flow Lines, wind):
+
+| Box | Mode | Size | Follow Ground |
+|---|---|---|---|
+| Ground | Ground + Flow (or Ground Mist) | Low, a bit above `Thickness` | On: it hugs the terrain |
+| Air | **Air (Clouds + Flow)** | Tall (scale Z 8–12 = 800–1200 uu), pivot where the air should start | Not used |
+
+- **Height comes from the pivot, never the distance field.** Away from the ground, the distance to the
+  nearest surface saturates at a maximum, so with Follow Ground the height stopped growing up high and
+  the clouds stretched along Z. In Air mode `Thickness`, `TopSoftness` and `bFollowGround` are hidden.
+- **Same look as the ground.** The air uses the ground mist's shape and settings: base mist and
+  strands (`Ribbon*`), the warp swirls, pooling next to objects and flowing around them (`Pool*`,
+  `FlowAround`).
+- **Small clouds, real 3D noise.** That shape only exists inside small clouds from an ALU 3D value
+  noise. The ground mist's pseudo-3D noise (two 2D slices blended) makes columns stretched along Z in a
+  tall box, and the round, isotropic clouds break them up. Clouds are `AirCloudSize` (350 uu), carried
+  by the flow direction at `GroundDriftRatio` of `FlowSpeed`, rising slowly and changing shape.
+  `AirCoverage` leaves clean air between them (1 = the mist fills the box); `AirStart` fades them in
+  from the bottom of the box (like `TopFade` at the top).
+- **Keep it light.** A top-down camera looks through the whole height of the box, so it adds up fast.
+  `Density` here is the air's own density (preset 0.35).
+- **Lines** use the box's own Flow parameters. The air is split into cells 2 × `LineSpacing` tall, each
+  with its own set of lines, and every line sits at a random height inside its cell, so they float at
+  different heights instead of forming layers. `LineDensity` weighs them against the clouds (preset 2).
+- The player's trail clears the whole column, so the air never hides the trail on the ground.
+
+The cloud parameters ride in components the material didn't use yet (`BoxZ.z` = `AirCloudSize`,
+`BoxZ.w` = `AirStart` + `AirCoverage` as integer + fraction), so this mode needs **no change to the
+material assets**. See `JRPGMistFromPacked4`.
 
 ## How it works
 
@@ -64,11 +98,32 @@ mesh distance fields (`r.GenerateMeshDistanceFields=True`).
 reach the fog on its own, so anything animated or simulated needs `UJRPGMistDisturberComponent`.
 - The mist parts around its owner and swirls to either side of its path, like a wake.
 - Strength scales with the owner's speed. A barrel at rest does nothing, and a rolling one cuts through.
-- The player-controlled pawn also leaves a trail that closes over `TrailLifetime` seconds (4 by default).
+- Anything with `bLeavesTrail` (the player and NPCs) also leaves a trail that closes over
+  `TrailLifetime` seconds (4 by default). It is **painted into a texture**, like footprints in snow, so
+  it follows the exact path, any curve, any length:
+  - The C++ keeps a small texture (`TrailResolution` 192², G8) covering `TrailAreaSize` (6000 uu)
+    around the player; the area follows the player, shifting what is already painted.
+  - Every frame it paints a capsule from the previous position to the current one, so there are no gaps
+    between frames however fast the player moves. Standing still (below `MinSpeed`) paints nothing.
+    A `Strength` above 1 saturates the core, as it does for the circle around the player, so the trail
+    is as wide as that circle.
+  - Everyone paints into the same texture, which follows the player: an NPC further than
+    `TrailAreaSize / 2` from the player leaves no trail. The player's component sets the area, the
+    resolution and the debug draw.
+  - Each texel keeps the distance to the path, when someone passed, the strength and that component's
+    trail settings, so each one closes its own way. Its value is
+    worked out from that: a gaussian of `Radius` that widens with age (`TrailWidening`), fully open
+    until `TrailHold` of its life and then fading smoothly to zero at exactly `TrailLifetime`. The edges, weaker, close first, so the mist
+    comes back from the outside in. Passing over the same place again doesn't add up.
+  - The shader reads it once per cell (`TrailTex`), with a small fixed offset so the edges are not
+    ruler-straight. Painting and the 37 KB upload cost microseconds per frame on the CPU.
+  - `bDebugDrawTrail` on the component draws it as the shader reads it: one point per painted texel
+    (green = open, red = closing) and the outline of the texture's area (cyan).
 
-**Fixed cost.** The shader always has 8 slots. The player takes 6: the current position plus 5 trail
-points. The 3 left go to the other disturbers closest to the camera. Adding NPCs never makes the shader
-more expensive.
+**Fixed cost.** The shader always has 8 slots. The player's current position takes one (it parts the
+mist and swirls around them), `Slot7` carries the trail texture's mapping (corner X/Y, size in uu, on),
+and the other 6 go to the disturbers closest to the camera. Adding NPCs never makes the shader more
+expensive.
 
 ---
 
@@ -79,7 +134,7 @@ They ship with the plugin, in `Content/World/Mist/`, and the C++ looks for them 
 | Asset | What it is |
 |---|---|
 | `T_JRPGMistNoise` | Tiling noise. sRGB off, Masks, Wrap/Wrap, NoMipmaps |
-| `MPC_JRPGMist` | 16 vector parameters, `Slot0`…`Slot7` and `Dir0`…`Dir7`, written by `UJRPGMistSubsystem` |
+| `MPC_JRPGMist` | 16 vector parameters, `Slot0`…`Slot7` and `Dir0`…`Dir7`, written by `UJRPGMistSubsystem`. `Slot7` is the trail texture's mapping, not a disturber |
 | `MF_JRPGMist` | The whole graph, including the Custom node that calls `JRPGMist.ush` |
 | `M_JRPGMist` | Volume / Additive. Only a call to `MF_JRPGMist` wired to the outputs |
 | `MI_JRPGMist_Default` | Instance of `M_JRPGMist`, the default of `AJRPGMistVolume` |
@@ -88,7 +143,7 @@ Nothing has to be built by hand. The recipe below is for rebuilding or changing 
 
 ### Why the graph lives in a Material Function
 
-Editing a Material recompiles it on **every** change, and the Custom node has 32 inputs that the editor
+Editing a Material recompiles it on **every** change, and the Custom node has 33 inputs that the editor
 only accepts one at a time. Adding them straight into the Material fired one recompile per input, and
 the editor crashed inside the shader preprocessor (300+ cancelled shader jobs). A Material Function
 doesn't compile on its own, so the graph is built there and the Material compiles once.
@@ -114,18 +169,22 @@ Import `Extras/Mist/T_JRPGMistNoise.png` into `Content/World/Mist/` with sRGB **
 ```hlsl
 float4 S[8] = { Slot0, Slot1, Slot2, Slot3, Slot4, Slot5, Slot6, Slot7 };
 float4 D[8] = { Dir0, Dir1, Dir2, Dir3, Dir4, Dir5, Dir6, Dir7 };
-return JRPGMistFromPacked4(WorldPos, Time, NoiseTex, NoiseTexSampler,
+return JRPGMistFromPacked5(WorldPos, Time, NoiseTex, NoiseTexSampler, TrailTex, TrailTexSampler,
     ShapeA, ShapeB, Ribbons, Scene, Interaction, BoxXY, Flow, FlowLines, FlowDash, FlowEddy, BoxZ,
     SurfaceDist, SurfaceGrad, S, D);
 ```
 
-**The 32 inputs**, named exactly:
+A graph still calling `JRPGMistFromPacked4` (no `TrailTex` input) keeps working, without the trail:
+only the circle around the player parts the mist.
+
+**The 33 inputs**, named exactly:
 
 | Input | Connected to |
 |---|---|
 | `WorldPos` | Absolute World Position (`XYZ`) |
 | `Time` | Time |
 | `NoiseTex` | Texture Object `T_JRPGMistNoise`, sampler type **Masks** (a Masks texture in a Color sampler fails to compile) |
+| `TrailTex` | **Texture Object Parameter** named `TrailTex`, default `/Engine/EngineResources/Black`, sampler type **Color**. `AJRPGMistVolume` sets the trail texture at runtime; the Custom node reads it raw, so the sampler type only has to match the default |
 | `ShapeA`, `ShapeB`, `Ribbons`, `Scene`, `Interaction`, `BoxXY`, `Flow`, `FlowLines`, `FlowDash`, `FlowEddy`, `BoxZ` | Vector Parameters with the same names (`RGBA` output). `AJRPGMistVolume` overwrites them; `Flow`/`FlowLines`/`FlowDash` change meaning with the mode (see `JRPGMistFromPacked4` in the shader) |
 | `SurfaceDist` | Quality Switch: **Default** = `DistanceToNearestSurface`, **Low** = constant `100000` |
 | `SurfaceGrad` | Quality Switch: **Default** = `DistanceFieldGradient`, raw, **Low** = constant `(0,0,0)`. Don't add a `Normalize` node: the shader normalizes safely, and `Normalize` returns NaN wherever the gradient is zero |
@@ -174,8 +233,8 @@ The graph is one Material Function Call node with `MF_JRPGMist`:
 3. **Add `UJRPGMistDisturberComponent` to the player pawn's Blueprint.** It detects that it is on the
    player and leaves the trail on its own. `IdleStrength` ~0.3 keeps a small clearing around a
    standing player.
-4. **Add the same component to NPCs, enemies and physics props.** They part the mist but never leave a
-   trail; only the player does.
+4. **Add the same component to NPCs, enemies and physics props.** They part the mist and, with
+   `bLeavesTrail`, leave a trail too while they are within `TrailAreaSize / 2` of the player.
 
 ### Holes, pits and slopes
 
@@ -241,7 +300,12 @@ material parameter (emissive = `RibbonGlow` × strands + `SelfLight` × density)
 `LineSpacing`, `LineWidth` (uu), `LineCoverage` (fewer lines when lower), `LineCurve` and `CurveLength`
 (the S curves), `CurveDrift` (how fast the curves change), `EddyStrength` and `EddySize` (the fake-fluid
 eddies), `LineDensity` (lines vs. mist), `TrailLength` and `TrailFill` (the streaks), `AvoidDistance` and
-`AvoidStrength` (how the lines bend around objects). Ground + Flow adds `GroundDriftRatio`.
+`AvoidStrength` (how the lines bend around objects). Ground + Flow and Air add `GroundDriftRatio`.
+
+**Air** (`Air` category, Air mode only): `AirCloudSize` (size of one cloud; 350 uu, blurs below
+~150), `AirCoverage` (fraction of the air with clouds; 0.45), `AirStart` (fade width at the bottom of
+the box; 150 uu). Everything else (density, strands, pooling, lines) comes from the usual categories,
+as on the ground.
 
 **Pulse Rings** (`Pulse` category): `PulseInterval` (seconds between rings), `PulseSpeed`,
 `RingWidth`, `PulseMaxRadius` (where the wave fades out), `RingWiggle`, `RadialLines` (0 = rings only),
@@ -256,9 +320,14 @@ Every parameter is `BlueprintReadWrite`. After changing values at runtime, call 
 | `Radius` | Size of the clearing around the owner (220 uu) |
 | `Strength`, `MinSpeed`, `FullSpeed`, `IdleStrength` | How strongly it parts the mist, scaled by speed |
 | `SwirlScale` | 0 = only parts the mist, 1 = full swirl |
-| `bLeavesTrail` | On by default. Only the **player-controlled pawn** leaves a trail; it is picked automatically |
+| `bLeavesTrail` | On by default. The player and NPCs leave a trail painted into one texture that follows the player; each uses its own trail settings. The player's component sets `TrailAreaSize`, `TrailResolution` and `bDebugDrawTrail` |
 | `TrailLifetime` | Seconds until the trail closes (4) |
-| `TrailWidening` | How much the trail widens as it closes (0.8 = almost doubles) |
+| `TrailHold` | Fraction of `TrailLifetime` the path stays fully open, so mist carried by the wind can't fill it (0.8). After that it closes smoothly by the end. 0 = starts closing as soon as the player passes |
+| `TrailWidening` | How much the trail widens before it closes, as a fraction of `Radius` (0.8 = almost doubles). Painting covers the widened reach, capped at a quarter of `TrailAreaSize`; CPU cost grows with the square of that reach |
+| `TrailEdgeHardness` | Edge of the trail (0..1, 0.6). 0 = soft gaussian falloff; 1 = evenly open band with a sharp edge (15% of its radius). The width stays the same: the edge sits where the trail is half open |
+| `TrailAreaSize` | Side in uu of the area around the player that holds the trail (6000). The texture follows the player; trail outside it is dropped |
+| `TrailResolution` | Trail texture resolution (192, 32..512). A texel is `TrailAreaSize / TrailResolution` (~31 uu), already finer than volumetric fog shows |
+| `bDebugDrawTrail` | Draws the trail as the shader reads it (a point per painted texel) and the texture's area. Not in Shipping |
 
 ## Performance
 
@@ -287,7 +356,11 @@ Target: **≤ ~1 ms** for the whole VolumetricFog pass at 1080p on a **GTX 1060 
 | Nothing shows | In order of likelihood: the pivot is under the terrain (the floor is the pivot), `Density` too low (it is per meter, start at 1), the volume beyond the height fog's Volumetric Fog *View Distance*, Volumetric Fog off on UDS's height fog, or `MI_JRPGMist_Default` missing (log: `JRPGMistVolume`) |
 | The box snaps back to its size | Fixed: size is the actor scale now. Older placed volumes saved with `BoxExtent` should be deleted and placed again |
 | Mist doesn't react to the player | `MPC_JRPGMist` missing or misnamed parameters (log: `JRPGMistSubsystem`), or no `UJRPGMistDisturberComponent` on the pawn |
+| The mist parts around the player but leaves no trail | `MF_JRPGMist` still calls `JRPGMistFromPacked4`: add the `TrailTex` input and switch to `JRPGMistFromPacked5` (see the recipe) |
 | Ghosting / smearing | Wind or WarpSpin too fast for temporal reprojection. Slow them down |
+| Air box hides the ground | `Density` too high for the box height: the camera looks through all of it. Lower `Density` or `AirCoverage` |
+| Air clouds stretched along Z | The air is in a ground-mode box with Follow Ground. Use a separate box in Air mode |
+| Shader edit doesn't show in the open editor | Run `recompileshaders changed` in the console, or restart the editor |
 | A hard wall of mist | Box pitched/rolled, or `EdgeFade` too small |
 | Mist inside a house | That mesh has no distance field (check *Generate Mesh Distance Fields* and the mesh's DF resolution), or material quality is Low |
 | Material fails to compile with "file not found" | The plugin's `Shaders/` folder is missing next to the `.uplugin`. `build_plugin.py` copies it |

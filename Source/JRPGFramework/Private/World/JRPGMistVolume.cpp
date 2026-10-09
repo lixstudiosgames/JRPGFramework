@@ -9,6 +9,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialParameterCollection.h"
+#include "Engine/Texture.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UObject/UObjectIterator.h"
@@ -26,12 +27,13 @@ namespace JRPGMistParams
 	static const FName Scene(TEXT("Scene"));          // PoolDistance, PoolAmount, FlowAround, EdgeFade
 	static const FName Interaction(TEXT("Interaction")); // ClearStrength, SwirlStrength, -, -
 	static const FName BoxXY(TEXT("BoxXY"));          // MinX, MinY, MaxX, MaxY
-	static const FName BoxZ(TEXT("BoxZ"));            // TopZ, TopFade, -, -
+	static const FName BoxZ(TEXT("BoxZ"));            // TopZ, TopFade, AirCloudSize, AirStart + AirCoverage
 	static const FName SelfLight(TEXT("SelfLight"));  // cor × intensidade; emissive = isto × densidade
 	static const FName Flow(TEXT("Flow"));            // Mode, DirX, DirY, FlowSpeed
 	static const FName FlowLines(TEXT("FlowLines"));  // Spacing, Width, Coverage, Curve
 	static const FName FlowDash(TEXT("FlowDash"));    // TrailLength, TrailFill, AvoidDistance, AvoidStrength
 	static const FName FlowEddy(TEXT("FlowEddy"));    // EddyStrength, EddySize, LineDensity, Layer
+	static const FName TrailTex(TEXT("TrailTex"));    // textura do rastro (UJRPGMistSubsystem)
 }
 
 AJRPGMistVolume::AJRPGMistVolume()
@@ -106,6 +108,14 @@ void AJRPGMistVolume::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 
+	if (EnsureMistMID())
+	{
+		ApplyMistParameters();
+	}
+}
+
+bool AJRPGMistVolume::EnsureMistMID()
+{
 	UMaterialInterface* Parent = MistMaterial.LoadSynchronous();
 	if (!Parent)
 	{
@@ -113,15 +123,21 @@ void AJRPGMistVolume::OnConstruction(const FTransform& Transform)
 			*GetName(), *MistMaterial.ToString());
 		MistBox->SetMaterial(0, nullptr);
 		MistMID = nullptr;
-		return;
+		return false;
 	}
 
+	// MistMID é Transient: na cópia do level para o PIE ele chega nulo, mas o MID continua no
+	// MistBox. Recupera de lá; sem isto o SetTrailTexture não tinha onde aplicar a textura
+	if (!MistMID)
+	{
+		MistMID = Cast<UMaterialInstanceDynamic>(MistBox->GetMaterial(0));
+	}
 	if (!MistMID || MistMID->Parent != Parent)
 	{
 		MistMID = UMaterialInstanceDynamic::Create(Parent, this);
 		MistBox->SetMaterial(0, MistMID);
 	}
-	ApplyMistParameters();
+	return true;
 }
 
 void AJRPGMistVolume::ApplyMistParameters()
@@ -139,10 +155,10 @@ void AJRPGMistVolume::ApplyMistParameters()
 	MistMID->SetVectorParameterValue(JRPGMistParams::Albedo, Albedo);
 	MistMID->SetVectorParameterValue(JRPGMistParams::RibbonGlow, RibbonGlow);
 	MistMID->SetVectorParameterValue(JRPGMistParams::ShapeA, FLinearColor(FloorZ, Density, Thickness, NoiseScale));
-	// Ground + Flow: o vento da névoa de chão é a direção do fluxo — os dois vão para o mesmo
-	// lado; a névoa anda a GroundDriftRatio da velocidade das linhas
+	// Ground + Flow e Air: o vento da névoa (de chão ou das nuvens) é a direção do fluxo — os
+	// dois vão para o mesmo lado; a névoa anda a GroundDriftRatio da velocidade das linhas
 	FVector2D GroundWind = Wind;
-	if (Mode == EJRPGMistMode::GroundAndFlow)
+	if (Mode == EJRPGMistMode::GroundAndFlow || Mode == EJRPGMistMode::AirMist)
 	{
 		GroundWind = GetFlowDirection() * FlowSpeed * GroundDriftRatio;
 	}
@@ -153,7 +169,13 @@ void AJRPGMistVolume::ApplyMistParameters()
 	MistMID->SetVectorParameterValue(JRPGMistParams::Interaction, FLinearColor(ClearStrength, SwirlStrength, CurveLength, CurveDrift));
 	MistMID->SetVectorParameterValue(JRPGMistParams::BoxXY, FLinearColor(
 		Bounds.Min.X, Bounds.Min.Y, Bounds.Max.X, Bounds.Max.Y));
-	MistMID->SetVectorParameterValue(JRPGMistParams::BoxZ, FLinearColor(Bounds.Max.Z, TopFade, 0.0f, 0.0f));
+	// Air: os parâmetros das nuvens vão nos campos que sobravam (sem mexer no material).
+	// BoxZ.w = AirStart inteiro + AirCoverage na parte fracionária. Ver JRPGMistFromPacked4
+	const bool bAir = Mode == EJRPGMistMode::AirMist;
+	const float AirStartPacked = FMath::FloorToFloat(FMath::Clamp(AirStart, 0.0f, 100000.0f))
+		+ FMath::Clamp(AirCoverage, 0.0f, 1.0f) * 0.99f;
+	MistMID->SetVectorParameterValue(JRPGMistParams::BoxZ, FLinearColor(
+		Bounds.Max.Z, TopFade, bAir ? FMath::Max(AirCloudSize, 50.0f) : 0.0f, bAir ? AirStartPacked : 0.0f));
 
 	// Flow / FlowLines / FlowDash mudam de significado com o modo (ver JRPGMistFromPacked2)
 	if (Mode == EJRPGMistMode::PulseRings)
@@ -167,7 +189,8 @@ void AJRPGMistVolume::ApplyMistParameters()
 	{
 		const FVector2D FlowDir = GetFlowDirection();
 		const float ModeValue = Mode == EJRPGMistMode::FlowLines ? 1.0f
-			: Mode == EJRPGMistMode::GroundAndFlow ? 3.0f : 0.0f;
+			: Mode == EJRPGMistMode::GroundAndFlow ? 3.0f
+			: bAir ? 4.0f : 0.0f;
 		MistMID->SetVectorParameterValue(JRPGMistParams::Flow, FLinearColor(ModeValue, FlowDir.X, FlowDir.Y, FlowSpeed));
 		MistMID->SetVectorParameterValue(JRPGMistParams::FlowLines, FLinearColor(LineSpacing, LineWidth, LineCoverage, LineCurve));
 		MistMID->SetVectorParameterValue(JRPGMistParams::FlowDash, FLinearColor(TrailLength, TrailFill, AvoidDistance, AvoidStrength));
@@ -179,6 +202,20 @@ void AJRPGMistVolume::ApplyMistParameters()
 	// Camada (todos os modos): TopSoftness + 2 com Follow Ground — ver JRPGMistLayer no shader
 	const float LayerPacked = FMath::Clamp(TopSoftness, 0.05f, 1.0f) + (bFollowGround ? 2.0f : 0.0f);
 	MistMID->SetVectorParameterValue(JRPGMistParams::FlowEddy, FLinearColor(EddyStrength, EddySize, LineDensity, LayerPacked));
+
+	if (TrailTexture)
+	{
+		MistMID->SetTextureParameterValue(JRPGMistParams::TrailTex, TrailTexture);
+	}
+}
+
+void AJRPGMistVolume::SetTrailTexture(UTexture* Texture)
+{
+	TrailTexture = Texture;
+	if (MistMID && TrailTexture)
+	{
+		MistMID->SetTextureParameterValue(JRPGMistParams::TrailTex, TrailTexture);
+	}
 }
 
 void AJRPGMistVolume::ApplyModePreset(EJRPGMistMode NewMode)
@@ -210,6 +247,37 @@ void AJRPGMistVolume::ApplyModePreset(EJRPGMistMode NewMode)
 		EddyStrength = 180.0f;
 		EddySize = 5000.0f;
 		LineDensity = 0.8f;
+		GroundDriftRatio = 0.3f;
+		TrailLength = 1800.0f;
+		TrailFill = 0.75f;
+		AvoidDistance = 250.0f;
+		AvoidStrength = 1.0f;
+		break;
+
+	case EJRPGMistMode::AirMist:
+		// Leve: a câmera olha através de toda a altura da caixa. As linhas ganham peso porque
+		// são finas perto das nuvens
+		Density = 0.35f;
+		NoiseScale = 2400.0f;
+		WarpStrength = 0.5f;
+		WarpSpin = 0.05f;
+		RibbonSharpness = 10.0f;
+		RibbonAmount = 0.7f;
+		RibbonStretch = 3.5f;
+		RibbonCoverage = 0.55f;
+		AirCloudSize = 350.0f;
+		AirCoverage = 0.45f;
+		AirStart = 150.0f;
+		FlowSpeed = 300.0f;
+		LineSpacing = 260.0f;
+		LineWidth = 55.0f;
+		LineCoverage = 0.45f;
+		LineCurve = 300.0f;
+		CurveLength = 1600.0f;
+		CurveDrift = 0.15f;
+		EddyStrength = 180.0f;
+		EddySize = 5000.0f;
+		LineDensity = 2.0f;
 		GroundDriftRatio = 0.3f;
 		TrailLength = 1800.0f;
 		TrailFill = 0.75f;
@@ -348,6 +416,12 @@ UMaterialParameterCollection* AJRPGMistVolume::GetParameterCollection() const
 void AJRPGMistVolume::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Antes de registrar: o subsistema passa a textura do rastro para o MID no registro
+	if (EnsureMistMID())
+	{
+		ApplyMistParameters();
+	}
 
 	if (const UGameInstance* GI = GetGameInstance())
 	{
