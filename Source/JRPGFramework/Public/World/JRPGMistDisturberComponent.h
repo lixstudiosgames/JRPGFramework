@@ -53,19 +53,59 @@ public:
 	float SwirlScale = 1.0f;
 
 	/**
-	 * Deixa um rastro que se fecha devagar. Só vale para o pawn controlado pelo jogador — o
-	 * rastro ocupa vários slots do shader, então NPCs nunca deixam rastro.
+	 * Deixa um rastro que se fecha devagar, pintado numa textura que acompanha o jogador: segue
+	 * o caminho exato, qualquer curva. Vale para o jogador e para NPCs (cada um com a sua config
+	 * de Trail); NPC a mais de TrailAreaSize / 2 do jogador não deixa rastro. O jogador manda na
+	 * área e na resolução da textura (TrailAreaSize, TrailResolution, bDebugDrawTrail).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Trail")
 	bool bLeavesTrail = true;
 
-	/** Segundos até o rastro se fechar. */
+	/** Segundos até o rastro se fechar (o centro; as bordas, mais fracas, fecham antes). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Trail", meta = (ClampMin = "0.2"))
 	float TrailLifetime = 4.0f;
 
-	/** Quanto o rastro alarga até sumir (0 = mesma largura, 1 = dobra). */
+	/**
+	 * Fração do TrailLifetime em que o caminho fica aberto por inteiro (0..0.98): a névoa não
+	 * entra nele. Depois disso ele fecha suave até o fim da vida. 0 = começa a fechar logo que
+	 * o jogador passa (a névoa trazida pelo vento vai enchendo o caminho aos poucos).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Trail", meta = (ClampMin = "0.0", ClampMax = "0.98"))
+	float TrailHold = 0.8f;
+
+	/** Quanto o rastro alarga e amacia até sumir, como fração do Radius (0 = não alarga). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Trail", meta = (ClampMin = "0.0"))
 	float TrailWidening = 0.8f;
+
+	/**
+	 * Borda do rastro (0..1). 0 = suave, a abertura cai devagar da linha para fora; 1 = faixa
+	 * aberta por igual com borda marcada. A largura não muda: a borda fica onde o rastro abre
+	 * pela metade, então Radius, Strength e TrailWidening continuam mandando no tamanho.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Trail", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float TrailEdgeHardness = 0.6f;
+
+	/**
+	 * Lado em uu da área em volta do jogador que guarda o rastro (a textura anda com ele). O
+	 * rastro que sai da área some. Com o tempo de vida padrão, 6000 cobre ~15 m de cada lado.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Trail", meta = (ClampMin = "500.0"))
+	float TrailAreaSize = 6000.0f;
+
+	/**
+	 * Resolução da textura do rastro (32..512). Texel = TrailAreaSize / isto: com o padrão,
+	 * ~31 uu — mais fino que a volumetric fog consegue mostrar. Mais alto = mais CPU e upload.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Trail", meta = (ClampMin = "32", ClampMax = "512"))
+	int32 TrailResolution = 192;
+
+	/**
+	 * Desenha o rastro no mundo como o shader lê: um ponto por texel pintado (verde = aberto,
+	 * vermelho = fechando) e o contorno da área da textura (ciano). Só em builds com debug draw
+	 * (editor/development, não Shipping).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Mist|Trail")
+	bool bDebugDrawTrail = false;
 
 	/** Força atual (0..Strength) pela velocidade do dono. */
 	float GetCurrentStrength(FVector& OutVelocity) const;
