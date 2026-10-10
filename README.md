@@ -45,7 +45,7 @@ weights each system by estimated effort. Hover any cell for details.
 
 | Area | State |
 |---|---|
-| Field systems (core, save, inventory, world state, shop, party, status, audio, camera) | ✅ Done |
+| Field systems (core, save, inventory, world state, shop, party, status, audio, camera, mist, field character) | ✅ Done |
 | HTML UI (Ultralight shell, field menus, gamepad / keyboard / mouse) | ✅ Done |
 | Data pipeline (8 DataTables as CSV + LegaiaStudio editor) | ✅ Done |
 | Options screen, Dialogue, Localization | 🟡 Partial |
@@ -71,6 +71,8 @@ weights each system by estimated effort. Hover any cell for details.
 | **Status** | 5 equipment slots, conditions, Ra-Seru level 1..9, elemental affinity, the original's `effective ( base )` stat |
 | **Audio** | BGM that persists across maps with crossfade, 4 volume channels saved to settings |
 | **Camera** | 13 framing presets with DOF, 8 procedural shakes, level cameras and zones, shot-reverse-shot conversation, `FrameGroup` / `Orbit` ready for battle |
+| **Mist** | Living volumetric mist in the map's volumetric fog: 5 modes, an Air mode in its own box, follows the terrain, a trail painted into a texture by the player and NPCs ([details](Docs/Guides/MIST.md)) |
+| **Field character** | Top-down character and controller: camera zones that stack, per-map settings, camera-relative or fixed-yaw controls, interaction through an interface, Enhanced Input ([details](Docs/Guides/PLAYER.md)) |
 | **WebUI** | A single-page HTML shell rendered by [Ultralight][ul] on its own thread, through a custom D3D11 GPU driver: menu, items, party, shop, save/load, options, main menu, popups and a dev screen |
 | **Tools** | [LegaiaStudio](Extras/LegaiaStudio/README.md), a local web panel that edits the CSVs record by record and runs the builds, plus the WebUI build, plugin packaging and data converters in [`Extras/`](Extras/) |
 

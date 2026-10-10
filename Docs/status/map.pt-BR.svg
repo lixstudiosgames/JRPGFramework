@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="446" viewBox="0 0 900 446" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" role="img" aria-labelledby="status-title">
-<title id="status-title">Status: sistemas 63.6%, roadmap de batalha 0/9</title>
+<title id="status-title">Status: sistemas 65.0%, roadmap de batalha 0/9</title>
 <style>
   .bg { fill: #ffffff; }
   .rule { stroke: #d0d7de; }
@@ -28,13 +28,13 @@
 <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line class="hatch" x1="0" y1="0" x2="0" y2="6" stroke-width="1.5" stroke-opacity=".55"/></pattern></defs>
 <rect class="bg" width="900" height="446" rx="6"/>
 <text class="t1" x="16" y="34" font-size="24" font-weight="600">Status</text>
-<text class="t2" x="884" y="34" font-size="12" text-anchor="end">Legend of Legaia Remake · JRPGFramework · dev @ cd2125c · 2026-10-06</text>
+<text class="t2" x="884" y="34" font-size="12" text-anchor="end">Legend of Legaia Remake · JRPGFramework · dev @ 94fda40 · 2026-10-09</text>
 <line class="rule" x1="16" y1="44" x2="884" y2="44" stroke-width="1"/>
 <rect class="badge-k" x="16" y="56" width="79.6" height="22" rx="3"/>
 <rect class="partial" x="92.6" y="56" width="48.8" height="22" rx="3"/>
 <rect class="partial" x="92.6" y="56" width="4" height="22"/>
 <text class="badge-t" x="54.3" y="71" font-size="12" text-anchor="middle">sistemas*</text>
-<text class="txt-dark" x="117.0" y="71" font-size="12" font-weight="600" text-anchor="middle">63.6%</text>
+<text class="txt-dark" x="117.0" y="71" font-size="12" font-weight="600" text-anchor="middle">65.0%</text>
 <rect class="badge-k" x="153.44" y="56" width="142.3" height="22" rx="3"/>
 <rect class="pending" x="292.7" y="56" width="34.9" height="22" rx="3"/>
 <rect class="pending" x="292.7" y="56" width="4" height="22"/>
@@ -45,7 +45,7 @@
 <rect class="ok" x="395.4" y="56" width="4" height="22"/>
 <text class="badge-t" x="367.5" y="71" font-size="12" text-anchor="middle">engine</text>
 <text class="badge-t" x="430.2" y="71" font-size="12" font-weight="600" text-anchor="middle">UE 5.8.1</text>
-<text class="t1" x="16" y="102" font-size="14">API Blueprint*: 229 prontas · 2 stubs · 15 planejadas</text>
+<text class="t1" x="16" y="102" font-size="14">API Blueprint*: 244 prontas · 2 stubs · 15 planejadas</text>
 <rect class="panel" x="16" y="112" width="424" height="270"/>
 <text class="t2" x="17.5" y="123.0" font-size="10">Core + progressão <tspan class="t2" fill-opacity=".8">(37)</tspan></text>
 <rect class="ok" x="17.5" y="126.0" width="9.4" height="9.4"><title>AddGold · CoreSubsystem.h</title></rect>
@@ -146,56 +146,72 @@
 <rect class="ok" x="79.3" y="211.5" width="9.4" height="9.4"><title>HandleUIStateChanged · CameraSubsystem.h</title></rect>
 <rect class="ok" x="89.6" y="211.5" width="9.4" height="9.4"><title>HandleBeginOverlap · JRPGCameraZone.h</title></rect>
 <rect class="ok" x="99.9" y="211.5" width="9.4" height="9.4"><title>HandleEndOverlap · JRPGCameraZone.h</title></rect>
-<text class="t2" x="17.5" y="235.8" font-size="10">WebUI (shell + ponte JS) <tspan class="t2" fill-opacity=".8">(48)</tspan></text>
-<rect class="ok" x="17.5" y="238.8" width="9.4" height="9.4"><title>BindUObject · JRPGWebBrowser.h</title></rect>
-<rect class="ok" x="27.8" y="238.8" width="9.4" height="9.4"><title>SetSupportsTransparency · JRPGWebBrowser.h</title></rect>
-<rect class="ok" x="38.1" y="238.8" width="9.4" height="9.4"><title>LoadURL · JRPGWebBrowser.h</title></rect>
-<rect class="ok" x="48.4" y="238.8" width="9.4" height="9.4"><title>LoadString · JRPGWebBrowser.h</title></rect>
-<rect class="ok" x="58.7" y="238.8" width="9.4" height="9.4"><title>ExecuteJavascript · JRPGWebBrowser.h</title></rect>
-<rect class="ok" x="69.0" y="238.8" width="9.4" height="9.4"><title>LoadHTMLPage · WebContainerWidget.h</title></rect>
-<rect class="ok" x="79.3" y="238.8" width="9.4" height="9.4"><title>ExecuteJS · WebContainerWidget.h</title></rect>
-<rect class="ok" x="89.6" y="238.8" width="9.4" height="9.4"><title>Echo · WebUIBridge.h</title></rect>
-<rect class="ok" x="99.9" y="238.8" width="9.4" height="9.4"><title>OnUIReady · WebUIBridge.h</title></rect>
-<rect class="ok" x="110.2" y="238.8" width="9.4" height="9.4"><title>OnMenuOptionSelected · WebUIBridge.h</title></rect>
-<rect class="ok" x="120.5" y="238.8" width="9.4" height="9.4"><title>CloseMenu · WebUIBridge.h</title></rect>
-<rect class="ok" x="130.8" y="238.8" width="9.4" height="9.4"><title>SetCursorVisible · WebUIBridge.h</title></rect>
-<rect class="ok" x="141.1" y="238.8" width="9.4" height="9.4"><title>OnSetDifficulty · WebUIBridge.h</title></rect>
-<rect class="ok" x="151.4" y="238.8" width="9.4" height="9.4"><title>PlaySFX · WebUIBridge.h</title></rect>
-<rect class="ok" x="161.7" y="238.8" width="9.4" height="9.4"><title>OnSaveSlotSelected · WebUIBridge.h</title></rect>
-<rect class="ok" x="172.0" y="238.8" width="9.4" height="9.4"><title>OnLoadSlotSelected · WebUIBridge.h</title></rect>
-<rect class="ok" x="182.3" y="238.8" width="9.4" height="9.4"><title>OnShopBuy · WebUIBridge.h</title></rect>
-<rect class="ok" x="192.6" y="238.8" width="9.4" height="9.4"><title>OnShopSell · WebUIBridge.h</title></rect>
-<rect class="ok" x="202.9" y="238.8" width="9.4" height="9.4"><title>OnMainMenuAction · WebUIBridge.h</title></rect>
-<rect class="ok" x="213.2" y="238.8" width="9.4" height="9.4"><title>OnUIStateChanged · WebUIBridge.h</title></rect>
-<rect class="ok" x="17.5" y="249.1" width="9.4" height="9.4"><title>OpenURL · WebUIBridge.h</title></rect>
-<rect class="ok" x="27.8" y="249.1" width="9.4" height="9.4"><title>OnDevCommand · WebUIBridge.h</title></rect>
-<rect class="ok" x="38.1" y="249.1" width="9.4" height="9.4"><title>OnPartyToggle · WebUIBridge.h</title></rect>
-<rect class="ok" x="48.4" y="249.1" width="9.4" height="9.4"><title>OnItemDiscard · WebUIBridge.h</title></rect>
-<rect class="ok" x="58.7" y="249.1" width="9.4" height="9.4"><title>InitializeUIShell · WebUISubsystem.h</title></rect>
-<rect class="ok" x="69.0" y="249.1" width="9.4" height="9.4"><title>ShowItemPopup · WebUISubsystem.h</title></rect>
-<rect class="ok" x="79.3" y="249.1" width="9.4" height="9.4"><title>OpenMenu · WebUISubsystem.h</title></rect>
-<rect class="ok" x="89.6" y="249.1" width="9.4" height="9.4"><title>CloseMenu · WebUISubsystem.h</title></rect>
-<rect class="partial" x="99.9" y="249.1" width="9.4" height="9.4"><title>OpenDialogue · WebUISubsystem.h — assinatura final; o JS só registra</title></rect>
-<rect x="99.9" y="249.1" width="9.4" height="9.4" fill="url(#hatch)" pointer-events="none"/>
-<rect class="ok" x="110.2" y="249.1" width="9.4" height="9.4"><title>OpenOptions · WebUISubsystem.h</title></rect>
-<rect class="ok" x="120.5" y="249.1" width="9.4" height="9.4"><title>OpenMainMenu · WebUISubsystem.h</title></rect>
-<rect class="ok" x="130.8" y="249.1" width="9.4" height="9.4"><title>OpenSaveLoad · WebUISubsystem.h</title></rect>
-<rect class="ok" x="141.1" y="249.1" width="9.4" height="9.4"><title>OpenSaveScreen · WebUISubsystem.h</title></rect>
-<rect class="ok" x="151.4" y="249.1" width="9.4" height="9.4"><title>OpenLoadScreen · WebUISubsystem.h</title></rect>
-<rect class="ok" x="161.7" y="249.1" width="9.4" height="9.4"><title>CanSaveNow · WebUISubsystem.h</title></rect>
-<rect class="ok" x="172.0" y="249.1" width="9.4" height="9.4"><title>QuitToMainMenu · WebUISubsystem.h</title></rect>
-<rect class="ok" x="182.3" y="249.1" width="9.4" height="9.4"><title>SetUICursorVisible · WebUISubsystem.h</title></rect>
-<rect class="ok" x="192.6" y="249.1" width="9.4" height="9.4"><title>OpenShop · WebUISubsystem.h</title></rect>
-<rect class="ok" x="202.9" y="249.1" width="9.4" height="9.4"><title>OpenPartyScreen · WebUISubsystem.h</title></rect>
-<rect class="ok" x="213.2" y="249.1" width="9.4" height="9.4"><title>OpenItemsScreen · WebUISubsystem.h</title></rect>
-<rect class="ok" x="17.5" y="259.4" width="9.4" height="9.4"><title>SetUIState · WebUISubsystem.h</title></rect>
-<rect class="ok" x="27.8" y="259.4" width="9.4" height="9.4"><title>GetUIState · WebUISubsystem.h</title></rect>
-<rect class="ok" x="38.1" y="259.4" width="9.4" height="9.4"><title>OpenDevMenu · WebUISubsystem.h</title></rect>
-<rect class="ok" x="48.4" y="259.4" width="9.4" height="9.4"><title>RunDevCommand · WebUISubsystem.h</title></rect>
-<rect class="ok" x="58.7" y="259.4" width="9.4" height="9.4"><title>ReloadShell · WebUISubsystem.h</title></rect>
-<rect class="ok" x="69.0" y="259.4" width="9.4" height="9.4"><title>ExecuteJS · WebUISubsystem.h</title></rect>
-<rect class="ok" x="79.3" y="259.4" width="9.4" height="9.4"><title>GetBridge · WebUISubsystem.h</title></rect>
-<rect class="ok" x="89.6" y="259.4" width="9.4" height="9.4"><title>GetContainerWidget · WebUISubsystem.h</title></rect>
+<text class="t2" x="17.5" y="235.8" font-size="10">Personagem do Field <tspan class="t2" fill-opacity=".8">(15)</tspan></text>
+<rect class="ok" x="17.5" y="238.8" width="9.4" height="9.4"><title>SetBaseCamera · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="27.8" y="238.8" width="9.4" height="9.4"><title>SetBaseControl · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="38.1" y="238.8" width="9.4" height="9.4"><title>GetCurrentCamera · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="48.4" y="238.8" width="9.4" height="9.4"><title>GetActiveCameraZone · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="58.7" y="238.8" width="9.4" height="9.4"><title>GetControlReferenceYaw · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="69.0" y="238.8" width="9.4" height="9.4"><title>SetSprinting · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="79.3" y="238.8" width="9.4" height="9.4"><title>IsSprinting · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="89.6" y="238.8" width="9.4" height="9.4"><title>GetGroundSpeed · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="99.9" y="238.8" width="9.4" height="9.4"><title>OpenGameMenu · JRPGFieldPlayerController.h</title></rect>
+<rect class="ok" x="110.2" y="238.8" width="9.4" height="9.4"><title>SetFieldInputEnabled · JRPGFieldPlayerController.h</title></rect>
+<rect class="ok" x="120.5" y="238.8" width="9.4" height="9.4"><title>IsFieldInputEnabled · JRPGFieldPlayerController.h</title></rect>
+<rect class="ok" x="130.8" y="238.8" width="9.4" height="9.4"><title>Interact · JRPGInteractable.h</title></rect>
+<rect class="ok" x="141.1" y="238.8" width="9.4" height="9.4"><title>TryInteract · JRPGInteractionComponent.h</title></rect>
+<rect class="ok" x="151.4" y="238.8" width="9.4" height="9.4"><title>GetCurrentTarget · JRPGInteractionComponent.h</title></rect>
+<rect class="ok" x="161.7" y="238.8" width="9.4" height="9.4"><title>IsInteractable · JRPGInteractionComponent.h</title></rect>
+<text class="t2" x="17.5" y="263.1" font-size="10">WebUI (shell + ponte JS) <tspan class="t2" fill-opacity=".8">(48)</tspan></text>
+<rect class="ok" x="17.5" y="266.1" width="9.4" height="9.4"><title>BindUObject · JRPGWebBrowser.h</title></rect>
+<rect class="ok" x="27.8" y="266.1" width="9.4" height="9.4"><title>SetSupportsTransparency · JRPGWebBrowser.h</title></rect>
+<rect class="ok" x="38.1" y="266.1" width="9.4" height="9.4"><title>LoadURL · JRPGWebBrowser.h</title></rect>
+<rect class="ok" x="48.4" y="266.1" width="9.4" height="9.4"><title>LoadString · JRPGWebBrowser.h</title></rect>
+<rect class="ok" x="58.7" y="266.1" width="9.4" height="9.4"><title>ExecuteJavascript · JRPGWebBrowser.h</title></rect>
+<rect class="ok" x="69.0" y="266.1" width="9.4" height="9.4"><title>LoadHTMLPage · WebContainerWidget.h</title></rect>
+<rect class="ok" x="79.3" y="266.1" width="9.4" height="9.4"><title>ExecuteJS · WebContainerWidget.h</title></rect>
+<rect class="ok" x="89.6" y="266.1" width="9.4" height="9.4"><title>Echo · WebUIBridge.h</title></rect>
+<rect class="ok" x="99.9" y="266.1" width="9.4" height="9.4"><title>OnUIReady · WebUIBridge.h</title></rect>
+<rect class="ok" x="110.2" y="266.1" width="9.4" height="9.4"><title>OnMenuOptionSelected · WebUIBridge.h</title></rect>
+<rect class="ok" x="120.5" y="266.1" width="9.4" height="9.4"><title>CloseMenu · WebUIBridge.h</title></rect>
+<rect class="ok" x="130.8" y="266.1" width="9.4" height="9.4"><title>SetCursorVisible · WebUIBridge.h</title></rect>
+<rect class="ok" x="141.1" y="266.1" width="9.4" height="9.4"><title>OnSetDifficulty · WebUIBridge.h</title></rect>
+<rect class="ok" x="151.4" y="266.1" width="9.4" height="9.4"><title>PlaySFX · WebUIBridge.h</title></rect>
+<rect class="ok" x="161.7" y="266.1" width="9.4" height="9.4"><title>OnSaveSlotSelected · WebUIBridge.h</title></rect>
+<rect class="ok" x="172.0" y="266.1" width="9.4" height="9.4"><title>OnLoadSlotSelected · WebUIBridge.h</title></rect>
+<rect class="ok" x="182.3" y="266.1" width="9.4" height="9.4"><title>OnShopBuy · WebUIBridge.h</title></rect>
+<rect class="ok" x="192.6" y="266.1" width="9.4" height="9.4"><title>OnShopSell · WebUIBridge.h</title></rect>
+<rect class="ok" x="202.9" y="266.1" width="9.4" height="9.4"><title>OnMainMenuAction · WebUIBridge.h</title></rect>
+<rect class="ok" x="213.2" y="266.1" width="9.4" height="9.4"><title>OnUIStateChanged · WebUIBridge.h</title></rect>
+<rect class="ok" x="17.5" y="276.4" width="9.4" height="9.4"><title>OpenURL · WebUIBridge.h</title></rect>
+<rect class="ok" x="27.8" y="276.4" width="9.4" height="9.4"><title>OnDevCommand · WebUIBridge.h</title></rect>
+<rect class="ok" x="38.1" y="276.4" width="9.4" height="9.4"><title>OnPartyToggle · WebUIBridge.h</title></rect>
+<rect class="ok" x="48.4" y="276.4" width="9.4" height="9.4"><title>OnItemDiscard · WebUIBridge.h</title></rect>
+<rect class="ok" x="58.7" y="276.4" width="9.4" height="9.4"><title>InitializeUIShell · WebUISubsystem.h</title></rect>
+<rect class="ok" x="69.0" y="276.4" width="9.4" height="9.4"><title>ShowItemPopup · WebUISubsystem.h</title></rect>
+<rect class="ok" x="79.3" y="276.4" width="9.4" height="9.4"><title>OpenMenu · WebUISubsystem.h</title></rect>
+<rect class="ok" x="89.6" y="276.4" width="9.4" height="9.4"><title>CloseMenu · WebUISubsystem.h</title></rect>
+<rect class="partial" x="99.9" y="276.4" width="9.4" height="9.4"><title>OpenDialogue · WebUISubsystem.h — assinatura final; o JS só registra</title></rect>
+<rect x="99.9" y="276.4" width="9.4" height="9.4" fill="url(#hatch)" pointer-events="none"/>
+<rect class="ok" x="110.2" y="276.4" width="9.4" height="9.4"><title>OpenOptions · WebUISubsystem.h</title></rect>
+<rect class="ok" x="120.5" y="276.4" width="9.4" height="9.4"><title>OpenMainMenu · WebUISubsystem.h</title></rect>
+<rect class="ok" x="130.8" y="276.4" width="9.4" height="9.4"><title>OpenSaveLoad · WebUISubsystem.h</title></rect>
+<rect class="ok" x="141.1" y="276.4" width="9.4" height="9.4"><title>OpenSaveScreen · WebUISubsystem.h</title></rect>
+<rect class="ok" x="151.4" y="276.4" width="9.4" height="9.4"><title>OpenLoadScreen · WebUISubsystem.h</title></rect>
+<rect class="ok" x="161.7" y="276.4" width="9.4" height="9.4"><title>CanSaveNow · WebUISubsystem.h</title></rect>
+<rect class="ok" x="172.0" y="276.4" width="9.4" height="9.4"><title>QuitToMainMenu · WebUISubsystem.h</title></rect>
+<rect class="ok" x="182.3" y="276.4" width="9.4" height="9.4"><title>SetUICursorVisible · WebUISubsystem.h</title></rect>
+<rect class="ok" x="192.6" y="276.4" width="9.4" height="9.4"><title>OpenShop · WebUISubsystem.h</title></rect>
+<rect class="ok" x="202.9" y="276.4" width="9.4" height="9.4"><title>OpenPartyScreen · WebUISubsystem.h</title></rect>
+<rect class="ok" x="213.2" y="276.4" width="9.4" height="9.4"><title>OpenItemsScreen · WebUISubsystem.h</title></rect>
+<rect class="ok" x="17.5" y="286.7" width="9.4" height="9.4"><title>SetUIState · WebUISubsystem.h</title></rect>
+<rect class="ok" x="27.8" y="286.7" width="9.4" height="9.4"><title>GetUIState · WebUISubsystem.h</title></rect>
+<rect class="ok" x="38.1" y="286.7" width="9.4" height="9.4"><title>OpenDevMenu · WebUISubsystem.h</title></rect>
+<rect class="ok" x="48.4" y="286.7" width="9.4" height="9.4"><title>RunDevCommand · WebUISubsystem.h</title></rect>
+<rect class="ok" x="58.7" y="286.7" width="9.4" height="9.4"><title>ReloadShell · WebUISubsystem.h</title></rect>
+<rect class="ok" x="69.0" y="286.7" width="9.4" height="9.4"><title>ExecuteJS · WebUISubsystem.h</title></rect>
+<rect class="ok" x="79.3" y="286.7" width="9.4" height="9.4"><title>GetBridge · WebUISubsystem.h</title></rect>
+<rect class="ok" x="89.6" y="286.7" width="9.4" height="9.4"><title>GetContainerWidget · WebUISubsystem.h</title></rect>
 <text class="t2" x="229.5" y="123.0" font-size="10">Inventário <tspan class="t2" fill-opacity=".8">(18)</tspan></text>
 <rect class="ok" x="229.5" y="126.0" width="9.4" height="9.4"><title>AddItem · InventorySubsystem.h</title></rect>
 <rect class="ok" x="239.8" y="126.0" width="9.4" height="9.4"><title>RemoveItem · InventorySubsystem.h</title></rect>
@@ -306,7 +322,7 @@
 <rect class="pending" x="250.1" y="317.1" width="9.4" height="9.4"><title>RecognizeArtSequence — planejada (Fase 6)</title></rect>
 <rect class="pending" x="260.4" y="317.1" width="9.4" height="9.4"><title>GetKnownArts — planejada (Fase 6)</title></rect>
 <rect class="pending" x="270.7" y="317.1" width="9.4" height="9.4"><title>CommitArtsChain — planejada (Fase 6)</title></rect>
-<text class="t1" x="462" y="102" font-size="14">Sistemas do plugin*: 63.6% (ponderado por esforço)</text>
+<text class="t1" x="462" y="102" font-size="14">Sistemas do plugin*: 65.0% (ponderado por esforço)</text>
 <rect class="ok" x="462.0" y="113.5" width="100.3" height="55.0"><title>Core: Gold, tempo de jogo, mapa atual, New Game, resolução de DataTables</title></rect>
 <text class="badge-t" x="512.1" y="145.0" font-size="11" text-anchor="middle" pointer-events="none">Core</text>
 <rect class="ok" x="563.3" y="113.5" width="83.4" height="55.0"><title>Save: 15 slots, coleta/restauração automática, troca de mapa + teleporte, versionamento</title></rect>
@@ -329,19 +345,21 @@
 <text class="badge-t" x="732.8" y="201.0" font-size="11" text-anchor="middle" pointer-events="none">Câmera</text>
 <rect class="ok" x="778.5" y="169.5" width="44.2" height="55.0"><title>Dados: 8 DataTables em CSV, a fonte da verdade</title></rect>
 <text class="badge-t" x="800.6" y="201.0" font-size="11" text-anchor="middle" pointer-events="none">Dados</text>
-<rect class="ok" x="823.7" y="169.5" width="59.3" height="55.0"><title>Névoa: Névoa volumétrica viva: 4 modos com presets, segue o terreno, rastro do jogador, luz própria à noite</title></rect>
+<rect class="ok" x="823.7" y="169.5" width="59.3" height="55.0"><title>Névoa: Névoa volumétrica viva: 5 modos com presets (Air numa caixa própria), segue o terreno, rastro pintado numa textura (jogador + NPCs), luz própria à noite</title></rect>
 <text class="badge-t" x="853.4" y="201.0" font-size="11" text-anchor="middle" pointer-events="none">Névoa</text>
-<rect class="ok" x="462.0" y="225.5" width="139.7" height="49.0"><title>WebUI: Shell SPA em HTML: menu, itens, party, loja, save/load, opções, menu principal, tela de dev; gamepad + teclado + mouse, escala responsiva</title></rect>
-<text class="badge-t" x="531.8" y="254.0" font-size="11" text-anchor="middle" pointer-events="none">WebUI</text>
-<rect class="ok" x="602.7" y="225.5" width="104.5" height="49.0"><title>Ultralight: Thread de render dedicada, driver de GPU D3D11 próprio, textura compartilhada</title></rect>
-<text class="badge-t" x="654.9" y="254.0" font-size="11" text-anchor="middle" pointer-events="none">Ultralight</text>
-<rect class="ok" x="708.2" y="225.5" width="69.3" height="49.0"><title>Studio: LegaiaStudio: painel web local que edita os CSVs e roda os builds</title></rect>
-<text class="badge-t" x="742.8" y="254.0" font-size="11" text-anchor="middle" pointer-events="none">Studio</text>
-<rect class="pending" x="778.5" y="225.5" width="51.8" height="49.0"><title>Equipar: Tela de equipamento — o Status funciona, falta a UI</title></rect>
-<text class="txt-pending" x="804.4" y="254.0" font-size="11" text-anchor="middle" pointer-events="none">Equipar</text>
-<rect class="partial" x="831.2" y="225.5" width="51.8" height="49.0"><title>Opções: Tela pronta; valores não ligados a UGameUserSettings / AudioSubsystem</title></rect>
-<rect x="831.2" y="225.5" width="51.8" height="49.0" fill="url(#hatch)" pointer-events="none"/>
-<text class="txt-dark" x="857.1" y="254.0" font-size="11" text-anchor="middle" pointer-events="none">Opções</text>
+<rect class="ok" x="462.0" y="225.5" width="115.4" height="49.0"><title>WebUI: Shell SPA em HTML: menu, itens, party, loja, save/load, opções, menu principal, tela de dev; gamepad + teclado + mouse, escala responsiva</title></rect>
+<text class="badge-t" x="519.7" y="254.0" font-size="11" text-anchor="middle" pointer-events="none">WebUI</text>
+<rect class="ok" x="578.4" y="225.5" width="86.3" height="49.0"><title>Ultralight: Thread de render dedicada, driver de GPU D3D11 próprio, textura compartilhada</title></rect>
+<text class="badge-t" x="621.6" y="254.0" font-size="11" text-anchor="middle" pointer-events="none">Ultralight</text>
+<rect class="ok" x="665.7" y="225.5" width="57.2" height="49.0"><title>Studio: LegaiaStudio: painel web local que edita os CSVs e roda os builds</title></rect>
+<text class="badge-t" x="694.3" y="254.0" font-size="11" text-anchor="middle" pointer-events="none">Studio</text>
+<rect class="ok" x="723.9" y="225.5" width="71.8" height="49.0"><title>Field: Personagem + controller top-down: zonas de câmera empilhadas, config por mapa, controle relativo à câmera ou yaw fixo, interação, Enhanced Input</title></rect>
+<text class="badge-t" x="759.8" y="254.0" font-size="11" text-anchor="middle" pointer-events="none">Field</text>
+<rect class="pending" x="796.7" y="225.5" width="42.7" height="49.0"><title>Equipar: Tela de equipamento — o Status funciona, falta a UI</title></rect>
+<text class="txt-pending" x="818.0" y="253.2" font-size="9" text-anchor="middle" pointer-events="none">Equipar</text>
+<rect class="partial" x="840.3" y="225.5" width="42.7" height="49.0"><title>Opções: Tela pronta; valores não ligados a UGameUserSettings / AudioSubsystem</title></rect>
+<rect x="840.3" y="225.5" width="42.7" height="49.0" fill="url(#hatch)" pointer-events="none"/>
+<text class="txt-dark" x="861.7" y="253.8" font-size="10.5" text-anchor="middle" pointer-events="none">Opções</text>
 <rect class="pending" x="462.0" y="275.5" width="174.8" height="57.0"><title>Batalha: Stub — 71 linhas que registram TODO. Plano de 9 fases em Docs/BATTLE_ROADMAP.md</title></rect>
 <text class="txt-pending" x="549.4" y="308.0" font-size="11" text-anchor="middle" pointer-events="none">Batalha</text>
 <rect class="pending" x="637.8" y="275.5" width="69.3" height="57.0"><title>Arts: Stub — Arts direcionais e o novo AP (fase 6 do roadmap)</title></rect>

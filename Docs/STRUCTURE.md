@@ -45,7 +45,20 @@ JRPGFramework/
 │   │   │   ├── JRPGMistVolume.h ✅              ← box of living mist injected into the volumetric
 │   │   │   │                                       fog (shader in Shaders/JRPGMist.ush)
 │   │   │   ├── JRPGMistDisturberComponent.h ✅  ← goes on whatever moves and should stir the mist
-│   │   │   └── JRPGMistSubsystem.h ✅           ← picks the shader's 8 slots, writes MPC_JRPGMist
+│   │   │   └── JRPGMistSubsystem.h ✅           ← picks the shader's 8 slots, writes MPC_JRPGMist,
+│   │   │                                           paints the trail texture
+│   │   │
+│   │   ├── Field/ ✅                            ← THE CHARACTER WALKING THE MAP (no battle)
+│   │   │   ├── JRPGFieldCharacter.h ✅          ← top-down camera with a stack of camera zones,
+│   │   │   │                                       walk/sprint, faces where it walks, mist
+│   │   │   │                                       disturber, declares bIsInField
+│   │   │   ├── JRPGFieldPlayerController.h ✅   ← Enhanced Input (built-in defaults), movement
+│   │   │   │                                       relative to the camera or a fixed yaw, sprint
+│   │   │   ├── JRPGFieldMapSettings.h ✅        ← one per map: base camera, controls, speeds
+│   │   │   ├── JRPGInteractable.h ✅            ← interface: Interact(InteractingActor)
+│   │   │   ├── JRPGInteractionComponent.h ✅    ← picks the closest target in front, calls Interact;
+│   │   │   │                                       bridge for old Blueprint interfaces
+│   │   │   └── JRPGFieldTypes.h ✅              ← FJRPGFieldCameraSettings, EJRPGFieldControlMode
 │   │   │
 │   │   ├── UI/ ✅                               ← WEBUI VIA ULTRALIGHT 1.4 (GPU mode, D3D11)
 │   │   │   ├── WebUISubsystem.h ✅              ← owns the shell: OpenDevMenu/RunDevCommand (dev
@@ -74,7 +87,8 @@ JRPGFramework/
 │   │   │   ├── CameraData.h ✅                  ← 13 framing presets, 8 shakes, FCameraPresetRow
 │   │   │   ├── JRPGCameraActor.h ✅             ← managed camera (one per map, transient)
 │   │   │   ├── JRPGCameraShakeModifier.h ✅     ← procedural Perlin shake via UCameraModifier
-│   │   │   └── JRPGCameraZone.h ✅              ← box trigger: enter → LevelCamera, exit → player
+│   │   │   └── JRPGCameraZone.h ✅              ← box trigger: Level Camera or Player Camera;
+│   │   │                                           stacks with priority on the field character
 │   │   │
 │   │   ├── Audio/ ✅                            ← AUDIO COMPLETE
 │   │   │   ├── AudioSubsystem.h ✅              ← BGM persisting across maps with crossfade +
@@ -110,6 +124,9 @@ JRPGFramework/
 │       ├── Inventory/ ✅   (InventorySubsystem.cpp ✅)
 │       ├── World/ ✅       (WorldStateSubsystem.cpp ✅, JRPGMistVolume.cpp ✅,
 │       │                    JRPGMistDisturberComponent.cpp ✅, JRPGMistSubsystem.cpp ✅)
+│       ├── Field/ ✅       (JRPGFieldCharacter.cpp ✅, JRPGFieldPlayerController.cpp ✅,
+│       │                    JRPGFieldMapSettings.cpp ✅, JRPGFieldTypes.cpp ✅,
+│       │                    JRPGInteractionComponent.cpp ✅)
 │       ├── Shop/ ✅        (ShopSubsystem.cpp ✅)
 │       ├── Audio/ ✅       (AudioSubsystem.cpp ✅, JRPGSettingsSave.cpp ✅)
 │       ├── Camera/ ✅      (CameraSubsystem.cpp ✅, CameraData.cpp ✅, JRPGCameraActor.cpp ✅,
@@ -195,7 +212,8 @@ JRPGFramework/
 | **Save/Load** | ✅ complete | 15 slots, automatic gather/restore, map change + teleport, save versioning |
 | **Shop** | ✅ complete | `DT_Shops` (32), atomic buy/sell, featured items gated by platinum_card, flag gating |
 | **Audio** | ✅ complete | BGM persisting across maps with crossfade, 4 channels saved in `JRPGSettings` |
-| **Mist** | ✅ complete | Living volumetric mist: Ground Mist, Flow Lines, Pulse Rings and Ground + Flow, with presets; follows terrain into holes, parts around the player and movers, self light for dark places. See [MIST.md](Guides/MIST.md) |
+| **Mist** | ✅ complete | Living volumetric mist: Ground Mist, Flow Lines, Pulse Rings, Ground + Flow and Air (clouds in a second box), with presets; follows terrain into holes, parts around the player and movers, trail painted into a texture (player and NPCs), self light for dark places. See [MIST.md](Guides/MIST.md) |
+| **Field character** | ✅ basic | `AJRPGFieldCharacter` + `AJRPGFieldPlayerController`: top-down camera with stacking camera zones, walk/sprint relative to the camera or a fixed yaw, interaction through `IJRPGInteractable`, mist trail, input with built-in defaults. See [PLAYER.md](Guides/PLAYER.md) |
 | **Camera** | ✅ complete | 13 presets (+DOF), automatic restore when the UI closes, 8 shakes, manual camera + zone, conversation and FrameGroup/Orbit ready |
 | **WebUI** | ✅ complete | SPA shell, 7 screens, gamepad + keyboard + mouse with their own rules, responsive scaling |
 | **Party** | ✅ complete (data) | Roster vs formation, 3 states per character, XP split among survivors as in the original, level-up with jitter, whole-roster save. The UI does not follow the formation yet |

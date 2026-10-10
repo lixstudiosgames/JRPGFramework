@@ -298,6 +298,13 @@ private:
 	bool bFocusActive = false;
 	bool bConversationActive = false;
 
+	/**
+	 * Mundo em que o foco atual foi feito. Um foco feito já no mapa novo (o jogador nascendo
+	 * dentro de uma JRPGCameraZone durante o carregamento) sobrevive ao HandlePostLoadMap, que
+	 * roda no fim do carregamento, depois do BeginPlay dos atores.
+	 */
+	TWeakObjectPtr<UWorld> FocusWorld;
+
 	// true = quando a WebUI fechar, restaura o player (última chamada de foco ganha)
 	bool bAutoRestoreFlag = false;
 

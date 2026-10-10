@@ -224,6 +224,7 @@ void UCameraSubsystem::FocusOnLevelCamera(AActor* CameraActor, float BlendTime,
 	PC->SetViewTargetWithBlend(CameraActor, BlendTime, VTBlend_Cubic);
 
 	bFocusActive = true;
+	FocusWorld = PC->GetWorld();
 	bAutoRestoreFlag = bAutoRestoreOnUIClose;
 	PendingRestoreBlendTime = FadeOutTime;
 	CurrentFocusActor = CameraActor;
@@ -389,6 +390,7 @@ void UCameraSubsystem::FrameGroup(const TArray<AActor*>& Actors, float BlendTime
 	PC->SetViewTargetWithBlend(Camera, BlendTime, VTBlend_Cubic);
 
 	bFocusActive = true;
+	FocusWorld = PC->GetWorld();
 	bAutoRestoreFlag = bAutoRestoreOnUIClose;
 	PendingRestoreBlendTime = DefaultRestoreBlendTime;
 	CurrentFocusActor = nullptr; // grupo, não um ator só
@@ -550,6 +552,7 @@ void UCameraSubsystem::FocusInternal(AActor* Target, const FCameraPresetRow& Pre
 
 	// Focos empilhados: a última chamada ganha (câmera única reusada)
 	bFocusActive = true;
+	FocusWorld = PC->GetWorld();
 	bAutoRestoreFlag = bAutoRestore;
 	PendingRestoreBlendTime = FadeOutTime;
 	CurrentFocusActor = Target;
@@ -596,8 +599,22 @@ void UCameraSubsystem::HandlePostLoadMap(UWorld* NewWorld)
 	// Só zera os ponteiros (weak) — NUNCA destruir objetos do mundo antigo aqui.
 	// O PC novo já nasce com view target no pawn, então não precisa de restore.
 	TargetRegistry.Empty();
-	ManagedCamera = nullptr;
 	ShakeModifier = nullptr;
+
+	// Um foco feito JÁ neste mapa é válido e fica: o PostLoadMap roda no fim do
+	// carregamento, depois do BeginPlay — o jogador que nasce dentro de uma
+	// JRPGCameraZone já ligou a câmera dela. Zerar aqui deixava o "voltar para o
+	// player" sem efeito, e a câmera presa na zona até entrar e sair de novo
+	if (bFocusActive && FocusWorld.Get() == NewWorld)
+	{
+		if (bAutoDetectTargetsByTag)
+		{
+			ScanWorldForCameraTargets();
+		}
+		return;
+	}
+
+	ManagedCamera = nullptr;
 	CurrentFocusActor = nullptr;
 	ConversationNPC = nullptr;
 	ConversationPlayer = nullptr;

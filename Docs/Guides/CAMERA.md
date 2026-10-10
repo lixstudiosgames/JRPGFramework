@@ -153,13 +153,24 @@ Closing the UI returns to the player (auto-restore). `RestoreToPlayerCamera` ret
 **Ready-made zone (`JRPGCameraZone`)** — no tags or Blueprints needed:
 
 1. Drag a **JRPG Camera Zone** into the level and resize the box.
-2. In Details, point **Level Camera** at your placed camera.
+2. Pick the **Mode**:
+   - **Level Camera**: point **Level Camera** at your placed camera; the view switches to it.
+   - **Player Camera** (with `AJRPGFieldCharacter`): the view stays on the character's camera and
+     changes its arm, angle, yaw, FOV and lag to the zone's **Player Camera** settings.
 3. Tune **Blend In Time** (entering) and **Fade Out Time** (leaving; 0 = hard cut).
+4. Optional: **Priority** for overlapping zones, and **Control** to change where "up" points inside
+   the zone (see [PLAYER.md](PLAYER.md#camera-and-controls)).
 
-The player **enters** the box → the view switches to the LevelCamera; **leaves** → back to
-the player. Detection compares against the **possessed pawn**, which is more reliable than a
-tag. The zone's `bAutoRestoreOnUIClose` defaults to `false` (entering and leaving the box is
-what decides). The class is `Blueprintable`, so you can subclass it for extra logic.
+Detection compares against the **possessed pawn**, which is more reliable than a tag. The zone's
+`bAutoRestoreOnUIClose` defaults to `false` (entering and leaving the box is what decides). The
+class is `Blueprintable`, so you can subclass it for extra logic.
+
+**Zones in a row (with `AJRPGFieldCharacter`).** The character keeps a stack of the zones it is in.
+The active one is the highest **Priority**, and on a tie the last one entered. Leaving a zone goes
+back to whatever is still active: in a corridor of touching zones, leaving the previous one never
+undoes the one ahead, and leaving the last one returns to the map's base camera
+(`AJRPGFieldMapSettings`). Without the field character, a zone is a plain enter/leave switch to its
+Level Camera.
 
 **Loading inside a zone:** handled automatically — the zone syncs with the pawn's real
 position during the map's first seconds (a load teleports the player AFTER BeginPlay and the
