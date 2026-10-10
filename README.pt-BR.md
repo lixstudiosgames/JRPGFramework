@@ -47,7 +47,7 @@ pondera cada sistema pelo esforço estimado. Passe o mouse em qualquer célula p
 
 | Área | Estado |
 |---|---|
-| Sistemas de campo (core, save, inventário, estado do mundo, loja, party, status, áudio, câmera) | ✅ Pronto |
+| Sistemas de campo (core, save, inventário, estado do mundo, loja, party, status, áudio, câmera, névoa, personagem do field) | ✅ Pronto |
 | UI em HTML (shell Ultralight, menus de campo, gamepad / teclado / mouse) | ✅ Pronto |
 | Pipeline de dados (8 DataTables em CSV + editor LegaiaStudio) | ✅ Pronto |
 | Tela de opções, Diálogo, Localização | 🟡 Parcial |
@@ -73,6 +73,8 @@ São 12 `UGameInstanceSubsystem`s que se registram sozinhos quando a GameInstanc
 | **Status** | 5 slots de equipamento, condições, nível de Ra-Seru 1..9, afinidade elemental, o stat `efetivo ( base )` do original |
 | **Áudio** | BGM que persiste entre mapas com crossfade, 4 canais de volume salvos nas configurações |
 | **Câmera** | 13 presets de enquadramento com DOF, 8 tremores procedurais, câmeras de nível e zonas, plano e contraplano para conversas, `FrameGroup` / `Orbit` prontos para a batalha |
+| **Névoa** | Névoa volumétrica viva na volumetric fog do mapa: 5 modos, um modo Air numa caixa própria, segue o terreno, rastro pintado numa textura pelo jogador e pelos NPCs ([detalhes](Docs/Guides/MIST.md)) |
+| **Personagem do field** | Personagem e controller top-down: zonas de câmera empilhadas, config por mapa, controle relativo à câmera ou com yaw fixo, interação por interface, Enhanced Input ([detalhes](Docs/Guides/PLAYER.md)) |
 | **WebUI** | Shell HTML de página única renderizado pelo [Ultralight][ul] em thread própria, com um driver de GPU D3D11 próprio: menu, itens, party, loja, save/load, opções, menu principal, popups e tela de dev |
 | **Ferramentas** | [LegaiaStudio](Extras/LegaiaStudio/README.md), um painel web local que edita os CSVs registro por registro e roda os builds, mais o build da WebUI, o empacotamento do plugin e os conversores de dados em [`Extras/`](Extras/) |
 

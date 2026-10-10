@@ -28,6 +28,7 @@ public class JRPGFramework : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"InputCore",
+				"EnhancedInput",
 				"UMG",
 				"Projects",
 				"RHI",

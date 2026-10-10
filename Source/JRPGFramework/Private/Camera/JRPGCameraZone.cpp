@@ -1,5 +1,6 @@
 #include "Camera/JRPGCameraZone.h"
 #include "Camera/CameraSubsystem.h"
+#include "Field/JRPGFieldCharacter.h"
 #include "Components/BoxComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -24,7 +25,7 @@ void AJRPGCameraZone::BeginPlay()
 	TriggerBox->OnComponentBeginOverlap.AddDynamic(this, &AJRPGCameraZone::HandleBeginOverlap);
 	TriggerBox->OnComponentEndOverlap.AddDynamic(this, &AJRPGCameraZone::HandleEndOverlap);
 
-	if (!LevelCamera)
+	if (Mode == EJRPGCameraZoneMode::LevelCamera && !LevelCamera)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("JRPGCameraZone '%s': LevelCamera não configurada — a zona não vai fazer nada."),
 			*GetName());
@@ -45,7 +46,7 @@ void AJRPGCameraZone::HandleBeginOverlap(UPrimitiveComponent* OverlappedComp, AA
 	{
 		return;
 	}
-	ActivateZoneCamera();
+	ActivateZoneCamera(OtherActor);
 }
 
 void AJRPGCameraZone::HandleEndOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor,
@@ -55,16 +56,28 @@ void AJRPGCameraZone::HandleEndOverlap(UPrimitiveComponent* OverlappedComp, AAct
 	{
 		return;
 	}
-	DeactivateZoneCamera();
+	DeactivateZoneCamera(OtherActor);
 }
 
-void AJRPGCameraZone::ActivateZoneCamera()
+void AJRPGCameraZone::ActivateZoneCamera(AActor* PlayerPawn)
 {
-	if (bZoneActive || !IsValid(LevelCamera))
+	if (bZoneActive)
 	{
 		return;
 	}
 
+	// Personagem do Field: a pilha de zonas dele decide qual câmera vale
+	if (AJRPGFieldCharacter* FieldCharacter = Cast<AJRPGFieldCharacter>(PlayerPawn))
+	{
+		bZoneActive = true;
+		FieldCharacter->EnterCameraZone(this);
+		return;
+	}
+
+	if (Mode != EJRPGCameraZoneMode::LevelCamera || !IsValid(LevelCamera))
+	{
+		return;
+	}
 	if (UCameraSubsystem* Camera = GetCameraSubsystem())
 	{
 		Camera->FocusOnLevelCamera(LevelCamera, BlendInTime, bAutoRestoreOnUIClose, FadeOutTime);
@@ -72,13 +85,19 @@ void AJRPGCameraZone::ActivateZoneCamera()
 	}
 }
 
-void AJRPGCameraZone::DeactivateZoneCamera()
+void AJRPGCameraZone::DeactivateZoneCamera(AActor* PlayerPawn)
 {
 	if (!bZoneActive)
 	{
 		return; // a zona nunca ligou — não rouba a câmera de mais ninguém
 	}
 	bZoneActive = false;
+
+	if (AJRPGFieldCharacter* FieldCharacter = Cast<AJRPGFieldCharacter>(PlayerPawn))
+	{
+		FieldCharacter->ExitCameraZone(this);
+		return;
+	}
 
 	// No-op se a câmera já voltou por outro caminho (bFocusActive false)
 	if (UCameraSubsystem* Camera = GetCameraSubsystem())
@@ -106,11 +125,11 @@ void AJRPGCameraZone::SyncPlayerOverlap()
 	const bool bPlayerInside = TriggerBox->IsOverlappingActor(Pawn);
 	if (bPlayerInside && !bZoneActive)
 	{
-		ActivateZoneCamera();
+		ActivateZoneCamera(Pawn);
 	}
 	else if (!bPlayerInside && bZoneActive)
 	{
-		DeactivateZoneCamera();
+		DeactivateZoneCamera(Pawn);
 	}
 }
 
