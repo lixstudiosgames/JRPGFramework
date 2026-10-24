@@ -1,5 +1,6 @@
 #include "Field/JRPGFieldPlayerController.h"
 #include "Field/JRPGFieldCharacter.h"
+#include "Field/JRPGFieldPartyComponent.h"
 #include "Field/JRPGInteractionComponent.h"
 #include "UI/WebUISubsystem.h"
 #include "Camera/PlayerCameraManager.h"
@@ -37,6 +38,8 @@ AJRPGFieldPlayerController::AJRPGFieldPlayerController()
 {
 	// Field anda no teclado/controle: sem cursor nem clicar para andar
 	bShowMouseCursor = false;
+
+	FieldParty = CreateDefaultSubobject<UJRPGFieldPartyComponent>(TEXT("FieldParty"));
 }
 
 void AJRPGFieldPlayerController::EnsureDefaultInput()
@@ -62,6 +65,11 @@ void AJRPGFieldPlayerController::EnsureDefaultInput()
 	{
 		MenuAction = NewObject<UInputAction>(this, TEXT("IA_FieldMenu_Default"));
 		MenuAction->ValueType = EInputActionValueType::Boolean;
+	}
+	if (!SwitchLeaderAction)
+	{
+		SwitchLeaderAction = NewObject<UInputAction>(this, TEXT("IA_FieldSwitchLeader_Default"));
+		SwitchLeaderAction->ValueType = EInputActionValueType::Boolean;
 	}
 	if (MappingContext)
 	{
@@ -97,6 +105,10 @@ void AJRPGFieldPlayerController::EnsureDefaultInput()
 	Context->MapKey(MenuAction, EKeys::Tab);
 	Context->MapKey(MenuAction, EKeys::Gamepad_FaceButton_Top);
 
+	// Trocar de personagem: R e o clique do analógico direito (R3)
+	Context->MapKey(SwitchLeaderAction, EKeys::R);
+	Context->MapKey(SwitchLeaderAction, EKeys::Gamepad_RightThumbstick);
+
 	MappingContext = Context;
 }
 
@@ -121,6 +133,7 @@ void AJRPGFieldPlayerController::SetupInputComponent()
 	// Started = só no aperto: segurar (correndo) não interage
 	Input->BindAction(InteractAction, ETriggerEvent::Started, this, &AJRPGFieldPlayerController::HandleInteract);
 	Input->BindAction(MenuAction, ETriggerEvent::Started, this, &AJRPGFieldPlayerController::HandleMenu);
+	Input->BindAction(SwitchLeaderAction, ETriggerEvent::Started, this, &AJRPGFieldPlayerController::HandleSwitchLeader);
 }
 
 void AJRPGFieldPlayerController::BeginPlay()
@@ -129,6 +142,28 @@ void AJRPGFieldPlayerController::BeginPlay()
 
 	EnsureDefaultInput();
 	SetFieldInputEnabled(bFieldInputEnabled);
+
+	// MappingContext do projeto com uma ação vazia: a ação padrão foi criada, mas não está no
+	// contexto — nenhuma tecla a dispara. Avisa em vez de falhar calado
+	if (MappingContext && MappingContext->GetOuter() != this)
+	{
+		const TPair<const UInputAction*, const TCHAR*> Actions[] = {
+			{ MoveAction, TEXT("MoveAction") }, { SprintAction, TEXT("SprintAction") },
+			{ InteractAction, TEXT("InteractAction") }, { MenuAction, TEXT("MenuAction") },
+			{ SwitchLeaderAction, TEXT("SwitchLeaderAction") } };
+		for (const TPair<const UInputAction*, const TCHAR*>& Pair : Actions)
+		{
+			const UInputAction* Action = Pair.Key;
+			const bool bMapped = MappingContext->GetMappings().ContainsByPredicate(
+				[Action](const FEnhancedActionKeyMapping& Mapping) { return Mapping.Action == Action; });
+			if (Action && Action->GetOuter() == this && !bMapped)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("JRPGFieldPlayerController: %s está vazio e o MappingContext é '%s' — a ação padrão "
+					"não tem tecla nenhuma. Crie uma InputAction, mapeie no contexto e ponha no campo do controller."),
+					Pair.Value, *MappingContext->GetName());
+			}
+		}
+	}
 }
 
 void AJRPGFieldPlayerController::SetFieldInputEnabled(bool bEnabled)
@@ -247,6 +282,63 @@ void AJRPGFieldPlayerController::OpenGameMenu()
 		FieldCharacter->SetSprinting(false);
 	}
 	WebUI->OpenMenu();
+}
+
+void AJRPGFieldPlayerController::HandleSwitchLeader(const FInputActionValue& Value)
+{
+	// Só a partir do HUD: com menu, loja ou diálogo aberto o botão não faz nada
+	const UGameInstance* GI = GetGameInstance();
+	UWebUISubsystem* WebUI = GI ? GI->GetSubsystem<UWebUISubsystem>() : nullptr;
+	if ((WebUI && WebUI->GetUIState() != EJRPGUIState::HudOnly) || !FieldParty)
+	{
+		return;
+	}
+	FieldParty->CycleLeader();
+}
+
+void AJRPGFieldPlayerController::OnPossess(APawn* InPawn)
+{
+	Super::OnPossess(InPawn);
+
+	// Começo do mapa, portal, load: a party se arruma em volta do pawn novo
+	if (FieldParty)
+	{
+		FieldParty->HandlePawnPossessed(InPawn);
+	}
+}
+
+void AJRPGFieldPlayerController::PossessKeepingView(APawn* NewPawn, float BlendTime)
+{
+	if (!NewPawn)
+	{
+		return;
+	}
+	const bool bAutoCamera = bAutoManageActiveCameraTarget;
+	bAutoManageActiveCameraTarget = false;   // senão o Possess corta para o pawn novo
+	bKeepViewOnUnPossess = true;
+	Possess(NewPawn);
+	bKeepViewOnUnPossess = false;
+	bAutoManageActiveCameraTarget = bAutoCamera;
+
+	bMoveHeld = false;
+	SetViewTargetWithBlend(NewPawn, BlendTime, VTBlend_Cubic);
+}
+
+void AJRPGFieldPlayerController::OnUnPossess()
+{
+	if (!bKeepViewOnUnPossess)
+	{
+		Super::OnUnPossess();
+		return;
+	}
+	// O APlayerController::OnUnPossess põe a view no próprio controller quando ela estava no
+	// pawn que sai — um corte para a posição do controller bem no meio da troca. Aqui a view
+	// fica onde está, e o blend para o novo pawn sai dela
+	if (APawn* ReleasedPawn = GetPawn())
+	{
+		ReleasedPawn->UnPossessed();
+	}
+	SetPawn(nullptr);
 }
 
 void AJRPGFieldPlayerController::HandleSprintCompleted(const FInputActionValue& Value)

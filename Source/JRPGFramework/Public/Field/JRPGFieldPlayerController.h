@@ -6,6 +6,7 @@
 
 class UInputAction;
 class UInputMappingContext;
+class UJRPGFieldPartyComponent;
 struct FInputActionValue;
 
 /**
@@ -25,11 +26,13 @@ struct FInputActionValue;
  * - Interact: no APERTO do botão, interage com o alvo do UJRPGInteractionComponent do pawn.
  *   Segurar não repete: no controle o botão é o mesmo de correr, e chegar correndo num NPC
  *   com ele segurado não interage — só soltando e apertando de novo.
+ * - SwitchLeader: passa o controle para o próximo membro da party (UJRPGFieldPartyComponent,
+ *   que também põe a formação andando atrás do líder). Só a partir do HUD.
  *
  * Input pronto sem nenhum asset: se MappingContext ou as ações estiverem vazios, o controller
  * cria os padrões em runtime (WASD, setas e analógico esquerdo para andar; Shift e o botão de
  * baixo do controle para correr; E e o mesmo botão de baixo para interagir; Tab e o botão de
- * cima para o menu). Para trocar teclas ou usar o remapeamento
+ * cima para o menu; R e o R3 para trocar de personagem). Para trocar teclas ou usar o remapeamento
  * do Enhanced Input, crie os assets e ponha nos campos do Blueprint filho.
  *
  * Guarda a direção do personagem na rotação de controle: o save grava a rotação de controle,
@@ -44,6 +47,10 @@ class JRPGFRAMEWORK_API AJRPGFieldPlayerController : public APlayerController
 
 public:
 	AJRPGFieldPlayerController();
+
+	/** A party andando no mapa e a troca de personagem. MemberClasses: o Blueprint de cada membro. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Party")
+	TObjectPtr<UJRPGFieldPartyComponent> FieldParty;
 
 	/** Contexto do Field. Vazio = o padrão criado em runtime (ver acima). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Input")
@@ -67,6 +74,10 @@ public:
 	/** Abrir o menu do jogo (Bool, no aperto). Vazio = o padrão. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Input")
 	TObjectPtr<UInputAction> MenuAction;
+
+	/** Trocar para o próximo personagem da party (Bool, no aperto). Vazio = o padrão. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Input")
+	TObjectPtr<UInputAction> SwitchLeaderAction;
 
 	/**
 	 * Abre o menu do jogo, se a UI está só no HUD (sem loja, diálogo ou outra tela aberta).
@@ -97,10 +108,19 @@ public:
 	UFUNCTION(BlueprintPure, Category = "JRPG|Field|Input")
 	bool IsFieldInputEnabled() const { return bFieldInputEnabled; }
 
+	/**
+	 * Possui outro pawn sem cortar a câmera: a view desliza do pawn antigo para o novo em
+	 * BlendTime. O Possess normal põe a view no próprio controller ao soltar o pawn antigo e
+	 * depois corta para o novo. É o que o UJRPGFieldPartyComponent usa na troca de personagem.
+	 */
+	void PossessKeepingView(APawn* NewPawn, float BlendTime);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
 	virtual void PlayerTick(float DeltaTime) override;
+	virtual void OnPossess(APawn* InPawn) override;
+	virtual void OnUnPossess() override;
 
 private:
 	/** Cria em runtime o que estiver vazio (contexto e ações padrão). */
@@ -114,9 +134,13 @@ private:
 	void HandleSprintStarted(const FInputActionValue& Value);
 	void HandleInteract(const FInputActionValue& Value);
 	void HandleMenu(const FInputActionValue& Value);
+	void HandleSwitchLeader(const FInputActionValue& Value);
 	void HandleSprintCompleted(const FInputActionValue& Value);
 
 	bool bFieldInputEnabled = true;
+
+	/** True dentro do PossessKeepingView: soltar o pawn antigo não mexe na view. */
+	bool bKeepViewOnUnPossess = false;
 
 	/** Direcional apertado e o "cima" guardado no começo (bHoldDirectionOnCameraChange). */
 	bool bMoveHeld = false;

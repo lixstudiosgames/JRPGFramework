@@ -129,6 +129,22 @@ public:
 	void SetMaxActiveMembers(int32 NewMax);
 
 	// ============================================================
+	// FIELD — quem o jogador controla no mapa
+	// ============================================================
+
+	/**
+	 * Guarda quem o jogador controla no Field (a troca do R3), para o próximo mapa começar
+	 * com ele. NÃO vai para o save: carregar um save volta para o primeiro da formação.
+	 * Quem chama é o UJRPGFieldPartyComponent; a formação continua sendo a do SetActive.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Party|Field")
+	void SetFieldLeader(FName Character);
+
+	/** Quem lidera no Field: o guardado, se ainda está na formação; senão o primeiro dela. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Party|Field")
+	FName GetFieldLeader() const;
+
+	// ============================================================
 	// EXPERIÊNCIA E LEVEL
 	// ============================================================
 
@@ -268,6 +284,9 @@ private:
 	/** Formação, na ordem. Sempre um subconjunto do Roster. */
 	UPROPERTY()
 	TArray<FName> ActiveOrder;
+
+	/** Líder do Field escolhido pelo jogador (só em memória, ver SetFieldLeader). */
+	FName FieldLeader;
 
 	/** Aplica um level-up: sobe o level e sorteia o ganho dos 8 atributos. */
 	void ApplyLevelUp(FJRPGPartyMember& Member);

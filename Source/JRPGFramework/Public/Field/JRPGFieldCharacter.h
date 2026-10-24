@@ -139,6 +139,31 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "JRPG|Field|Movement")
 	FOnSprintChanged OnSprintChanged;
 
+	// --- Party ---
+
+	/**
+	 * Quem este personagem é na party: a row de DT_Characters ("Vahn", "Noa", "Gala"). O
+	 * UJRPGFieldPartyComponent usa para saber quem já está no mapa. Vazio no pawn do GameMode =
+	 * o primeiro da formação.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Party")
+	FName PartyKey;
+
+	/**
+	 * Modo seguidor (membro da party andando atrás do líder): todos os componentes de colisão
+	 * atravessam pawns — o líder, os outros seguidores e NPCs, para não travar em mapa apertado —
+	 * e não geram overlap, então nenhum trigger do mapa dispara para ele. Desligar devolve o que
+	 * o Blueprint tinha. Quem chama é o UJRPGFieldPartyComponent.
+	 */
+	void SetPartyFollower(bool bFollower);
+
+	/** True enquanto é um seguidor da party (não é o personagem do jogador). */
+	UFUNCTION(BlueprintPure, Category = "JRPG|Field|Party")
+	bool IsPartyFollower() const { return bPartyFollower; }
+
+	/** Multiplica WalkSpeed e SprintSpeed (o seguidor anda um pouco mais rápido para alcançar o líder). */
+	void SetMoveSpeedScale(float Scale);
+
 	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -163,6 +188,25 @@ private:
 	AJRPGCameraZone* FindTopZone() const;
 
 	bool bSprinting = false;
+
+	/**
+	 * Aplica o modo seguidor em todos os componentes de colisão. Roda de novo no BeginPlay:
+	 * o seguidor é marcado antes de terminar de nascer, e os componentes que o Blueprint
+	 * acrescenta só existem depois.
+	 */
+	void ApplyPartyFollowerState();
+
+	bool bPartyFollower = false;
+	float MoveSpeedScale = 1.0f;
+
+	/** O que cada componente tinha antes do modo seguidor, para devolver ao virar líder. */
+	struct FSavedCollision
+	{
+		TWeakObjectPtr<UPrimitiveComponent> Component;
+		bool bGenerateOverlapEvents = false;
+		ECollisionResponse PawnResponse = ECR_Block;
+	};
+	TArray<FSavedCollision> SavedCollision;
 
 	/** Zonas em que o personagem está, na ordem em que entrou. */
 	TArray<TWeakObjectPtr<AJRPGCameraZone>> CameraZones;
