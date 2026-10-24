@@ -44,6 +44,15 @@ Formation   the subset that fights (1 to MaxActiveMembers)
 | `GetRoster()` / `GetMember(Key, Out)` | Everyone / one |
 | `MaxActiveMembers` / `SetMaxActiveMembers(N)` | 3 matches the original. The party is **not fixed** — you can open more slots |
 
+### Field leader
+
+| Function | Behavior |
+|---|---|
+| `SetFieldLeader(Key)` | Who the player controls in the field (the R3 switch), so the next map starts with them. **Memory only**: not saved, and `LoadPartyState` / `ResetParty` clear it |
+| `GetFieldLeader()` | The stored one if still in the formation, otherwise the first of the formation |
+
+The party walking on the map is in [PLAYER.md](PLAYER.md#party-in-the-field).
+
 ### XP and levels
 
 | Function | Behavior |

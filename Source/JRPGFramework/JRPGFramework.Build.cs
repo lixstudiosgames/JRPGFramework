@@ -29,6 +29,7 @@ public class JRPGFramework : ModuleRules
 				"Engine",
 				"InputCore",
 				"EnhancedInput",
+				"AIModule",         // a party no Field: o MoveTo dos seguidores (JRPGPartyFollowerController.h)
 				"UMG",
 				"Projects",
 				"RHI",
@@ -41,6 +42,7 @@ public class JRPGFramework : ModuleRules
 			{
 				"Slate",
 				"SlateCore",
+				"NavigationSystem", // a party no Field: lugares ao lado do líder no navmesh
 				"D3D11RHI"     // Para OpenSharedResource1 no side Unreal (Parte 4)
 			}
 		);

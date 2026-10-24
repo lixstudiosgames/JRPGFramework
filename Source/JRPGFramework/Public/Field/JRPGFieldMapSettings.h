@@ -57,6 +57,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field", meta = (EditCondition = "bOverrideSprintSpeed", ClampMin = "0.0"))
 	float SprintSpeed = 700.0f;
 
+	/**
+	 * Os outros membros da formação andam atrás do líder neste mapa (UJRPGFieldPartyComponent).
+	 * Desligado = só o líder aparece e o R3 não troca de personagem (World Map, interiores...).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field")
+	bool bShowParty = true;
+
 	/** O AJRPGFieldMapSettings do mundo (o primeiro, se houver mais de um). */
 	static AJRPGFieldMapSettings* Find(const UWorld* World);
 

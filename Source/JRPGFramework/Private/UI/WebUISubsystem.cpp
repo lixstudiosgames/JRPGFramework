@@ -11,6 +11,9 @@
 #include "World/WorldStateSubsystem.h"
 #include "Party/PartySubsystem.h"
 #include "Party/CharacterData.h"
+#include "Field/JRPGFieldCharacter.h"
+#include "Field/JRPGFieldPartyComponent.h"
+#include "Field/JRPGFieldPlayerController.h"
 #include "Inventory/InventorySubsystem.h"
 #include "Blueprint/UserWidget.h"
 #include "Engine/GameInstance.h"
@@ -974,6 +977,44 @@ void UWebUISubsystem::RunDevCommand(const FString& Command)
 	{
 		Party->FullRestoreAll();
 		Out = TEXT("HP e MP cheios em todo o roster (mortos continuam mortos — use party.revive)");
+	}
+	// ------------------------------------------------------ party no Field
+	else if (Verb == TEXT("party.field") || Verb == TEXT("party.lead"))
+	{
+		UWorld* GameWorld = GI ? GI->GetWorld() : nullptr;
+		const AJRPGFieldPlayerController* FieldPC = GameWorld
+			? Cast<AJRPGFieldPlayerController>(GI->GetFirstLocalPlayerController(GameWorld)) : nullptr;
+		UJRPGFieldPartyComponent* FieldParty = FieldPC ? FieldPC->FieldParty.Get() : nullptr;
+		if (!FieldParty)
+		{
+			Out = TEXT("sem party no Field — o controller do mapa não é um AJRPGFieldPlayerController");
+		}
+		else
+		{
+			if (Verb == TEXT("party.lead"))
+			{
+				const FString Who = DevArgStr(Args, 0);
+				const bool bOk = Who.IsEmpty() ? FieldParty->CycleLeader() : FieldParty->SwitchLeader(FName(*Who));
+				Out = FString::Printf(TEXT("%s = %s\n"),
+					Who.IsEmpty() ? TEXT("CycleLeader()") : *FString::Printf(TEXT("SwitchLeader(%s)"), *Who),
+					bOk ? TEXT("ok") : TEXT("RECUSADO (ninguém no mapa para trocar, ou longe demais)"));
+			}
+			const AJRPGFieldCharacter* Leader = FieldParty->GetLeader();
+			Out += FString::Printf(TEXT("líder: %s | seguir: %s\n"),
+				Leader ? *Leader->PartyKey.ToString() : TEXT("(nenhum)"),
+				FieldParty->IsFollowEnabled() ? TEXT("ligado") : TEXT("desligado"));
+			for (const AJRPGFieldCharacter* Member : FieldParty->GetFollowers())
+			{
+				Out += FString::Printf(TEXT("  seguidor %-6s a %4.0f uu do líder, %3.0f uu/s\n"),
+					*Member->PartyKey.ToString(),
+					Leader ? FVector::Dist2D(Member->GetActorLocation(), Leader->GetActorLocation()) : 0.0f,
+					Member->GetGroundSpeed());
+			}
+			if (FieldParty->GetFollowers().Num() == 0)
+			{
+				Out += TEXT("  nenhum seguidor — confira a formação, o MemberClasses do controller e o bShowParty do mapa");
+			}
+		}
 	}
 	else if (Verb == TEXT("party.revive") && Party)
 	{

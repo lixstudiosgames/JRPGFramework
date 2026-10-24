@@ -53,8 +53,14 @@ JRPGFramework/
 │   │   │   │                                       walk/sprint, faces where it walks, mist
 │   │   │   │                                       disturber, declares bIsInField
 │   │   │   ├── JRPGFieldPlayerController.h ✅   ← Enhanced Input (built-in defaults), movement
-│   │   │   │                                       relative to the camera or a fixed yaw, sprint
-│   │   │   ├── JRPGFieldMapSettings.h ✅        ← one per map: base camera, controls, speeds
+│   │   │   │                                       relative to the camera or a fixed yaw, sprint,
+│   │   │   │                                       character switch (R3) without a camera cut
+│   │   │   ├── JRPGFieldPartyComponent.h ✅     ← the formation walking the map: leash/trail follow,
+│   │   │   │                                       gathering beside the stopped leader (navmesh),
+│   │   │   │                                       safety teleport, leader switch, cutscene API
+│   │   │   ├── JRPGPartyFollowerController.h ✅ ← AI controller the followers are possessed by (MoveTo)
+│   │   │   ├── JRPGFieldMapSettings.h ✅        ← one per map: base camera, controls, speeds,
+│   │   │   │                                       whether the party shows
 │   │   │   ├── JRPGInteractable.h ✅            ← interface: Interact(InteractingActor)
 │   │   │   ├── JRPGInteractionComponent.h ✅    ← picks the closest target in front, calls Interact;
 │   │   │   │                                       bridge for old Blueprint interfaces
@@ -125,6 +131,7 @@ JRPGFramework/
 │       ├── World/ ✅       (WorldStateSubsystem.cpp ✅, JRPGMistVolume.cpp ✅,
 │       │                    JRPGMistDisturberComponent.cpp ✅, JRPGMistSubsystem.cpp ✅)
 │       ├── Field/ ✅       (JRPGFieldCharacter.cpp ✅, JRPGFieldPlayerController.cpp ✅,
+│       │                    JRPGFieldPartyComponent.cpp ✅, JRPGPartyFollowerController.cpp ✅,
 │       │                    JRPGFieldMapSettings.cpp ✅, JRPGFieldTypes.cpp ✅,
 │       │                    JRPGInteractionComponent.cpp ✅)
 │       ├── Shop/ ✅        (ShopSubsystem.cpp ✅)
@@ -213,7 +220,7 @@ JRPGFramework/
 | **Shop** | ✅ complete | `DT_Shops` (32), atomic buy/sell, featured items gated by platinum_card, flag gating |
 | **Audio** | ✅ complete | BGM persisting across maps with crossfade, 4 channels saved in `JRPGSettings` |
 | **Mist** | ✅ complete | Living volumetric mist: Ground Mist, Flow Lines, Pulse Rings, Ground + Flow and Air (clouds in a second box), with presets; follows terrain into holes, parts around the player and movers, trail painted into a texture (player and NPCs), self light for dark places. See [MIST.md](Guides/MIST.md) |
-| **Field character** | ✅ basic | `AJRPGFieldCharacter` + `AJRPGFieldPlayerController`: top-down camera with stacking camera zones, walk/sprint relative to the camera or a fixed yaw, interaction through `IJRPGInteractable`, mist trail, input with built-in defaults. See [PLAYER.md](Guides/PLAYER.md) |
+| **Field character** | ✅ basic | `AJRPGFieldCharacter` + `AJRPGFieldPlayerController`: top-down camera with stacking camera zones, walk/sprint relative to the camera or a fixed yaw, interaction through `IJRPGInteractable`, mist trail, input with built-in defaults. The formation walks behind the leader (navmesh leash or trail follow, gathers beside it when stopped) and R3 switches who is controlled. See [PLAYER.md](Guides/PLAYER.md) |
 | **Camera** | ✅ complete | 13 presets (+DOF), automatic restore when the UI closes, 8 shakes, manual camera + zone, conversation and FrameGroup/Orbit ready |
 | **WebUI** | ✅ complete | SPA shell, 7 screens, gamepad + keyboard + mouse with their own rules, responsive scaling |
 | **Party** | ✅ complete (data) | Roster vs formation, 3 states per character, XP split among survivors as in the original, level-up with jitter, whole-roster save. The UI does not follow the formation yet |

@@ -102,6 +102,11 @@ void AJRPGFieldCharacter::BeginPlay()
 	ApplyCameraToComponents(CurrentCamera);
 	ApplyMoveSpeed();
 
+	if (bPartyFollower)
+	{
+		ApplyPartyFollowerState();
+	}
+
 	if (bDeclareFieldOnBeginPlay)
 	{
 		if (const UGameInstance* GI = GetGameInstance())
@@ -312,7 +317,68 @@ float AJRPGFieldCharacter::GetGroundSpeed() const
 
 void AJRPGFieldCharacter::ApplyMoveSpeed()
 {
-	GetCharacterMovement()->MaxWalkSpeed = bSprinting ? SprintSpeed : WalkSpeed;
+	GetCharacterMovement()->MaxWalkSpeed = (bSprinting ? SprintSpeed : WalkSpeed) * MoveSpeedScale;
+}
+
+void AJRPGFieldCharacter::SetMoveSpeedScale(float Scale)
+{
+	MoveSpeedScale = FMath::Max(0.0f, Scale);
+	ApplyMoveSpeed();
+}
+
+void AJRPGFieldCharacter::SetPartyFollower(bool bFollower)
+{
+	if (bFollower == bPartyFollower)
+	{
+		return;
+	}
+	bPartyFollower = bFollower;
+	ApplyPartyFollowerState();
+}
+
+void AJRPGFieldCharacter::ApplyPartyFollowerState()
+{
+	TInlineComponentArray<UPrimitiveComponent*> Primitives(this);
+
+	if (bPartyFollower)
+	{
+		for (UPrimitiveComponent* Primitive : Primitives)
+		{
+			// Guarda o original só na primeira vez (o BeginPlay passa aqui de novo)
+			const bool bSaved = SavedCollision.ContainsByPredicate(
+				[Primitive](const FSavedCollision& S) { return S.Component.Get() == Primitive; });
+			if (!bSaved)
+			{
+				FSavedCollision& Saved = SavedCollision.AddDefaulted_GetRef();
+				Saved.Component = Primitive;
+				Saved.bGenerateOverlapEvents = Primitive->GetGenerateOverlapEvents();
+				Saved.PawnResponse = Primitive->GetCollisionResponseToChannel(ECC_Pawn);
+			}
+			Primitive->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+			Primitive->SetGenerateOverlapEvents(false);
+			// Encerra na hora os overlaps que ele tinha (o líder saindo de um trigger ao virar seguidor)
+			if (Primitive->IsRegistered())
+			{
+				Primitive->UpdateOverlaps();
+			}
+		}
+		return;
+	}
+
+	for (const FSavedCollision& Saved : SavedCollision)
+	{
+		if (UPrimitiveComponent* Primitive = Saved.Component.Get())
+		{
+			Primitive->SetCollisionResponseToChannel(ECC_Pawn, Saved.PawnResponse);
+			Primitive->SetGenerateOverlapEvents(Saved.bGenerateOverlapEvents);
+			// Virou líder dentro de um trigger ou zona de câmera: ela recebe a entrada agora
+			if (Primitive->IsRegistered())
+			{
+				Primitive->UpdateOverlaps();
+			}
+		}
+	}
+	SavedCollision.Empty();
 }
 
 #if WITH_EDITOR

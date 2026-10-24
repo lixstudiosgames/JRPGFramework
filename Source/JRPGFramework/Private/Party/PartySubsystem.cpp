@@ -279,6 +279,21 @@ void UPartySubsystem::SetMaxActiveMembers(int32 NewMax)
 	OnPartyChanged.Broadcast();
 }
 
+void UPartySubsystem::SetFieldLeader(FName Character)
+{
+	// Sem delegate: é estado do Field, a UI não desenha nada com ele
+	FieldLeader = Character;
+}
+
+FName UPartySubsystem::GetFieldLeader() const
+{
+	if (!FieldLeader.IsNone() && ActiveOrder.Contains(FieldLeader))
+	{
+		return FieldLeader;
+	}
+	return ActiveOrder.Num() > 0 ? ActiveOrder[0] : NAME_None;
+}
+
 void UPartySubsystem::RebuildActiveOrder()
 {
 	// Mantém a ordem de quem já estava e acrescenta os novos no fim.
@@ -702,6 +717,7 @@ void UPartySubsystem::ResetParty()
 {
 	Roster.Empty();
 	ActiveOrder.Empty();
+	FieldLeader = NAME_None;
 	OnPartyChanged.Broadcast();
 }
 
@@ -709,6 +725,8 @@ void UPartySubsystem::LoadPartyState(const TArray<FJRPGPartyMember>& SavedRoster
 {
 	Roster.Empty();
 	ActiveOrder.Empty();
+	// O líder do Field não está no save: o load começa com o primeiro da formação
+	FieldLeader = NAME_None;
 
 	for (const FJRPGPartyMember& M : SavedRoster)
 	{
