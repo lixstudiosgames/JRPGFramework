@@ -47,7 +47,7 @@ GI_Main (BP, inherits UJRPGGameInstance)
  ├── UStatusSubsystem      ← equipment, conditions, Ra-Seru, affinity, EFFECTIVE stats.
  │                            Owns the RULES — writes into the Party's record
  ├── UArtsSubsystem    🟡  ← stub
- └── UBattleSubsystem  🟡  ← stub
+ └── UBattleSubsystem  🟡  ← TryStartEncounter (the field enemies' door into a fight); battle itself still a stub
 ```
 
 ## Data flows

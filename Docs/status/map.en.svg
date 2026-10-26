@@ -28,7 +28,7 @@
 <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line class="hatch" x1="0" y1="0" x2="0" y2="6" stroke-width="1.5" stroke-opacity=".55"/></pattern></defs>
 <rect class="bg" width="900" height="446" rx="6"/>
 <text class="t1" x="16" y="34" font-size="24" font-weight="600">Status</text>
-<text class="t2" x="884" y="34" font-size="12" text-anchor="end">Legend of Legaia Remake · JRPGFramework · dev @ 36198d7 · 2026-10-26</text>
+<text class="t2" x="884" y="34" font-size="12" text-anchor="end">Legend of Legaia Remake · JRPGFramework · dev @ 63cbdb5 · 2026-10-26</text>
 <line class="rule" x1="16" y1="44" x2="884" y2="44" stroke-width="1"/>
 <rect class="badge-k" x="16" y="56" width="72.7" height="22" rx="3"/>
 <rect class="partial" x="85.7" y="56" width="48.8" height="22" rx="3"/>
@@ -45,7 +45,7 @@
 <rect class="ok" x="360.6" y="56" width="4" height="22"/>
 <text class="badge-t" x="332.7" y="71" font-size="12" text-anchor="middle">engine</text>
 <text class="badge-t" x="395.4" y="71" font-size="12" font-weight="600" text-anchor="middle">UE 5.8.1</text>
-<text class="t1" x="16" y="102" font-size="14">Blueprint API*: 257 shipped · 2 stubs · 15 planned</text>
+<text class="t1" x="16" y="102" font-size="14">Blueprint API*: 273 shipped · 2 stubs · 14 planned</text>
 <rect class="panel" x="16" y="112" width="424" height="270"/>
 <text class="t2" x="17.5" y="123.0" font-size="10">Core + progression <tspan class="t2" fill-opacity=".8">(37)</tspan></text>
 <rect class="ok" x="17.5" y="126.0" width="9.4" height="9.4"><title>AddGold · CoreSubsystem.h</title></rect>
@@ -148,33 +148,45 @@
 <rect class="ok" x="79.3" y="211.5" width="9.4" height="9.4"><title>HandleUIStateChanged · CameraSubsystem.h</title></rect>
 <rect class="ok" x="89.6" y="211.5" width="9.4" height="9.4"><title>HandleBeginOverlap · JRPGCameraZone.h</title></rect>
 <rect class="ok" x="99.9" y="211.5" width="9.4" height="9.4"><title>HandleEndOverlap · JRPGCameraZone.h</title></rect>
-<text class="t2" x="17.5" y="235.8" font-size="10">Field character <tspan class="t2" fill-opacity=".8">(26)</tspan></text>
-<rect class="ok" x="17.5" y="238.8" width="9.4" height="9.4"><title>SetBaseCamera · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="27.8" y="238.8" width="9.4" height="9.4"><title>SetBaseControl · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="38.1" y="238.8" width="9.4" height="9.4"><title>GetCurrentCamera · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="48.4" y="238.8" width="9.4" height="9.4"><title>GetActiveCameraZone · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="58.7" y="238.8" width="9.4" height="9.4"><title>GetControlReferenceYaw · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="69.0" y="238.8" width="9.4" height="9.4"><title>SetSprinting · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="79.3" y="238.8" width="9.4" height="9.4"><title>IsSprinting · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="89.6" y="238.8" width="9.4" height="9.4"><title>GetGroundSpeed · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="99.9" y="238.8" width="9.4" height="9.4"><title>IsPartyFollower · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="110.2" y="238.8" width="9.4" height="9.4"><title>CycleLeader · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="120.5" y="238.8" width="9.4" height="9.4"><title>SwitchLeader · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="130.8" y="238.8" width="9.4" height="9.4"><title>GetLeader · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="141.1" y="238.8" width="9.4" height="9.4"><title>GetPartyPawn · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="151.4" y="238.8" width="9.4" height="9.4"><title>GetFollowers · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="161.7" y="238.8" width="9.4" height="9.4"><title>SetFollowEnabled · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="172.0" y="238.8" width="9.4" height="9.4"><title>IsFollowEnabled · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="182.3" y="238.8" width="9.4" height="9.4"><title>SnapFollowersToLeader · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="192.6" y="238.8" width="9.4" height="9.4"><title>RefreshParty · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="202.9" y="238.8" width="9.4" height="9.4"><title>HandlePartyChanged · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="213.2" y="238.8" width="9.4" height="9.4"><title>OpenGameMenu · JRPGFieldPlayerController.h</title></rect>
-<rect class="ok" x="17.5" y="249.1" width="9.4" height="9.4"><title>SetFieldInputEnabled · JRPGFieldPlayerController.h</title></rect>
-<rect class="ok" x="27.8" y="249.1" width="9.4" height="9.4"><title>IsFieldInputEnabled · JRPGFieldPlayerController.h</title></rect>
-<rect class="ok" x="38.1" y="249.1" width="9.4" height="9.4"><title>Interact · JRPGInteractable.h</title></rect>
-<rect class="ok" x="48.4" y="249.1" width="9.4" height="9.4"><title>TryInteract · JRPGInteractionComponent.h</title></rect>
-<rect class="ok" x="58.7" y="249.1" width="9.4" height="9.4"><title>GetCurrentTarget · JRPGInteractionComponent.h</title></rect>
-<rect class="ok" x="69.0" y="249.1" width="9.4" height="9.4"><title>IsInteractable · JRPGInteractionComponent.h</title></rect>
+<text class="t2" x="17.5" y="235.8" font-size="10">Field character <tspan class="t2" fill-opacity=".8">(38)</tspan></text>
+<rect class="ok" x="17.5" y="238.8" width="9.4" height="9.4"><title>GetRandomFloorPoint · JRPGEncounterZone.h</title></rect>
+<rect class="ok" x="27.8" y="238.8" width="9.4" height="9.4"><title>DistanceOutside · JRPGEncounterZone.h</title></rect>
+<rect class="ok" x="38.1" y="238.8" width="9.4" height="9.4"><title>GetEnemies · JRPGEncounterZone.h</title></rect>
+<rect class="ok" x="48.4" y="238.8" width="9.4" height="9.4"><title>SetBaseCamera · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="58.7" y="238.8" width="9.4" height="9.4"><title>SetBaseControl · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="69.0" y="238.8" width="9.4" height="9.4"><title>GetCurrentCamera · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="79.3" y="238.8" width="9.4" height="9.4"><title>GetActiveCameraZone · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="89.6" y="238.8" width="9.4" height="9.4"><title>GetControlReferenceYaw · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="99.9" y="238.8" width="9.4" height="9.4"><title>SetSprinting · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="110.2" y="238.8" width="9.4" height="9.4"><title>IsSprinting · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="120.5" y="238.8" width="9.4" height="9.4"><title>GetGroundSpeed · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="130.8" y="238.8" width="9.4" height="9.4"><title>IsPartyFollower · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="141.1" y="238.8" width="9.4" height="9.4"><title>OnContact · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="151.4" y="238.8" width="9.4" height="9.4"><title>TriggerEncounter · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="161.7" y="238.8" width="9.4" height="9.4"><title>HideEnemy · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="172.0" y="238.8" width="9.4" height="9.4"><title>RespawnAtFloor · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="182.3" y="238.8" width="9.4" height="9.4"><title>GetEnemyState · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="192.6" y="238.8" width="9.4" height="9.4"><title>GetEncounterSetup · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="202.9" y="238.8" width="9.4" height="9.4"><title>GetZone · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="213.2" y="238.8" width="9.4" height="9.4"><title>HandleContactOverlap · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="17.5" y="249.1" width="9.4" height="9.4"><title>HandleUIStateChanged · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="27.8" y="249.1" width="9.4" height="9.4"><title>CycleLeader · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="38.1" y="249.1" width="9.4" height="9.4"><title>SwitchLeader · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="48.4" y="249.1" width="9.4" height="9.4"><title>GetLeader · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="58.7" y="249.1" width="9.4" height="9.4"><title>GetPartyPawn · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="69.0" y="249.1" width="9.4" height="9.4"><title>GetFollowers · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="79.3" y="249.1" width="9.4" height="9.4"><title>SetFollowEnabled · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="89.6" y="249.1" width="9.4" height="9.4"><title>IsFollowEnabled · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="99.9" y="249.1" width="9.4" height="9.4"><title>SnapFollowersToLeader · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="110.2" y="249.1" width="9.4" height="9.4"><title>RefreshParty · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="120.5" y="249.1" width="9.4" height="9.4"><title>HandlePartyChanged · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="130.8" y="249.1" width="9.4" height="9.4"><title>OpenGameMenu · JRPGFieldPlayerController.h</title></rect>
+<rect class="ok" x="141.1" y="249.1" width="9.4" height="9.4"><title>SetFieldInputEnabled · JRPGFieldPlayerController.h</title></rect>
+<rect class="ok" x="151.4" y="249.1" width="9.4" height="9.4"><title>IsFieldInputEnabled · JRPGFieldPlayerController.h</title></rect>
+<rect class="ok" x="161.7" y="249.1" width="9.4" height="9.4"><title>Interact · JRPGInteractable.h</title></rect>
+<rect class="ok" x="172.0" y="249.1" width="9.4" height="9.4"><title>TryInteract · JRPGInteractionComponent.h</title></rect>
+<rect class="ok" x="182.3" y="249.1" width="9.4" height="9.4"><title>GetCurrentTarget · JRPGInteractionComponent.h</title></rect>
+<rect class="ok" x="192.6" y="249.1" width="9.4" height="9.4"><title>IsInteractable · JRPGInteractionComponent.h</title></rect>
 <text class="t2" x="17.5" y="273.4" font-size="10">WebUI (shell + JS bridge) <tspan class="t2" fill-opacity=".8">(48)</tspan></text>
 <rect class="ok" x="17.5" y="276.4" width="9.4" height="9.4"><title>BindUObject · JRPGWebBrowser.h</title></rect>
 <rect class="ok" x="27.8" y="276.4" width="9.4" height="9.4"><title>SetSupportsTransparency · JRPGWebBrowser.h</title></rect>
@@ -316,19 +328,22 @@
 <rect class="ok" x="260.4" y="262.5" width="9.4" height="9.4"><title>DeleteSlot · SaveSubsystem.h</title></rect>
 <rect class="ok" x="270.7" y="262.5" width="9.4" height="9.4"><title>GetSlotMetadata · SaveSubsystem.h</title></rect>
 <rect class="ok" x="281.0" y="262.5" width="9.4" height="9.4"><title>GetAllSlotsMetadata · SaveSubsystem.h</title></rect>
-<text class="t2" x="229.5" y="286.8" font-size="10">Battle <tspan class="t2" fill-opacity=".8">(12)</tspan></text>
+<text class="t2" x="229.5" y="286.8" font-size="10">Battle <tspan class="t2" fill-opacity=".8">(15)</tspan></text>
 <rect class="pending" x="229.5" y="289.8" width="9.4" height="9.4"><title>ApplyBattleItemEffect · BattleSubsystem.h — stub — only logs TODO</title></rect>
-<rect class="pending" x="239.8" y="289.8" width="9.4" height="9.4"><title>BeginBattle — planned (Phase 5)</title></rect>
-<rect class="pending" x="250.1" y="289.8" width="9.4" height="9.4"><title>EndBattle — planned (Phase 5)</title></rect>
-<rect class="pending" x="260.4" y="289.8" width="9.4" height="9.4"><title>SubmitCommand — planned (Phase 5)</title></rect>
-<rect class="pending" x="270.7" y="289.8" width="9.4" height="9.4"><title>GetCombatants — planned (Phase 5)</title></rect>
-<rect class="pending" x="281.0" y="289.8" width="9.4" height="9.4"><title>GetActiveSlot — planned (Phase 5)</title></rect>
-<rect class="pending" x="291.3" y="289.8" width="9.4" height="9.4"><title>TryStartEncounter — planned (Phase 3 · UBattleSubsystem)</title></rect>
-<rect class="pending" x="301.6" y="289.8" width="9.4" height="9.4"><title>SeatFor — planned (Phase 4 · ABattleStage)</title></rect>
-<rect class="pending" x="311.9" y="289.8" width="9.4" height="9.4"><title>OnBattleCommand — planned (Phase 7 · WebUI bridge)</title></rect>
-<rect class="pending" x="322.2" y="289.8" width="9.4" height="9.4"><title>OnBattleArtsButton — planned (Phase 7 · WebUI bridge)</title></rect>
-<rect class="pending" x="332.5" y="289.8" width="9.4" height="9.4"><title>OnBattleArtsCommit — planned (Phase 7 · WebUI bridge)</title></rect>
-<rect class="pending" x="342.8" y="289.8" width="9.4" height="9.4"><title>OnBattleTargetChanged — planned (Phase 7 · WebUI bridge)</title></rect>
+<rect class="ok" x="239.8" y="289.8" width="9.4" height="9.4"><title>TryStartEncounter · BattleSubsystem.h</title></rect>
+<rect class="ok" x="250.1" y="289.8" width="9.4" height="9.4"><title>RollEncounter · JRPGEncounterTypes.h</title></rect>
+<rect class="ok" x="260.4" y="289.8" width="9.4" height="9.4"><title>GetEnemyData · JRPGEncounterTypes.h</title></rect>
+<rect class="ok" x="270.7" y="289.8" width="9.4" height="9.4"><title>GetEnemyKeyOptions · JRPGEncounterTypes.h</title></rect>
+<rect class="pending" x="281.0" y="289.8" width="9.4" height="9.4"><title>BeginBattle — planned (Phase 5)</title></rect>
+<rect class="pending" x="291.3" y="289.8" width="9.4" height="9.4"><title>EndBattle — planned (Phase 5)</title></rect>
+<rect class="pending" x="301.6" y="289.8" width="9.4" height="9.4"><title>SubmitCommand — planned (Phase 5)</title></rect>
+<rect class="pending" x="311.9" y="289.8" width="9.4" height="9.4"><title>GetCombatants — planned (Phase 5)</title></rect>
+<rect class="pending" x="322.2" y="289.8" width="9.4" height="9.4"><title>GetActiveSlot — planned (Phase 5)</title></rect>
+<rect class="pending" x="332.5" y="289.8" width="9.4" height="9.4"><title>SeatFor — planned (Phase 4 · ABattleStage)</title></rect>
+<rect class="pending" x="342.8" y="289.8" width="9.4" height="9.4"><title>OnBattleCommand — planned (Phase 7 · WebUI bridge)</title></rect>
+<rect class="pending" x="353.1" y="289.8" width="9.4" height="9.4"><title>OnBattleArtsButton — planned (Phase 7 · WebUI bridge)</title></rect>
+<rect class="pending" x="363.4" y="289.8" width="9.4" height="9.4"><title>OnBattleArtsCommit — planned (Phase 7 · WebUI bridge)</title></rect>
+<rect class="pending" x="373.7" y="289.8" width="9.4" height="9.4"><title>OnBattleTargetChanged — planned (Phase 7 · WebUI bridge)</title></rect>
 <text class="t2" x="229.5" y="314.1" font-size="10">Arts <tspan class="t2" fill-opacity=".8">(5)</tspan></text>
 <rect class="pending" x="229.5" y="317.1" width="9.4" height="9.4"><title>TeachArtToCharacter · ArtsSubsystem.h — stub — only logs TODO</title></rect>
 <rect class="pending" x="239.8" y="317.1" width="9.4" height="9.4"><title>DirectionByteFor — planned (Phase 6)</title></rect>
@@ -394,8 +409,9 @@
 <rect class="partial" x="555.8" y="357.5" width="45.9" height="24.5"><title>Phase 2 — PS1 3D assets (GLB → Blender → FBX → SkeletalMesh)</title></rect>
 <rect x="555.8" y="357.5" width="45.9" height="24.5" fill="url(#hatch)" pointer-events="none"/>
 <text class="txt-dark" x="578.7" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">2</text>
-<rect class="pending" x="602.7" y="357.5" width="45.9" height="24.5"><title>Phase 3 — Enemies roaming the map</title></rect>
-<text class="txt-pending" x="625.6" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">3</text>
+<rect class="partial" x="602.7" y="357.5" width="45.9" height="24.5"><title>Phase 3 — Enemies roaming the map</title></rect>
+<rect x="602.7" y="357.5" width="45.9" height="24.5" fill="url(#hatch)" pointer-events="none"/>
+<text class="txt-dark" x="625.6" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">3</text>
 <rect class="pending" x="649.6" y="357.5" width="45.9" height="24.5"><title>Phase 4 — Battle stage</title></rect>
 <text class="txt-pending" x="672.5" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">4</text>
 <rect class="pending" x="696.4" y="357.5" width="45.9" height="24.5"><title>Phase 5 — Basic combat</title></rect>

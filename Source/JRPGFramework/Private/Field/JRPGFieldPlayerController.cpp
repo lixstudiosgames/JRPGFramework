@@ -300,6 +300,12 @@ void AJRPGFieldPlayerController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
 
+	// Os sons 3D atenuam pela distância até o personagem, não até a câmera (bHearFromPawn)
+	if (bHearFromPawn && InPawn)
+	{
+		SetAudioListenerAttenuationOverride(InPawn->GetRootComponent(), FVector::ZeroVector);
+	}
+
 	// Começo do mapa, portal, load: a party se arruma em volta do pawn novo
 	if (FieldParty)
 	{

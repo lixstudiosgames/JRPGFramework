@@ -25,4 +25,5 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 #include "Components/SkeletalMeshComponent.h"
 #include "Sound/SoundWave.h"
 #include "Engine/ChildConnection.h"
+#include "Animation/AnimSequence.h"
 PRAGMA_ENABLE_DEPRECATION_WARNINGS

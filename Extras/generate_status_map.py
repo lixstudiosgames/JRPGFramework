@@ -57,7 +57,7 @@ API_PLANNED = {
     "battle": [
         ("BeginBattle", "Phase 5"), ("EndBattle", "Phase 5"), ("SubmitCommand", "Phase 5"),
         ("GetCombatants", "Phase 5"), ("GetActiveSlot", "Phase 5"),
-        ("TryStartEncounter", "Phase 3 · UBattleSubsystem"), ("SeatFor", "Phase 4 · ABattleStage"),
+        ("SeatFor", "Phase 4 · ABattleStage"),
         ("OnBattleCommand", "Phase 7 · WebUI bridge"), ("OnBattleArtsButton", "Phase 7 · WebUI bridge"),
         ("OnBattleArtsCommit", "Phase 7 · WebUI bridge"), ("OnBattleTargetChanged", "Phase 7 · WebUI bridge"),
     ],
@@ -134,7 +134,7 @@ ROADMAP_PHASES = [
     (OK, "Extract assets from the disc", "Extrair assets do disco"),
     (PARTIAL, "Battle data (TOML → CSV → DataTable)", "Dados de batalha (TOML → CSV → DataTable)"),
     (PARTIAL, "PS1 3D assets (GLB → Blender → FBX → SkeletalMesh)", "Assets 3D do PS1 (GLB → Blender → FBX → SkeletalMesh)"),
-    (PENDING, "Enemies roaming the map", "Inimigos andando pelo mapa"),
+    (PARTIAL, "Enemies roaming the map", "Inimigos andando pelo mapa"),
     (PENDING, "Battle stage", "Palco da batalha"),
     (PENDING, "Basic combat", "Combate básico"),
     (PENDING, "Directional Arts + new AP", "Arts direcionais + novo AP"),

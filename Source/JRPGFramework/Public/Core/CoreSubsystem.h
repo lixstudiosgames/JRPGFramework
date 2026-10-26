@@ -81,6 +81,13 @@ public:
 	/** Formata segundos como "HH:MM:SS" (helper compartilhado com o SaveSubsystem). */
 	static FString FormatPlaytimeSeconds(double Seconds);
 
+	/**
+	 * Carrega /Game/Data/<Nome> e, se não achar, /JRPGFramework/Data/<Nome>. É como todo o
+	 * plugin acha as suas DataTables: importar o CSV com o nome certo já basta. Funciona também
+	 * fora de jogo (editor), porque não depende do GameInstance.
+	 */
+	static class UDataTable* ResolveDataTable(const TCHAR* Nome);
+
 	// ============================================================
 	// MAPA ATUAL
 	// ============================================================

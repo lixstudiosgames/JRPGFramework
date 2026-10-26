@@ -93,6 +93,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Input")
 	bool bHoldDirectionOnCameraChange = true;
 
+	/**
+	 * A distância dos sons 3D (inimigos, ambiente) é medida do personagem controlado, não da
+	 * câmera: com a câmera alta do Field tudo estaria sempre "longe". A direção (esquerda/direita)
+	 * continua sendo a da câmera. Segue a troca de líder.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Audio")
+	bool bHearFromPawn = true;
+
 	/** Prioridade do contexto do Field (menus por cima usam uma maior). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Input")
 	int32 MappingPriority = 0;

@@ -88,7 +88,7 @@ Each phase ends in something you can run and watch work.
 | **0** | Extract assets from the disc (RE release tools + `legaia-extract`) | **Done** |
 | **1** | Battle data (TOML → CSV → DataTable) | **In progress** — `DT_Enemies` done (179 rows); Arts, Bosses, Magic to go |
 | **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **In progress** — pipeline validated on Gimard + the party's Idle/Walk |
-| **3** | Enemies roaming the map (zone, roaming, trigger) | Not started |
+| **3** | Enemies roaming the map (zone, roaming, trigger) | **In progress** — written (`AJRPGFieldEnemy`, `AJRPGEncounterZone`), being tested in the editor |
 | **4** | Battle stage (spawn, formation, camera) | Not started |
 | **5** | Basic combat (turns, damage, death, victory) | Not started |
 | **6** | Directional Arts + the new AP | Not started |
@@ -378,8 +378,9 @@ files (PROT 0863..0866), with a different bone count and its own animation bank 
 The RE project documents this in `docs/formats/character-mesh.md`, with a disc-gated test
 confirming battle geometry is **absent** from the field pack.
 
-So Phase 2 produces a **separate** asset set — `/Game/Legaia/Enemies/<Name>/` and
-`/Game/Legaia/Battle/Party/<Name>/` — and touches nothing already in the host. No field rig is reused and no retargeting is needed.
+So Phase 2 produces a **separate** asset set — everything battle lives under
+`/Game/Legaia/Battle/` (`Enemies/<Name>/`, `Party/<Name>/`, `Sounds/`, `Materials/`) — and
+touches nothing already in the host. No field rig is reused and no retargeting is needed.
 
 **Acceptance:** Gimard exists as a `USkeletalMesh` with 10+ named `UAnimSequence`s and
 plays in the preview without loose pieces *(met: 9 clips, loops seamless)*; battle-form Vahn
@@ -394,6 +395,10 @@ exists with the full Arts bank *(Idle + Walk so far, for all three)*.
 
 **Goal:** visible enemies that wander, chase and disappear. Still **no battle** — contact
 prints what happened on screen.
+
+**Written 2026-10-26** — usage in [Guides/FIELD_ENEMIES.md](Guides/FIELD_ENEMIES.md). The
+model comes from `DT_Enemies` (the main enemy's `Mesh` + `Anims`), so every enemy whose row
+gets a model in Phase 2 appears on the field with nothing else to do; Gimard is the first.
 
 Design settled 2026-10-26, after Phases 0/2 showed what the disc provides. The roaming enemy
 is **only a visual that starts a fight**: who fights is a list of `DT_Enemies` keys, decided

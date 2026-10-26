@@ -125,6 +125,7 @@ it. The controller logs a warning naming the empty field.
 | `MappingContext`, `MoveAction`, `SprintAction`, `InteractAction`, `MenuAction`, `SwitchLeaderAction` | Optional assets (above) |
 | `OpenGameMenu()` | Opens the game menu (`UWebUISubsystem::OpenMenu`) only from the HUD, stopping the sprint first. The menu action calls it. With the menu open the UI owns the input and closes it |
 | `bHoldDirectionOnCameraChange` | Keeps "up" from when the walk started while the stick stays pressed (on) |
+| `bHearFromPawn` | 3D sounds attenuate by the distance to the controlled character, not to the high camera; panning still follows the camera. Follows the leader switch (on) |
 | `MappingPriority` | Priority of the Field context (0). Menus on top use a higher one |
 | `SetFieldInputEnabled(bool)` / `IsFieldInputEnabled()` | Removes the Field context for a cutscene, dialogue or menu, and drops the sprint. The UI keeps receiving input |
 
