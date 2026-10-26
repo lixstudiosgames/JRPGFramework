@@ -7,6 +7,9 @@ public class JRPGFramework : ModuleRules
 	public JRPGFramework(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
+		// PCH próprio: lê os headers da engine que disparam C4996 com o aviso desligado
+		// (ver o comentário em Private/JRPGFrameworkPCH.h).
+		PrivatePCHHeaderFile = "Private/JRPGFrameworkPCH.h";
 		bUseUnity = false;
 		
 		PublicIncludePaths.AddRange(

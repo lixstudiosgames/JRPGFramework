@@ -56,6 +56,21 @@ python Extras/build_webui.py
 Edit the sources under `Content/UI/WebUI/src/` and re-run it. See
 [`WEBUI_API.md`](WEBUI_API.md).
 
+## Warnings in the build log
+
+A clean build prints **no compiler warnings from this plugin**. Two kinds used to show up, and
+neither came from our code:
+
+- **~150 × `C4996` inside engine headers** (`Class.h`, `WorldSubsystem.h`, `Character.h`...):
+  UE 5.8's own headers override functions Epic marked deprecated. They appeared once per
+  `.cpp`, because every file includes those headers. The module's private PCH,
+  `Private/JRPGFrameworkPCH.h` (`PrivatePCHHeaderFile` in the Build.cs), reads them once with
+  the deprecation warning off and turns it back on — so a deprecated call in **our** code still
+  warns. If a new engine header starts warning, add it to that block; never switch deprecation
+  warnings off module-wide.
+- **`Visual Studio compiler 14.51 is not a preferred version`** — the machine, not the code.
+  Install the MSVC v14.50 toolset ([`SETUP.md`](../../SETUP.md#1-prerequisites)).
+
 ## Things that break the packaged build
 
 - **Missing `RuntimeDependencies`.** UE's staging copies only cooked `.uasset`/`.umap` from
