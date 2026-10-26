@@ -1,7 +1,8 @@
 # Battle System Roadmap
 
 **JRPGFramework — Legend of Legaia Remake**
-Approved 2026-09-13. **Nothing implemented yet.**
+Approved 2026-09-13. **No battle code yet** — Phase 0 is done and Phase 2's pipeline is
+validated (2026-10-26).
 
 This is the largest unimplemented system left in the plugin, and the only one with stub
 files already in place. (Dialogue, Cutscene and Localization are also unwritten - see
@@ -84,9 +85,9 @@ Each phase ends in something you can run and watch work.
 
 | Phase | Scope | Status |
 |---|---|---|
-| **0** | Extract assets from the disc (Rust + `legaia-extract`) | Not started |
+| **0** | Extract assets from the disc (RE release tools + `legaia-extract`) | **Done** |
 | **1** | Battle data (TOML → CSV → DataTable) | Not started |
-| **2** | PS1 3D assets (GLB + skin injection → SkeletalMesh) | Not started |
+| **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **In progress** — pipeline validated on Gimard + the party's Idle/Walk |
 | **3** | Enemies roaming the map (zone, roaming, trigger) | Not started |
 | **4** | Battle stage (spawn, formation, camera) | Not started |
 | **5** | Basic combat (turns, damage, death, victory) | Not started |
@@ -120,13 +121,21 @@ Phases 1 and 2 are independent and can run in parallel. From 3 onward it is sequ
 
 **Goal:** a valid `extracted/` folder. No Unreal work yet.
 
-1. Install the Rust toolchain (`rustup`, stable MSVC).
-2. `cargo build --release` at the root of `legend-of-legaia-re` (31 crates, ~10 min).
-3. `./target/release/legaia-extract "<path to Legend of Legaia (USA).bin>" --out extracted`
-4. `cargo test --workspace` — must pass before the project is usable as a reference.
+**Done 2026-10-26**, and simpler than planned: the RE project publishes prebuilt Windows
+tools on its Releases page, so **no Rust toolchain is needed**. Download
+`legaia-tools-<ver>-x86_64-pc-windows-gnu.zip` (v1.10.0 was used), check `SHA256SUMS`, and:
 
-**Acceptance:** `asset monster-archive extracted/PROT/0867_*.BIN --id 10 --glb gimard.glb`
-produces a file that opens in Blender with a textured mesh and a list of animations.
+```bash
+legaia-extract "<path to Legend of Legaia (USA).bin>" --out extracted
+```
+
+It verifies the disc (SHA-256 + region), writes 1233 PROT entries, the XA audio as WAV and
+the dialog font — ~900 MB. Step by step in [Guides/PS1_ASSETS.md](Guides/PS1_ASSETS.md).
+
+**Acceptance (met):** `asset monster-archive extracted/PROT/0867_*.BIN --id 10 --glb gimard.glb`
+produces a file that opens in Blender with a textured mesh and a list of animations — 11
+pieces, 9 named clips (Idle, Move, Damaged, Knocked Down, Getting Up, Block, Attack #1/#2,
+Action 0x23).
 
 > **Licensing:** the RE project's *code* is MIT/Unlicense, but anything extracted from the
 > disc is Sony-derived. That project keeps `extracted/` and `glb-export/` gitignored and
@@ -158,6 +167,25 @@ Two things are not what they look like:
   disc**: up to 4 *power bytes*, each encoding both the multiplier (12/18/20/22/28) **and**
   the defense target (UDF or LDF), plus `dmg_timing` (which animation frame each hit fires
   on) and `anim_index`.
+
+### The disc already links each enemy to its model
+
+Found while doing Phase 0: the monster archive (`PROT 0867`) is one slot per monster id, and
+each slot holds the name, the **raw** stats, gold/EXP, drop + chance, the capturable Seru +
+catch rate, the size class, the spell list **and** the mesh, texture and clips — all
+together. `asset monster-archive <0867>` (no `--id`) lists all 186.
+
+So `MonsterArchiveID` does not have to be typed by hand: join `enemies.toml` to the disc
+listing **by name** (normalized; the disc writes level variants as `Gimard $2` where the TOML
+says `Gimard Lv2`). Multi-form bosses share a name across several ids (Gaza, Cort, Songi) — the
+generator must report them and leave them to a human.
+
+The two sources do not hold the same numbers, and that is expected: `enemies.toml` records the
+**in-battle** values (what the player fights), the disc the raw record the battle loader
+boosts. The RE project pins the factors (`crates/gamedata/tests/enemy_stats_vs_disc.rs`):
+HP, SPD, AGL ×1 · UDF, LDF ×2 · ATK ×5/4 · INT ×9/8 · EXP ×3/4 · Gold ×5/16 (±1 rounding).
+Store the in-battle values; an enemy that exists only on the disc gets the raw values times
+those factors.
 
 ### New structs
 
@@ -259,31 +287,32 @@ The obstacle is the importer. Confirmed by reading the engine
 lines 237-314 and 1400-1474): without a `Skindex`, a node never becomes a `Joint` and you
 get a `UStaticMesh` plus a level sequence. And the RE exporters emit no `skin` at all.
 
-### `Extras/glb_inject_skin.py`
+### Why the plan changed: Blender and FBX, not a skin injector
 
-A stdlib Python post-processor (`struct` + `json`) that opens the `.glb`, adds the
-skeleton, and re-emits it. Preferable to patching the Rust: `legend-of-legaia-re` is a
-third-party upstream and a fork costs a rebase on every update.
+The plan was `Extras/glb_inject_skin.py`, a stdlib post-processor adding a `skin` to the
+`.glb`. Doing it for real with Gimard showed a second problem the injector cannot solve:
 
-What it does:
+- The RE exporters write **one vertex per triangle corner** — UV and colour are per corner
+  in the PS1's TMD. Gimard: 894 vertices for 200 positions, 356 faces in 269 islands. The
+  game project hit the same thing with DuckStation dumps (no UV unwrap, post-process effects
+  broken on the seams) and fixed it by hand with a merge-by-distance.
+- Welding them back is exact (PS1 positions are integers), but **a `.glb` cannot keep a
+  shared vertex across a UV seam**, and Unreal's glTF importer creates one vertex per glTF
+  vertex (`GLTFMeshFactory.cpp`, `CreateVertex` per position index). Only FBX stores UV per
+  corner on shared vertices.
 
-1. Object nodes become **pure joints** — they lose `mesh`, keep their rest TRS, and stay
-   the animation channels' targets (no `target.node` changes, which is what makes the
-   injection cheap).
-2. A new node carries the merged mesh with `"skin": 0`, **keeping one primitive per
-   object** (do not merge materials: the exporter bakes an atlas per `(cba, tsb)` pair
-   with `COLOR_0` carrying the packet modulation).
-3. Each primitive gets `JOINTS_0` (`[i,0,0,0]`) and `WEIGHTS_0` (`[1,0,0,0]`).
-4. `skins[0]` with `joints` and `inverseBindMatrices`.
+So Phase 2 is **`Extras/ps1_glb_to_fbx.py`**, run inside headless Blender (5.2): import the
+`.glb`, weld each piece, build an armature with one bone per piece (the flat skeleton
+described above, root + N children, 100% weights), bake the piece animations onto the bones,
+export FBX. The math the injector section warned about — pieces pre-transformed by their rest
+pose — is what Blender's bake does for free.
 
-**The math you cannot guess at.** Correct rigid skinning needs two things together:
-vertices **pre-transformed by the rest TRS** (which the exporter already writes on the
-node — it is frame 0 of clip 0) and `IBM_i = inverse(globalRest_i)`. Then
-`globalJoint_i * inverse(globalRest_i) * globalRest_i * v_local = globalJoint_i * v_local`.
-
-> Tempting and wrong: leave vertices in local space with `IBM = identity`. The animation
-> still resolves, but the bind pose stacks every piece at the origin — invalid reference
-> pose, broken preview, useless PhysicsAsset.
+Getting it right took five rounds with Gimard; each one is now a rule
+([ARCHITECTURE.md](ARCHITECTURE.md) rules 48–52) and a row in
+[Guides/PS1_ASSETS.md](Guides/PS1_ASSETS.md#what-the-converter-does-and-why): identity
+armature (the glTF root's 180° X turned the clips upside down), no scale on the armature node
+(Unreal applies it to the mesh and not the clips — they came out huge, then invisible),
+clips on whole frames at 30 fps, and closing the loops.
 
 ### Enemies
 
@@ -291,35 +320,32 @@ node — it is frame 0 of clip 0) and `IBM_i = inverse(globalRest_i)`. Then
 geometry + texture + **every** animation. 186 of 194 slots have a mesh. Actions carry
 **semantic tags**: `0`=idle, `1`=walk, `2`/`3`=flinch, `4`=knockdown, `5`=get-up,
 `7`/`8`/`9`=ready/recover/defeat, `0x0B`=block — exactly the shape of
-`FJRPGMonsterAnimSet`.
+`FJRPGMonsterAnimSet`. The exporter already names the clips (`Idle`, `Move`, `Damaged`,
+`Knocked Down`, `Getting Up`, `Block`, `Attack #1`, ...); the converter turns them into
+`AS_Gimard_Idle`, `AS_Gimard_KnockedDown`, `AS_Gimard_Attack1`, `AS_Gimard_Action_0x23`.
 
-Naming (Interchange uses the glTF clip name, so the injector renames before re-emitting):
-`AS_Gimard_Idle`, `AS_Gimard_Flinch1`, … and `AS_Gimard_Action_0xNN` for untagged slots.
-
-`Extras/import_ps1_assets.py` orchestrates: walk the 194 ids, skip the empty ones, run the
-injector, drop the result in `Content/Legaia/PS1/Battle/Monsters/<id>/`.
+Still to write: a batch over the 186 ids (export → convert → import), the import step
+through `UAssetImportTask` or the editor's MCP rather than by hand.
 
 ### Heroes in battle form
 
 The kernels exist (`battle_char_assembly::loadout::build` +
 `character_gltf::build_character_glb`) but are only exposed through the RE project's web
-viewer. Two ways out:
+viewer, and v1.10.0 still has no CLI for them. **Used: the site's Arts page**, which runs as
+WASM against your own disc image and has a *Download .glb with all battle animations* button.
+Vahn, Noa and Gala converted with Idle + Walk and play in the editor; the full Arts banks
+(46–49 clips each) are next.
 
-1. **Use the project site's Arts page**, which runs as WASM against your own disc image and
-   has a "download this character with every battle animation" button. Four characters —
-   one manual pass, no code.
-2. Automate with a new `asset battle-char-glb --cslot N --glb out.glb` subcommand
-   (`clip_bank()` in `loadout.rs:641` is private and would need to be made public).
-
-Bone counts: Vahn 15, Noa 16, Gala 15, Terra 17, plus equipment extras (ids 200/201). The
-battle mesh is **assembled per equipment loadout**, so export with the intended loadout set.
+Measured: Vahn 17 pieces, Noa 18, Gala 17. The battle mesh is **assembled per equipment
+loadout**, so export with the intended loadout set.
 
 ### Scale
 
-The exporter works in raw PSX units; the project convention is 128 units = 1 m and Unreal
-is centimeters, so the factor is `100/128 = 0.78125`. **Treat that as a hypothesis:** import
-Vahn, measure the bounding box against ~170 cm, set `Import Uniform Scale` once and record
-the number in `Docs/Reference/`.
+**0.433005 cm per PS1 unit**, the same for monsters and the party (one unit on the disc). The
+`100/128 = 0.78125` assumed here was 1.8× too big. The factor was set in the editor with
+battle Vahn/Noa/Gala and Gimard side by side, checked by eye against the game in DuckStation:
+battle Vahn ~422 units → 183 cm, Gimard ~414 → 179 cm (same height as in the original). It is
+the converter's default, and the models are placed at scale 1.0.
 
 ### Assets already in the host project are NOT for battle
 
@@ -339,80 +365,74 @@ files (PROT 0863..0866), with a different bone count and its own animation bank 
 The RE project documents this in `docs/formats/character-mesh.md`, with a disc-gated test
 confirming battle geometry is **absent** from the field pack.
 
-So Phase 2 produces a **separate** asset set under `Content/Legaia/PS1/Battle/` and touches
-nothing already in the host. No field rig is reused and no retargeting is needed.
+So Phase 2 produces a **separate** asset set — `/Game/Legaia/Enemies/<Name>/` and
+`/Game/Legaia/Battle/Party/<Name>/` — and touches nothing already in the host. No field rig is reused and no retargeting is needed.
 
 **Acceptance:** Gimard exists as a `USkeletalMesh` with 10+ named `UAnimSequence`s and
-plays in the preview without loose pieces; battle-form Vahn exists with the full Arts bank.
+plays in the preview without loose pieces *(met: 9 clips, loops seamless)*; battle-form Vahn
+exists with the full Arts bank *(Idle + Walk so far, for all three)*.
 
-> **Validate with ONE enemy before looping over 186.** If Interchange rejects the file, the
-> problem is local and cheap. Known fallback: headless Blender (`bpy`) as a GLB→FBX step.
+> **Validate with ONE enemy before looping over 186** — done with Gimard. The fallback named
+> here (headless Blender as a GLB→FBX step) became the main path.
 
 ---
 
 ## Phase 3 — Enemies roaming the map
 
 **Goal:** visible enemies that wander, chase and disappear. Still **no battle** — contact
-just logs.
+prints what happened on screen.
 
-### `AJRPGEncounterZone` (the spawn box)
+Design settled 2026-10-26, after Phases 0/2 showed what the disc provides. The roaming enemy
+is **only a visual that starts a fight**: who fights is a list of `DT_Enemies` keys, decided
+apart from the model on the map. So there is **one class with no specific enemy in it** —
+not a Blueprint per enemy, and not `InitFromEnemyData` swapping the stats in.
 
-An `AActor` with a `UBoxComponent` as its area. Everything `EditAnywhere`, configured per
-instance:
+### `AJRPGFieldEnemy` (one generic class)
 
-```cpp
-USTRUCT(BlueprintType) struct FJRPGEncounterEntry {
-  FName EnemyKey;                      // resolves in DT_Enemies
-  int32 LevelMin = 1, LevelMax = 1;
-  int32 Weight = 1;                    // draw weight
-  int32 CountMin = 1, CountMax = 1;    // how many of this type join the fight
-};
+An `ACharacter` (CharacterMovement + navmesh `MoveTo` through an `AAIController`; `AIModule`
+is already a dependency because of the party followers), with a plain state enum — no
+Behavior Tree: `Idle`, `Wander`, `Chase`, `Return`, `Hidden`.
 
-UPROPERTY(EditAnywhere) TArray<FJRPGEncounterEntry> Encounters;
-UPROPERTY(EditAnywhere) int32 MaxAlive = 4;              // pawns roaming at once
-UPROPERTY(EditAnywhere) float RespawnDelayMin = 30.f;
-UPROPERTY(EditAnywhere) float RespawnDelayMax = 90.f;
-UPROPERTY(EditAnywhere) int32 EnemiesPerBattleMin = 1;
-UPROPERTY(EditAnywhere) int32 EnemiesPerBattleMax = 3;
-UPROPERTY(EditAnywhere) USceneComponent* BattleAnchor;   // WHERE the fight happens
-UPROPERTY(EditAnywhere) bool bFightWhereTouched = false; // or fight on the spot
-UPROPERTY(EditAnywhere) FName RequiredFlagID;            // optional WorldState gate
-```
+- **Visuals** — `TArray<FJRPGFieldEnemyVisual>` (mesh + optional AnimBP, or Idle/Walk/Run
+  sequences played directly), one picked at random on spawn and on each respawn. One entry
+  for now; the converted monsters fill it later.
+- **Detection** — detect radius, a larger lose radius, a give-up time, a leash distance from
+  home/zone, optional line of sight, walk vs chase speed. The target is the pawn the player
+  controls (follows the R3 switch); party followers never trigger it.
+- **Encounter** — who fights: a list of `FJRPGEncounterEnemy { EnemyKey, LevelMin/Max,
+  Weight, CountMin/Max, bAlwaysJoins }` plus enemies-per-battle min/max. `bAlwaysJoins` is the
+  "main enemy"; the rest are drawn by weight. Rolled on contact.
+- **Contact** → later: the classic 90s screen shatter → battle → the enemy hides and respawns
+  after a delay. **For now:** hide, respawn after the delay, and print every event on screen
+  (spawn, detected, lost, gave up, contact with the rolled list and levels, hidden, respawned).
+- Freezes while a menu is open (`UWebUISubsystem::OnUIStateChanged`), and carries a
+  `UJRPGMistDisturberComponent`.
 
-`BattleAnchor` is a `USceneComponent` you drag in the editor — the point the party and
-enemies spawn around. `bFightWhereTouched` does the opposite: stage the fight where the
-player made contact, using the pawn's location as the anchor.
+**Standalone:** drop one in a map and it works alone — its placement is home, it has its own
+encounter list and respawn delay.
 
-Responsibilities: weighted draws, keeping `MaxAlive` pawns alive, scheduling respawns with
-a randomized delay (so the player cannot clear an area and be left with no fights), and
-assembling the combatant list when an encounter fires.
+### `AJRPGEncounterZone` (spawn area)
 
-### `AJRPGRoamingEnemy` (one class, swapped per instance)
+- `Shape`: **Sphere** (radius) or **Box** (extent), drawn in the editor.
+- The enemy class to spawn, an optional visuals override, the encounter list, `MaxAlive`,
+  respawn delay min/max, and an optional `RequiredFlagID` (WorldState gate).
+- Spawns on navmesh points **inside the shape**; wander and return stay inside it.
+- Draws the encounter for the enemies it spawned; reuses the same actor on respawn.
+- Where the fight happens (`BattleAnchor` / fight where touched) is Phase 4's business.
 
-An `APawn` with a `USkeletalMeshComponent`, a `USphereComponent` (detection radius) and a
-touch collider. **One class only**: mesh, animations and stats come from `DT_Enemies` via
-`InitFromEnemyData(FName EnemyKey, int32 Level)`, so swapping the enemy is swapping an
-`FName`.
-
-States (a plain enum, no Behavior Tree — keeps the plugin free of an AIModule dependency):
-
-- `Wander` — pick a random point inside the zone, walk there, wait, repeat.
-- `Chase` — the player entered the detection sphere: pursue. Leaving the radius plus a
-  give-up timer returns to `Wander`.
-- `Dead` — hidden, collision off; the zone schedules the respawn.
-
-Touch overlap → `OnEncounterTriggered.Broadcast(Zone, this)`.
+`UBattleSubsystem` gets a small `TryStartEncounter()` grace window, so two enemies touched
+at the same moment do not start two encounters — the seed of Phase 4, still without knowing
+any `AActor`.
 
 ### The level hook
 
-`FJRPGEncounterEntry::LevelMin/Max` rolls the enemy's level, and the level scales the
-`DT_Enemies` stats on top of the existing `UCoreSubsystem::ScaleEnemyHP/ATK/DEF`. The
-per-level curve is new and stays configurable — the disc table only supplies base values.
+`LevelMin/Max` rolls the enemy's level; the level scales the `DT_Enemies` stats on top of the
+existing `UCoreSubsystem::ScaleEnemyHP/ATK/DEF`. The per-level curve is new and stays
+configurable — the disc table only supplies base values.
 
-**Acceptance:** drop an `AJRPGEncounterZone` into a host map, configure 3 enemy types, see
-4 pawns walking; enter the radius and get chased; touch one and see a log listing the drawn
-enemies and the `BattleAnchor` transform; kill one via a debug command and watch it respawn
-after the delay.
+**Acceptance:** a standalone enemy and a zone (sphere, then box) in a host map; enemies wander
+inside it; enter the radius and get chased; touch one and see the rolled enemy list on screen;
+it disappears and respawns after the delay; a follower touching it does nothing.
 
 ---
 
@@ -671,7 +691,8 @@ Last on purpose: it depends on everything above being stable and carries the mos
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| Skin injection rejected by Interchange (skewed bind pose, collapsed mesh) | **High** — gates all of Phase 2 | Prove it with **one** enemy before any loop. Fallback: headless Blender as an intermediate converter |
+| ~~Skin injection rejected by Interchange~~ | Retired — the Blender → FBX converter works (Gimard + party) | Its own traps are rules 48–52 in [ARCHITECTURE.md](ARCHITECTURE.md) |
+| PS1 over-bright vertex colours (> 1.0) clamped by the 8-bit vertex colour | Low — flames and glowing blades look duller | Export the colour halved and double it in `M_PS1Monster` |
 | ATK double-counted (`GetEffectiveStat` already includes equipment) | **High**, because it is invisible — inflates damage uniformly | Explicit test: Vahn's combatant with a sword equipped must read `ATK == base + Seru bonus` |
 | PS1 integer arithmetic translated as float | Medium | `int32`/`int64` throughout the damage kernel, no `FMath::` |
 | Larger party breaking balance | Medium | `bScaleEnemiesWithPartySize` from Phase 4, multipliers exposed as `UPROPERTY` |
@@ -683,10 +704,8 @@ Last on purpose: it depends on everything above being stable and carries the mos
 
 ## Open questions to settle in practice, not on paper
 
-1. **Does UE 5.8's Interchange honor `inverseBindMatrices` and build `UAnimSequence`s from
-   node channels targeting joints?** It is the format's expected behavior but was not
-   verified. Answered by importing the first GLB — 20 minutes, and it is Phase 2's first step.
-2. **PSX→cm scale.** `100/128` is deduction, not measurement. Import Vahn, measure, fix it.
+1. ~~Does Interchange honor a glTF skin?~~ Moot: the pipeline goes through FBX (Phase 2).
+2. ~~PSX→cm scale~~ — settled at **0.433005 cm per unit** (Phase 2 › Scale).
 3. **`EAutomationTestFlags` in 5.8** was renamed recently — check `AutomationTest.h` before
    writing the first automated test.
 4. **`UGameInstanceSubsystem` + `FTickableGameObject`** — a known pattern, but confirm
@@ -696,6 +715,7 @@ Last on purpose: it depends on everything above being stable and carries the mos
 
 ## Next concrete step
 
-**Phase 0, item 1:** install `rustup` and build the RE workspace. Without `extracted/`,
-Phases 1 and 2 have no data and no assets to work from — and they are the only two that can
-run in parallel.
+**Phase 1:** `DT_Enemies` — `Public/Battle/EnemyData.h`, `Extras/legaia_toml.py` and
+`Extras/generate_enemies_csv.py` joining `enemies.toml` to the disc listing by name, so every
+row carries its `MonsterArchiveID`. Then Phase 2's batch over the 186 monsters, and Phase 3
+on top of both.

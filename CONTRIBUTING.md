@@ -11,7 +11,7 @@ and how changes get in.
 1. **Get it building.** [`SETUP.md`](SETUP.md) has the full path. The one step that trips
    everyone up is the Ultralight SDK — see below.
 2. **Read [`Docs/ARCHITECTURE.md`](Docs/ARCHITECTURE.md)**, in particular *Rules that must not
-   be broken*. Those 47 entries are decisions and already-fixed bugs; breaking one
+   be broken*. Those 52 entries are decisions and already-fixed bugs; breaking one
    reintroduces a problem someone already paid for. A PR that trips over one will get sent
    back with a pointer to it.
 3. **Check [`Docs/STRUCTURE.md`](Docs/STRUCTURE.md)** for what exists (✅), what is a stub

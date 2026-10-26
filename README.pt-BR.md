@@ -150,7 +150,7 @@ JRPGFramework/
 | Documento | O que é |
 |---|---|
 | [`Docs/README.md`](Docs/README.md) | Índice da documentação |
-| [`Docs/ARCHITECTURE.md`](Docs/ARCHITECTURE.md) | Como o plugin se encaixa, e as 47 regras que não podem ser quebradas |
+| [`Docs/ARCHITECTURE.md`](Docs/ARCHITECTURE.md) | Como o plugin se encaixa, e as 52 regras que não podem ser quebradas |
 | [`Docs/STRUCTURE.md`](Docs/STRUCTURE.md) | Árvore arquivo por arquivo: o que existe, o que é stub, o que está planejado |
 | [`Docs/BATTLE_ROADMAP.md`](Docs/BATTLE_ROADMAP.md) | O sistema de batalha, em 9 fases |
 | [`Docs/Guides/`](Docs/Guides/) | Como usar cada sistema (save, inventário, loja, party, status, áudio, câmera, WebUI…) |
@@ -173,10 +173,12 @@ Este projeto se apoia no trabalho de outras pessoas.
 - **[legend-of-legaia-re][re]**, de [andrewaltimit](https://github.com/andrewaltimit) (MIT / Unlicense).
   Este projeto de engenharia reversa do jogo original, escrito em Rust, é a especificação que este
   remake usa. A curva de XP, o crescimento de stats, as tabelas de itens, lojas e personagens e todo o
-  design de batalha do roadmap vêm da pesquisa e da documentação dele. **Obrigado.**
-- **[DuckStation](https://github.com/stenzek/duckstation)**, de stenzek. As meshes de personagens e
-  inimigos usadas no projeto do jogo são extraídas com o dump 3D dele. Elas não fazem parte deste
-  repositório.
+  design de batalha do roadmap vêm da pesquisa e da documentação dele. As ferramentas de extração dele
+  também trazem para o projeto do jogo os modelos e animações de batalha do original (monstros e a
+  party). **Obrigado.**
+- **[DuckStation](https://github.com/stenzek/duckstation)**, de stenzek. As meshes de field dos
+  personagens usadas no projeto do jogo são extraídas com o dump 3D dele. Nenhum asset extraído faz
+  parte deste repositório.
 - **[Ultralight][ul]**, da Ultralight, Inc., é o renderizador HTML por trás de toda a UI. É usado sob a
   Ultralight Free License, e o `NOTICES.md` dele precisa aparecer nos créditos de qualquer build
   publicado.

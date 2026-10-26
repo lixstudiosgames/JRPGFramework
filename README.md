@@ -147,7 +147,7 @@ JRPGFramework/
 | Document | What it is |
 |---|---|
 | [`Docs/README.md`](Docs/README.md) | Documentation index |
-| [`Docs/ARCHITECTURE.md`](Docs/ARCHITECTURE.md) | How the plugin fits together, and the 47 rules that must not be broken |
+| [`Docs/ARCHITECTURE.md`](Docs/ARCHITECTURE.md) | How the plugin fits together, and the 52 rules that must not be broken |
 | [`Docs/STRUCTURE.md`](Docs/STRUCTURE.md) | File-by-file tree: what exists, what is a stub, what is planned |
 | [`Docs/BATTLE_ROADMAP.md`](Docs/BATTLE_ROADMAP.md) | The battle system, in 9 phases |
 | [`Docs/Guides/`](Docs/Guides/) | How to use each system (save, inventory, shop, party, status, audio, camera, WebUI…) |
@@ -170,9 +170,11 @@ This project stands on other people's work.
 - **[legend-of-legaia-re][re]** by [andrewaltimit](https://github.com/andrewaltimit) (MIT / Unlicense).
   This reverse-engineering project of the original game, written in Rust, is the specification this
   remake reads from. The XP curve, stat growth, item, shop and character tables, and the whole battle
-  design in the roadmap come from its research and documentation. **Thank you.**
-- **[DuckStation](https://github.com/stenzek/duckstation)** by stenzek. The character and enemy meshes
-  used in the game project are extracted with its 3D dump. They are not part of this repository.
+  design in the roadmap come from its research and documentation. Its extraction tools also bring the
+  original's battle models and animations (monsters and the party) into the game project. **Thank you.**
+- **[DuckStation](https://github.com/stenzek/duckstation)** by stenzek. The field meshes of the
+  characters used in the game project are extracted with its 3D dump. None of the extracted assets
+  are part of this repository.
 - **[Ultralight][ul]** by Ultralight, Inc. is the HTML renderer behind the whole UI. It is used under
   the Ultralight Free License, and its `NOTICES.md` must appear in the credits of any shipped build.
 - ***Legend of Legaia*** (1998) was developed by Contrail and Prokion and published by Sony Computer

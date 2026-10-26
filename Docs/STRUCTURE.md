@@ -195,6 +195,9 @@ JRPGFramework/
     ├── generate_characters_csv.py ✅            ← characters.toml → DT_Characters.csv
     ├── generate_progression_csv.py ✅           ← formula → DT_LevelCurve.csv + DT_Difficulty.csv
     ├── generate_mist_noise.py ✅                ← tiling noise for the mist → Mist/T_JRPGMistNoise.png
+    ├── ps1_glb_to_fbx.py ✅                     ← headless Blender: PS1 battle model .glb (monster or
+    │                                               party, from legend-of-legaia-re) → rigged FBX for
+    │                                               Unreal. See Guides/PS1_ASSETS.md
     ├── generate_status_map.py ✅                ← status map in the root README
     └── download_fonts.py ✅                     ← verifies/downloads the WebUI's local fonts
 ```
@@ -225,7 +228,7 @@ JRPGFramework/
 | **WebUI** | ✅ complete | SPA shell, 7 screens, gamepad + keyboard + mouse with their own rules, responsive scaling |
 | **Party** | ✅ complete (data) | Roster vs formation, 3 states per character, XP split among survivors as in the original, level-up with jitter, whole-roster save. The UI does not follow the formation yet |
 | **Status** | ✅ complete (data) | Equipment in 5 slots with `CanEquip` read from `DT_Items`, conditions, Ra-Seru (1..9), elemental affinity, and the original's `effective ( base )` display. The equip screen is still missing |
-| **Arts / Battle** | 🟡 stubs | They receive calls from the inventory but hold no state. See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
+| **Arts / Battle** | 🟡 stubs | They receive calls from the inventory but hold no state. The battle **models** are already coming in: disc extraction done, and the PS1 → Unreal converter validated on Gimard and the party's battle form ([PS1_ASSETS.md](Guides/PS1_ASSETS.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
 
 ---
 
