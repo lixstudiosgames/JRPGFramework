@@ -14,12 +14,15 @@ source repository. The SDK is free and takes two minutes to download.
 | Item | Version |
 |---|---|
 | Unreal Engine | **5.8.1** |
-| Visual Studio | **VS 18** with MSVC **14.51** or newer |
-| Python | 3.10+ (stdlib only, no `pip install`) |
+| Visual Studio | **VS 18** with the MSVC **14.50** toolset (14.51 works, with a warning) |
+| Python | 3.10+ (stdlib only, no `pip install`); 3.11+ for `generate_enemies_csv.py` (`tomllib`) |
 
 > **Watch the compiler:** the MSVC 14.36 that ships with Visual Studio 2022 is **below UE
-> 5.8's minimum** and the build fails. Check under *Visual Studio Installer → Modify →
-> Individual components* that toolset 14.51 is installed.
+> 5.8's minimum** (14.38) and the build fails. UE 5.8 *prefers* 14.50 (VS 18) or 14.44
+> (VS 2022 17.14) — `Engine/Config/Windows/Windows_SDK.json` — and any other version, 14.51
+> included, prints *"Visual Studio compiler ... is not a preferred version"* on every build.
+> Under *Visual Studio Installer → Modify → Individual components*, install the **MSVC v14.50**
+> build tools; they sit beside newer ones and UBT picks the preferred one by itself.
 
 ---
 

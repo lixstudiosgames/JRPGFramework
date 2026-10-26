@@ -28,21 +28,20 @@ namespace
 	 * constante de arquivo tem que ser declarada antes do primeiro uso.
 	 */
 	constexpr int32 DefaultStatCap = 999;
+}
 
-	/** Carrega /Game/Data/<Nome> e, se não achar, /JRPGFramework/Data/<Nome>. */
-	UDataTable* ResolveDataTable(const TCHAR* Nome)
+UDataTable* UCoreSubsystem::ResolveDataTable(const TCHAR* Nome)
+{
+	const FString DoProjeto = FString::Printf(TEXT("/Game/Data/%s"), Nome);
+	if (UDataTable* Tabela = Cast<UDataTable>(
+			StaticLoadObject(UDataTable::StaticClass(), nullptr, *DoProjeto)))
 	{
-		const FString DoProjeto = FString::Printf(TEXT("/Game/Data/%s"), Nome);
-		if (UDataTable* Tabela = Cast<UDataTable>(
-				StaticLoadObject(UDataTable::StaticClass(), nullptr, *DoProjeto)))
-		{
-			return Tabela;
-		}
-
-		const FString DoPlugin = FString::Printf(TEXT("/JRPGFramework/Data/%s"), Nome);
-		return Cast<UDataTable>(
-			StaticLoadObject(UDataTable::StaticClass(), nullptr, *DoPlugin));
+		return Tabela;
 	}
+
+	const FString DoPlugin = FString::Printf(TEXT("/JRPGFramework/Data/%s"), Nome);
+	return Cast<UDataTable>(
+		StaticLoadObject(UDataTable::StaticClass(), nullptr, *DoPlugin));
 }
 
 void UCoreSubsystem::Initialize(FSubsystemCollectionBase& Collection)

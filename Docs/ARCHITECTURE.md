@@ -47,7 +47,7 @@ GI_Main (BP, inherits UJRPGGameInstance)
  ├── UStatusSubsystem      ← equipment, conditions, Ra-Seru, affinity, EFFECTIVE stats.
  │                            Owns the RULES — writes into the Party's record
  ├── UArtsSubsystem    🟡  ← stub
- └── UBattleSubsystem  🟡  ← stub
+ └── UBattleSubsystem  🟡  ← TryStartEncounter (the field enemies' door into a fight); battle itself still a stub
 ```
 
 ## Data flows
@@ -229,6 +229,27 @@ problem someone already paid for.
     When the generator lacks the data, the right answer is to leave it blank and map it by
     hand.
 
+### PS1 assets (`Extras/ps1_glb_to_fbx.py`)
+
+Each of these cost a round trip with Gimard. The full walkthrough is
+[`Guides/PS1_ASSETS.md`](Guides/PS1_ASSETS.md).
+
+48. **Nothing extracted from the disc enters the repository** — not `extracted/`, the
+    `.glb`/`.fbx`/`.png` exports, nor the imported assets. They are Sony-derived. The
+    repository carries the scripts, the docs and the data *tables*.
+49. **No scale on the armature node, ever.** Unreal applies it to the mesh and NOT to the
+    clips. The FBX `global_scale` lands there (clips came out hundreds of times bigger than
+    the mesh), and so does the ×100 a Blender scene in metres gets (clips so small the mesh
+    vanished). The converter works in a **centimetre** scene and bakes the scale into the data.
+50. **The armature has an identity transform.** The glTF root node is rotated 180° about X;
+    left on the armature, Unreal flipped the mesh and not the clips — upside-down animations.
+51. **Weld through FBX, not glTF.** The RE exporters write one vertex per triangle corner; a
+    `.glb` cannot keep a welded vertex across a UV seam and Unreal's glTF importer never
+    welds, so the fix only survives in FBX.
+52. **Loop clips must close.** The disc's cycles end one step before frame 0 (the original
+    wraps by itself); as an Unreal clip that is a jump on every loop. The converter appends
+    the first frame after the last for Idle/Walk/Move — never for attacks or reactions.
+
 ---
 
 ## Data
@@ -247,6 +268,7 @@ content across once and remain for reference.
 | `Data/DT_GrowthCurve.csv` | 98 | `FGrowthCurveRow` (extracted from the disc) |
 | `Data/DT_Difficulty.csv` | 3 | `FDifficultyScaling` |
 | `Data/DT_CameraPresets.csv` | 13 | `FCameraPresetRow` (import as `DT_Camera`) |
+| `Data/DT_Enemies.csv` | 179 | `FJRPGEnemyData` (enemies.toml + the disc's monster archive) |
 
 `Data/_backup/` holds the copies LegaiaStudio makes on every save.
 
@@ -258,5 +280,7 @@ content across once and remain for reference.
 | `Extras/build_webui.py` | Generates `shell.html` from `src/` |
 | `Extras/build_plugin.py` | Packages the plugin |
 | `Extras/extract_growth_from_disc.py` | Reads `SCUS_942.54` → `DT_StatGrowth` + `DT_GrowthCurve` |
-| `Extras/generate_*.py` | TOML → CSV importers (one-way) |
+| `Extras/ps1_glb_to_fbx.py` | Runs in headless Blender: a PS1 battle model `.glb` (monster or party) → rigged FBX for Unreal. See [`Guides/PS1_ASSETS.md`](Guides/PS1_ASSETS.md) |
+| `Extras/generate_*.py` | TOML → CSV importers (one-way) — except `generate_enemies_csv.py`, which keeps manual columns and rows |
+| `Extras/legaia_toml.py` | What the generators share: `tomllib` (Python 3.11+) + the Unreal CSV helpers |
 | `Extras/download_fonts.py` | Verifies/downloads the WebUI's local fonts |
