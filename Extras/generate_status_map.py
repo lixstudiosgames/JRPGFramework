@@ -132,7 +132,7 @@ SYSTEMS = [
 
 ROADMAP_PHASES = [
     (OK, "Extract assets from the disc", "Extrair assets do disco"),
-    (PENDING, "Battle data (TOML → CSV → DataTable)", "Dados de batalha (TOML → CSV → DataTable)"),
+    (PARTIAL, "Battle data (TOML → CSV → DataTable)", "Dados de batalha (TOML → CSV → DataTable)"),
     (PARTIAL, "PS1 3D assets (GLB → Blender → FBX → SkeletalMesh)", "Assets 3D do PS1 (GLB → Blender → FBX → SkeletalMesh)"),
     (PENDING, "Enemies roaming the map", "Inimigos andando pelo mapa"),
     (PENDING, "Battle stage", "Palco da batalha"),

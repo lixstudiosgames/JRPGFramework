@@ -85,6 +85,12 @@ TABLES = [
      "primary": ["DisplayName", "BaseHP", "BaseMP", "BaseAGL", "BaseATK",
                  "BaseUDF", "BaseLDF", "BaseSPD", "BaseINT"]},
 
+    {"id": "DT_Enemies", "struct": "FJRPGEnemyData", "label": "Enemies", "icon": "enemy",
+     "title": "DisplayName", "subtitle": "Location", "badge": "BaseHP", "badgeSuffix": " HP",
+     # Stats e recompensas vêm do original (enemies.toml + disco); Mesh/Anims são da Fase 2.
+     "primary": ["DisplayName", "Location", "bIsBoss", "Element", "BaseHP", "BaseMP", "BaseATK",
+                 "BaseUDF", "BaseLDF", "EXP", "Gold", "DropItem", "StealItem"]},
+
     {"id": "DT_LevelCurve", "struct": "FLevelCurveRow", "label": "Level Curve", "icon": "curve",
      "title": "Level", "subtitle": "XPTotal", "badge": "XPFromPrevious", "badgeSuffix": " xp",
      "primary": ["Level", "XPTotal", "XPFromPrevious"]},
@@ -115,10 +121,12 @@ TABLES = [
 REFERENCES = {
     ("DT_Shops", "Inventory"): "DT_Items",
     ("DT_Shops", "FeaturedItems"): "DT_Items",
+    ("DT_Enemies", "DropItem"): "DT_Items",
+    ("DT_Enemies", "StealItem"): "DT_Items",
 }
 
 # TOMLs do LegaiaRE que ainda não viraram DataTable (mostrados como pendentes)
-KNOWN_TOML_ONLY = ["arts", "magic", "enemies", "bosses", "casino", "fishing",
+KNOWN_TOML_ONLY = ["arts", "magic", "bosses", "casino", "fishing",
                    "music", "sol_tower"]
 
 # Builds expostos na sidebar. Os generate_*.py NÃO entram de propósito:
@@ -333,6 +341,15 @@ def parse_unreal_array(cell):
     return [p.strip().strip('"') for p in inner.split(",") if p.strip()]
 
 
+def reference_keys(cell):
+    """Keys citadas numa célula de referência: array '(a,b)' ou um FName só ('a')."""
+    cell = (cell or "").strip()
+    if cell.startswith("("):
+        return parse_unreal_array(cell)
+    cell = cell.strip('"').strip()
+    return [cell] if cell and cell != "None" else []
+
+
 def make_unreal_array(values):
     values = [v for v in (values or []) if str(v).strip()]
     return "(%s)" % ",".join(str(v).strip() for v in values) if values else ""
@@ -360,7 +377,7 @@ def references_to(table_id, row_name):
             continue
         idx = data["columns"].index(field)
         for r in data["rows"]:
-            if idx < len(r) and row_name in parse_unreal_array(r[idx]):
+            if idx < len(r) and row_name in reference_keys(r[idx]):
                 hits.append({"table": src_table, "row": r[0].strip(), "field": field})
     return hits
 
@@ -399,6 +416,24 @@ def validate():
                         findings.append({"level": "warn", "table": "DT_Shops",
                                          "row": r[0].strip(), "field": "FeaturedItems",
                                          "message": "'%s' está em FeaturedItems mas não no Inventory" % key})
+
+    # Demais referências do REFERENCES (as do DT_Shops já foram acima): campo simples ou array.
+    for (table_id, field), ref_table in REFERENCES.items():
+        if table_id == "DT_Shops":
+            continue
+        data = read_csv_table(table_id)
+        ref_keys = row_names(ref_table)
+        if not data or not ref_keys or field not in data["columns"]:
+            continue
+        idx = data["columns"].index(field)
+        for r in data["rows"]:
+            if idx >= len(r):
+                continue
+            for key in reference_keys(r[idx]):
+                if key not in ref_keys:
+                    findings.append({"level": "error", "table": table_id, "row": r[0].strip(),
+                                     "field": field,
+                                     "message": "'%s' não existe em %s" % (key, ref_table)})
 
     for t in TABLES:
         data = read_csv_table(t["id"])

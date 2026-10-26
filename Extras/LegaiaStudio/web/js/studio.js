@@ -92,6 +92,7 @@
         curve:  'M3 20h18M4 17c4 0 5-11 9-11s5 8 8 8',
         shield: 'M12 3l8 3v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6z',
         growth: 'M4 20V13M9 20V9M14 20v-6M19 20V4',
+        enemy:  'M12 3a8 8 0 0 0-8 8c0 3 1.5 5 3 6v3h10v-3c1.5-1 3-3 3-6a8 8 0 0 0-8-8zM9 11.5h.01M15 11.5h.01M10 20v-2M14 20v-2',
         folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
     };
 
@@ -725,16 +726,18 @@
     }
 
     /**
-     * Campo que referencia o RowName de outra tabela (estoque da loja).
+     * Campo que referencia o RowName de outra tabela (estoque da loja, drop do inimigo).
      * Em vez de digitar "(healing_leaf,antidote)", mostra a lista com nome e
-     * preço resolvidos e um botão que abre o seletor.
+     * preço resolvidos e um botão que abre o seletor. Campo que não é array (um FName
+     * só, como DropItem) guarda no máximo um item.
      */
     function refField(t, f, value, targetId, onChange) {
-        const d = wrap(f.name, 'lista de ' + targetId, true);
+        const single = f.kind !== 'array';
+        const d = wrap(f.name, (single ? 'item de ' : 'lista de ') + targetId, true);
         const box = el('div', 'reflist');
-        let keys = parseArray(value);
+        let keys = refKeys(value);
 
-        function push() { onChange(makeArray(keys)); }
+        function push() { onChange(single ? (keys[0] || '') : makeArray(keys)); }
 
         function draw() {
             box.innerHTML = '';
@@ -759,11 +762,12 @@
                 box.appendChild(r);
             });
 
-            const add = el('button', 'btn', '+ Adicionar item');
+            const add = el('button', 'btn', single && keys.length ? 'Trocar item' : '+ Adicionar item');
             add.style.marginTop = '8px';
             add.addEventListener('click', () => {
                 openPicker(targetId, keys, (key) => {
-                    keys.push(key);
+                    if (single) keys = [key];
+                    else keys.push(key);
                     push();
                     draw();
                 });
@@ -781,6 +785,14 @@
         if (!cell.startsWith('(') || !cell.endsWith(')')) return [];
         const inner = cell.slice(1, -1).trim();
         return inner ? inner.split(',').map((s) => s.trim().replace(/^"|"$/g, '')).filter(Boolean) : [];
+    }
+
+    /** Keys citadas numa célula de referência: array "(a,b)" ou um FName só ("a"). */
+    function refKeys(cell) {
+        cell = (cell || '').trim();
+        if (cell.startsWith('(')) return parseArray(cell);
+        cell = cell.replace(/^"|"$/g, '').trim();
+        return cell && cell !== 'None' ? [cell] : [];
     }
 
     function makeArray(values) {
@@ -926,7 +938,7 @@
                 const idx = src.columns.indexOf(field);
                 if (idx < 0) return;
                 src.rows.forEach((r) => {
-                    if (idx < r.length && parseArray(r[idx]).indexOf(key) !== -1) {
+                    if (idx < r.length && refKeys(r[idx]).indexOf(key) !== -1) {
                         hits.push({ table: srcId, row: r[0].trim(), field: field });
                     }
                 });

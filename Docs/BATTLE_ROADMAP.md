@@ -86,7 +86,7 @@ Each phase ends in something you can run and watch work.
 | Phase | Scope | Status |
 |---|---|---|
 | **0** | Extract assets from the disc (RE release tools + `legaia-extract`) | **Done** |
-| **1** | Battle data (TOML → CSV → DataTable) | Not started |
+| **1** | Battle data (TOML → CSV → DataTable) | **In progress** — `DT_Enemies` done (179 rows); Arts, Bosses, Magic to go |
 | **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **In progress** — pipeline validated on Gimard + the party's Idle/Walk |
 | **3** | Enemies roaming the map (zone, roaming, trigger) | Not started |
 | **4** | Battle stage (spawn, formation, camera) | Not started |
@@ -193,24 +193,33 @@ Hard rule: `Extras/LegaiaStudio/studio.py` discovers schemas by regex over the h
 One `UPROPERTY` per line, no `meta=(...)` with nested parentheses, struct closing with
 `\n};` and inheriting `: public FTableRowBase`. Use `Public/Shop/ShopData.h` as the model.
 
-**`Public/Battle/EnemyData.h`**
+**`Public/Battle/EnemyData.h`** — **done** (2026-10-26). Column reference in
+[Guides/ENEMIES.md](Guides/ENEMIES.md).
 
 ```cpp
-UENUM(BlueprintType) enum class EJRPGCombatantType : uint8 { Character, Seru, Enemy };
-
 USTRUCT(BlueprintType) struct FJRPGEnemyData : public FTableRowBase {
-  FName Key; FText DisplayName; EJRPGElement Element; FString Location;
-  int32 HP, MP, EXP, Gold, ATK, SPD, UDF, LDF, INT, AGL;
-  FName DropItem, StealItem; int32 StealChance; bool bIsBoss;
-  int32 MonsterArchiveID = -1;          // PROT 0867 slot (Phase 2)
-  TSoftObjectPtr<USkeletalMesh> Mesh;   // filled in Phase 2
-  FJRPGMonsterAnimSet Anims;            // nested struct, 10 fixed slots
+  FName Key; FText DisplayName; FString Location; bool bIsBoss; EJRPGElement Element;
+  int32 BaseHP, BaseMP, BaseAGL, BaseATK, BaseUDF, BaseLDF, BaseSPD, BaseINT;  // in-battle
+  int32 EXP, Gold;
+  FName DropItem;    int32 DropChance;    // DropChance comes from the disc
+  FName StealItem;   int32 StealChance;
+  FName CaptureSeru; int32 CatchRate;     // from the disc
+  int32 MonsterArchiveID = -1;            // PROT 0867 slot, joined automatically
+  TSoftObjectPtr<USkeletalMesh> Mesh;     // filled in Phase 2
+  FJRPGMonsterAnimSet Anims;
 };
 ```
 
+Differences from the first sketch: the stats take the `Base` prefix of `FCharacterData` (a
+member named `INT` collides with the Windows `INT` typedef); drop chance and the capturable
+Seru come from the disc; `EJRPGCombatantType` moves to Phase 5's `BattleTypes.h`, where it is
+used.
+
 `FJRPGMonsterAnimSet` holds one `TSoftObjectPtr<UAnimSequence>` per semantic tag (`Idle`,
 `Walk`, `Flinch1`, `Flinch2`, `Knockdown`, `GetUp`, `Ready`, `Recover`, `Defeat`, `Block`) —
-a `TMap` does not import from CSV cleanly.
+a `TMap` does not import from CSV cleanly — plus `Attacks`, an array of the attack clips.
+It is a plain `USTRUCT`, not a row: LegaiaStudio's schema regex skips nested templates such
+as `TArray<TSoftObjectPtr<...>>` inside a row struct, and shows the whole set as one field.
 
 **`Public/Arts/ArtsData.h`**
 
@@ -239,14 +248,16 @@ Also: **`Public/Battle/BossFightData.h`** (`FJRPGBossData`) and
 
 ### Converters
 
-Three new scripts in `Extras/`, modeled on `generate_shops_csv.py` (the best template —
-it has `strip_comment()` that respects quotes, multi-line array joining, and join
-validation): `generate_arts_csv.py`, `generate_enemies_csv.py`, `generate_magic_csv.py`.
+Three new scripts in `Extras/`: `generate_arts_csv.py`, `generate_enemies_csv.py`
+(**done**), `generate_magic_csv.py`.
 
-Pull the shared parser out into **`Extras/legaia_toml.py`** first, or you end up with five
-diverging copies of the same weak parser.
+**`Extras/legaia_toml.py` (done) does not parse TOML by hand**: it uses `tomllib` from the
+standard library (Python 3.11+), which reads hex, inline tables and multi-line arrays the way
+the RE project's own crate does — the three traps below simply do not happen. It also holds
+the CSV helpers (CRLF, `---` header, Unreal arrays, backups). The older generators keep their
+own parsers for now.
 
-Three concrete traps:
+The traps a hand-written parser hits, kept for the record:
 
 - **Hex.** `parse_toml_file` does `int(v)` inside a try/except, and `int("0x29")` raises
   `ValueError` — `action_constant` would silently become the string `"0x29"`. Needs an
@@ -259,14 +270,16 @@ Three concrete traps:
 
 Columns a **human** fills in (`MonsterArchiveID`, `Mesh`, `Anims`, `Anim`, `APGain`,
 `APCost`) must survive regeneration: the generator reads the existing CSV and re-merges by
-row name. Without that, Phase 2's work is lost on every run.
+row name. Without that, Phase 2's work is lost on every run. `generate_enemies_csv.py` does
+this (and keeps rows created in LegaiaStudio, backing the old CSV up first).
 
 > Known debt: the existing `generate_*.py` scripts have a **wrong** hardcoded path
 > (`CODE\JRPGFramework\Docs\Data`, missing the `5.8`). Fix that in the same pass.
 
 **Acceptance:** `DT_Enemies`, `DT_Arts`, `DT_Bosses`, `DT_Magic` imported under
 `/Game/Data/`; LegaiaStudio lists the four new structs; a Blueprint calling
-`GetRowNames()` returns 177 / 60 / 30 / 29.
+`GetRowNames()` returns 179 / 60 / 30 / 29 (`DT_Enemies` is 177 TOML rows + Comm and Evil Bat,
+which exist only on the disc).
 
 ---
 

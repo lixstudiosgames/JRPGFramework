@@ -36,6 +36,7 @@ New here? Read [`ARCHITECTURE.md`](ARCHITECTURE.md), then
 | [CAMERA.md](Guides/CAMERA.md) | 13 presets, automatic UI restore, shakes, level cameras and zones |
 | [PLAYER.md](Guides/PLAYER.md) | The character and controller that walk the map: top-down camera, walk/sprint, input |
 | [MIST.md](Guides/MIST.md) | Living volumetric mist: strands and swirls, flows around scenery, parts around the player |
+| [ENEMIES.md](Guides/ENEMIES.md) | `DT_Enemies` column reference, where the numbers come from, regenerating without losing manual work |
 | [PS1_ASSETS.md](Guides/PS1_ASSETS.md) | The original's battle models (monsters + party) from the disc into Unreal: extraction, the Blender converter, import, scale |
 | [MENU_AND_OPTIONS.md](Guides/MENU_AND_OPTIONS.md) | Main menu and the options screen (visuals done, controls not wired) |
 | [WEBUI_API.md](Guides/WEBUI_API.md) | The shell's API, states, JS contracts, editing workflow |
@@ -65,6 +66,7 @@ remain for reference.
 | [DT_GrowthCurve.csv](Data/DT_GrowthCurve.csv) | 98 | `FGrowthCurveRow` |
 | [DT_Difficulty.csv](Data/DT_Difficulty.csv) | 3 | `FDifficultyScaling` |
 | [DT_CameraPresets.csv](Data/DT_CameraPresets.csv) | 13 | `FCameraPresetRow` (import as `DT_Camera`) |
+| [DT_Enemies.csv](Data/DT_Enemies.csv) | 179 | `FJRPGEnemyData` |
 
 `Data/_backup/` holds the copies LegaiaStudio makes on every save.
 

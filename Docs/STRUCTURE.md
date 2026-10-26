@@ -121,10 +121,15 @@ JRPGFramework/
 │   │   │   └── ArtsSubsystem.h 🟡               ← TeachArtToCharacter only (TODO)
 │   │   │
 │   │   └── Battle/ 🟡
-│   │       └── BattleSubsystem.h 🟡             ← ApplyBattleItemEffect only (TODO)
+│   │       ├── BattleSubsystem.h 🟡             ← ApplyBattleItemEffect only (TODO)
+│   │       └── EnemyData.h ✅                   ← FJRPGEnemyData (DT_Enemies row: in-battle stats,
+│   │                                               rewards, capturable Seru, MonsterArchiveID, mesh)
+│   │                                               + FJRPGMonsterAnimSet. See Guides/ENEMIES.md
 │   │
 │   └── Private/
 │       ├── JRPGFramework.cpp ✅
+│       ├── JRPGFrameworkPCH.h ✅              ← module PCH: reads the engine headers that fire C4996
+│       │                                       with the warning off (Guides/BUILDING.md)
 │       ├── Core/ ✅        (CoreSubsystem.cpp ✅, JRPGGameInstance.cpp ✅)
 │       ├── Save/ ✅        (SaveSubsystem.cpp ✅, JRPGSaveGame.cpp ✅)
 │       ├── Inventory/ ✅   (InventorySubsystem.cpp ✅)
@@ -193,6 +198,10 @@ JRPGFramework/
     ├── generate_csv.py ✅                       ← item TOMLs → DT_Items.csv
     ├── generate_shops_csv.py ✅                 ← shops.toml → DT_Shops.csv
     ├── generate_characters_csv.py ✅            ← characters.toml → DT_Characters.csv
+    ├── generate_enemies_csv.py ✅               ← enemies.toml + the disc's monster archive listing →
+    │                                               DT_Enemies.csv. Keeps Mesh/Anims, hand-set ids and
+    │                                               rows made in the Studio; backs up first
+    ├── legaia_toml.py ✅                        ← shared by the generators: tomllib + Unreal CSV helpers
     ├── generate_progression_csv.py ✅           ← formula → DT_LevelCurve.csv + DT_Difficulty.csv
     ├── generate_mist_noise.py ✅                ← tiling noise for the mist → Mist/T_JRPGMistNoise.png
     ├── ps1_glb_to_fbx.py ✅                     ← headless Blender: PS1 battle model .glb (monster or
@@ -228,7 +237,7 @@ JRPGFramework/
 | **WebUI** | ✅ complete | SPA shell, 7 screens, gamepad + keyboard + mouse with their own rules, responsive scaling |
 | **Party** | ✅ complete (data) | Roster vs formation, 3 states per character, XP split among survivors as in the original, level-up with jitter, whole-roster save. The UI does not follow the formation yet |
 | **Status** | ✅ complete (data) | Equipment in 5 slots with `CanEquip` read from `DT_Items`, conditions, Ra-Seru (1..9), elemental affinity, and the original's `effective ( base )` display. The equip screen is still missing |
-| **Arts / Battle** | 🟡 stubs | They receive calls from the inventory but hold no state. The battle **models** are already coming in: disc extraction done, and the PS1 → Unreal converter validated on Gimard and the party's battle form ([PS1_ASSETS.md](Guides/PS1_ASSETS.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
+| **Arts / Battle** | 🟡 stubs | They receive calls from the inventory but hold no state. `DT_Enemies` exists (179 enemies, [ENEMIES.md](Guides/ENEMIES.md)) and the battle **models** are coming in: disc extraction done, and the PS1 → Unreal converter validated on Gimard and the party's battle form ([PS1_ASSETS.md](Guides/PS1_ASSETS.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
 
 ---
 

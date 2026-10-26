@@ -28,7 +28,7 @@
 <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line class="hatch" x1="0" y1="0" x2="0" y2="6" stroke-width="1.5" stroke-opacity=".55"/></pattern></defs>
 <rect class="bg" width="900" height="446" rx="6"/>
 <text class="t1" x="16" y="34" font-size="24" font-weight="600">Status</text>
-<text class="t2" x="884" y="34" font-size="12" text-anchor="end">Legend of Legaia Remake · JRPGFramework · dev @ 6ff6b69 · 2026-10-24</text>
+<text class="t2" x="884" y="34" font-size="12" text-anchor="end">Legend of Legaia Remake · JRPGFramework · dev @ 36198d7 · 2026-10-26</text>
 <line class="rule" x1="16" y1="44" x2="884" y2="44" stroke-width="1"/>
 <rect class="badge-k" x="16" y="56" width="79.6" height="22" rx="3"/>
 <rect class="partial" x="92.6" y="56" width="48.8" height="22" rx="3"/>
@@ -388,8 +388,9 @@
 <text class="t2" x="462" y="351.5" font-size="11">Roadmap de batalha: 1/9 fases</text>
 <rect class="ok" x="462.0" y="357.5" width="45.9" height="24.5"><title>Fase 0 — Extrair assets do disco</title></rect>
 <text class="badge-t" x="484.9" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">0</text>
-<rect class="pending" x="508.9" y="357.5" width="45.9" height="24.5"><title>Fase 1 — Dados de batalha (TOML → CSV → DataTable)</title></rect>
-<text class="txt-pending" x="531.8" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">1</text>
+<rect class="partial" x="508.9" y="357.5" width="45.9" height="24.5"><title>Fase 1 — Dados de batalha (TOML → CSV → DataTable)</title></rect>
+<rect x="508.9" y="357.5" width="45.9" height="24.5" fill="url(#hatch)" pointer-events="none"/>
+<text class="txt-dark" x="531.8" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">1</text>
 <rect class="partial" x="555.8" y="357.5" width="45.9" height="24.5"><title>Fase 2 — Assets 3D do PS1 (GLB → Blender → FBX → SkeletalMesh)</title></rect>
 <rect x="555.8" y="357.5" width="45.9" height="24.5" fill="url(#hatch)" pointer-events="none"/>
 <text class="txt-dark" x="578.7" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">2</text>

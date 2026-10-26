@@ -268,6 +268,7 @@ content across once and remain for reference.
 | `Data/DT_GrowthCurve.csv` | 98 | `FGrowthCurveRow` (extracted from the disc) |
 | `Data/DT_Difficulty.csv` | 3 | `FDifficultyScaling` |
 | `Data/DT_CameraPresets.csv` | 13 | `FCameraPresetRow` (import as `DT_Camera`) |
+| `Data/DT_Enemies.csv` | 179 | `FJRPGEnemyData` (enemies.toml + the disc's monster archive) |
 
 `Data/_backup/` holds the copies LegaiaStudio makes on every save.
 
@@ -280,5 +281,6 @@ content across once and remain for reference.
 | `Extras/build_plugin.py` | Packages the plugin |
 | `Extras/extract_growth_from_disc.py` | Reads `SCUS_942.54` → `DT_StatGrowth` + `DT_GrowthCurve` |
 | `Extras/ps1_glb_to_fbx.py` | Runs in headless Blender: a PS1 battle model `.glb` (monster or party) → rigged FBX for Unreal. See [`Guides/PS1_ASSETS.md`](Guides/PS1_ASSETS.md) |
-| `Extras/generate_*.py` | TOML → CSV importers (one-way) |
+| `Extras/generate_*.py` | TOML → CSV importers (one-way) — except `generate_enemies_csv.py`, which keeps manual columns and rows |
+| `Extras/legaia_toml.py` | What the generators share: `tomllib` (Python 3.11+) + the Unreal CSV helpers |
 | `Extras/download_fonts.py` | Verifies/downloads the WebUI's local fonts |
