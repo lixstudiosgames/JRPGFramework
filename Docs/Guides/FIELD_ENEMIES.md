@@ -5,9 +5,11 @@ the remake's replacement for the original's random encounters. Phase 3 of
 [BATTLE_ROADMAP.md](../BATTLE_ROADMAP.md).
 
 On contact the enemy rolls who fights, prints it on screen, disappears, starts the fight —
-assembled by the battle stage ([BATTLE_STAGE.md](BATTLE_STAGE.md)) — and comes back after a
-delay. While a fight is on, every field enemy hides and freezes; a respawn that falls inside
-it waits for the end. `bStartBattle` off brings back Phase 3's behaviour: contact only
+assembled by the battle arena ([BATTLE_STAGE.md](BATTLE_STAGE.md)) — and comes back after its
+respawn delay. When a fight starts every field enemy stops; once the screen is black they hide
+and **go home** (standalone: where it was placed; zone: a random point of the zone), so nobody
+is right next to the player when the fight ends. A respawn that falls inside a fight waits for
+it to leave the screen. `bStartBattle` off brings back Phase 3's behaviour: contact only
 announces the encounter.
 
 ---

@@ -23,11 +23,11 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGBattleEnded, EJRPGBattleResul
  * dano e a vitória são a Fase 5.
  *
  * Não conhece AActor nenhum — quem está no mapa fala com ele por chamadas e delegates: o inimigo
- * do Field pede a luta, o AJRPGBattleStage escuta OnBattleStarted / OnBattleEnded e monta e
- * desmonta a cena. Ver Docs/BATTLE_ROADMAP.md.
+ * do Field pede a luta, o UJRPGBattleSceneSubsystem (do mundo) escuta OnBattleStarted /
+ * OnBattleEnded e manda a AJRPGBattleArena montar e desmontar a cena. Ver Docs/BATTLE_ROADMAP.md.
  *
  * Console (PIE): JRPG.Battle.Start <EnemyKey> [Quantos] [Level] e JRPG.Battle.End
- * [victory|defeat|escape|abort] — ficam no AJRPGBattleStage, que sabe onde está o jogador.
+ * [victory|defeat|escape|abort] — ficam no UJRPGBattleSceneSubsystem, que sabe onde está o jogador.
  */
 UCLASS(BlueprintType, Blueprintable)
 class JRPGFRAMEWORK_API UBattleSubsystem : public UGameInstanceSubsystem

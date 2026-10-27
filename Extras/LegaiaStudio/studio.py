@@ -9,9 +9,10 @@ Uso:
     python Extras/LegaiaStudio/studio.py --no-browser
 
 O que dá para fazer: editar as DataTables por ficha (nada de planilha), criar e
-apagar linhas, montar o estoque das lojas escolhendo itens da DT_Items, e
-disparar os builds da WebUI e do plugin com o log ao vivo. O CSV é escrito
-atrás dos panos, com backup.
+apagar linhas, montar o estoque das lojas escolhendo itens da DT_Items, montar
+as ondas de batalha (os JSON do AJRPGBattleWaves — o Muscle Dome), e disparar
+os builds da WebUI e do plugin com o log ao vivo. O CSV é escrito atrás dos
+panos, com backup.
 
 Arquitetura:
   - stdlib only (http.server + csv + json + subprocess). Sem pip.
@@ -140,7 +141,8 @@ BUILDS = {
 
 
 def load_config():
-    cfg = {"unreal_project": DEFAULT_UNREAL_PROJECT}
+    # waves_dir vazio = <unreal_project>/Content/Data/Waves (ver waves_dir())
+    cfg = {"unreal_project": DEFAULT_UNREAL_PROJECT, "waves_dir": ""}
     path = os.path.join(STUDIO_DIR, "studio.config.json")
     if os.path.isfile(path):
         try:
@@ -566,9 +568,190 @@ def build_status():
         "pending": [{"name": n, "inPlugin": os.path.isfile(os.path.join(GAMEDATA_DIR, n + ".toml"))}
                     for n in KNOWN_TOML_ONLY],
         "builds": [{"key": k, **v} for k, v in BUILDS.items()],
+        "wavesDir": waves_dir().replace("\\", "/"),
+        "wavesOk": os.path.isdir(waves_dir()),
         "enums": enums,
         "findings": validate(),
     }
+
+
+# ========================================================================
+# ONDAS DE BATALHA (JSON do AJRPGBattleWaves)
+# ========================================================================
+#
+# Um arquivo por conjunto de ondas (o Muscle Dome, um teste), em
+# <projeto Unreal>/Content/Data/Waves/. O AJRPGBattleWaves lê o arquivo a cada
+# play (WavesFile = "Data/Waves/<arquivo>"): salvar aqui e dar play basta.
+# Formato: Docs/Guides/BATTLE_STAGE.md.
+
+WAVES_FILE_RE = re.compile(r"^[\w\-]+\.json$")
+
+
+def waves_dir():
+    custom = CONFIG.get("waves_dir") or ""
+    if custom:
+        return custom
+    root = CONFIG.get("unreal_project") or ""
+    return os.path.join(root, "Content", "Data", "Waves") if root else ""
+
+
+def waves_backup_dir():
+    # Saved/ não vai no build — a pasta das ondas pode ir (Additional Non-Asset Directories)
+    root = CONFIG.get("unreal_project") or ""
+    return os.path.join(root, "Saved", "LegaiaStudio", "WavesBackup") if root else ""
+
+
+def waves_relpath(name):
+    """O que vai no WavesFile do ator: relativo à pasta Content do projeto."""
+    root = CONFIG.get("unreal_project") or ""
+    full = os.path.join(waves_dir(), name)
+    content = os.path.join(root, "Content")
+    try:
+        return os.path.relpath(full, content).replace("\\", "/")
+    except ValueError:
+        return full.replace("\\", "/")
+
+
+def waves_listing():
+    folder = waves_dir()
+    files = []
+    if folder and os.path.isdir(folder):
+        for fn in sorted(os.listdir(folder)):
+            if not WAVES_FILE_RE.match(fn):
+                continue
+            data, err = read_waves(fn)
+            files.append({
+                "file": fn,
+                "name": (data or {}).get("name") or fn[:-5],
+                "waves": len((data or {}).get("waves") or []),
+                "error": err,
+                "unrealPath": waves_relpath(fn),
+            })
+    return {"dir": (folder or "").replace("\\", "/"), "dirOk": bool(folder) and os.path.isdir(folder),
+            "files": files}
+
+
+def read_waves(name):
+    if not WAVES_FILE_RE.match(name):
+        return None, "nome de arquivo inválido"
+    path = os.path.join(waves_dir(), name)
+    if not os.path.isfile(path):
+        return None, "não existe: %s" % name
+    try:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            data = json.load(f)
+    except (OSError, ValueError) as e:
+        return None, "JSON inválido: %s" % e
+    if not isinstance(data, dict) or not isinstance(data.get("waves"), list):
+        return None, "sem a lista \"waves\""
+    data["unrealPath"] = waves_relpath(name)
+    return data, None
+
+
+def _int(v, default, low=None):
+    try:
+        v = int(round(float(v)))
+    except (TypeError, ValueError):
+        v = default
+    return max(low, v) if low is not None else v
+
+
+def _float(v, default):
+    try:
+        return max(0.0, float(v))
+    except (TypeError, ValueError):
+        return default
+
+
+def clean_waves(body):
+    """Normaliza o que veio do navegador para o formato que o C++ lê. (dados, erro)"""
+    if not isinstance(body, dict) or not isinstance(body.get("waves"), list):
+        return None, "corpo sem a lista \"waves\""
+    waves = []
+    for i, w in enumerate(body["waves"]):
+        if not isinstance(w, dict):
+            return None, "onda %d não é um objeto" % (i + 1)
+        enemies = []
+        for e in w.get("enemies") or []:
+            key = str((e or {}).get("key") or "").strip()
+            if not key:
+                return None, "onda %d tem inimigo sem key" % (i + 1)
+            level_min = _int(e.get("levelMin"), 1, 1)
+            count_min = _int(e.get("countMin"), 1, 0)
+            enemies.append({
+                "key": key,
+                "levelMin": level_min,
+                "levelMax": max(level_min, _int(e.get("levelMax"), level_min, 1)),
+                "countMin": count_min,
+                "countMax": max(count_min, _int(e.get("countMax"), count_min, 0)),
+                "weight": _int(e.get("weight"), 1, 0),
+                "alwaysJoins": bool(e.get("alwaysJoins")),
+            })
+        if not enemies:
+            return None, "onda %d sem inimigo nenhum" % (i + 1)
+        emin = _int(w.get("enemiesMin"), 1, 1)
+        waves.append({
+            "name": str(w.get("name") or ""),
+            "enemiesMin": emin,
+            "enemiesMax": max(emin, _int(w.get("enemiesMax"), emin, 1)),
+            "enemies": enemies,
+        })
+    party = [str(p).strip() for p in (body.get("party") or []) if str(p).strip()]
+    return {
+        "name": str(body.get("name") or ""),
+        "party": party,
+        "loop": bool(body.get("loop")),
+        "startDelay": _float(body.get("startDelay"), 2.0),
+        "delayBetweenWaves": _float(body.get("delayBetweenWaves"), 2.0),
+        "waves": waves,
+    }, None
+
+
+def new_waves_template(name):
+    return {
+        "name": name[:-5].replace("_", " ").title(),
+        "party": ["Vahn", "Noa", "Gala"],
+        "loop": False,
+        "startDelay": 2,
+        "delayBetweenWaves": 2,
+        "waves": [{"name": "Onda 1", "enemiesMin": 1, "enemiesMax": 1,
+                   "enemies": [{"key": "gimard", "levelMin": 1, "levelMax": 1, "countMin": 1,
+                                "countMax": 1, "weight": 1, "alwaysJoins": True}]}],
+    }
+
+
+def save_waves(name, body, create):
+    """Grava com backup do anterior em Saved/. (resultado, erro)"""
+    if not WAVES_FILE_RE.match(name):
+        return None, "nome de arquivo inválido (letras, números, _ e -, terminando em .json)"
+    folder = waves_dir()
+    if not folder:
+        return None, "projeto Unreal não configurado"
+    data, err = clean_waves(body)
+    if err:
+        return None, err
+
+    path = os.path.join(folder, name)
+    if create and os.path.exists(path):
+        return None, "já existe: %s" % name
+    os.makedirs(folder, exist_ok=True)
+
+    backup = None
+    if os.path.isfile(path):
+        bdir = waves_backup_dir()
+        os.makedirs(bdir, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        backup = os.path.join(bdir, "%s.%s.json" % (name[:-5], stamp))
+        with open(path, "rb") as src, open(backup, "wb") as dst:
+            dst.write(src.read())
+
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+    os.replace(tmp, path)
+    return {"saved": True, "file": name, "unrealPath": waves_relpath(name),
+            "backup": backup.replace("\\", "/") if backup else None}, None
 
 
 def table_payload(table_id):
@@ -657,6 +840,13 @@ class StudioHandler(BaseHTTPRequestHandler):
             data = table_payload(route[len("table/"):])
             return self._json(data) if data else self._json({"error": "tabela não encontrada"}, 404)
 
+        if route == "waves":
+            return self._json(waves_listing())
+        m = re.fullmatch(r"waves/([\w\-]+\.json)", route)
+        if m:
+            data, err = read_waves(m.group(1))
+            return self._json(data) if data is not None else self._json({"error": err}, 404)
+
         m = re.fullmatch(r"build/(\w+)/log", route)
         if m:
             job = JOBS.get(m.group(1))
@@ -692,6 +882,15 @@ class StudioHandler(BaseHTTPRequestHandler):
         if route == "reveal":
             return self._reveal(body)
 
+        m = re.fullmatch(r"waves/([\w\-]+\.json)/save", route)
+        if m:
+            result, err = save_waves(m.group(1), body, create=False)
+            return self._json(result) if result else self._json({"error": err}, 400)
+        m = re.fullmatch(r"waves/([\w\-]+\.json)/new", route)
+        if m:
+            result, err = save_waves(m.group(1), new_waves_template(m.group(1)), create=True)
+            return self._json(result) if result else self._json({"error": err}, 409)
+
         m = re.fullmatch(r"build/(\w+)", route)
         if m:
             job, err = start_build(m.group(1))
@@ -711,6 +910,7 @@ class StudioHandler(BaseHTTPRequestHandler):
             "plugin": PLUGIN_DIR,
             "unreal": CONFIG.get("unreal_project") or "",
             "data": CSV_DIR,
+            "waves": waves_dir(),
         }
         path = targets.get(body.get("target"))
         if not path or not os.path.isdir(path):

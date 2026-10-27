@@ -4,12 +4,15 @@
 #include "GameFramework/Actor.h"
 #include "Core/JRPGSplineArea.h"
 #include "Battle/BattleTypes.h"
+#include "Camera/CameraData.h"
 #include "JRPGBattleArena.generated.h"
 
 class USplineComponent;
 class UBillboardComponent;
 class USkeletalMesh;
 class USkeletalMeshComponent;
+class AJRPGBattlePawn;
+class APlayerController;
 
 /** De onde saem os lugares da formação automática. */
 UENUM(BlueprintType)
@@ -62,7 +65,7 @@ struct JRPGFRAMEWORK_API FJRPGArenaSeat
 
 /**
  * AJRPGBattleArena
- * O lugar do mapa onde uma luta é montada. Arraste para a cena: no editor ela já desenha onde
+ * O lugar do mapa onde uma luta é montada — e quem monta. Arraste para a cena: no editor ela já desenha onde
  * cada herói (seta azul) e cada inimigo (seta laranja) vai ficar, apoiados no chão, com a
  * cápsula na cor do chão embaixo — verde ok, amarelo desnivelado, vermelho sem chão /
  * inclinado / dentro de parede. O desenho acompanha o terreno ao vivo (esculpir o landscape
@@ -80,8 +83,12 @@ struct JRPGFRAMEWORK_API FJRPGArenaSeat
  * toque (empate: a mais próxima); fora de todas, a mais próxima com bUseAsFallback; mapa sem
  * arena: nenhuma (a luta é montada onde foi o toque).
  *
- * O AJRPGBattleStage pede os lugares com GetFormation, esconde HideDuringBattle e, com
- * BattleCamera, usa essa câmera no lugar do enquadramento automático.
+ * Na luta (AssembleBattle, chamado pelo UJRPGBattleSceneSubsystem com a tela já preta): esconde e
+ * congela a party do Field e o HideDuringBattle, desliga o controle do Field, cria um
+ * AJRPGBattlePawn por combatente nos lugares (o modelo de batalha vem do DT_Characters /
+ * DT_Enemies) e aponta a câmera — a BattleCamera, ou FrameGroup em todos. TeardownBattle devolve
+ * tudo como estava. Mapa sem arena: o subsystem cria uma provisória no ponto do encontro.
+ * Guia: Docs/Guides/BATTLE_STAGE.md.
  */
 UCLASS(Blueprintable)
 class JRPGFRAMEWORK_API AJRPGBattleArena : public AActor
@@ -183,6 +190,32 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Battle")
 	TObjectPtr<AActor> BattleCamera;
 
+	/** O enquadramento quando não há BattleCamera (gira em volta do primeiro do grupo). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Battle")
+	ECameraFramingPreset CameraPreset = ECameraFramingPreset::BattleWide;
+
+	/** Folga em volta dos combatentes (1 = encostando nas bordas da tela). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Battle", meta = (ClampMin = "1.0"))
+	float CameraPadding = 1.15f;
+
+	/** A câmera fica atrás da party, olhando para os inimigos. Desligado, o contrário. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Battle")
+	bool bCameraBehindParty = true;
+
+	/**
+	 * Segundos de fade para o preto ao entrar e ao sair; a cena troca com a tela toda preta.
+	 * 0 = corte seco. (A tela quebrando é a Fase 7.)
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Battle", meta = (ClampMin = "0.0"))
+	float TransitionTime = 0.35f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Battle")
+	FLinearColor TransitionColor = FLinearColor::Black;
+
+	/** A classe de cada combatente na cena (um Blueprint filho dá efeitos, nome na cabeça...). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Battle")
+	TSubclassOf<AJRPGBattlePawn> PawnClass;
+
 	// --- Chão ---------------------------------------------------------------------------------
 
 	/** Até onde procurar o chão acima de cada lugar. */
@@ -269,6 +302,28 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Battle Arena")
 	void DrawDebugFormation(int32 PartyCount, int32 EnemyCount, float Duration = 5.0f) const;
 
+	// --- A luta montada aqui ------------------------------------------------------------------
+
+	/**
+	 * Monta a cena: esconde o Field, desliga o controle, cria os combatentes nos lugares e aponta
+	 * a câmera. Chamado pelo UJRPGBattleSceneSubsystem com a tela já preta.
+	 */
+	void AssembleBattle(const FJRPGBattleSetup& Setup, const TArray<FJRPGCombatant>& Combatants);
+
+	/** Desmonta a cena e devolve o Field como estava (visibilidade, controle, câmera). */
+	void TeardownBattle();
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Arena")
+	bool IsBattleAssembled() const { return bBattleAssembled; }
+
+	/** Os combatentes na cena, na ordem dos slots (heróis, depois inimigos). */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Arena")
+	TArray<AJRPGBattlePawn*> GetBattlePawns() const;
+
+	/** O pawn de um combatente (pelo SlotIndex do FJRPGCombatant). */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Arena")
+	AJRPGBattlePawn* GetPawnForSlot(int32 SlotIndex) const;
+
 	// --- Botões no editor ---------------------------------------------------------------------
 
 	/** Lista no Message Log (Map Check) os lugares amarelos/vermelhos da formação de preview. */
@@ -306,6 +361,27 @@ private:
 	TArray<FString> CollectProblems() const;
 	void DrawFormation(const TArray<FJRPGArenaSeat>& Seats, bool bPersistent, float Duration) const;
 	void Print(const FString& Message, const FColor& Color = FColor::Silver) const;
+	/** Problema na montagem: sempre no log e na tela, com ou sem bPrintDebug. */
+	void Warn(const FString& Message) const;
+
+	// Montagem da luta
+	void HideFieldActors();
+	void HideActor(AActor* Actor, bool bFreeze);
+	void RestoreHiddenActors();
+	void DisableFieldInput();
+	void RestoreFieldInput();
+	void FrameCamera();
+	bool ResolveVisual(const FJRPGCombatant& Combatant, FJRPGBattleVisual& OutVisual, FString& OutWhy) const;
+	APlayerController* GetPlayerController() const;
+
+	/** Um ator que a arena escondeu na luta, e como ele estava. */
+	struct FHiddenActor
+	{
+		TWeakObjectPtr<AActor> Actor;
+		bool bWasHidden = false;
+		bool bHadCollision = true;
+		float TimeDilation = 1.0f;
+	};
 
 #if WITH_EDITOR
 	void RebuildPreviewMeshes();
@@ -315,4 +391,13 @@ private:
 
 	UPROPERTY(Transient, DuplicateTransient)
 	TArray<TObjectPtr<USkeletalMeshComponent>> PreviewMeshes;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<AJRPGBattlePawn>> BattlePawns;
+
+	TArray<FHiddenActor> HiddenActors;
+	TWeakObjectPtr<APlayerController> InputController;
+	bool bRestoreFieldInput = false;
+	bool bRestoreMoveInput = false;
+	bool bBattleAssembled = false;
 };

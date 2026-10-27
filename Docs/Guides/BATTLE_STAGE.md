@@ -6,94 +6,143 @@ How a fight is assembled over the current map and taken down again. Phase 4 of
 There is **no combat yet** (Phase 5). A fight starts, the scene is assembled, the heroes and
 the enemies stand in their seats in `Idle`, and it ends from the console.
 
+**The only thing placed in a map is the arena.** Everything else exists by itself.
+
 ---
 
 ## 1. Who does what
 
 | Piece | Job |
 |---|---|
-| `UBattleSubsystem` | Starts and ends a fight (`BeginBattle` / `EndBattle`), builds the combatant list, blocks SAVE during it. Knows no actor — only `OnBattleStarted` / `OnBattleEnded`. |
-| `AJRPGBattleStage` | Listens to those delegates and does everything with actors: picks the arena, hides the field, spawns the pawns, frames the camera, puts it all back. One per map. |
-| `AJRPGBattleArena` | Where on the map the fight goes (see [FIELD_ENEMIES.md](FIELD_ENEMIES.md) › Where the fight happens). |
+| `UBattleSubsystem` (GameInstance) | Starts and ends a fight (`BeginBattle` / `EndBattle`), builds the combatant list, blocks SAVE during it. Knows no actor — only `OnBattleStarted` / `OnBattleEnded`. |
+| `UJRPGBattleSceneSubsystem` (World) | Exists in every played map, nothing to place or set. Picks the arena, fades to black, tells the field when the screen is black, asks the arena to assemble / tear down. Holds the console commands. |
+| `AJRPGBattleArena` | Where the fight goes **and who assembles it**: hides the field, spawns the combatants in its seats, points the camera, puts everything back. All per-arena settings live here. |
 | `AJRPGBattlePawn` | One combatant in the scene: the **battle** model (not the field one) in its seat. |
-| `AJRPGFieldEnemy` | Starts a fight on contact (`bStartBattle`); every field enemy hides and freezes while one is on. |
-| `AJRPGBattleWaves` | Fights in a row, Muscle Dome style — the test map. |
+| `AJRPGFieldEnemy` | Starts a fight on contact (`bStartBattle`); stops when one starts, hides and goes home when the screen is black. |
+| `AJRPGBattleWaves` | Fights in a row, Muscle Dome style — the test map. Reads its waves from a JSON the LegaiaStudio edits. |
 
 A fight, start to end:
 
 1. Contact (or a wave, or the console) calls `UBattleSubsystem::BeginBattle(Setup)`. The party
    is `Setup.Party`, or the active party, or — PIE straight into a map with no save —
    `FallbackParty` (Vahn, Noa, Gala). At most `MaxPartySlots` heroes and `MaxEnemySlots`
-   enemies.
-2. The stage fades to black (`TransitionTime`), then:
-   - picks the arena with `AJRPGBattleArena::FindArenaFor(Setup.Location)`; a map with no arena
-     gets a temporary one at the contact point, the party facing the enemy;
-   - hides and freezes the field party (the controlled character and the followers) and the
-     arena's `HideDuringBattle`;
-   - turns the field controls off (`AJRPGFieldPlayerController::SetFieldInputEnabled(false)`);
-   - spawns one `AJRPGBattlePawn` per combatant at the arena's seats (`GetFormation`);
-   - points the camera: the arena's `BattleCamera` if set, otherwise
-     `UCameraSubsystem::FrameGroup` over every combatant;
-   - fades back in.
-3. `EndBattle(Result)` fades out, destroys the pawns, shows the field again exactly as it was
-   (controls, camera, what was hidden), and fades in. For `EncounterGraceTime` seconds after
-   that no new encounter starts, so the enemy next to you does not pull you straight back in.
+   enemies. Every field enemy **stops** where it is.
+2. The scene subsystem picks the arena — `AJRPGBattleArena::FindArenaFor(Setup.Location)`; a
+   map with no arena gets a temporary one at the contact point, the party facing the enemy —
+   and fades to black over the arena's `TransitionTime`.
+3. With the screen **fully black**:
+   - `OnFieldHidden`: every field enemy hides and goes home — a standalone one to where it was
+     placed, a zone one to a random point of its zone. Nobody is left glued to the player for
+     when the fight ends. The one that was touched stays gone until its own respawn.
+   - The arena hides and freezes the field party (the controlled character and the followers)
+     and its `HideDuringBattle`, turns the field controls off, spawns one `AJRPGBattlePawn` per
+     combatant at its seats (`GetFormation`), and points the camera — its `BattleCamera`, or
+     `UCameraSubsystem::FrameGroup` over every combatant.
+   - The screen opens.
+4. `EndBattle(Result)` fades to black; the arena destroys the pawns and puts the field back
+   exactly as it was (controls, camera, what was hidden); `OnFieldShown` brings the field
+   enemies back at home; the screen opens. For `EncounterGraceTime` seconds after that no new
+   encounter starts.
 
 ---
 
-## 2. Setting it up in the project
+## 2. The models: straight from the DataTables
 
-**One stage per map, created by itself.** `UJRPGBattleStageSubsystem` spawns one in every map
-that does not already have one placed. The class comes from **Project Settings › Plugins ›
-JRPG Battle › Stage Class**. Empty, it is the plugin's `AJRPGBattleStage`, which has no hero
-models.
+Nothing to configure per fight or per map.
 
-**`BP_BattleStage`** — a Blueprint child of `JRPGBattleStage`, set as the Stage Class:
+- **Heroes:** `DT_Characters` › `BattleMesh` + `BattleAnims` (`Idle`, `Walk`) — the Phase 2
+  battle models, `/Game/Legaia/Battle/Party/<Name>/`. Vahn, Noa and Gala come filled in
+  `Docs/Data/DT_Characters.csv`; reimport the DataTable after updating the plugin.
+  `Extras/generate_characters_csv.py` keeps these two columns when it regenerates the CSV.
+- **Enemies:** `DT_Enemies` › `Mesh` + `Anims.Idle`.
 
-- `PartyVisuals`: one entry per hero key (`Vahn`, `Noa`, `Gala`) with the battle model —
-  `SK_Vahn_Battle` + `AS_Vahn_Battle_Idle` from `/Game/Legaia/Battle/Party/Vahn/`, and so on.
-  This moves to `DT_Characters` once the Arts bank exists (Phase 6).
-- `FallbackVisual`: for a hero missing from the map, or a `DT_Enemies` row still without a
-  `Mesh`. Empty, the pawn is only its capsule (and the stage says so on screen).
-- Enemies need nothing here: the model is the row's `Mesh` + `Anims.Idle` in `DT_Enemies`.
+A combatant without a model appears as its capsule only, and the arena says why on screen
+(not in `DT_Characters`, `BattleMesh` empty, `Mesh` empty in `DT_Enemies`…).
+
+---
+
+## 3. The arena's battle settings
+
+`AJRPGBattleArena`, category *Battle* (the arena itself — seats, ground, area — is in
+[FIELD_ENEMIES.md](FIELD_ENEMIES.md) › Where the fight happens):
 
 | Property | Default | |
 |---|---|---|
-| `PawnClass` | `AJRPGBattlePawn` | A Blueprint child for entry effects, a name over the head… |
-| `TransitionTime` | 0.35 | Fade to black in and out; the scene changes in the dark. 0 = hard cut. |
-| `CameraPreset` | `BattleWide` | Framing when the arena has no `BattleCamera`. |
+| `HideDuringBattle` | — | Actors hidden while a fight happens here (a tree in front of the camera, an NPC in a seat). |
+| `BattleCamera` | — | A CameraActor / CineCameraActor placed by hand; replaces the automatic framing. |
+| `CameraPreset` | `BattleWide` | Framing when there is no `BattleCamera`. |
 | `CameraPadding` | 1.15 | Room around the combatants. |
 | `bCameraBehindParty` | true | Camera behind the heroes looking at the enemies; off = the other way. |
-| `bPrintDebug` | true | Arena, seats and missing models on screen. |
+| `TransitionTime` | 0.35 | Fade to black in and out; the scene changes with the screen fully black. 0 = hard cut. |
+| `TransitionColor` | black | |
+| `PawnClass` | `AJRPGBattlePawn` | A Blueprint child for entry effects, a name over the head… |
 
-**Per arena** (`AJRPGBattleArena`, category *Battle*):
-
-- `HideDuringBattle`: actors hidden while a fight happens there (a tree in front of the
-  camera, an NPC standing in a seat).
-- `BattleCamera`: a CameraActor / CineCameraActor placed by hand. Set, it replaces the
-  automatic framing for fights in this arena.
+A map with no arena uses these defaults on the temporary one.
 
 **Field enemies:** `bStartBattle` (default on) — off, contact only announces the encounter, as
 in Phase 3.
 
 ---
 
-## 3. The test map: Muscle Dome
+## 4. The test map: Muscle Dome
 
 `AJRPGBattleWaves` runs fights in a row. Drag one into the map:
 
-- `Waves`: one encounter per wave, rolled like the field ones. A fixed wave is a single line
-  with `bAlwaysJoins` and `CountMin = CountMax`.
-- `Party`: who fights (keys, in formation order). Empty = the active party.
+- `WavesFile`: the JSON with the waves, relative to the project's `Content` folder —
+  `Data/Waves/muscle_dome.json`. It is read **on every play**: edit in the Studio, save, play.
+  Empty, the actor uses the `Waves` / `Party` properties in the Details panel. "Import Waves
+  File" copies the file into those properties (saved with the map).
 - `Arena`: where. Empty = the arena picked from the actor's position.
-- `bAutoStart`, `StartDelay`, `DelayBetweenWaves`, `bLoop`.
+- `bAutoStart`.
 
 Winning a wave calls the next one; losing, escaping or aborting stops them. It runs on the
 field GameMode: the party stands in the ring between waves.
 
+### Editing the waves: LegaiaStudio › Ondas
+
+`python Extras/LegaiaStudio/studio.py` → **Batalha › Ondas**. One file per set of waves, in
+`<Unreal project>/Content/Data/Waves/` (`waves_dir` in `studio.config.json` changes it):
+
+- party as chips, in formation order (empty = the save's active party);
+- per wave: a name, enemies per fight min–max, and the enemies picked from `DT_Enemies` with
+  level range, count range, weight and *Sempre entra* (joins every fight);
+- what each wave can roll, and what would go wrong in the game (nobody can join, unknown key,
+  enemy without a model);
+- saving keeps a backup in `<Unreal project>/Saved/LegaiaStudio/WavesBackup/`.
+
+### The JSON
+
+```json
+{
+  "name": "Muscle Dome",
+  "party": ["Vahn", "Noa", "Gala"],
+  "loop": false,
+  "startDelay": 2,
+  "delayBetweenWaves": 2,
+  "waves": [
+    {
+      "name": "Gimard",
+      "enemiesMin": 1,
+      "enemiesMax": 1,
+      "enemies": [
+        { "key": "gimard", "levelMin": 1, "levelMax": 1, "countMin": 1, "countMax": 1,
+          "weight": 1, "alwaysJoins": true }
+      ]
+    }
+  ]
+}
+```
+
+Each wave is an `FJRPGEncounterSetup`, rolled like the field encounters: the `alwaysJoins`
+enemies go in first (`countMin..countMax` each), the rest are drawn by `weight` up to
+`enemiesMin..enemiesMax`. A fixed wave is one line with `alwaysJoins` and `countMin = countMax`.
+
+**Packaged builds:** add `Data/Waves` to *Project Settings › Packaging › Additional Non-Asset
+Directories to Package*. The testers can then change the waves without a new build.
+
 ---
 
-## 4. Console (PIE)
+## 5. Console (PIE)
 
 | Command | |
 |---|---|
@@ -102,11 +151,10 @@ field GameMode: the party stands in the ring between waves.
 
 ---
 
-## 5. Known limits (Phase 4)
+## 6. Known limits (Phase 4)
 
 - No combat, no HUD: the fight only ends from the console.
-- Hero models come from the stage's `PartyVisuals`; the heroes only have `Idle` and `Walk`
-  so far (Phase 2).
+- The heroes only have `Idle` and `Walk` so far (Phase 2).
 - A monster with morph targets (Green Slime) crashes PIE when the project's GPU skin cache is
   off (engine assertion in `SkeletalRenderGPUSkin.cpp`). Turn on **Project Settings ›
   Rendering › Support Compute Skin Cache**.

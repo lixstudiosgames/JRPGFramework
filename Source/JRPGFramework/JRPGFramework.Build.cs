@@ -37,7 +37,7 @@ public class JRPGFramework : ModuleRules
 				"Projects",
 				"RHI",
 				"RenderCore",
-				"DeveloperSettings" // Project Settings > JRPG Battle (JRPGBattleSettings.h)
+				"Json"              // as ondas da batalha em JSON (JRPGBattleWaves.h)
 			}
 		);
 				

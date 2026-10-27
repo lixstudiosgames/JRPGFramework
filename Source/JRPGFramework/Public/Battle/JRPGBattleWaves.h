@@ -9,6 +9,20 @@
 class AJRPGBattleArena;
 class UBillboardComponent;
 
+/** Uma onda: um nome para a tela e quem pode entrar nela. */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGBattleWave
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Waves")
+	FString Name;
+
+	/** Sorteado como os do Field. Onda fixa: uma linha com bAlwaysJoins e CountMin = CountMax. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Waves")
+	FJRPGEncounterSetup Encounter;
+};
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGWaveStarted, int32, WaveIndex);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnJRPGWavesCleared);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGWavesFailed, EJRPGBattleResult, Result);
@@ -16,8 +30,12 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGWavesFailed, EJRPGBattleResul
 /**
  * AJRPGBattleWaves
  * Lutas em sequência, uma onda depois da outra, no estilo do Muscle Dome: arraste para o mapa,
- * escolha a party e monte as ondas. Cada onda é um encounter (sorteado como os do Field; para
- * uma onda fixa, uma linha com bAlwaysJoins e CountMin = CountMax).
+ * escolha a party e monte as ondas — aqui no Details ou num arquivo JSON (WavesFile), que o
+ * LegaiaStudio edita (aba "Ondas").
+ *
+ * Com WavesFile, o arquivo é lido a cada play: edite no Studio, salve, dê play. "Import Waves
+ * File" copia o arquivo para as propriedades (o que fica salvo no mapa, para o build que não
+ * leva o JSON). Formato: Docs/Guides/BATTLE_STAGE.md.
  *
  * Vencer uma onda chama a próxima depois de DelayBetweenWaves; perder, fugir ou abortar para
  * tudo. Funciona com o GameMode do Field: a party fica no ringue entre as ondas.
@@ -37,9 +55,17 @@ public:
 	TObjectPtr<UBillboardComponent> EditorIcon;
 #endif
 
-	/** As ondas, na ordem. */
+	/**
+	 * O JSON das ondas, relativo à pasta Content do projeto ("Data/Waves/muscle_dome.json").
+	 * Vazio = usar as propriedades abaixo. Para o JSON ir no build: Project Settings > Packaging >
+	 * Additional Non-Asset Directories to Package > Data/Waves.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Waves")
-	TArray<FJRPGEncounterSetup> Waves;
+	FString WavesFile;
+
+	/** As ondas, na ordem (substituídas pelo WavesFile, se ele existir). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Waves")
+	TArray<FJRPGBattleWave> Waves;
 
 	/** Quem luta (keys do DT_Characters, na ordem da formação). Vazio = a party ativa. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Waves")
@@ -94,6 +120,24 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Waves")
 	int32 GetCurrentWave() const { return CurrentWave; }
 
+	/**
+	 * Lê ondas, party, delays e loop de um JSON (o texto, não o caminho). False com o motivo em
+	 * OutError se o texto não é um JSON de ondas; nesse caso nada muda.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Battle Waves")
+	bool LoadWavesFromJson(const FString& Json, FString& OutError);
+
+	/** Lê o WavesFile. False se ele não existe ou não é válido (as propriedades ficam como estão). */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Battle Waves")
+	bool LoadWavesFile(FString& OutError);
+
+	/** Copia o WavesFile para as propriedades (que ficam salvas no mapa). */
+	UFUNCTION(CallInEditor, Category = "JRPG|Battle Waves")
+	void ImportWavesFile();
+
+	/** O caminho completo do WavesFile no disco. */
+	FString GetWavesFilePath() const;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -103,6 +147,7 @@ private:
 	void HandleBattleEnded(EJRPGBattleResult Result);
 
 	void ScheduleWave(int32 WaveIndex, float Delay);
+	FString DescribeWave(int32 WaveIndex) const;
 	void Print(const FString& Message, const FColor& Color = FColor::Silver) const;
 
 	int32 CurrentWave = -1;

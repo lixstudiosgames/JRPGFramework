@@ -137,15 +137,14 @@ JRPGFramework/
 │   │       │                                       (Phase 5); ApplyBattleItemEffect still TODO
 │   │       ├── BattleTypes.h ✅                 ← side, combatant type, result, FJRPGCombatant,
 │   │       │                                       FJRPGBattleSetup, FJRPGBattleVisual
-│   │       ├── JRPGBattleArena.h ✅             ← where on the map a fight is assembled: formation
-│   │       │                                       preview + ground check in the editor, hand-drawn
-│   │       │                                       area, FindArenaFor on contact (BATTLE_ROADMAP Phase 4)
-│   │       ├── JRPGBattleStage.h ✅             ← assembles/tears down the fight over the map (arena,
-│   │       │                                       hide field, pawns, camera, fade) + the world
-│   │       │                                       subsystem that spawns one per map. Guides/BATTLE_STAGE.md
+│   │       ├── JRPGBattleArena.h ✅             ← where on the map a fight is assembled, and who
+│   │       │                                       assembles it: formation preview + ground check,
+│   │       │                                       hand-drawn area, FindArenaFor, AssembleBattle /
+│   │       │                                       TeardownBattle (BATTLE_ROADMAP Phase 4)
+│   │       ├── JRPGBattleSceneSubsystem.h ✅    ← world subsystem: picks the arena, fade, OnFieldHidden /
+│   │       │                                       OnFieldShown, console commands. Guides/BATTLE_STAGE.md
 │   │       ├── JRPGBattlePawn.h ✅              ← one combatant in the scene: battle model in its seat
-│   │       ├── JRPGBattleSettings.h ✅          ← Project Settings > JRPG Battle (StageClass)
-│   │       ├── JRPGBattleWaves.h ✅             ← fights in a row, Muscle Dome style (test map)
+│   │       ├── JRPGBattleWaves.h ✅             ← fights in a row, Muscle Dome style, waves from JSON
 │   │       ├── JRPGEncounterTypes.h ✅          ← FJRPGEncounterEnemy/Setup/Combatant + the roll and
 │   │       │                                       DT_Enemies access (UJRPGEncounterLibrary)
 │   │       └── EnemyData.h ✅                   ← FJRPGEnemyData (DT_Enemies row: in-battle stats,
@@ -179,8 +178,8 @@ JRPGFramework/
 │       ├── Party/ ✅       (PartySubsystem.cpp ✅)
 │       ├── Status/ ✅      (StatusSubsystem.cpp ✅)
 │       ├── Arts/ 🟡        (ArtsSubsystem.cpp 🟡)
-│       └── Battle/ 🟡      (BattleSubsystem.cpp 🟡, JRPGBattleArena.cpp ✅, JRPGBattleStage.cpp ✅,
-│                           JRPGBattlePawn.cpp ✅, JRPGBattleSettings.cpp ✅, JRPGBattleWaves.cpp ✅)
+│       └── Battle/ 🟡      (BattleSubsystem.cpp 🟡, JRPGBattleArena.cpp ✅, JRPGBattleSceneSubsystem.cpp ✅,
+│                           JRPGBattlePawn.cpp ✅, JRPGBattleWaves.cpp ✅)
 │
 ├── Shaders/ ✅                                  ← mapped to /Plugin/JRPGFramework
 │   ├── UltralightBlitShader.usf ✅              ← full-screen blit of the Ultralight texture (JRPGWebBrowser)

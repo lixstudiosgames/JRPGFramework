@@ -89,7 +89,7 @@ Each phase ends in something you can run and watch work.
 | **1** | Battle data (TOML → CSV → DataTable) | **In progress** — `DT_Enemies` done (179 rows); Arts, Bosses, Magic to go |
 | **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **In progress** — pipeline validated on Gimard + the party's Idle/Walk |
 | **3** | Enemies roaming the map (zone, roaming, trigger) | **Done** (2026-10-27) — `AJRPGFieldEnemy`, `AJRPGEncounterZone` (sphere/box/spline), tested in the editor |
-| **4** | Battle stage (spawn, formation, camera) | **In progress** — written (`AJRPGBattleArena`, `BeginBattle`/`EndBattle`, `AJRPGBattleStage`, `AJRPGBattlePawn`, `AJRPGBattleWaves`), being tested on the Muscle Dome map |
+| **4** | Battle stage (spawn, formation, camera) | **In progress** — written (`AJRPGBattleArena` assembles the fight, `UJRPGBattleSceneSubsystem`, `BeginBattle`/`EndBattle`, `AJRPGBattlePawn`, `AJRPGBattleWaves` + JSON/Studio), being tested on the Muscle Dome map |
 | **5** | Basic combat (turns, damage, death, victory) | Not started |
 | **6** | Directional Arts + the new AP | Not started |
 | **7** | Presentation (HUD, attack camera, sound, items, escape) | Not started |
@@ -511,30 +511,32 @@ Per arena, for the fight itself: `HideDuringBattle` (actors hidden while a fight
 there — a tree in front of the camera) and `BattleCamera` (a camera placed by hand that
 replaces the automatic framing).
 
-### `AJRPGBattleStage` — assembling the scene (written 2026-10-27)
+### Assembling the scene — the arena does it (written 2026-10-27)
 
-Usage in [Guides/BATTLE_STAGE.md](Guides/BATTLE_STAGE.md). `UBattleSubsystem::BeginBattle`
-builds the combatant list (`Setup.Party`, else the active party, else `FallbackParty` for PIE
-without a save; capped at `MaxPartySlots` / `MaxEnemySlots`), turns `IsInField` off and fires
-`OnBattleStarted`. The stage listens and owns everything `AActor`-shaped:
+Usage in [Guides/BATTLE_STAGE.md](Guides/BATTLE_STAGE.md). **The arena is the only thing placed
+in a map.** A first version had a separate stage actor with its own Blueprint and a Project
+Settings class; it was folded into the arena the same day — two actors per map doing nearly
+the same job, and the hero models configured by hand.
 
-- Fades to black, picks the arena (`FindArenaFor(Setup.Location)`; a map with no arena gets a
-  temporary one at the contact point, the party facing the enemy).
-- Hides and freezes the field party (the controlled pawn and every `AJRPGFieldCharacter`) and
-  the arena's `HideDuringBattle`; turns the field controls off. Field enemies hide and freeze
-  themselves on `OnBattleStarted`; a respawn inside a fight waits for its end.
-- Spawns one `AJRPGBattlePawn` per combatant at the arena's seats (`GetFormation`), with the
-  battle model: the stage's `PartyVisuals` for heroes (until `DT_Characters` carries it, with
-  the Arts bank), the `DT_Enemies` row's `Mesh` + `Anims.Idle` for enemies.
-- Camera: the arena's `BattleCamera`, else `FrameGroup(Pawns, 0, CameraPadding, BattleWide)`
-  anchored on an enemy, so the camera sits behind the party.
-- `EndBattle` → fade, destroy the pawns, restore visibility / controls / camera exactly as they
-  were. `EncounterGraceTime` also counts from the end, so the next enemy does not pull the
-  player straight back in.
+- `UBattleSubsystem::BeginBattle` builds the combatant list (`Setup.Party`, else the active
+  party, else `FallbackParty` for PIE without a save; capped at `MaxPartySlots` /
+  `MaxEnemySlots`), turns `IsInField` off and fires `OnBattleStarted`. Field enemies stop.
+- `UJRPGBattleSceneSubsystem` (a world subsystem — exists by itself, nothing to configure)
+  picks the arena (`FindArenaFor(Setup.Location)`; a map with no arena gets a temporary one at
+  the contact point, the party facing the enemy) and fades to black over its `TransitionTime`.
+- **Screen fully black:** `OnFieldHidden` — every field enemy hides and goes home (standalone:
+  its placement; zone: a random point of the zone), so nobody is glued to the player when the
+  fight ends; the one touched waits for its own respawn. Then `AJRPGBattleArena::AssembleBattle`:
+  hides and freezes the field party and `HideDuringBattle`, turns the field controls off,
+  spawns one `AJRPGBattlePawn` per combatant at `GetFormation`, points the camera (its
+  `BattleCamera`, else `FrameGroup` anchored on an enemy so the camera sits behind the party).
+- Models come from the DataTables: `DT_Characters.BattleMesh` / `BattleAnims` for heroes,
+  `DT_Enemies.Mesh` / `Anims` for enemies.
+- `EndBattle` → black → `TeardownBattle` (everything back exactly as it was) → `OnFieldShown`
+  → screen opens. `EncounterGraceTime` also counts from the end.
 
-One stage per map, created by `UJRPGBattleStageSubsystem` from **Project Settings › JRPG Battle
-› Stage Class** when the map has none placed. Console: `JRPG.Battle.Start <EnemyKey> [Count]
-[Level]` and `JRPG.Battle.End [victory|defeat|escape|abort]`.
+Console: `JRPG.Battle.Start <EnemyKey> [Count] [Level]` and `JRPG.Battle.End
+[victory|defeat|escape|abort]`.
 
 `UBattleSubsystem` **never knows about `AActor`** — it speaks only through delegates, the
 same separation the rest of the plugin keeps.
@@ -545,6 +547,10 @@ same separation the rest of the plugin keeps.
 arena; a won wave calls the next after a delay, a lost / escaped / aborted one stops. It runs
 on the field GameMode — no separate battle GameMode, pawn or controller — so it tests the same
 path a field encounter takes. With no combat yet, a wave ends from the console.
+
+The waves live in a JSON (`WavesFile`, `Content/Data/Waves/*.json`) read on every play and
+edited in **LegaiaStudio › Ondas**. Packaged with *Additional Non-Asset Directories*, the
+testers can change the waves without a new build.
 
 ### The original's seats (`Formation = Original`, the default)
 
@@ -667,7 +673,7 @@ bool SubmitCommand(int32 Slot, EJRPGBattleCommand Command, int32 TargetSlot);
 const TArray<FJRPGCombatant>& GetCombatants() const;
 int32 GetActiveSlot() const;
 
-FOnBattleStarted OnBattleStarted;   // for ABattleStage
+FOnBattleStarted OnBattleStarted;   // for UJRPGBattleSceneSubsystem
 FOnBattleEvent   OnBattleEvent;     // for the UI
 FOnSlotChanged   OnSlotChanged;     // for the camera
 FOnBattleEnded   OnBattleEnded;
@@ -846,5 +852,5 @@ Last on purpose: it depends on everything above being stable and carries the mos
 ## Next concrete step
 
 **Phase 4:** the stage — `UBattleSubsystem::BeginBattle` / `EndBattle` and their delegates,
-`AJRPGBattlePawn`, `ABattleStage`, tested first on the Muscle Dome test map. In parallel, the
+`AJRPGBattlePawn`, the arena assembling the fight, tested first on the Muscle Dome test map. In parallel, the
 party's battle clips (attack, hit, KO) that Phase 5 needs.

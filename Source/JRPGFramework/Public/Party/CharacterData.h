@@ -4,6 +4,9 @@
 #include "Engine/DataTable.h"
 #include "CharacterData.generated.h"
 
+class USkeletalMesh;
+class UAnimSequence;
+
 /**
  * Os 8 elementos do jogo. Usados pela afinidade dos personagens (forte/fraco)
  * e pelo elemento do Ra-Seru.
@@ -23,6 +26,23 @@ enum class EJRPGElement : uint8
 	Light   UMETA(DisplayName = "Light"),
 	Dark    UMETA(DisplayName = "Dark"),
 	Evil    UMETA(DisplayName = "Evil")
+};
+
+/**
+ * FJRPGHeroBattleAnims
+ * Os clips de batalha de um herói. Hoje Idle e Walk; os golpes, o dano e o KO entram com o
+ * banco de Arts (Fases 5/6). Struct fixo e não TMap porque um TMap não importa direito de CSV.
+ */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGHeroBattleAnims
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Character|Battle")
+	TSoftObjectPtr<UAnimSequence> Idle;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Character|Battle")
+	TSoftObjectPtr<UAnimSequence> Walk;
 };
 
 /**
@@ -134,4 +154,16 @@ struct JRPGFRAMEWORK_API FCharacterData : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
 	FText Notes;
+
+	// --- Modelo de batalha (Fase 2; não é o do Field) ---
+
+	/**
+	 * A malha de batalha (/Game/Legaia/Battle/Party/<Nome>/SK_<Nome>_Battle). É o que a arena põe
+	 * no lugar do herói na luta. Preenchida à mão: o generate_characters_csv.py preserva.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character|Battle")
+	TSoftObjectPtr<USkeletalMesh> BattleMesh;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character|Battle")
+	FJRPGHeroBattleAnims BattleAnims;
 };

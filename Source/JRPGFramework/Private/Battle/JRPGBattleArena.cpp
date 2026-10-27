@@ -1,4 +1,13 @@
 #include "Battle/JRPGBattleArena.h"
+#include "Battle/JRPGBattlePawn.h"
+#include "Battle/JRPGEncounterTypes.h"
+#include "Camera/CameraSubsystem.h"
+#include "Field/JRPGFieldCharacter.h"
+#include "Field/JRPGFieldPlayerController.h"
+#include "GameFramework/PlayerController.h"
+#include "Engine/GameInstance.h"
+#include "Party/CharacterData.h"
+#include "Party/PartySubsystem.h"
 #include "Components/BillboardComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/SplineComponent.h"
@@ -66,6 +75,7 @@ AJRPGBattleArena::AJRPGBattleArena()
 	// Tick só no editor: o desenho da formação acompanha o terreno ao vivo
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
+	PawnClass = AJRPGBattlePawn::StaticClass();
 
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(Root);
@@ -506,4 +516,316 @@ void AJRPGBattleArena::Print(const FString& Message, const FColor& Color) const
 	{
 		GEngine->AddOnScreenDebugMessage(-1, 5.0f, Color, Line);
 	}
+}
+
+void AJRPGBattleArena::Warn(const FString& Message) const
+{
+	const FString Line = FString::Printf(TEXT("BattleArena %s: %s"), *GetActorNameOrLabel(), *Message);
+	UE_LOG(LogTemp, Warning, TEXT("%s"), *Line);
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 8.0f, FColor::Orange, Line);
+	}
+}
+
+// ---------------------------------------------------------------------------------------------
+// A luta montada aqui
+// ---------------------------------------------------------------------------------------------
+
+void AJRPGBattleArena::AssembleBattle(const FJRPGBattleSetup& Setup, const TArray<FJRPGCombatant>& Combatants)
+{
+	if (bBattleAssembled)
+	{
+		TeardownBattle();
+	}
+
+	int32 PartyCount = 0;
+	int32 EnemyCount = 0;
+	for (const FJRPGCombatant& C : Combatants)
+	{
+		(C.Side == EJRPGBattleSide::Party ? PartyCount : EnemyCount)++;
+	}
+
+	// Primeiro some o Field: a cápsula do jogador não pode atrapalhar o chão dos lugares
+	HideFieldActors();
+	for (AActor* Actor : HideDuringBattle)
+	{
+		HideActor(Actor, false);
+	}
+	DisableFieldInput();
+
+	const TArray<FJRPGArenaSeat> Seats = GetFormation(PartyCount, EnemyCount);
+	UClass* SpawnClass = PawnClass ? PawnClass.Get() : AJRPGBattlePawn::StaticClass();
+
+	for (const FJRPGCombatant& C : Combatants)
+	{
+		const int32 SeatIndex = C.Side == EJRPGBattleSide::Party ? C.SideIndex : PartyCount + C.SideIndex;
+		if (!Seats.IsValidIndex(SeatIndex))
+		{
+			continue;
+		}
+		const FJRPGArenaSeat& Seat = Seats[SeatIndex];
+		if (Seat.Status == EJRPGArenaSeatStatus::Blocked)
+		{
+			Warn(FString::Printf(TEXT("%s num lugar bloqueado: %s"), *C.Key.ToString(), *Seat.Problem));
+		}
+
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		Params.ObjectFlags |= RF_Transient;
+		AJRPGBattlePawn* Pawn = GetWorld()->SpawnActor<AJRPGBattlePawn>(SpawnClass, Seat.Transform, Params);
+		if (!Pawn)
+		{
+			Warn(FString::Printf(TEXT("não consegui criar o combatente %s"), *C.Key.ToString()));
+			continue;
+		}
+
+		FJRPGBattleVisual Visual;
+		FString Why;
+		if (!ResolveVisual(C, Visual, Why))
+		{
+			Warn(FString::Printf(TEXT("%s sem modelo de batalha (%s) — só a cápsula"), *C.Key.ToString(), *Why));
+		}
+		Pawn->InitCombatant(C, Visual, Seat.Transform);
+		BattlePawns.Add(Pawn);
+	}
+
+	FrameCamera();
+	bBattleAssembled = true;
+	Print(FString::Printf(TEXT("luta montada: %d herói(s), %d inimigo(s)"), PartyCount, EnemyCount), FColor::Cyan);
+}
+
+void AJRPGBattleArena::TeardownBattle()
+{
+	for (AJRPGBattlePawn* Pawn : BattlePawns)
+	{
+		if (IsValid(Pawn))
+		{
+			Pawn->Destroy();
+		}
+	}
+	BattlePawns.Reset();
+
+	RestoreHiddenActors();
+	RestoreFieldInput();
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (UCameraSubsystem* Camera = GI->GetSubsystem<UCameraSubsystem>())
+		{
+			Camera->RestoreToPlayerCamera(TransitionTime > 0.0f ? 0.0f : 0.5f);
+		}
+	}
+	if (bBattleAssembled)
+	{
+		Print(TEXT("luta desmontada"), FColor::Cyan);
+	}
+	bBattleAssembled = false;
+}
+
+TArray<AJRPGBattlePawn*> AJRPGBattleArena::GetBattlePawns() const
+{
+	TArray<AJRPGBattlePawn*> Out;
+	for (AJRPGBattlePawn* Pawn : BattlePawns)
+	{
+		if (IsValid(Pawn))
+		{
+			Out.Add(Pawn);
+		}
+	}
+	return Out;
+}
+
+AJRPGBattlePawn* AJRPGBattleArena::GetPawnForSlot(int32 SlotIndex) const
+{
+	for (AJRPGBattlePawn* Pawn : BattlePawns)
+	{
+		if (IsValid(Pawn) && Pawn->GetCombatant().SlotIndex == SlotIndex)
+		{
+			return Pawn;
+		}
+	}
+	return nullptr;
+}
+
+void AJRPGBattleArena::HideFieldActors()
+{
+	// O personagem controlado e os seguidores da party (todos AJRPGFieldCharacter)
+	if (const APlayerController* PC = GetPlayerController())
+	{
+		HideActor(PC->GetPawn(), true);
+	}
+	for (TActorIterator<AJRPGFieldCharacter> It(GetWorld()); It; ++It)
+	{
+		HideActor(*It, true);
+	}
+}
+
+void AJRPGBattleArena::HideActor(AActor* Actor, bool bFreeze)
+{
+	if (!IsValid(Actor))
+	{
+		return;
+	}
+	for (const FHiddenActor& Hidden : HiddenActors)
+	{
+		if (Hidden.Actor.Get() == Actor)
+		{
+			return;
+		}
+	}
+	FHiddenActor& Entry = HiddenActors.AddDefaulted_GetRef();
+	Entry.Actor = Actor;
+	Entry.bWasHidden = Actor->IsHidden();
+	Entry.bHadCollision = Actor->GetActorEnableCollision();
+	Entry.TimeDilation = Actor->CustomTimeDilation;
+
+	Actor->SetActorHiddenInGame(true);
+	Actor->SetActorEnableCollision(false);
+	if (bFreeze)
+	{
+		// Parado de verdade: movimento, animação e o MoveTo dos seguidores
+		Actor->CustomTimeDilation = 0.0f;
+	}
+}
+
+void AJRPGBattleArena::RestoreHiddenActors()
+{
+	for (const FHiddenActor& Hidden : HiddenActors)
+	{
+		if (AActor* Actor = Hidden.Actor.Get())
+		{
+			Actor->SetActorHiddenInGame(Hidden.bWasHidden);
+			Actor->SetActorEnableCollision(Hidden.bHadCollision);
+			Actor->CustomTimeDilation = Hidden.TimeDilation;
+		}
+	}
+	HiddenActors.Reset();
+}
+
+void AJRPGBattleArena::DisableFieldInput()
+{
+	APlayerController* PC = GetPlayerController();
+	InputController = PC;
+	bRestoreFieldInput = false;
+	bRestoreMoveInput = false;
+	if (!PC)
+	{
+		return;
+	}
+	if (AJRPGFieldPlayerController* FieldPC = Cast<AJRPGFieldPlayerController>(PC))
+	{
+		bRestoreFieldInput = FieldPC->IsFieldInputEnabled();
+		FieldPC->SetFieldInputEnabled(false);
+	}
+	else
+	{
+		PC->SetIgnoreMoveInput(true);
+		bRestoreMoveInput = true;
+	}
+}
+
+void AJRPGBattleArena::RestoreFieldInput()
+{
+	if (APlayerController* PC = InputController.Get())
+	{
+		if (bRestoreFieldInput)
+		{
+			if (AJRPGFieldPlayerController* FieldPC = Cast<AJRPGFieldPlayerController>(PC))
+			{
+				FieldPC->SetFieldInputEnabled(true);
+			}
+		}
+		if (bRestoreMoveInput)
+		{
+			PC->SetIgnoreMoveInput(false);
+		}
+	}
+	InputController = nullptr;
+	bRestoreFieldInput = false;
+	bRestoreMoveInput = false;
+}
+
+void AJRPGBattleArena::FrameCamera()
+{
+	UGameInstance* GI = GetGameInstance();
+	UCameraSubsystem* Camera = GI ? GI->GetSubsystem<UCameraSubsystem>() : nullptr;
+	if (!Camera)
+	{
+		return;
+	}
+	// Com a tela preta a câmera corta; sem fade, desliza
+	const float Blend = TransitionTime > 0.0f ? 0.0f : 0.75f;
+
+	if (IsValid(BattleCamera))
+	{
+		Camera->FocusOnLevelCamera(BattleCamera, Blend, false, 0.0f);
+		return;
+	}
+
+	// O preset gira em volta do primeiro do grupo e olha para o rosto dele: um inimigo primeiro
+	// põe a câmera atrás da party
+	const EJRPGBattleSide First = bCameraBehindParty ? EJRPGBattleSide::Enemy : EJRPGBattleSide::Party;
+	TArray<AActor*> Group;
+	for (AJRPGBattlePawn* Pawn : GetBattlePawns())
+	{
+		if (Pawn->GetCombatant().Side == First)
+		{
+			Group.Add(Pawn);
+		}
+	}
+	for (AJRPGBattlePawn* Pawn : GetBattlePawns())
+	{
+		if (Pawn->GetCombatant().Side != First)
+		{
+			Group.Add(Pawn);
+		}
+	}
+	if (Group.Num() > 0)
+	{
+		Camera->FrameGroup(Group, Blend, CameraPadding, CameraPreset, false);
+	}
+}
+
+bool AJRPGBattleArena::ResolveVisual(const FJRPGCombatant& Combatant, FJRPGBattleVisual& OutVisual, FString& OutWhy) const
+{
+	if (Combatant.Side == EJRPGBattleSide::Party)
+	{
+		const UGameInstance* GI = GetGameInstance();
+		const UPartySubsystem* Party = GI ? GI->GetSubsystem<UPartySubsystem>() : nullptr;
+		const UDataTable* Table = Party ? Party->CharacterTable.Get() : nullptr;
+		const FCharacterData* Row = Table ? Table->FindRow<FCharacterData>(Combatant.Key, TEXT("BattleArena"), false) : nullptr;
+		if (!Row)
+		{
+			OutWhy = TEXT("fora do DT_Characters");
+			return false;
+		}
+		if (Row->BattleMesh.IsNull())
+		{
+			OutWhy = TEXT("BattleMesh vazio no DT_Characters");
+			return false;
+		}
+		OutVisual.Mesh = Row->BattleMesh;
+		OutVisual.IdleAnim = Row->BattleAnims.Idle;
+		return true;
+	}
+
+	FJRPGEnemyData Data;
+	if (!UJRPGEncounterLibrary::GetEnemyData(Combatant.Key, Data))
+	{
+		OutWhy = TEXT("fora do DT_Enemies");
+		return false;
+	}
+	if (Data.Mesh.IsNull())
+	{
+		OutWhy = TEXT("Mesh vazio no DT_Enemies");
+		return false;
+	}
+	OutVisual.Mesh = Data.Mesh;
+	OutVisual.IdleAnim = Data.Anims.Idle;
+	return true;
+}
+
+APlayerController* AJRPGBattleArena::GetPlayerController() const
+{
+	return GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
 }

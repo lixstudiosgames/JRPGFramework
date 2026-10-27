@@ -250,11 +250,11 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .refrow .rname { flex: 1; min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .refrow .rkey { font-family: var(--mono); font-size: 10.5px; color: var(--tx-3); }
 .refrow .rprice { font-family: var(--mono); font-size: 12px; color: var(--tx-2); }
-.refrow .rdel {
+.refrow .rdel, .wave-row .rdel {
     background: none; border: none; color: var(--tx-3);
     font-size: 14px; line-height: 1; cursor: pointer; padding: 2px 4px; border-radius: 4px;
 }
-.refrow .rdel:hover { color: var(--danger); background: rgba(239, 68, 68, .12); }
+.refrow .rdel:hover, .wave-row .rdel:hover { color: var(--danger); background: rgba(239, 68, 68, .12); }
 .refrow.missing { border-color: rgba(239, 68, 68, .5); background: rgba(239, 68, 68, .07); }
 .refrow.missing .rname { color: #fca5a5; }
 
@@ -463,3 +463,39 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .pathbtn:disabled { opacity: .35; cursor: default; }
 
 .pathtxt { flex: 1; min-width: 0; word-break: break-all; }
+
+/* ===== Ondas de batalha ===== */
+
+.waves { display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; }
+.wave-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+.wave-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.wave-num { font-size: 13px; font-weight: 600; color: var(--tx); flex-shrink: 0; min-width: 58px; }
+.wave-head input[type="text"] {
+    flex: 1; min-width: 0; padding: 6px 9px; font-size: 13px; color: var(--tx);
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); outline: none;
+}
+.wave-head input[type="text"]:focus { border-color: var(--accent); }
+.wave-totals { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; font-size: 12px; color: var(--tx-2); }
+.wave-hint { font-family: var(--mono); font-size: 11px; color: var(--tx-3); margin-left: 6px; }
+.wave-hint.bad { color: #fca5a5; }
+.wave-enemies { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+.wave-row {
+    display: grid; grid-template-columns: minmax(180px, 1fr) repeat(5, 62px) 84px 28px; align-items: center; gap: 8px;
+    padding: 6px 8px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.wave-row-head { background: none; border-color: transparent; padding-top: 0; padding-bottom: 0; }
+.wave-row-head span { font-size: 10.5px; color: var(--tx-3); }
+.wave-row.missing { border-color: rgba(239, 68, 68, .5); background: rgba(239, 68, 68, .07); }
+.wave-who { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.wave-who .rname { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wave-who .rkey { font-family: var(--mono); font-size: 10.5px; color: var(--tx-3); white-space: nowrap; }
+.wave-row.missing .rname { color: #fca5a5; }
+.wave-nomodel { font-family: var(--mono); font-size: 10px; color: var(--warn); border: 1px solid rgba(245, 158, 11, .4); border-radius: 4px; padding: 0 5px; }
+.wave-check { display: flex; justify-content: center; }
+.wave-check input { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+.wave-row .rdel { justify-self: end; }
+.num-sm {
+    width: 62px; padding: 4px 6px; font-family: var(--mono); font-size: 12px; color: var(--tx);
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); outline: none;
+}
+.num-sm:focus { border-color: var(--accent); }

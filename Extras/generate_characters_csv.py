@@ -6,7 +6,8 @@ Docs/Data/gamedata/characters.toml.
 
 IMPORTADOR DE UMA VEZ SÓ. Depois que a DataTable estiver importada na Unreal,
 edite pelo LegaiaStudio: rodar este script de novo SOBRESCREVE o CSV inteiro e
-apaga qualquer ajuste manual.
+apaga qualquer ajuste manual — menos o modelo de batalha (BattleMesh,
+BattleAnims), que é lido do CSV atual e mantido por RowName.
 
     python Extras/generate_characters_csv.py
 
@@ -32,7 +33,10 @@ CSV_PATH = os.path.join(PLUGIN_DIR, "Docs", "Data", "DT_Characters.csv")
 COLUMNS = ["Key", "XPCurveSlot", "DisplayName", "PortraitId", "RaSeru", "RaSeruElement",
            "AffinityStrong", "AffinityWeak", "WeaponClasses", "bLeftHanded",
            "BaseHP", "BaseMP", "BaseAGL", "BaseATK", "BaseUDF", "BaseLDF",
-           "BaseSPD", "BaseINT", "Notes"]
+           "BaseSPD", "BaseINT", "Notes", "BattleMesh", "BattleAnims"]
+
+# Preenchidas à mão (asset paths da Fase 2): o CSV atual é a fonte delas
+MANUAL_COLUMNS = ["BattleMesh", "BattleAnims"]
 
 # Atributos iniciais (level 1) do jogo original US.
 #
@@ -136,6 +140,15 @@ def unreal_array(values, quote=False):
     return "(%s)" % ",".join(clean)
 
 
+def read_manual_columns():
+    """{RowName: {coluna: valor}} das MANUAL_COLUMNS do CSV atual (vazio se não existe)."""
+    if not os.path.isfile(CSV_PATH):
+        return {}
+    with open(CSV_PATH, encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        return {r["---"]: {c: r.get(c, "") or "" for c in MANUAL_COLUMNS} for r in reader if r.get("---")}
+
+
 def main():
     if not os.path.isfile(TOML_PATH):
         print("ERRO: não encontrei %s" % TOML_PATH)
@@ -146,6 +159,7 @@ def main():
         print("ERRO: nenhum [[character]] em %s" % TOML_PATH)
         return 1
 
+    manual = read_manual_columns()
     rows = []
     for c in chars:
         key = c.get("key", "")
@@ -167,7 +181,7 @@ def main():
             "True" if c.get("left_handed") else "False",
         ] + [str(v) for v in base_stats(key)] + [
             c.get("notes", ""),
-        ])
+        ] + [manual.get(key, {}).get(col, "") for col in MANUAL_COLUMNS])
 
     # CRLF como os demais CSVs de DataTable do projeto
     with open(CSV_PATH, "w", encoding="utf-8", newline="") as f:

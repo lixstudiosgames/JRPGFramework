@@ -12,7 +12,9 @@ class UAnimSequence;
 /**
  * AJRPGBattlePawn
  * Um combatente na cena da luta: o modelo de batalha (não o do Field) parado no seu lugar da
- * arena. Criado e destruído pelo AJRPGBattleStage, um por combatente.
+ * arena. Criado e destruído pela AJRPGBattleArena da luta, um por combatente. O modelo vem do
+ * DT_Characters (BattleMesh/BattleAnims) para os heróis e do DT_Enemies (Mesh/Anims) para os
+ * inimigos.
  *
  * O ator fica com os pés no lugar da formação; a cápsula se ajusta à malha (serve para a câmera
  * e, na Fase 5, para mirar). Sem Anim Blueprint, o clip Idle toca em loop e a troca de clip

@@ -4,6 +4,7 @@
 #include "Field/JRPGFieldEnemyAnimInstance.h"
 #include "Battle/BattleSubsystem.h"
 #include "Battle/JRPGBattleArena.h"
+#include "Battle/JRPGBattleSceneSubsystem.h"
 #include "World/JRPGMistDisturberComponent.h"
 #include "AIController.h"
 #include "Animation/AnimInstance.h"
@@ -166,11 +167,19 @@ void AJRPGFieldEnemy::BeginPlay()
 		if (UBattleSubsystem* Battle = GI->GetSubsystem<UBattleSubsystem>())
 		{
 			Battle->OnBattleStarted.AddDynamic(this, &AJRPGFieldEnemy::HandleBattleStarted);
-			Battle->OnBattleEnded.AddDynamic(this, &AJRPGFieldEnemy::HandleBattleEnded);
-			if (Battle->IsInBattle())
-			{
-				HandleBattleStarted(Battle->GetBattleSetup(), Battle->GetCombatants());
-			}
+			bInBattle = Battle->IsInBattle();
+		}
+	}
+	if (UJRPGBattleSceneSubsystem* Scene = GetWorld()->GetSubsystem<UJRPGBattleSceneSubsystem>())
+	{
+		Scene->OnFieldHidden.AddDynamic(this, &AJRPGFieldEnemy::HandleFieldHidden);
+		Scene->OnFieldShown.AddDynamic(this, &AJRPGFieldEnemy::HandleFieldShown);
+		// Nasceu (zona) com uma luta na tela: fica escondido até ela sair
+		if (Scene->IsFieldHidden())
+		{
+			bHiddenForBattle = true;
+			SetActorHiddenInGame(true);
+			SetActorEnableCollision(false);
 		}
 	}
 	UpdateFrozen();
@@ -194,8 +203,12 @@ void AJRPGFieldEnemy::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		if (UBattleSubsystem* Battle = GI->GetSubsystem<UBattleSubsystem>())
 		{
 			Battle->OnBattleStarted.RemoveDynamic(this, &AJRPGFieldEnemy::HandleBattleStarted);
-			Battle->OnBattleEnded.RemoveDynamic(this, &AJRPGFieldEnemy::HandleBattleEnded);
 		}
+	}
+	if (UJRPGBattleSceneSubsystem* Scene = GetWorld()->GetSubsystem<UJRPGBattleSceneSubsystem>())
+	{
+		Scene->OnFieldHidden.RemoveDynamic(this, &AJRPGFieldEnemy::HandleFieldHidden);
+		Scene->OnFieldShown.RemoveDynamic(this, &AJRPGFieldEnemy::HandleFieldShown);
 	}
 	Super::EndPlay(EndPlayReason);
 }
@@ -903,9 +916,9 @@ void AJRPGFieldEnemy::RespawnAtFloor(FVector FloorLocation)
 	{
 		HomeLocation = GetActorLocation();
 	}
-	// No meio de uma luta ele volta para o lugar, mas só aparece quando ela acabar
-	SetActorHiddenInGame(bInBattle);
-	SetActorEnableCollision(!bInBattle);
+	// No meio de uma luta ele volta para o lugar, mas só aparece quando ela sair da tela
+	SetActorHiddenInGame(bHiddenForBattle);
+	SetActorEnableCollision(!bHiddenForBattle);
 	LastReturnTime = GetWorld()->GetTimeSeconds(); // não pula em cima do jogador ao reaparecer
 	EnterIdle(FMath::FRandRange(WaitTimeMin, WaitTimeMax));
 	Print(FString::Printf(TEXT("reapareceu (%s)"), *VisualName), FColor::Cyan);
@@ -923,25 +936,52 @@ void AJRPGFieldEnemy::HandleUIStateChanged(EJRPGUIState OldState, EJRPGUIState N
 
 void AJRPGFieldEnemy::HandleBattleStarted(const FJRPGBattleSetup& Setup, const TArray<FJRPGCombatant>& Combatants)
 {
+	// Para onde está; some só com a tela preta (HandleFieldHidden)
 	bInBattle = true;
 	StopMoving();
 	StopClipSounds();
-	SetActorHiddenInGame(true);
-	SetActorEnableCollision(false);
 	UpdateFrozen();
 }
 
-void AJRPGFieldEnemy::HandleBattleEnded(EJRPGBattleResult Result)
+void AJRPGFieldEnemy::HandleFieldHidden()
+{
+	bHiddenForBattle = true;
+	SetActorHiddenInGame(true);
+	SetActorEnableCollision(false);
+	StopClipSounds();
+	if (State != EJRPGFieldEnemyState::Hidden)
+	{
+		ResetToHome();
+	}
+}
+
+void AJRPGFieldEnemy::HandleFieldShown()
 {
 	bInBattle = false;
+	bHiddenForBattle = false;
 	if (State != EJRPGFieldEnemyState::Hidden)
 	{
 		SetActorHiddenInGame(false);
 		SetActorEnableCollision(true);
-		// Volta a passear do zero: a perseguição de antes da luta não continua
-		EnterIdle(FMath::FRandRange(WaitTimeMin, WaitTimeMax));
+		// Não pula em cima do jogador no instante em que a tela abre
+		LastReturnTime = GetWorld()->GetTimeSeconds();
 	}
 	UpdateFrozen();
+}
+
+void AJRPGFieldEnemy::ResetToHome()
+{
+	const float Half = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	FVector Floor;
+	if (!Zone || !Zone->GetRandomFloorPoint(Floor))
+	{
+		Floor = HomeLocation - FVector(0.0f, 0.0f, Half);
+	}
+	StopMoving();
+	GetCharacterMovement()->StopMovementImmediately();
+	SetActorLocation(Floor + FVector(0.0f, 0.0f, Half), false, nullptr, ETeleportType::TeleportPhysics);
+	EnterIdle(FMath::FRandRange(WaitTimeMin, WaitTimeMax));
+	Print(TEXT("luta começou — voltou para casa"), FColor::Silver);
 }
 
 void AJRPGFieldEnemy::UpdateFrozen()
