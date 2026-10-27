@@ -89,7 +89,7 @@ Each phase ends in something you can run and watch work.
 | **1** | Battle data (TOML → CSV → DataTable) | **In progress** — `DT_Enemies` done (179 rows); Arts, Bosses, Magic to go |
 | **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **In progress** — pipeline validated on Gimard + the party's Idle/Walk |
 | **3** | Enemies roaming the map (zone, roaming, trigger) | **Done** (2026-10-27) — `AJRPGFieldEnemy`, `AJRPGEncounterZone` (sphere/box/spline), tested in the editor |
-| **4** | Battle stage (spawn, formation, camera) | **In progress** — the arena is written (`AJRPGBattleArena`: formation preview, ground check, hand-drawn area, choice on contact); the stage itself is next |
+| **4** | Battle stage (spawn, formation, camera) | **In progress** — written (`AJRPGBattleArena`, `BeginBattle`/`EndBattle`, `AJRPGBattleStage`, `AJRPGBattlePawn`, `AJRPGBattleWaves`), being tested on the Muscle Dome map |
 | **5** | Basic combat (turns, damage, death, victory) | Not started |
 | **6** | Directional Arts + the new AP | Not started |
 | **7** | Presentation (HUD, attack camera, sound, items, escape) | Not started |
@@ -500,27 +500,51 @@ dragged into the map:
 2. Outside every area: the nearest arena with `bUseAsFallback`.
 3. No arena in the map: none — the stage assembles the fight where the contact happened.
 
-The party and the enemy are moved to the arena **under the transition** (the screen shatter),
-so the jump is never seen. `AJRPGFieldEnemy` already picks the arena on contact
-(`FJRPGFieldEncounter::Arena`) and, with `bPrintDebug`, draws its formation in PIE for a few
-seconds. The Muscle Dome test map is the simplest case: one arena in the ring, no area.
+The scene is assembled at the arena **under the transition** (a fade to black now, the
+screen shatter in Phase 7), so the jump is never seen. The field party is not moved: it is
+hidden where it stood and shown again there when the fight ends. `AJRPGFieldEnemy` picks the
+arena on contact (`FJRPGFieldEncounter::Arena`) and, with `bPrintDebug`, draws its formation
+in PIE for a few seconds. The Muscle Dome test map is the simplest case: one arena in the
+ring.
 
-Still to do in this phase: a per-arena list of actors to hide during the fight (a tree in
-front of the camera), and an optional fixed camera per arena.
+Per arena, for the fight itself: `HideDuringBattle` (actors hidden while a fight happens
+there — a tree in front of the camera) and `BattleCamera` (a camera placed by hand that
+replaces the automatic framing).
 
-### `ABattleStage` (Blueprint-able, in the plugin)
+### `AJRPGBattleStage` — assembling the scene (written 2026-10-27)
 
-Listens to `UBattleSubsystem::OnBattleStarted` and owns everything `AActor`-shaped:
+Usage in [Guides/BATTLE_STAGE.md](Guides/BATTLE_STAGE.md). `UBattleSubsystem::BeginBattle`
+builds the combatant list (`Setup.Party`, else the active party, else `FallbackParty` for PIE
+without a save; capped at `MaxPartySlots` / `MaxEnemySlots`), turns `IsInField` off and fires
+`OnBattleStarted`. The stage listens and owns everything `AActor`-shaped:
 
-- Spawns one `AJRPGBattlePawn` per combatant at the arena's seats
-  (`AJRPGBattleArena::GetFormation`), or at the contact point when the map has no arena.
-- Registers the pawns with `UCameraSubsystem` and calls
-  `FrameGroup(Pawns, 0.75f, 1.15f, ECameraFramingPreset::BattleWide, false)`.
-- Disables the field pawn's input and hides roaming enemies that did not join.
-- On teardown: destroys the pawns, restores camera and input.
+- Fades to black, picks the arena (`FindArenaFor(Setup.Location)`; a map with no arena gets a
+  temporary one at the contact point, the party facing the enemy).
+- Hides and freezes the field party (the controlled pawn and every `AJRPGFieldCharacter`) and
+  the arena's `HideDuringBattle`; turns the field controls off. Field enemies hide and freeze
+  themselves on `OnBattleStarted`; a respawn inside a fight waits for its end.
+- Spawns one `AJRPGBattlePawn` per combatant at the arena's seats (`GetFormation`), with the
+  battle model: the stage's `PartyVisuals` for heroes (until `DT_Characters` carries it, with
+  the Arts bank), the `DT_Enemies` row's `Mesh` + `Anims.Idle` for enemies.
+- Camera: the arena's `BattleCamera`, else `FrameGroup(Pawns, 0, CameraPadding, BattleWide)`
+  anchored on an enemy, so the camera sits behind the party.
+- `EndBattle` → fade, destroy the pawns, restore visibility / controls / camera exactly as they
+  were. `EncounterGraceTime` also counts from the end, so the next enemy does not pull the
+  player straight back in.
+
+One stage per map, created by `UJRPGBattleStageSubsystem` from **Project Settings › JRPG Battle
+› Stage Class** when the map has none placed. Console: `JRPG.Battle.Start <EnemyKey> [Count]
+[Level]` and `JRPG.Battle.End [victory|defeat|escape|abort]`.
 
 `UBattleSubsystem` **never knows about `AActor`** — it speaks only through delegates, the
 same separation the rest of the plugin keeps.
+
+### Muscle Dome — the test map
+
+`AJRPGBattleWaves`: fights in a row. A list of encounters (one per wave), the party, the
+arena; a won wave calls the next after a delay, a lost / escaped / aborted one stops. It runs
+on the field GameMode — no separate battle GameMode, pawn or controller — so it tests the same
+path a field encounter takes. With no combat yet, a wave ends from the console.
 
 ### The original's seats (`Formation = Original`, the default)
 
@@ -592,7 +616,8 @@ grow — and `bScaleEnemiesWithPartySize` is the counterweight the zone applies 
 
 **Acceptance:** contact removes player control, the camera frames the fight, 3 heroes spawn
 on one side and N enemies on the other in their `Idle` poses; a debug command ends it and
-restores everything. Set `MaxPartySlots` to 5 and watch the formation adapt.
+restores everything. Set `MaxPartySlots` to 5 and watch the formation adapt. Same in the
+Muscle Dome: wave after wave with `JRPG.Battle.End victory`.
 
 ---
 

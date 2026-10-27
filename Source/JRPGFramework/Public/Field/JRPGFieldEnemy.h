@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "Battle/JRPGEncounterTypes.h"
+#include "Battle/BattleTypes.h"
 #include "UI/WebUISubsystem.h"
 #include "Sound/SoundAttenuation.h"
 #include "JRPGFieldEnemy.generated.h"
@@ -110,9 +111,11 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGFieldEncounter, const FJRPGFi
  *   se afasta LeashDistance de casa/da zona. O alvo é o pawn que o jogador controla (acompanha
  *   o R3); os seguidores da party nunca disparam nada.
  * - Toque: sorteia o encounter, pede o UBattleSubsystem::TryStartEncounter, escolhe a arena
- *   (AJRPGBattleArena::FindArenaFor), dispara OnEncounterTriggered/OnContact, some e reaparece
- *   depois do delay. (A luta em si é a Fase 4; o efeito de tela quebrando entra no OnContact.)
- * - Congela com menu aberto (estado da WebUI fora de HudOnly).
+ *   (AJRPGBattleArena::FindArenaFor), dispara OnEncounterTriggered/OnContact, some, começa a
+ *   luta (UBattleSubsystem::BeginBattle — o AJRPGBattleStage monta a cena) e reaparece depois
+ *   do delay. O efeito de tela quebrando entra no OnContact.
+ * - Congela com menu aberto (estado da WebUI fora de HudOnly). Durante uma luta, todos os
+ *   inimigos do Field somem e congelam; o respawn que cair no meio dela espera ela acabar.
  * - Sem navmesh: anda reto até o alvo.
  *
  * Avulso: ponha no mapa e configure o Encounter. Em zona: o AJRPGEncounterZone cria e cuida
@@ -212,6 +215,10 @@ public:
 	/** Quem luta quando ele encosta no jogador. Numa zona, vale o encounter da zona. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Encounter")
 	FJRPGEncounterSetup Encounter;
+
+	/** Encostar começa a luta. Desligado, o toque só anuncia o encontro (como na Fase 3). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Encounter")
+	bool bStartBattle = true;
 
 	// --- Detecção e perseguição ---
 
@@ -362,6 +369,15 @@ private:
 
 	UFUNCTION()
 	void HandleUIStateChanged(EJRPGUIState OldState, EJRPGUIState NewState);
+
+	UFUNCTION()
+	void HandleBattleStarted(const FJRPGBattleSetup& Setup, const TArray<FJRPGCombatant>& Combatants);
+
+	UFUNCTION()
+	void HandleBattleEnded(EJRPGBattleResult Result);
+
+	/** Congela com menu aberto ou durante uma luta. */
+	void UpdateFrozen();
 	void SetFrozen(bool bFreeze);
 
 	void Print(const FString& Message, const FColor& Color = FColor::Silver) const;
@@ -400,6 +416,8 @@ private:
 	float LostTime = 0.0f;
 	float LastReturnTime = -100.0f;
 	bool bFrozen = false;
+	bool bMenuOpen = false;
+	bool bInBattle = false;
 	bool bUsesAnimClass = false;
 
 	/** Sem navmesh: o alvo do andar reto. */

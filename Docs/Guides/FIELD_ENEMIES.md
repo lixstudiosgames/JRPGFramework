@@ -4,8 +4,11 @@ Visible enemies that wander the map, chase the player and start an encounter on 
 the remake's replacement for the original's random encounters. Phase 3 of
 [BATTLE_ROADMAP.md](../BATTLE_ROADMAP.md).
 
-There is **no battle yet** (Phase 4). On contact the enemy rolls who fights, announces the
-encounter, prints it on screen, disappears and comes back after a delay.
+On contact the enemy rolls who fights, prints it on screen, disappears, starts the fight —
+assembled by the battle stage ([BATTLE_STAGE.md](BATTLE_STAGE.md)) — and comes back after a
+delay. While a fight is on, every field enemy hides and freezes; a respawn that falls inside
+it waits for the end. `bStartBattle` off brings back Phase 3's behaviour: contact only
+announces the encounter.
 
 ---
 
@@ -82,8 +85,8 @@ not change the area. A spline with fewer than 3 points falls back to a sphere of
 
 On contact the enemy picks the **battle arena** for the fight — the `JRPGBattleArena` whose
 area contains the contact point, or the nearest one — and passes it in
-`FJRPGFieldEncounter::Arena`. With `bPrintDebug` it prints the arena's name and draws its
-formation for a few seconds. See
+`FJRPGFieldEncounter::Arena` (the battle stage picks the same one). With `bPrintDebug` it
+prints the arena's name and draws its formation for a few seconds. See
 [BATTLE_ROADMAP.md](../BATTLE_ROADMAP.md#ajrpgbattlearena--where-on-the-map-written-2026-10-27).
 
 ### The encounter
@@ -179,7 +182,5 @@ FieldEnemy BP_FieldEnemy_C_1 [gimard]: reapareceu (gimard: SK_Gimard)
 
 ## What comes next
 
-- **Phase 4:** the battle stage — `OnEncounterStarted` assembles the fight where the contact
-  happened.
-- The screen shatter in `OnContact`.
+- The screen shatter in `OnContact` (Phase 7; the stage fades to black meanwhile).
 - The level scaling the stats (`DT_Enemies` holds the base values).

@@ -161,9 +161,19 @@ void AJRPGFieldEnemy::BeginPlay()
 		if (UWebUISubsystem* WebUI = GI->GetSubsystem<UWebUISubsystem>())
 		{
 			WebUI->OnUIStateChanged.AddDynamic(this, &AJRPGFieldEnemy::HandleUIStateChanged);
-			SetFrozen(WebUI->GetUIState() != EJRPGUIState::HudOnly);
+			bMenuOpen = WebUI->GetUIState() != EJRPGUIState::HudOnly;
+		}
+		if (UBattleSubsystem* Battle = GI->GetSubsystem<UBattleSubsystem>())
+		{
+			Battle->OnBattleStarted.AddDynamic(this, &AJRPGFieldEnemy::HandleBattleStarted);
+			Battle->OnBattleEnded.AddDynamic(this, &AJRPGFieldEnemy::HandleBattleEnded);
+			if (Battle->IsInBattle())
+			{
+				HandleBattleStarted(Battle->GetBattleSetup(), Battle->GetCombatants());
+			}
 		}
 	}
+	UpdateFrozen();
 
 	EnterIdle(FMath::FRandRange(WaitTimeMin, WaitTimeMax));
 	GetWorldTimerManager().SetTimer(ThinkTimer, this, &AJRPGFieldEnemy::Think, DecisionInterval, true,
@@ -180,6 +190,11 @@ void AJRPGFieldEnemy::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		if (UWebUISubsystem* WebUI = GI->GetSubsystem<UWebUISubsystem>())
 		{
 			WebUI->OnUIStateChanged.RemoveDynamic(this, &AJRPGFieldEnemy::HandleUIStateChanged);
+		}
+		if (UBattleSubsystem* Battle = GI->GetSubsystem<UBattleSubsystem>())
+		{
+			Battle->OnBattleStarted.RemoveDynamic(this, &AJRPGFieldEnemy::HandleBattleStarted);
+			Battle->OnBattleEnded.RemoveDynamic(this, &AJRPGFieldEnemy::HandleBattleEnded);
 		}
 	}
 	Super::EndPlay(EndPlayReason);
@@ -725,14 +740,13 @@ void AJRPGFieldEnemy::TriggerEncounter()
 		return;
 	}
 
+	UBattleSubsystem* Battle = nullptr;
 	if (const UGameInstance* GI = GetGameInstance())
 	{
-		if (UBattleSubsystem* Battle = GI->GetSubsystem<UBattleSubsystem>())
+		Battle = GI->GetSubsystem<UBattleSubsystem>();
+		if (Battle && !Battle->TryStartEncounter(Enemies))
 		{
-			if (!Battle->TryStartEncounter(Enemies))
-			{
-				return; // outro encontro acabou de começar
-			}
+			return; // outro encontro acabou de começar, ou já há uma luta
 		}
 	}
 
@@ -763,12 +777,23 @@ void AJRPGFieldEnemy::TriggerEncounter()
 	}
 	else
 	{
-		Print(TEXT("nenhuma arena no mapa — a luta seria montada onde foi o toque"), FColor::Orange);
+		Print(TEXT("nenhuma arena no mapa — a luta é montada onde foi o toque"), FColor::Orange);
 	}
 
 	OnEncounterTriggered.Broadcast(Info);
 	OnContact(Info);
 	HideEnemy();
+
+	if (bStartBattle && Battle)
+	{
+		FJRPGBattleSetup Setup;
+		Setup.Enemies = Enemies;
+		Setup.Location = Info.ContactLocation;
+		// Sem arena, a party olha de quem encostou para o inimigo
+		const APawn* Player = GetPlayerPawn();
+		Setup.FacingYaw = Player ? (Info.ContactLocation - Player->GetActorLocation()).Rotation().Yaw : GetActorRotation().Yaw + 180.0f;
+		Battle->BeginBattle(Setup);
+	}
 }
 
 void AJRPGFieldEnemy::HideEnemy()
@@ -878,8 +903,9 @@ void AJRPGFieldEnemy::RespawnAtFloor(FVector FloorLocation)
 	{
 		HomeLocation = GetActorLocation();
 	}
-	SetActorHiddenInGame(false);
-	SetActorEnableCollision(true);
+	// No meio de uma luta ele volta para o lugar, mas só aparece quando ela acabar
+	SetActorHiddenInGame(bInBattle);
+	SetActorEnableCollision(!bInBattle);
 	LastReturnTime = GetWorld()->GetTimeSeconds(); // não pula em cima do jogador ao reaparecer
 	EnterIdle(FMath::FRandRange(WaitTimeMin, WaitTimeMax));
 	Print(FString::Printf(TEXT("reapareceu (%s)"), *VisualName), FColor::Cyan);
@@ -891,7 +917,36 @@ void AJRPGFieldEnemy::RespawnAtFloor(FVector FloorLocation)
 
 void AJRPGFieldEnemy::HandleUIStateChanged(EJRPGUIState OldState, EJRPGUIState NewState)
 {
-	SetFrozen(NewState != EJRPGUIState::HudOnly);
+	bMenuOpen = NewState != EJRPGUIState::HudOnly;
+	UpdateFrozen();
+}
+
+void AJRPGFieldEnemy::HandleBattleStarted(const FJRPGBattleSetup& Setup, const TArray<FJRPGCombatant>& Combatants)
+{
+	bInBattle = true;
+	StopMoving();
+	StopClipSounds();
+	SetActorHiddenInGame(true);
+	SetActorEnableCollision(false);
+	UpdateFrozen();
+}
+
+void AJRPGFieldEnemy::HandleBattleEnded(EJRPGBattleResult Result)
+{
+	bInBattle = false;
+	if (State != EJRPGFieldEnemyState::Hidden)
+	{
+		SetActorHiddenInGame(false);
+		SetActorEnableCollision(true);
+		// Volta a passear do zero: a perseguição de antes da luta não continua
+		EnterIdle(FMath::FRandRange(WaitTimeMin, WaitTimeMax));
+	}
+	UpdateFrozen();
+}
+
+void AJRPGFieldEnemy::UpdateFrozen()
+{
+	SetFrozen(bMenuOpen || bInBattle);
 }
 
 void AJRPGFieldEnemy::SetFrozen(bool bFreeze)

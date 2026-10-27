@@ -132,11 +132,20 @@ JRPGFramework/
 │   │   │   └── ArtsSubsystem.h 🟡               ← TeachArtToCharacter only (TODO)
 │   │   │
 │   │   └── Battle/ 🟡
-│   │       ├── BattleSubsystem.h 🟡             ← TryStartEncounter (grace window + OnEncounterStarted);
-│   │       │                                       ApplyBattleItemEffect still TODO
+│   │       ├── BattleSubsystem.h 🟡             ← TryStartEncounter (grace window), BeginBattle /
+│   │       │                                       EndBattle + OnBattleStarted/Ended; no turns yet
+│   │       │                                       (Phase 5); ApplyBattleItemEffect still TODO
+│   │       ├── BattleTypes.h ✅                 ← side, combatant type, result, FJRPGCombatant,
+│   │       │                                       FJRPGBattleSetup, FJRPGBattleVisual
 │   │       ├── JRPGBattleArena.h ✅             ← where on the map a fight is assembled: formation
 │   │       │                                       preview + ground check in the editor, hand-drawn
 │   │       │                                       area, FindArenaFor on contact (BATTLE_ROADMAP Phase 4)
+│   │       ├── JRPGBattleStage.h ✅             ← assembles/tears down the fight over the map (arena,
+│   │       │                                       hide field, pawns, camera, fade) + the world
+│   │       │                                       subsystem that spawns one per map. Guides/BATTLE_STAGE.md
+│   │       ├── JRPGBattlePawn.h ✅              ← one combatant in the scene: battle model in its seat
+│   │       ├── JRPGBattleSettings.h ✅          ← Project Settings > JRPG Battle (StageClass)
+│   │       ├── JRPGBattleWaves.h ✅             ← fights in a row, Muscle Dome style (test map)
 │   │       ├── JRPGEncounterTypes.h ✅          ← FJRPGEncounterEnemy/Setup/Combatant + the roll and
 │   │       │                                       DT_Enemies access (UJRPGEncounterLibrary)
 │   │       └── EnemyData.h ✅                   ← FJRPGEnemyData (DT_Enemies row: in-battle stats,
@@ -170,7 +179,8 @@ JRPGFramework/
 │       ├── Party/ ✅       (PartySubsystem.cpp ✅)
 │       ├── Status/ ✅      (StatusSubsystem.cpp ✅)
 │       ├── Arts/ 🟡        (ArtsSubsystem.cpp 🟡)
-│       └── Battle/ 🟡      (BattleSubsystem.cpp 🟡, JRPGBattleArena.cpp ✅)
+│       └── Battle/ 🟡      (BattleSubsystem.cpp 🟡, JRPGBattleArena.cpp ✅, JRPGBattleStage.cpp ✅,
+│                           JRPGBattlePawn.cpp ✅, JRPGBattleSettings.cpp ✅, JRPGBattleWaves.cpp ✅)
 │
 ├── Shaders/ ✅                                  ← mapped to /Plugin/JRPGFramework
 │   ├── UltralightBlitShader.usf ✅              ← full-screen blit of the Ultralight texture (JRPGWebBrowser)

@@ -3,20 +3,13 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Core/JRPGSplineArea.h"
+#include "Battle/BattleTypes.h"
 #include "JRPGBattleArena.generated.h"
 
 class USplineComponent;
 class UBillboardComponent;
 class USkeletalMesh;
 class USkeletalMeshComponent;
-
-/** De que lado da luta. */
-UENUM(BlueprintType)
-enum class EJRPGBattleSide : uint8
-{
-	Party,
-	Enemy
-};
 
 /** De onde saem os lugares da formação automática. */
 UENUM(BlueprintType)
@@ -87,8 +80,8 @@ struct JRPGFRAMEWORK_API FJRPGArenaSeat
  * toque (empate: a mais próxima); fora de todas, a mais próxima com bUseAsFallback; mapa sem
  * arena: nenhuma (a luta é montada onde foi o toque).
  *
- * Fase 4 (BATTLE_ROADMAP.md): o palco da batalha pede os lugares com GetFormation. Hoje o
- * inimigo do Field só escolhe a arena no toque e mostra a formação com bPrintDebug.
+ * O AJRPGBattleStage pede os lugares com GetFormation, esconde HideDuringBattle e, com
+ * BattleCamera, usa essa câmera no lugar do enquadramento automático.
  */
 UCLASS(Blueprintable)
 class JRPGFRAMEWORK_API AJRPGBattleArena : public AActor
@@ -176,6 +169,19 @@ public:
 	/** Lugares dos inimigos, relativos à arena. Índice que falta cai na formação automática. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Formation", meta = (MakeEditWidget, EditCondition = "bManualSeats"))
 	TArray<FTransform> EnemySeats;
+
+	// --- Durante a luta -----------------------------------------------------------------------
+
+	/** Atores escondidos enquanto a luta acontece aqui (a árvore na frente da câmera, um NPC). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Battle")
+	TArray<TObjectPtr<AActor>> HideDuringBattle;
+
+	/**
+	 * Opcional: uma câmera posta à mão (CameraActor / CineCameraActor) para as lutas desta arena.
+	 * Vazio, o palco enquadra todos os combatentes (UCameraSubsystem::FrameGroup).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Battle")
+	TObjectPtr<AActor> BattleCamera;
 
 	// --- Chão ---------------------------------------------------------------------------------
 

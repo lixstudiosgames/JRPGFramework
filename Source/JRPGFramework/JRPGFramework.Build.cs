@@ -36,7 +36,8 @@ public class JRPGFramework : ModuleRules
 				"UMG",
 				"Projects",
 				"RHI",
-				"RenderCore"
+				"RenderCore",
+				"DeveloperSettings" // Project Settings > JRPG Battle (JRPGBattleSettings.h)
 			}
 		);
 				
