@@ -148,6 +148,9 @@ private:
 	void Respawn(TWeakObjectPtr<AJRPGFieldEnemy> Enemy);
 	void Print(const FString& Message, const FColor& Color = FColor::Silver) const;
 
+	/** Já avisou que o navmesh não cobre a zona (avisa uma vez por play). */
+	mutable bool bWarnedNoNavmesh = false;
+
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AJRPGFieldEnemy>> Enemies;
 

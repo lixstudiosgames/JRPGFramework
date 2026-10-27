@@ -146,7 +146,8 @@ void AJRPGEncounterZone::SpawnEnemy()
 	FVector Floor;
 	if (!GetRandomFloorPoint(Floor))
 	{
-		Print(TEXT("não achei chão dentro da zona para criar um inimigo"), FColor::Red);
+		Print(FString::Printf(TEXT("não achei chão dentro da zona para criar um inimigo (procurando %.0f acima e abaixo do ator — FloorSearchDistance)"),
+			GetEffectiveShape() == EJRPGEncounterZoneShape::Box ? FMath::Max(BoxExtent.Z, 100.0f) : FloorSearchDistance), FColor::Red);
 		return;
 	}
 
@@ -207,6 +208,10 @@ bool AJRPGEncounterZone::GetRandomFloorPoint(FVector& OutFloor) const
 	const float SearchZ = Effective == EJRPGEncounterZoneShape::Box ? FMath::Max(BoxExtent.Z, 100.0f) : FloorSearchDistance;
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(JRPGEncounterZoneFloor), false, this);
 
+	// Chão achado mas fora do navmesh: serve se nenhum ponto cair no navmesh (mapa sem navmesh,
+	// ou ele ainda não foi gerado) — o inimigo anda reto quando não há caminho
+	TOptional<FVector> FloorWithoutNav;
+
 	for (int32 i = 0; i < PointAttempts; ++i)
 	{
 		FVector Candidate;
@@ -246,6 +251,10 @@ bool AJRPGEncounterZone::GetRandomFloorPoint(FVector& OutFloor) const
 				OutFloor = OnNav.Location;
 				return true;
 			}
+			if (bFloor && !FloorWithoutNav.IsSet())
+			{
+				FloorWithoutNav = FVector(Hit.ImpactPoint);
+			}
 			continue;
 		}
 
@@ -254,6 +263,23 @@ bool AJRPGEncounterZone::GetRandomFloorPoint(FVector& OutFloor) const
 			OutFloor = Hit.ImpactPoint;
 			return true;
 		}
+	}
+
+	if (FloorWithoutNav.IsSet())
+	{
+		if (!bWarnedNoNavmesh)
+		{
+			bWarnedNoNavmesh = true;
+			// Aviso sempre, com ou sem bPrintDebug: é problema do mapa, não da zona
+			const FString Line = FString::Printf(TEXT("EncounterZone %s: o navmesh não cobre a zona (Build > Build Paths, ou falta NavMeshBoundsVolume) — os inimigos nascem no chão e andam reto"), *GetActorNameOrLabel());
+			UE_LOG(LogTemp, Warning, TEXT("%s"), *Line);
+			if (GEngine)
+			{
+				GEngine->AddOnScreenDebugMessage(-1, 8.0f, FColor::Orange, Line);
+			}
+		}
+		OutFloor = FloorWithoutNav.GetValue();
+		return true;
 	}
 	return false;
 }
@@ -267,7 +293,10 @@ float AJRPGEncounterZone::DistanceOutside(const FVector& Point) const
 	}
 	if (Effective == EJRPGEncounterZoneShape::Sphere)
 	{
-		return FMath::Max(0.0f, FVector::Dist2D(Point, GetActorLocation()) - Radius);
+		// A esfera desenhada (e os pontos sorteados) crescem com a escala do ator
+		const FVector Scale = GetActorScale3D();
+		const float ScaledRadius = Radius * FMath::Max(FMath::Abs(Scale.X), FMath::Abs(Scale.Y));
+		return FMath::Max(0.0f, FVector::Dist2D(Point, GetActorLocation()) - ScaledRadius);
 	}
 	const FVector Local = GetActorTransform().InverseTransformPosition(Point);
 	const float Dx = FMath::Max(0.0f, FMath::Abs(Local.X) - BoxExtent.X);
