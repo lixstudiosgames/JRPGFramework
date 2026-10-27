@@ -20,6 +20,7 @@ class USkeletalMesh;
 class UJRPGMistDisturberComponent;
 class AJRPGEncounterZone;
 class AJRPGFieldEnemy;
+class AJRPGBattleArena;
 
 /** O que o inimigo do Field está fazendo. */
 UENUM(BlueprintType)
@@ -86,6 +87,10 @@ struct JRPGFRAMEWORK_API FJRPGFieldEncounter
 
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Field|Enemy")
 	FVector ContactLocation = FVector::ZeroVector;
+
+	/** Onde a luta vai ser montada (AJRPGBattleArena::FindArenaFor no ContactLocation); nulo se o mapa não tem arena. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Field|Enemy")
+	TObjectPtr<AJRPGBattleArena> Arena = nullptr;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGFieldEncounter, const FJRPGFieldEncounter&, Encounter);
@@ -104,9 +109,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGFieldEncounter, const FJRPGFi
  *   DetectRadius -> Return quando ele passa do LoseRadius por GiveUpTime, ou quando o inimigo
  *   se afasta LeashDistance de casa/da zona. O alvo é o pawn que o jogador controla (acompanha
  *   o R3); os seguidores da party nunca disparam nada.
- * - Toque: sorteia o encounter, pede o UBattleSubsystem::TryStartEncounter, dispara
- *   OnEncounterTriggered/OnContact, some e reaparece depois do delay. (A luta em si é a Fase 4;
- *   o efeito de tela quebrando entra no OnContact.)
+ * - Toque: sorteia o encounter, pede o UBattleSubsystem::TryStartEncounter, escolhe a arena
+ *   (AJRPGBattleArena::FindArenaFor), dispara OnEncounterTriggered/OnContact, some e reaparece
+ *   depois do delay. (A luta em si é a Fase 4; o efeito de tela quebrando entra no OnContact.)
  * - Congela com menu aberto (estado da WebUI fora de HudOnly).
  * - Sem navmesh: anda reto até o alvo.
  *

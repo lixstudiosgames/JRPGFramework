@@ -4,6 +4,7 @@
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SphereComponent.h"
+#include "Components/SplineComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -38,6 +39,22 @@ AJRPGEncounterZone::AJRPGEncounterZone()
 		Area->SetLineThickness(3.0f);
 	}
 
+	// Spline: começa como um quadrado de 20 m de lado, com cantos retos
+	AreaSpline = CreateDefaultSubobject<USplineComponent>(TEXT("AreaSpline"));
+	AreaSpline->SetupAttachment(Root);
+	AreaSpline->SetSplinePoints({ FVector(1000.0f, 1000.0f, 0.0f), FVector(1000.0f, -1000.0f, 0.0f),
+		FVector(-1000.0f, -1000.0f, 0.0f), FVector(-1000.0f, 1000.0f, 0.0f) }, ESplineCoordinateSpace::Local, false);
+	for (int32 i = 0; i < AreaSpline->GetNumberOfSplinePoints(); ++i)
+	{
+		AreaSpline->SetSplinePointType(i, ESplinePointType::Linear, false);
+	}
+	AreaSpline->SetClosedLoop(true, true);
+	AreaSpline->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	AreaSpline->SetHiddenInGame(true);
+#if WITH_EDITORONLY_DATA
+	AreaSpline->EditorUnselectedSplineSegmentColor = FLinearColor(1.0f, 0.24f, 0.24f);
+#endif
+
 	EnemyClass = AJRPGFieldEnemy::StaticClass();
 
 #if WITH_EDITORONLY_DATA
@@ -57,16 +74,38 @@ void AJRPGEncounterZone::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 
-	const bool bSphere = Shape == EJRPGEncounterZoneShape::Sphere;
+	SplineArea.Build(AreaSpline);
 	AreaSphere->SetSphereRadius(Radius);
 	AreaBox->SetBoxExtent(BoxExtent);
-	AreaSphere->SetVisibility(bSphere);
-	AreaBox->SetVisibility(!bSphere);
+	AreaSphere->SetVisibility(Shape == EJRPGEncounterZoneShape::Sphere);
+	AreaBox->SetVisibility(Shape == EJRPGEncounterZoneShape::Box);
+	AreaSpline->SetVisibility(Shape == EJRPGEncounterZoneShape::Spline);
+}
+
+void AJRPGEncounterZone::SnapAreaToGround()
+{
+	FJRPGSplineArea::SnapSplineToGround(AreaSpline, FloorSearchDistance, this);
+	SplineArea.Build(AreaSpline);
+}
+
+EJRPGEncounterZoneShape AJRPGEncounterZone::GetEffectiveShape() const
+{
+	if (Shape == EJRPGEncounterZoneShape::Spline && !SplineArea.IsValid())
+	{
+		return EJRPGEncounterZoneShape::Sphere;
+	}
+	return Shape;
 }
 
 void AJRPGEncounterZone::BeginPlay()
 {
 	Super::BeginPlay();
+
+	SplineArea.Build(AreaSpline);
+	if (Shape == EJRPGEncounterZoneShape::Spline && !SplineArea.IsValid())
+	{
+		Print(TEXT("Shape = Spline com menos de 3 pontos — usando o Radius como esfera"), FColor::Orange);
+	}
 
 	if (!IsUnlocked())
 	{
@@ -164,22 +203,32 @@ bool AJRPGEncounterZone::GetRandomFloorPoint(FVector& OutFloor) const
 	const UWorld* World = GetWorld();
 	const UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
 	const FTransform& T = GetActorTransform();
-	const float SearchZ = Shape == EJRPGEncounterZoneShape::Box ? FMath::Max(BoxExtent.Z, 100.0f) : FloorSearchDistance;
+	const EJRPGEncounterZoneShape Effective = GetEffectiveShape();
+	const float SearchZ = Effective == EJRPGEncounterZoneShape::Box ? FMath::Max(BoxExtent.Z, 100.0f) : FloorSearchDistance;
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(JRPGEncounterZoneFloor), false, this);
 
 	for (int32 i = 0; i < PointAttempts; ++i)
 	{
-		FVector Local;
-		if (Shape == EJRPGEncounterZoneShape::Sphere)
+		FVector Candidate;
+		if (Effective == EJRPGEncounterZoneShape::Spline)
+		{
+			// O contorno já está em espaço de mundo; a altura é a do ator
+			FVector2D P;
+			if (!SplineArea.RandomPoint(P))
+			{
+				continue;
+			}
+			Candidate = FVector(P.X, P.Y, T.GetLocation().Z);
+		}
+		else if (Effective == EJRPGEncounterZoneShape::Sphere)
 		{
 			const FVector2D P = FMath::RandPointInCircle(Radius);
-			Local = FVector(P.X, P.Y, 0.0f);
+			Candidate = T.TransformPosition(FVector(P.X, P.Y, 0.0f));
 		}
 		else
 		{
-			Local = FVector(FMath::FRandRange(-BoxExtent.X, BoxExtent.X), FMath::FRandRange(-BoxExtent.Y, BoxExtent.Y), 0.0f);
+			Candidate = T.TransformPosition(FVector(FMath::FRandRange(-BoxExtent.X, BoxExtent.X), FMath::FRandRange(-BoxExtent.Y, BoxExtent.Y), 0.0f));
 		}
-		const FVector Candidate = T.TransformPosition(Local);
 
 		// O chão embaixo (ou em cima) do ponto: a zona pode estar no ar ou meio enterrada
 		FHitResult Hit;
@@ -211,7 +260,12 @@ bool AJRPGEncounterZone::GetRandomFloorPoint(FVector& OutFloor) const
 
 float AJRPGEncounterZone::DistanceOutside(const FVector& Point) const
 {
-	if (Shape == EJRPGEncounterZoneShape::Sphere)
+	const EJRPGEncounterZoneShape Effective = GetEffectiveShape();
+	if (Effective == EJRPGEncounterZoneShape::Spline)
+	{
+		return SplineArea.DistanceOutside(Point);
+	}
+	if (Effective == EJRPGEncounterZoneShape::Sphere)
 	{
 		return FMath::Max(0.0f, FVector::Dist2D(Point, GetActorLocation()) - Radius);
 	}

@@ -59,8 +59,8 @@ Drop a **`JRPGEncounterZone`**:
 
 | Property | |
 |---|---|
-| `Shape` | **Sphere** (`Radius`) or **Box** (`BoxExtent`, rotates with the actor). Drawn in the editor |
-| `FloorSearchDistance` | Sphere: how far above and below the centre to look for the ground — the zone may float or sit half underground (2000) |
+| `Shape` | **Sphere** (`Radius`), **Box** (`BoxExtent`, rotates with the actor) or **Spline** (`AreaSpline`: a closed outline drawn by hand, any shape — concave included). Drawn in the editor |
+| `FloorSearchDistance` | Sphere/Spline: how far above and below the zone actor to look for the ground — the zone may float or sit half underground (2000) |
 | `EnemyClass` | `BP_FieldEnemy` |
 | `Encounter` | Who fights when any of its enemies touches the player |
 | `Visuals` | Optional: overrides the model for this zone's enemies |
@@ -70,6 +70,21 @@ Drop a **`JRPGEncounterZone`**:
 
 Enemies spawn on navmesh points **inside the shape**, wander inside it, and when they give up a
 chase they walk back into it. The zone's `Encounter` replaces each enemy's own.
+
+**Spline shape.** Select the zone, then the `AreaSpline` points: drag them, Alt+drag one to
+add a point, right-click a point for more options. It starts as a 20 m square with straight
+corners; curved points work too. Only the outline **seen from above** counts — the points'
+height does not — so the spline may cut through hills. **Snap Area To Ground** (button in the
+details panel) moves the points down onto the terrain so the outline is easy to see; it does
+not change the area. A spline with fewer than 3 points falls back to a sphere of `Radius`.
+
+### Where the fight happens
+
+On contact the enemy picks the **battle arena** for the fight — the `JRPGBattleArena` whose
+area contains the contact point, or the nearest one — and passes it in
+`FJRPGFieldEncounter::Arena`. With `bPrintDebug` it prints the arena's name and draws its
+formation for a few seconds. See
+[BATTLE_ROADMAP.md](../BATTLE_ROADMAP.md#ajrpgbattlearena--where-on-the-map-written-2026-10-27).
 
 ### The encounter
 

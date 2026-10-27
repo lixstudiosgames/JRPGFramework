@@ -23,6 +23,9 @@ JRPGFramework/
 │   │   │   ├── ProgressionTypes.h ✅            ← EJRPGDifficulty + FDifficultyScaling,
 │   │   │   │                                       FLevelCurveRow, FStatGrowthRow, FGrowthCurveRow
 │   │   │   ├── JRPGGameInstance.h ✅            ← GameInstance base class (GI_Main inherits it)
+│   │   │   ├── JRPGSplineArea.h ✅              ← FJRPGSplineArea: a closed spline seen from above as a
+│   │   │   │                                       2D area (contains / distance / random point);
+│   │   │   │                                       encounter zone + battle arena
 │   │   │   └── JRPGTypes.h ✅                   ← global enums and structs
 │   │   │
 │   │   ├── Save/ ✅                             ← SAVE/LOAD COMPLETE
@@ -65,8 +68,8 @@ JRPGFramework/
 │   │   │   ├── JRPGFieldEnemyController.h ✅    ← AI controller of the field enemies (MoveTo)
 │   │   │   ├── JRPGFieldEnemyAnimInstance.h ✅  ← native anim instance, no Anim Blueprint: Idle/Walk/Run
 │   │   │   │                                       with crossfade, notifies fire; any skeleton
-│   │   │   ├── JRPGEncounterZone.h ✅           ← sphere/box area keeping MaxAlive enemies, respawn,
-│   │   │   │                                       event-flag gate
+│   │   │   ├── JRPGEncounterZone.h ✅           ← sphere/box/spline area keeping MaxAlive enemies,
+│   │   │   │                                       respawn, event-flag gate
 │   │   │   ├── JRPGFieldMapSettings.h ✅        ← one per map: base camera, controls, speeds,
 │   │   │   │                                       whether the party shows
 │   │   │   ├── JRPGInteractable.h ✅            ← interface: Interact(InteractingActor)
@@ -131,6 +134,9 @@ JRPGFramework/
 │   │   └── Battle/ 🟡
 │   │       ├── BattleSubsystem.h 🟡             ← TryStartEncounter (grace window + OnEncounterStarted);
 │   │       │                                       ApplyBattleItemEffect still TODO
+│   │       ├── JRPGBattleArena.h ✅             ← where on the map a fight is assembled: formation
+│   │       │                                       preview + ground check in the editor, hand-drawn
+│   │       │                                       area, FindArenaFor on contact (BATTLE_ROADMAP Phase 4)
 │   │       ├── JRPGEncounterTypes.h ✅          ← FJRPGEncounterEnemy/Setup/Combatant + the roll and
 │   │       │                                       DT_Enemies access (UJRPGEncounterLibrary)
 │   │       └── EnemyData.h ✅                   ← FJRPGEnemyData (DT_Enemies row: in-battle stats,
@@ -141,7 +147,7 @@ JRPGFramework/
 │       ├── JRPGFramework.cpp ✅
 │       ├── JRPGFrameworkPCH.h ✅              ← module PCH: reads the engine headers that fire C4996
 │       │                                       with the warning off (Guides/BUILDING.md)
-│       ├── Core/ ✅        (CoreSubsystem.cpp ✅, JRPGGameInstance.cpp ✅)
+│       ├── Core/ ✅        (CoreSubsystem.cpp ✅, JRPGGameInstance.cpp ✅, JRPGSplineArea.cpp ✅)
 │       ├── Save/ ✅        (SaveSubsystem.cpp ✅, JRPGSaveGame.cpp ✅)
 │       ├── Inventory/ ✅   (InventorySubsystem.cpp ✅)
 │       ├── World/ ✅       (WorldStateSubsystem.cpp ✅, JRPGMistVolume.cpp ✅,
@@ -164,7 +170,7 @@ JRPGFramework/
 │       ├── Party/ ✅       (PartySubsystem.cpp ✅)
 │       ├── Status/ ✅      (StatusSubsystem.cpp ✅)
 │       ├── Arts/ 🟡        (ArtsSubsystem.cpp 🟡)
-│       └── Battle/ 🟡      (BattleSubsystem.cpp 🟡)
+│       └── Battle/ 🟡      (BattleSubsystem.cpp 🟡, JRPGBattleArena.cpp ✅)
 │
 ├── Shaders/ ✅                                  ← mapped to /Plugin/JRPGFramework
 │   ├── UltralightBlitShader.usf ✅              ← full-screen blit of the Ultralight texture (JRPGWebBrowser)

@@ -3,6 +3,7 @@
 #include "Field/JRPGFieldEnemyController.h"
 #include "Field/JRPGFieldEnemyAnimInstance.h"
 #include "Battle/BattleSubsystem.h"
+#include "Battle/JRPGBattleArena.h"
 #include "World/JRPGMistDisturberComponent.h"
 #include "AIController.h"
 #include "Animation/AnimInstance.h"
@@ -740,6 +741,7 @@ void AJRPGFieldEnemy::TriggerEncounter()
 	Info.FieldEnemy = this;
 	Info.Zone = Zone;
 	Info.ContactLocation = GetActorLocation();
+	Info.Arena = AJRPGBattleArena::FindArenaFor(this, Info.ContactLocation);
 
 	TArray<FString> Names;
 	for (const FJRPGEncounterCombatant& C : Enemies)
@@ -751,6 +753,18 @@ void AJRPGFieldEnemy::TriggerEncounter()
 			bFound ? *FString::Printf(TEXT(" (HP %d)"), Data.BaseHP) : TEXT(" (fora do DT_Enemies!)")));
 	}
 	Print(FString::Printf(TEXT("ENCONTRO! %s"), *FString::Join(Names, TEXT(", "))), FColor::Red);
+	if (Info.Arena)
+	{
+		Print(FString::Printf(TEXT("luta na arena %s"), *Info.Arena->GetActorNameOrLabel()), FColor::Cyan);
+		if (bPrintDebug)
+		{
+			Info.Arena->DrawDebugFormation(Info.Arena->PreviewPartyCount, Enemies.Num(), 5.0f);
+		}
+	}
+	else
+	{
+		Print(TEXT("nenhuma arena no mapa — a luta seria montada onde foi o toque"), FColor::Orange);
+	}
 
 	OnEncounterTriggered.Broadcast(Info);
 	OnContact(Info);

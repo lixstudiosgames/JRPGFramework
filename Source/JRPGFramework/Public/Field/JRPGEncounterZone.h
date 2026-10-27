@@ -4,10 +4,12 @@
 #include "GameFramework/Actor.h"
 #include "Battle/JRPGEncounterTypes.h"
 #include "Field/JRPGFieldEnemy.h"
+#include "Core/JRPGSplineArea.h"
 #include "JRPGEncounterZone.generated.h"
 
 class USphereComponent;
 class UBoxComponent;
+class USplineComponent;
 class UBillboardComponent;
 
 /** Forma da área de uma zona de encontro. */
@@ -17,7 +19,12 @@ enum class EJRPGEncounterZoneShape : uint8
 	/** Um raio em volta da zona (círculo no chão). */
 	Sphere,
 	/** Uma caixa (pode girar com o ator). */
-	Box
+	Box,
+	/**
+	 * Um contorno desenhado à mão (spline fechado, visto de cima): qualquer formato, inclusive
+	 * côncavo. Alt+arrastar um ponto cria outro.
+	 */
+	Spline
 };
 
 /**
@@ -52,6 +59,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone")
 	TObjectPtr<UBoxComponent> AreaBox;
 
+	/** Shape = Spline: o contorno da zona. Só a forma vista de cima conta. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone")
+	TObjectPtr<USplineComponent> AreaSpline;
+
 #if WITH_EDITORONLY_DATA
 	/** Só no editor: o ícone vermelho no centro da zona. */
 	UPROPERTY()
@@ -64,8 +75,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone", meta = (ClampMin = "50.0", EditCondition = "Shape == EJRPGEncounterZoneShape::Sphere", EditConditionHides))
 	float Radius = 1000.0f;
 
-	/** Esfera: até onde procurar o chão acima e abaixo do centro (a zona pode estar no ar). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone", meta = (ClampMin = "50.0", EditCondition = "Shape == EJRPGEncounterZoneShape::Sphere", EditConditionHides))
+	/** Esfera/Spline: até onde procurar o chão acima e abaixo do ator (a zona pode estar no ar). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone", meta = (ClampMin = "50.0", EditCondition = "Shape != EJRPGEncounterZoneShape::Box", EditConditionHides))
 	float FloorSearchDistance = 2000.0f;
 
 	/** Metade do tamanho da caixa; o Z é até onde procurar o chão acima e abaixo. */
@@ -119,6 +130,10 @@ public:
 	/** Chamado pelo inimigo que sumiu: agenda a volta dele num ponto novo. */
 	void NotifyEnemyHidden(AJRPGFieldEnemy* Enemy);
 
+	/** Spline: desce os pontos do contorno até o chão (só o desenho; a área é a mesma). */
+	UFUNCTION(CallInEditor, Category = "JRPG|Encounter Zone")
+	void SnapAreaToGround();
+
 	virtual void OnConstruction(const FTransform& Transform) override;
 
 protected:
@@ -126,6 +141,8 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+	/** O Shape de verdade: Spline com menos de 3 pontos vira Sphere (com aviso). */
+	EJRPGEncounterZoneShape GetEffectiveShape() const;
 	bool IsUnlocked() const;
 	void SpawnEnemy();
 	void Respawn(TWeakObjectPtr<AJRPGFieldEnemy> Enemy);
@@ -133,4 +150,7 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AJRPGFieldEnemy>> Enemies;
+
+	/** O AreaSpline amostrado (OnConstruction no editor, BeginPlay no jogo). */
+	FJRPGSplineArea SplineArea;
 };
