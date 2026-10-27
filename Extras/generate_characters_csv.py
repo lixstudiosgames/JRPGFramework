@@ -38,6 +38,10 @@ COLUMNS = ["Key", "XPCurveSlot", "DisplayName", "PortraitId", "RaSeru", "RaSeruE
 # Preenchidas à mão (asset paths da Fase 2): o CSV atual é a fonte delas
 MANUAL_COLUMNS = ["BattleMesh", "BattleAnims"]
 
+# Vazio de cada coluna manual. Struct vazio tem de ser "()": célula em branco faz a importação
+# da Unreal falhar ("Missing opening parenthesis").
+MANUAL_EMPTY = {"BattleMesh": "", "BattleAnims": "()"}
+
 # Atributos iniciais (level 1) do jogo original US.
 #
 # Fonte: tabela de new game em SCUS_942.54, base 0x80078C4C, stride 26 bytes
@@ -181,7 +185,7 @@ def main():
             "True" if c.get("left_handed") else "False",
         ] + [str(v) for v in base_stats(key)] + [
             c.get("notes", ""),
-        ] + [manual.get(key, {}).get(col, "") for col in MANUAL_COLUMNS])
+        ] + [manual.get(key, {}).get(col, "") or MANUAL_EMPTY[col] for col in MANUAL_COLUMNS])
 
     # CRLF como os demais CSVs de DataTable do projeto
     with open(CSV_PATH, "w", encoding="utf-8", newline="") as f:
