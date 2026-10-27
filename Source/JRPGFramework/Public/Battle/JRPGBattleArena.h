@@ -305,6 +305,13 @@ public:
 	// --- A luta montada aqui ------------------------------------------------------------------
 
 	/**
+	 * No toque, antes do fade: tira o controle do jogador e para a party do Field na hora (o
+	 * personagem e os seguidores), para ninguém continuar correndo enquanto a tela escurece.
+	 * TeardownBattle devolve o controle.
+	 */
+	void StopFieldForBattle();
+
+	/**
 	 * Monta a cena: esconde o Field, desliga o controle, cria os combatentes nos lugares e aponta
 	 * a câmera. Chamado pelo UJRPGBattleSceneSubsystem com a tela já preta.
 	 */
@@ -397,6 +404,8 @@ private:
 
 	TArray<FHiddenActor> HiddenActors;
 	TWeakObjectPtr<APlayerController> InputController;
+	/** O controle do Field já foi tirado (StopFieldForBattle ou AssembleBattle). */
+	bool bFieldInputOff = false;
 	bool bRestoreFieldInput = false;
 	bool bRestoreMoveInput = false;
 	bool bBattleAssembled = false;

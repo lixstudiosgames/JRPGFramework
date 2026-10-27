@@ -407,8 +407,17 @@ void AJRPGFieldEnemy::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	if (State == EJRPGFieldEnemyState::Hidden || bFrozen)
+	if (State == EJRPGFieldEnemyState::Hidden)
 	{
+		return;
+	}
+	if (bFrozen)
+	{
+		// Parado pela luta: sem decidir nem andar, mas a animação passa para o Idle
+		if (!bMenuOpen)
+		{
+			UpdateAnimation();
+		}
 		return;
 	}
 
@@ -795,17 +804,30 @@ void AJRPGFieldEnemy::TriggerEncounter()
 
 	OnEncounterTriggered.Broadcast(Info);
 	OnContact(Info);
-	HideEnemy();
 
-	if (bStartBattle && Battle)
+	if (!bStartBattle || !Battle)
 	{
-		FJRPGBattleSetup Setup;
-		Setup.Enemies = Enemies;
-		Setup.Location = Info.ContactLocation;
-		// Sem arena, a party olha de quem encostou para o inimigo
-		const APawn* Player = GetPlayerPawn();
-		Setup.FacingYaw = Player ? (Info.ContactLocation - Player->GetActorLocation()).Rotation().Yaw : GetActorRotation().Yaw + 180.0f;
-		Battle->BeginBattle(Setup);
+		HideEnemy();
+		return;
+	}
+
+	// Fica parado à vista (sem colisão, para não encostar de novo) até a tela ficar preta; aí some
+	// e agenda o respawn (HandleFieldHidden)
+	bHideWhenFieldHidden = true;
+	SetActorEnableCollision(false);
+	StopMoving();
+	GetCharacterMovement()->StopMovementImmediately();
+
+	FJRPGBattleSetup Setup;
+	Setup.Enemies = Enemies;
+	Setup.Location = Info.ContactLocation;
+	// Sem arena, a party olha de quem encostou para o inimigo
+	const APawn* Player = GetPlayerPawn();
+	Setup.FacingYaw = Player ? (Info.ContactLocation - Player->GetActorLocation()).Rotation().Yaw : GetActorRotation().Yaw + 180.0f;
+	if (!Battle->BeginBattle(Setup))
+	{
+		bHideWhenFieldHidden = false;
+		HideEnemy();
 	}
 }
 
@@ -936,9 +958,10 @@ void AJRPGFieldEnemy::HandleUIStateChanged(EJRPGUIState OldState, EJRPGUIState N
 
 void AJRPGFieldEnemy::HandleBattleStarted(const FJRPGBattleSetup& Setup, const TArray<FJRPGCombatant>& Combatants)
 {
-	// Para onde está; some só com a tela preta (HandleFieldHidden)
+	// Para na hora, onde está, e fica em Idle; some só com a tela preta (HandleFieldHidden)
 	bInBattle = true;
 	StopMoving();
+	GetCharacterMovement()->StopMovementImmediately();
 	StopClipSounds();
 	UpdateFrozen();
 }
@@ -946,6 +969,13 @@ void AJRPGFieldEnemy::HandleBattleStarted(const FJRPGBattleSetup& Setup, const T
 void AJRPGFieldEnemy::HandleFieldHidden()
 {
 	bHiddenForBattle = true;
+	if (bHideWhenFieldHidden)
+	{
+		// Quem encostou: some e agenda o respawn (que espera a luta sair da tela)
+		bHideWhenFieldHidden = false;
+		HideEnemy();
+		return;
+	}
 	SetActorHiddenInGame(true);
 	SetActorEnableCollision(false);
 	StopClipSounds();
@@ -959,6 +989,12 @@ void AJRPGFieldEnemy::HandleFieldShown()
 {
 	bInBattle = false;
 	bHiddenForBattle = false;
+	if (bHideWhenFieldHidden)
+	{
+		// A luta acabou antes da tela ficar preta: quem encostou some agora, como sem luta
+		bHideWhenFieldHidden = false;
+		HideEnemy();
+	}
 	if (State != EJRPGFieldEnemyState::Hidden)
 	{
 		SetActorHiddenInGame(false);
@@ -991,14 +1027,12 @@ void AJRPGFieldEnemy::UpdateFrozen()
 
 void AJRPGFieldEnemy::SetFrozen(bool bFreeze)
 {
-	if (bFrozen == bFreeze)
-	{
-		return;
-	}
 	bFrozen = bFreeze;
-	// Dilatação 0 para movimento e animação; o Think também não decide nada enquanto isso
-	CustomTimeDilation = bFreeze ? 0.0f : 1.0f;
+	// Menu aberto: o mundo pausa (dilatação 0 para movimento e animação). Luta: ele só para de
+	// decidir e andar — a animação continua, para ele ficar em Idle e não travado no meio do passo
+	CustomTimeDilation = bMenuOpen ? 0.0f : 1.0f;
 }
+
 
 // ---------------------------------------------------------------------------------------------
 

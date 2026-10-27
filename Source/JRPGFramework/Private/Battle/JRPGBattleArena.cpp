@@ -4,6 +4,7 @@
 #include "Camera/CameraSubsystem.h"
 #include "Field/JRPGFieldCharacter.h"
 #include "Field/JRPGFieldPlayerController.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/GameInstance.h"
 #include "Party/CharacterData.h"
@@ -595,6 +596,20 @@ void AJRPGBattleArena::AssembleBattle(const FJRPGBattleSetup& Setup, const TArra
 	Print(FString::Printf(TEXT("luta montada: %d herói(s), %d inimigo(s)"), PartyCount, EnemyCount), FColor::Cyan);
 }
 
+void AJRPGBattleArena::StopFieldForBattle()
+{
+	DisableFieldInput();
+	for (TActorIterator<AJRPGFieldCharacter> It(GetWorld()); It; ++It)
+	{
+		// O seguidor anda por MoveTo: parar o caminho e a velocidade, senão ele desliza até parar
+		if (AController* Controller = It->GetController())
+		{
+			Controller->StopMovement();
+		}
+		It->GetCharacterMovement()->StopMovementImmediately();
+	}
+}
+
 void AJRPGBattleArena::TeardownBattle()
 {
 	for (AJRPGBattlePawn* Pawn : BattlePawns)
@@ -704,6 +719,11 @@ void AJRPGBattleArena::RestoreHiddenActors()
 
 void AJRPGBattleArena::DisableFieldInput()
 {
+	if (bFieldInputOff)
+	{
+		return; // já tirado no toque (StopFieldForBattle): não regravar o estado "desligado"
+	}
+	bFieldInputOff = true;
 	APlayerController* PC = GetPlayerController();
 	InputController = PC;
 	bRestoreFieldInput = false;
@@ -741,6 +761,7 @@ void AJRPGBattleArena::RestoreFieldInput()
 		}
 	}
 	InputController = nullptr;
+	bFieldInputOff = false;
 	bRestoreFieldInput = false;
 	bRestoreMoveInput = false;
 }

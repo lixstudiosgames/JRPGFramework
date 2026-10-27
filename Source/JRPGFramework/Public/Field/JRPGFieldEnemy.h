@@ -115,10 +115,11 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGFieldEncounter, const FJRPGFi
  *   luta (UBattleSubsystem::BeginBattle — a AJRPGBattleArena monta a cena) e reaparece depois
  *   do delay. O efeito de tela quebrando entra no OnContact.
  * - Congela com menu aberto (estado da WebUI fora de HudOnly).
- * - Luta: todos param quando ela começa; com a tela já preta, somem e voltam para casa (avulso:
- *   o lugar onde nasceu; na zona: um ponto ao acaso dela), para ninguém estar colado no jogador
- *   quando a luta acabar. Quem encostou fica sumido até o respawn dele; um respawn que cair no
- *   meio da luta espera ela sair da tela.
+ * - Luta: no toque todos param na hora (parados em Idle, não congelados no meio do passo),
+ *   inclusive quem encostou, que continua à vista; com a tela já preta, quem encostou some até
+ *   o respawn dele e os outros somem e voltam para casa (avulso: o lugar onde nasceu; na zona: um
+ *   ponto ao acaso dela), para ninguém estar colado no jogador quando a luta acabar. Um respawn
+ *   que cair no meio da luta espera ela sair da tela.
  * - Sem navmesh: anda reto até o alvo.
  *
  * Avulso: ponha no mapa e configure o Encounter. Em zona: o AJRPGEncounterZone cria e cuida
@@ -431,6 +432,8 @@ private:
 	bool bInBattle = false;
 	/** Escondido pela luta (entre OnFieldHidden e OnFieldShown da cena). */
 	bool bHiddenForBattle = false;
+	/** Foi ele que encostou: parado à vista até a tela ficar preta, aí some e agenda o respawn. */
+	bool bHideWhenFieldHidden = false;
 	bool bUsesAnimClass = false;
 
 	/** Sem navmesh: o alvo do andar reto. */

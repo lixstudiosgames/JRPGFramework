@@ -142,7 +142,12 @@ void UJRPGBattleSceneSubsystem::HandleBattleStarted(const FJRPGBattleSetup& Setu
 	ChooseArena(Setup);
 	Phase = EPhase::Entering;
 
-	// Os inimigos do Field param já (OnBattleStarted); somem só com a tela toda preta
+	// Tudo para na hora do toque: o jogador e a party aqui, os inimigos do Field no OnBattleStarted.
+	// Somem só com a tela toda preta
+	if (AJRPGBattleArena* Current = Arena.Get())
+	{
+		Current->StopFieldForBattle();
+	}
 	if (GetTransitionTime() > 0.0f)
 	{
 		Fade(true);
@@ -159,11 +164,15 @@ void UJRPGBattleSceneSubsystem::HandleBattleEnded(EJRPGBattleResult Result)
 	FTimerManager& Timers = GetWorld()->GetTimerManager();
 	if (Phase == EPhase::Entering)
 	{
-		// Acabou antes da cena existir: o Field não chegou a sumir, só abre a tela de novo
+		// Acabou antes da cena existir: o Field não chegou a sumir; devolve o controle e abre a tela
 		Timers.ClearTimer(TransitionTimer);
 		if (GetTransitionTime() > 0.0f)
 		{
 			Fade(false);
+		}
+		if (AJRPGBattleArena* Current = Arena.Get())
+		{
+			Current->TeardownBattle();
 		}
 		ReleaseArena();
 		Phase = EPhase::Idle;

@@ -6,8 +6,9 @@ the remake's replacement for the original's random encounters. Phase 3 of
 
 On contact the enemy rolls who fights, prints it on screen, disappears, starts the fight —
 assembled by the battle arena ([BATTLE_STAGE.md](BATTLE_STAGE.md)) — and comes back after its
-respawn delay. When a fight starts every field enemy stops; once the screen is black they hide
-and **go home** (standalone: where it was placed; zone: a random point of the zone), so nobody
+respawn delay. On contact every field enemy stops dead and stands in `Idle` — the one that
+touched too, still visible; once the screen is black that one hides until its respawn and the
+others hide and **go home** (standalone: where it was placed; zone: a random point of the zone), so nobody
 is right next to the player when the fight ends. A respawn that falls inside a fight waits for
 it to leave the screen. `bStartBattle` off brings back Phase 3's behaviour: contact only
 announces the encounter.

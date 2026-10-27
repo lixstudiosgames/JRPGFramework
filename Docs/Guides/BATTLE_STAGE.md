@@ -26,14 +26,16 @@ A fight, start to end:
 1. Contact (or a wave, or the console) calls `UBattleSubsystem::BeginBattle(Setup)`. The party
    is `Setup.Party`, or the active party, or — PIE straight into a map with no save —
    `FallbackParty` (Vahn, Noa, Gala). At most `MaxPartySlots` heroes and `MaxEnemySlots`
-   enemies. Every field enemy **stops** where it is.
+   enemies. **Everything stops on the spot:** the player loses control, the party stops dead
+   (no sliding), and every field enemy — the one that touched included — stops and goes to
+   `Idle` (stopped, not frozen mid-stride). Nobody disappears yet.
 2. The scene subsystem picks the arena — `AJRPGBattleArena::FindArenaFor(Setup.Location)`; a
    map with no arena gets a temporary one at the contact point, the party facing the enemy —
    and fades to black over the arena's `TransitionTime`.
 3. With the screen **fully black**:
-   - `OnFieldHidden`: every field enemy hides and goes home — a standalone one to where it was
-     placed, a zone one to a random point of its zone. Nobody is left glued to the player for
-     when the fight ends. The one that was touched stays gone until its own respawn.
+   - `OnFieldHidden`: the enemy that touched hides and schedules its respawn; every other field
+     enemy hides and goes home — a standalone one to where it was placed, a zone one to a random
+     point of its zone. Nobody is left glued to the player for when the fight ends.
    - The arena hides and freezes the field party (the controlled character and the followers)
      and its `HideDuringBattle`, turns the field controls off, spawns one `AJRPGBattlePawn` per
      combatant at its seats (`GetFormation`), and points the camera — its `BattleCamera`, or
