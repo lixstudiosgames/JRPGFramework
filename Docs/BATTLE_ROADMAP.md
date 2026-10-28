@@ -1,8 +1,9 @@
 # Battle System Roadmap
 
 **JRPGFramework — Legend of Legaia Remake**
-Approved 2026-09-13. Phases 0 and 3 are done (enemies roam the map, 2026-10-27), Phase 2's
-pipeline is validated (2026-10-26) and Phase 4 is under way — no combat yet.
+Approved 2026-09-13. Phases 0, 3 and 4 are done (enemies roam the map and a fight is
+assembled over it, 2026-10-27), Phase 2's pipeline is validated (2026-10-26). Next is Phase 5:
+combat itself.
 
 This is the largest unimplemented system left in the plugin, and the only one with stub
 files already in place. (Dialogue, Cutscene and Localization are also unwritten - see
@@ -89,7 +90,7 @@ Each phase ends in something you can run and watch work.
 | **1** | Battle data (TOML → CSV → DataTable) | **In progress** — `DT_Enemies` done (179 rows); Arts, Bosses, Magic to go |
 | **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **In progress** — pipeline validated on Gimard + the party's Idle/Walk |
 | **3** | Enemies roaming the map (zone, roaming, trigger) | **Done** (2026-10-27) — `AJRPGFieldEnemy`, `AJRPGEncounterZone` (sphere/box/spline), tested in the editor |
-| **4** | Battle stage (spawn, formation, camera) | **In progress** — written (`AJRPGBattleArena` assembles the fight, `UJRPGBattleSceneSubsystem`, `BeginBattle`/`EndBattle`, `AJRPGBattlePawn`, `AJRPGBattleWaves` + JSON/Studio), being tested on the Muscle Dome map |
+| **4** | Battle stage (spawn, formation, camera) | **Done** (2026-10-27) — `AJRPGBattleArena` assembles the fight, `UJRPGBattleSceneSubsystem`, `BeginBattle`/`EndBattle`, `AJRPGBattlePawn`, `AJRPGBattleWaves` + JSON/Studio; tested in the editor and on the Muscle Dome map. Party-size scaling moved to Phase 8 |
 | **5** | Basic combat (turns, damage, death, victory) | Not started |
 | **6** | Directional Arts + the new AP | Not started |
 | **7** | Presentation (HUD, attack camera, sound, items, escape) | Not started |
@@ -620,10 +621,15 @@ No fixed array of 8: a `TArray<FJRPGCombatant>` with a `Side` and a `Type`
 (`Character` / `Seru` / `Enemy`). Serus join as support members — that is why the party can
 grow — and `bScaleEnemiesWithPartySize` is the counterweight the zone applies when drawing.
 
+Written: `MaxPartySlots` / `MaxEnemySlots` on `UBattleSubsystem`. **Moved to Phase 8**:
+`bScaleEnemiesWithPartySize`, together with the Seru members that are the only way the party
+grows past 3 (the roster has 4 characters and the original fights with 3).
+
 **Acceptance:** contact removes player control, the camera frames the fight, 3 heroes spawn
 on one side and N enemies on the other in their `Idle` poses; a debug command ends it and
-restores everything. Set `MaxPartySlots` to 5 and watch the formation adapt. Same in the
-Muscle Dome: wave after wave with `JRPG.Battle.End victory`.
+restores everything. Same in the Muscle Dome: wave after wave with `JRPG.Battle.End victory`.
+*Met 2026-10-27* — 1 to 5 enemies (the original's seats up to 4, the arc at 5). The 5-hero
+formation check goes with the Seru members to Phase 8.
 
 ---
 
@@ -818,7 +824,8 @@ Last on purpose: it depends on everything above being stable and carries the mos
   `DT_MovePower`.
 - Seru capture in battle and learning the matching spells.
 - **Serus as party support members** — this is where Phase 4's larger party gets real
-  content.
+  content. With them: `bScaleEnemiesWithPartySize` (more heroes, more enemies rolled) and the
+  5-hero formation check left over from Phase 4's acceptance.
 - Ra-Seru summons (200–255 MP, gated behind sidequests).
 
 ---
@@ -851,6 +858,6 @@ Last on purpose: it depends on everything above being stable and carries the mos
 
 ## Next concrete step
 
-**Phase 4:** the stage — `UBattleSubsystem::BeginBattle` / `EndBattle` and their delegates,
-`AJRPGBattlePawn`, the arena assembling the fight, tested first on the Muscle Dome test map. In parallel, the
-party's battle clips (attack, hit, KO) that Phase 5 needs.
+**Phase 5:** basic combat on the Muscle Dome — combatant stats, the original's turn order,
+the integer damage kernel, the action state machine, a dumb enemy AI, victory / defeat. In
+parallel, the party's battle clips (attack, hit, KO) that it needs.

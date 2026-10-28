@@ -278,7 +278,7 @@ JRPGFramework/
 | **WebUI** | ✅ complete | SPA shell, 7 screens, gamepad + keyboard + mouse with their own rules, responsive scaling |
 | **Party** | ✅ complete (data) | Roster vs formation, 3 states per character, XP split among survivors as in the original, level-up with jitter, whole-roster save. The UI does not follow the formation yet |
 | **Status** | ✅ complete (data) | Equipment in 5 slots with `CanEquip` read from `DT_Items`, conditions, Ra-Seru (1..9), elemental affinity, and the original's `effective ( base )` display. The equip screen is still missing |
-| **Arts / Battle** | 🟡 stubs | They receive calls from the inventory but hold no state. `DT_Enemies` exists (179 enemies, [ENEMIES.md](Guides/ENEMIES.md)) and the battle **models** are coming in: disc extraction done, and the PS1 → Unreal converter validated on Gimard and the party's battle form ([PS1_ASSETS.md](Guides/PS1_ASSETS.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
+| **Arts / Battle** | 🟡 stage ready, no combat | A fight is assembled over the current map and taken down: battle arenas placed by hand, the original's seats, battle models from `DT_Characters` / `DT_Enemies`, camera, field enemies starting it on contact, the Muscle Dome waves ([BATTLE_STAGE.md](Guides/BATTLE_STAGE.md)). Turns, damage and Arts are still to come; `ArtsSubsystem` is a stub. `DT_Enemies` has 179 enemies ([ENEMIES.md](Guides/ENEMIES.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
 
 ---
 
