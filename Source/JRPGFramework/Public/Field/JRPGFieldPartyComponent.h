@@ -62,56 +62,56 @@ public:
 	UJRPGFieldPartyComponent();
 
 	/** O Blueprint de cada membro no Field, pela key de DT_Characters (Vahn -> BP_Vahn...). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Party")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Party")
 	TMap<FName, TSubclassOf<AJRPGFieldCharacter>> MemberClasses;
 
 	// --- Seguir ---
 
 	/** Leash: pelo navmesh, só quando o líder se afasta. Trail: pela trilha dele, em fila. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Follow")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Follow")
 	EJRPGPartyFollowMode FollowMode = EJRPGPartyFollowMode::Leash;
 
 	/** Leash: parado, o seguidor só sai andando quando o líder passa desta distância, em uu. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Follow|Leash", meta = (ClampMin = "100.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Leash", meta = (ClampMin = "100.0"))
 	float LeashStartDistance = 350.0f;
 
 	/** Leash: mais longe que isto do líder, o seguidor corre (volta a andar perto da metade). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Follow|Leash", meta = (ClampMin = "100.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Leash", meta = (ClampMin = "100.0"))
 	float LeashRunDistance = 650.0f;
 
 	/** Leash: com o líder parado, o seguidor para a esta distância do lugar dele ao lado, em uu. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Follow|Leash", meta = (ClampMin = "10.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Leash", meta = (ClampMin = "10.0"))
 	float LeashArriveRadius = 40.0f;
 
 	/** Leash: sem lugar ao lado válido (parede, beirada), o seguidor para a esta distância do líder. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Follow|Leash", meta = (ClampMin = "50.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Leash", meta = (ClampMin = "50.0"))
 	float LeashStopDistance = 200.0f;
 
 	/** Leash: atraso para sair andando, sorteado entre os dois a cada saída (s). Nada de todos no mesmo frame. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Follow|Leash", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Leash", meta = (ClampMin = "0.0"))
 	float LeashReactionMin = 0.1f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Follow|Leash", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Leash", meta = (ClampMin = "0.0"))
 	float LeashReactionMax = 0.4f;
 
 	/** Leash: de quanto em quanto tempo o caminho é refeito, se o lugar de destino mudou (s). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Follow|Leash", meta = (ClampMin = "0.05"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Leash", meta = (ClampMin = "0.05"))
 	float LeashRepathInterval = 0.3f;
 
 	/** Leash: o caminho só é refeito se o destino andou mais que isto desde o último, em uu. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Follow|Leash", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Leash", meta = (ClampMin = "0.0"))
 	float LeashRepathDistance = 100.0f;
 
 	/** Trail: distância pela trilha entre um membro e o da frente, em uu. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Follow", meta = (ClampMin = "30.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Follow", meta = (ClampMin = "30.0"))
 	float FollowSpacing = 120.0f;
 
 	/** O seguidor anda esta fração mais rápido que o líder, para alcançá-lo depois de uma curva ou parada. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Follow", meta = (ClampMin = "1.0", ClampMax = "2.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Follow", meta = (ClampMin = "1.0", ClampMax = "2.0"))
 	float FollowerSpeedScale = 1.15f;
 
 	/** Trail: mais longe que isto do lugar dele na trilha, o seguidor corre mesmo com o líder andando. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Follow", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Follow", meta = (ClampMin = "0.0"))
 	float CatchUpDistance = 300.0f;
 
 	/**
@@ -119,25 +119,25 @@ public:
 	 * reta (o líder deu uma volta e passou do lado dele), ele vai reto até o ponto mais adiantado
 	 * da trilha que enxerga sem parede no meio — pelo navmesh, ou por um sweep sem ele.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Follow")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Follow")
 	bool bTrailShortcuts = true;
 
 	/** Quanto o atalho precisa economizar (trilha menos a reta) para valer, em uu. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Follow", meta = (EditCondition = "bTrailShortcuts", ClampMin = "50.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Follow", meta = (EditCondition = "bTrailShortcuts", ClampMin = "50.0"))
 	float ShortcutMinSaving = 250.0f;
 
 	/** O atalho só olha pontos da trilha até esta distância em linha reta, em uu. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Follow", meta = (EditCondition = "bTrailShortcuts", ClampMin = "100.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Follow", meta = (EditCondition = "bTrailShortcuts", ClampMin = "100.0"))
 	float ShortcutMaxDistance = 900.0f;
 
 	// --- Juntar ao lado ---
 
 	/** Segundos com o líder parado até os seguidores se juntarem ao lado dele. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Gather", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Gather", meta = (ClampMin = "0.0"))
 	float GatherDelay = 0.5f;
 
 	/** Distância do líder até o lugar de cada um, em uu. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Gather", meta = (ClampMin = "30.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Gather", meta = (ClampMin = "30.0"))
 	float GatherDistance = 110.0f;
 
 	/**
@@ -145,27 +145,27 @@ public:
 	 * (0 = na frente, 90 = à direita, 180 = atrás). O primeiro seguidor usa o primeiro ângulo,
 	 * e assim por diante; passando do fim, volta ao começo numa roda mais afastada.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Gather")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Gather")
 	TArray<float> GatherAngles;
 
 	// --- Segurança ---
 
 	/** Mais longe que isto do líder, o seguidor teleporta para o lugar dele. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Safety", meta = (ClampMin = "200.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Safety", meta = (ClampMin = "200.0"))
 	float TeleportDistance = 1500.0f;
 
 	/** Segundos parado tentando andar (porta fechou, NPC no caminho) até o seguidor teleportar. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Safety", meta = (ClampMin = "0.2"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Safety", meta = (ClampMin = "0.2"))
 	float StuckTime = 1.5f;
 
 	// --- Troca de personagem ---
 
 	/** Duração do deslize da câmera até o novo personagem (0 = corte seco). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Switch", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Switch", meta = (ClampMin = "0.0"))
 	float SwitchBlendTime = 0.4f;
 
 	/** O R3 só passa o controle para quem está até esta distância do líder, em uu. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Party|Switch", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Party|Switch", meta = (ClampMin = "0.0"))
 	float MaxSwitchDistance = 1000.0f;
 
 	// --- API ---
@@ -209,7 +209,7 @@ public:
 	void RefreshParty();
 
 	/** Disparado depois de cada troca de personagem. */
-	UPROPERTY(BlueprintAssignable, Category = "JRPG|Field|Party")
+	UPROPERTY(BlueprintAssignable, Category = "Party")
 	FOnFieldLeaderChanged OnLeaderChanged;
 
 	/** O controller possuiu um pawn (começo do mapa, portal, load). Chamado pelo AJRPGFieldPlayerController. */

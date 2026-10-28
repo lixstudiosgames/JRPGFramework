@@ -36,7 +36,8 @@ New here? Read [`ARCHITECTURE.md`](ARCHITECTURE.md), then
 | [CAMERA.md](Guides/CAMERA.md) | 13 presets, automatic UI restore, shakes, level cameras and zones |
 | [PLAYER.md](Guides/PLAYER.md) | The character and controller that walk the map: top-down camera, walk/sprint, input |
 | [MIST.md](Guides/MIST.md) | Living volumetric mist: strands and swirls, flows around scenery, parts around the player |
-| [FIELD_ENEMIES.md](Guides/FIELD_ENEMIES.md) | Enemies on the map: one generic `AJRPGFieldEnemy`, sphere/box encounter zones, the encounter roll, on-screen messages |
+| [FIELD_ENEMIES.md](Guides/FIELD_ENEMIES.md) | Enemies on the map: one generic `AJRPGFieldEnemy`, sphere/box/spline encounter zones, the encounter roll, battle arenas |
+| [BATTLE_STAGE.md](Guides/BATTLE_STAGE.md) | A fight assembled over the current map by the arena and taken down: models from the DataTables, camera, field enemies going home, the Muscle Dome waves (JSON + Studio), console commands |
 | [ENEMIES.md](Guides/ENEMIES.md) | `DT_Enemies` column reference, where the numbers come from, regenerating without losing manual work |
 | [PS1_ASSETS.md](Guides/PS1_ASSETS.md) | The original's battle models (monsters + party) from the disc into Unreal: extraction, the Blender converter, import, scale |
 | [MENU_AND_OPTIONS.md](Guides/MENU_AND_OPTIONS.md) | Main menu and the options screen (visuals done, controls not wired) |

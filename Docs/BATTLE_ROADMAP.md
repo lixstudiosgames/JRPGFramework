@@ -1,8 +1,9 @@
 # Battle System Roadmap
 
 **JRPGFramework — Legend of Legaia Remake**
-Approved 2026-09-13. **No battle code yet** — Phase 0 is done and Phase 2's pipeline is
-validated (2026-10-26).
+Approved 2026-09-13. Phases 0, 3 and 4 are done (enemies roam the map and a fight is
+assembled over it, 2026-10-27), Phase 2's pipeline is validated (2026-10-26). Next is Phase 5:
+combat itself.
 
 This is the largest unimplemented system left in the plugin, and the only one with stub
 files already in place. (Dialogue, Cutscene and Localization are also unwritten - see
@@ -88,8 +89,8 @@ Each phase ends in something you can run and watch work.
 | **0** | Extract assets from the disc (RE release tools + `legaia-extract`) | **Done** |
 | **1** | Battle data (TOML → CSV → DataTable) | **In progress** — `DT_Enemies` done (179 rows); Arts, Bosses, Magic to go |
 | **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **In progress** — pipeline validated on Gimard + the party's Idle/Walk |
-| **3** | Enemies roaming the map (zone, roaming, trigger) | **In progress** — written (`AJRPGFieldEnemy`, `AJRPGEncounterZone`), being tested in the editor |
-| **4** | Battle stage (spawn, formation, camera) | Not started |
+| **3** | Enemies roaming the map (zone, roaming, trigger) | **Done** (2026-10-27) — `AJRPGFieldEnemy`, `AJRPGEncounterZone` (sphere/box/spline), tested in the editor |
+| **4** | Battle stage (spawn, formation, camera) | **Done** (2026-10-27) — `AJRPGBattleArena` assembles the fight, `UJRPGBattleSceneSubsystem`, `BeginBattle`/`EndBattle`, `AJRPGBattlePawn`, `AJRPGBattleWaves` + JSON/Studio; tested in the editor and on the Muscle Dome map. Party-size scaling moved to Phase 8 |
 | **5** | Basic combat (turns, damage, death, victory) | Not started |
 | **6** | Directional Arts + the new AP | Not started |
 | **7** | Presentation (HUD, attack camera, sound, items, escape) | Not started |
@@ -431,12 +432,14 @@ encounter list and respawn delay.
 
 ### `AJRPGEncounterZone` (spawn area)
 
-- `Shape`: **Sphere** (radius) or **Box** (extent), drawn in the editor.
+- `Shape`: **Sphere** (radius), **Box** (extent) or **Spline** (a closed outline drawn by
+  hand — any shape, concave included; added 2026-10-27 together with the arena's area, both
+  on `FJRPGSplineArea`), drawn in the editor.
 - The enemy class to spawn, an optional visuals override, the encounter list, `MaxAlive`,
   respawn delay min/max, and an optional `RequiredFlagID` (WorldState gate).
 - Spawns on navmesh points **inside the shape**; wander and return stay inside it.
 - Draws the encounter for the enemies it spawned; reuses the same actor on respawn.
-- Where the fight happens (`BattleAnchor` / fight where touched) is Phase 4's business.
+- Where the fight happens is Phase 4's business — settled as `AJRPGBattleArena`.
 
 `UBattleSubsystem` gets a small `TryStartEncounter()` grace window, so two enemies touched
 at the same moment do not start two encounters — the seed of Phase 4, still without knowing
@@ -463,30 +466,145 @@ Battle **loads no map**. That is not a shortcut: it is how the original works �
 happens in the scene where the encounter triggered and only the camera changes. It also
 matches the split this project already has (world in Blueprint, systems in C++).
 
-### `ABattleStage` (Blueprint-able, in the plugin)
+Spell scenes that "go somewhere else" (Seru summons, Phase 8) do not change this: they are
+Sequencer shots, optionally on a small sublevel streamed in at runtime
+(`ULevelStreamingDynamic::LoadLevelInstance`) away from the fight, with the map still loaded.
 
-Listens to `UBattleSubsystem::OnBattleStarted` and owns everything `AActor`-shaped:
+### `AJRPGBattleArena` — where on the map (written 2026-10-27)
 
-- Spawns one `AJRPGBattlePawn` per combatant at the computed formation.
-- Registers the pawns with `UCameraSubsystem` and calls
-  `FrameGroup(Pawns, 0.75f, 1.15f, ECameraFramingPreset::BattleWide, false)`.
-- Disables the field pawn's input and hides roaming enemies that did not join.
-- On teardown: destroys the pawns, restores camera and input.
+The maps are not flat and some need more than one fighting spot, so where a fight is
+assembled is **placed by hand**, not computed from the contact point alone. One actor,
+dragged into the map:
+
+- **Formation preview in the editor.** It draws every seat the fight will use: a capsule
+  coloured by the ground under it, a ring and an arrow coloured by side (blue heroes, orange
+  enemies). It redraws every editor frame, so sculpting the landscape updates it live.
+  `PreviewPartyCount` / `PreviewEnemyCount` set how many to draw; `PreviewPartyMesh` /
+  `PreviewEnemyMesh` optionally put the battle models on the seats.
+- **Ground check per seat.** A trace against `WorldStatic` puts each seat on the ground:
+  **green** ok, **yellow** more than `MaxHeightDifference` from the floor under the arena's
+  centre, **red** no floor / steeper than `MaxSlopeDegrees` / the seat capsule is inside a wall
+  or prop. Red and yellow are where the map needs flattening. "Validate Ground" and Map Check
+  list them in the Message Log.
+- **Automatic formation** (below: the original's seats, or an arc) or **manual seats**:
+  `bManualSeats` turns `PartySeats` / `EnemySeats` into handles dragged in the viewport;
+  "Copy Formation To Manual Seats" starts them from the automatic one. An index with no manual
+  seat falls back to the automatic formation.
+- **Area** (`AreaSpline`): the part of the map that uses this arena, drawn as a closed spline
+  seen from above — any shape, Alt+drag adds a point. `AreaHeightLimit` for maps with floors.
+  "Snap Area To Ground" only moves the outline down onto the terrain so it is visible.
+
+**Which arena a fight uses** (`AJRPGBattleArena::FindArenaFor(ContactLocation)`):
+
+1. Among the arenas whose area contains the contact point, the highest `Priority`; ties go to
+   the nearest.
+2. Outside every area: the nearest arena with `bUseAsFallback`.
+3. No arena in the map: none — the stage assembles the fight where the contact happened.
+
+The scene is assembled at the arena **under the transition** (a fade to black now, the
+screen shatter in Phase 7), so the jump is never seen. The field party is not moved: it is
+hidden where it stood and shown again there when the fight ends. `AJRPGFieldEnemy` picks the
+arena on contact (`FJRPGFieldEncounter::Arena`) and, with `bPrintDebug`, draws its formation
+in PIE for a few seconds. The Muscle Dome test map is the simplest case: one arena in the
+ring.
+
+Per arena, for the fight itself: `HideDuringBattle` (actors hidden while a fight happens
+there — a tree in front of the camera) and `BattleCamera` (a camera placed by hand that
+replaces the automatic framing).
+
+### Assembling the scene — the arena does it (written 2026-10-27)
+
+Usage in [Guides/BATTLE_STAGE.md](Guides/BATTLE_STAGE.md). **The arena is the only thing placed
+in a map.** A first version had a separate stage actor with its own Blueprint and a Project
+Settings class; it was folded into the arena the same day — two actors per map doing nearly
+the same job, and the hero models configured by hand.
+
+- `UBattleSubsystem::BeginBattle` builds the combatant list (`Setup.Party`, else the active
+  party, else `FallbackParty` for PIE without a save; capped at `MaxPartySlots` /
+  `MaxEnemySlots`), turns `IsInField` off and fires `OnBattleStarted`. Field enemies stop.
+- `UJRPGBattleSceneSubsystem` (a world subsystem — exists by itself, nothing to configure)
+  picks the arena (`FindArenaFor(Setup.Location)`; a map with no arena gets a temporary one at
+  the contact point, the party facing the enemy) and fades to black over its `TransitionTime`.
+- **Screen fully black:** `OnFieldHidden` — every field enemy hides and goes home (standalone:
+  its placement; zone: a random point of the zone), so nobody is glued to the player when the
+  fight ends; the one touched waits for its own respawn. Then `AJRPGBattleArena::AssembleBattle`:
+  hides and freezes the field party and `HideDuringBattle`, turns the field controls off,
+  spawns one `AJRPGBattlePawn` per combatant at `GetFormation`, points the camera (its
+  `BattleCamera`, else `FrameGroup` anchored on an enemy so the camera sits behind the party).
+- Models come from the DataTables: `DT_Characters.BattleMesh` / `BattleAnims` for heroes,
+  `DT_Enemies.Mesh` / `Anims` for enemies.
+- `EndBattle` → black → `TeardownBattle` (everything back exactly as it was) → `OnFieldShown`
+  → screen opens. `EncounterGraceTime` also counts from the end.
+
+Console: `JRPG.Battle.Start <EnemyKey> [Count] [Level]` and `JRPG.Battle.End
+[victory|defeat|escape|abort]`.
 
 `UBattleSubsystem` **never knows about `AActor`** — it speaks only through delegates, the
 same separation the rest of the plugin keeps.
 
+### Muscle Dome — the test map
+
+`AJRPGBattleWaves`: fights in a row. A list of encounters (one per wave), the party, the
+arena; a won wave calls the next after a delay, a lost / escaped / aborted one stops. It runs
+on the field GameMode — no separate battle GameMode, pawn or controller — so it tests the same
+path a field encounter takes. With no combat yet, a wave ends from the console.
+
+The waves live in a JSON (`WavesFile`, `Content/Data/Waves/*.json`) read on every play and
+edited in **LegaiaStudio › Ondas**. Packaged with *Additional Non-Asset Directories*, the
+testers can change the waves without a new build.
+
+### The original's seats (`Formation = Original`, the default)
+
+The original places every combatant from two static `SCUS_942.54` tables read by
+`FUN_800513F0` (RE: `docs/subsystems/battle.md` "Stage seats",
+`crates/engine-battle/src/battle_seats.rs`, pinned against seven battle save states). Seats are
+`(x, z)` in PSX units on a flat stage; the party faces `+Z`, monsters face `-Z`, and the camera
+orbits the origin between the rows. Party slot 0 is the leader.
+
+| Count | Party (`0x800775C8`) | Monsters, normal (`0x80077608`) | Monsters, alternate |
+|---|---|---|---|
+| 1 | `(0,-800)` | `(0,800)` | same |
+| 2 | `(300,-800)` `(-300,-800)` | `(-300,800)` `(300,800)` | same |
+| 3 | `(0,-825)` `(600,-775)` `(-600,-775)` | `(-600,825)` `(0,750)` `(600,825)` | `(0,900)` `(-600,700)` `(600,700)` |
+| 4 | — | `(-900,900)` `(-300,800)` `(300,800)` `(900,900)` | `(0,1000)` `(-600,800)` `(600,800)` `(0,600)` |
+
+**Scale.** The seats and the battle meshes are in the **same unit**: the battle base matrix
+draws actors *and* their stage translations at 4× under one camera (RE
+`battle-stage-camera.md`), so the ratio between a seat and a model's size is the disc's. The
+meshes come in at **0.433005 cm per PSX unit** (`Extras/ps1_glb_to_fbx.py`, calibrated with
+battle Vahn ≈ 422 units → 183 cm), so the seats use the same factor (`OriginalCmPerUnit`):
+
+| | PSX units | cm |
+|---|---|---|
+| 1 vs 1: each side from the centre | 800 | 346.4 |
+| 1 vs 1: hero to monster | 1600 | 692.8 (≈ 3.8 × Vahn's height) |
+| 3 heroes: wing offset / wing depth / leader depth | 600 / 775 / 825 | 259.8 / 335.6 / 357.2 |
+| 4 monsters: outer pair | (±900, 900) | (±389.7, 389.7) |
+
+Axes into the arena: PSX `z` → arena `+X` (forward for the party), PSX `x` → arena `+Y` (the
+party's right). The alternate family (`bAlternateEnemyRows`) is the original's no-escape /
+ambush seating. The original seats at most 3 heroes and 4 monsters; bigger counts (Seru as
+members, more enemies) use the arc below.
+
+Not reproduced by the arena, belongs to Phase 5: the original **recentres the formation at
+every round start** (`FUN_801DB318`: X/Z extents over the party and the living monsters, an
+axis wider than `0x800` squashed to `0x800`, then the centroid subtracted), which is what pulls
+a wandered formation back into frame. A 3-on-1 fight therefore reads `-13` in Z off the table.
+
 ### Flexible formation
 
-No static seat table. The formation is computed from the actual count:
+Beyond the original's counts — or with `Formation = Arc` — the formation is computed from the
+actual count. It lives on the arena (`AJRPGBattleArena::GetSeatTransform` / `ResolveSeat` /
+`GetFormation`):
 
 ```cpp
-// Arc around the BattleAnchor. Party faces the anchor's +X, enemies face -X.
-FTransform SeatFor(int32 Index, int32 Count, EJRPGBattleSide Side) const;
+// Arc around the arena. Heroes behind the centre (-X) facing +X, enemies in front facing -X.
+FTransform GetSeatTransform(EJRPGBattleSide Side, int32 Index, int32 Count) const;
 
-UPROPERTY(EditAnywhere) float PartyRadius = 250.f;
-UPROPERTY(EditAnywhere) float EnemyRadius = 400.f;
-UPROPERTY(EditAnywhere) float ArcDegrees  = 90.f;
+UPROPERTY(EditAnywhere) float PartyRadius     = 350.f;
+UPROPERTY(EditAnywhere) float EnemyRadius     = 475.f;
+UPROPERTY(EditAnywhere) float PartyArcDegrees = 90.f;
+UPROPERTY(EditAnywhere) float EnemyArcDegrees = 120.f;
 ```
 
 3 or 6 members, 2 or 8 enemies — everything accommodates itself.
@@ -503,9 +621,15 @@ No fixed array of 8: a `TArray<FJRPGCombatant>` with a `Side` and a `Type`
 (`Character` / `Seru` / `Enemy`). Serus join as support members — that is why the party can
 grow — and `bScaleEnemiesWithPartySize` is the counterweight the zone applies when drawing.
 
+Written: `MaxPartySlots` / `MaxEnemySlots` on `UBattleSubsystem`. **Moved to Phase 8**:
+`bScaleEnemiesWithPartySize`, together with the Seru members that are the only way the party
+grows past 3 (the roster has 4 characters and the original fights with 3).
+
 **Acceptance:** contact removes player control, the camera frames the fight, 3 heroes spawn
 on one side and N enemies on the other in their `Idle` poses; a debug command ends it and
-restores everything. Set `MaxPartySlots` to 5 and watch the formation adapt.
+restores everything. Same in the Muscle Dome: wave after wave with `JRPG.Battle.End victory`.
+*Met 2026-10-27* — 1 to 5 enemies (the original's seats up to 4, the arc at 5). The 5-hero
+formation check goes with the Seru members to Phase 8.
 
 ---
 
@@ -555,7 +679,7 @@ bool SubmitCommand(int32 Slot, EJRPGBattleCommand Command, int32 TargetSlot);
 const TArray<FJRPGCombatant>& GetCombatants() const;
 int32 GetActiveSlot() const;
 
-FOnBattleStarted OnBattleStarted;   // for ABattleStage
+FOnBattleStarted OnBattleStarted;   // for UJRPGBattleSceneSubsystem
 FOnBattleEvent   OnBattleEvent;     // for the UI
 FOnSlotChanged   OnSlotChanged;     // for the camera
 FOnBattleEnded   OnBattleEnded;
@@ -700,7 +824,8 @@ Last on purpose: it depends on everything above being stable and carries the mos
   `DT_MovePower`.
 - Seru capture in battle and learning the matching spells.
 - **Serus as party support members** — this is where Phase 4's larger party gets real
-  content.
+  content. With them: `bScaleEnemiesWithPartySize` (more heroes, more enemies rolled) and the
+  5-hero formation check left over from Phase 4's acceptance.
 - Ra-Seru summons (200–255 MP, gated behind sidequests).
 
 ---
@@ -733,7 +858,6 @@ Last on purpose: it depends on everything above being stable and carries the mos
 
 ## Next concrete step
 
-**Phase 1:** `DT_Enemies` — `Public/Battle/EnemyData.h`, `Extras/legaia_toml.py` and
-`Extras/generate_enemies_csv.py` joining `enemies.toml` to the disc listing by name, so every
-row carries its `MonsterArchiveID`. Then Phase 2's batch over the 186 monsters, and Phase 3
-on top of both.
+**Phase 5:** basic combat on the Muscle Dome — combatant stats, the original's turn order,
+the integer damage kernel, the action state machine, a dumb enemy AI, victory / defeat. In
+parallel, the party's battle clips (attack, hit, KO) that it needs.

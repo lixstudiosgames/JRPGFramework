@@ -4,6 +4,7 @@
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SphereComponent.h"
+#include "Components/SplineComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -38,6 +39,22 @@ AJRPGEncounterZone::AJRPGEncounterZone()
 		Area->SetLineThickness(3.0f);
 	}
 
+	// Spline: começa como um quadrado de 20 m de lado, com cantos retos
+	AreaSpline = CreateDefaultSubobject<USplineComponent>(TEXT("AreaSpline"));
+	AreaSpline->SetupAttachment(Root);
+	AreaSpline->SetSplinePoints({ FVector(1000.0f, 1000.0f, 0.0f), FVector(1000.0f, -1000.0f, 0.0f),
+		FVector(-1000.0f, -1000.0f, 0.0f), FVector(-1000.0f, 1000.0f, 0.0f) }, ESplineCoordinateSpace::Local, false);
+	for (int32 i = 0; i < AreaSpline->GetNumberOfSplinePoints(); ++i)
+	{
+		AreaSpline->SetSplinePointType(i, ESplinePointType::Linear, false);
+	}
+	AreaSpline->SetClosedLoop(true, true);
+	AreaSpline->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	AreaSpline->SetHiddenInGame(true);
+#if WITH_EDITORONLY_DATA
+	AreaSpline->EditorUnselectedSplineSegmentColor = FLinearColor(1.0f, 0.24f, 0.24f);
+#endif
+
 	EnemyClass = AJRPGFieldEnemy::StaticClass();
 
 #if WITH_EDITORONLY_DATA
@@ -57,25 +74,47 @@ void AJRPGEncounterZone::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 
-	const bool bSphere = Shape == EJRPGEncounterZoneShape::Sphere;
+	SplineArea.Build(AreaSpline);
 	AreaSphere->SetSphereRadius(Radius);
 	AreaBox->SetBoxExtent(BoxExtent);
-	AreaSphere->SetVisibility(bSphere);
-	AreaBox->SetVisibility(!bSphere);
+	AreaSphere->SetVisibility(Shape == EJRPGEncounterZoneShape::Sphere);
+	AreaBox->SetVisibility(Shape == EJRPGEncounterZoneShape::Box);
+	AreaSpline->SetVisibility(Shape == EJRPGEncounterZoneShape::Spline);
+}
+
+void AJRPGEncounterZone::SnapAreaToGround()
+{
+	FJRPGSplineArea::SnapSplineToGround(AreaSpline, FloorSearchDistance, this);
+	SplineArea.Build(AreaSpline);
+}
+
+EJRPGEncounterZoneShape AJRPGEncounterZone::GetEffectiveShape() const
+{
+	if (Shape == EJRPGEncounterZoneShape::Spline && !SplineArea.IsValid())
+	{
+		return EJRPGEncounterZoneShape::Sphere;
+	}
+	return Shape;
 }
 
 void AJRPGEncounterZone::BeginPlay()
 {
 	Super::BeginPlay();
 
+	SplineArea.Build(AreaSpline);
+	if (Shape == EJRPGEncounterZoneShape::Spline && !SplineArea.IsValid())
+	{
+		Print(TEXT("Shape = Spline com menos de 3 pontos — usando o Radius como esfera"), FColor::Orange);
+	}
+
 	if (!IsUnlocked())
 	{
 		Print(FString::Printf(TEXT("travada pelo flag %s"), *RequiredFlagID.ToString()));
 		return;
 	}
-	if (Encounter.Enemies.Num() == 0)
+	if (GetEncounterSetup().Enemies.Num() == 0)
 	{
-		Print(TEXT("sem inimigos no Encounter — os inimigos vão encostar e não fazer nada"), FColor::Orange);
+		Print(TEXT("sem Enemy escolhido — os inimigos vão encostar e não fazer nada"), FColor::Orange);
 	}
 	for (int32 i = 0; i < MaxAlive; ++i)
 	{
@@ -101,13 +140,19 @@ bool AJRPGEncounterZone::IsUnlocked() const
 	return World && World->GetEventFlagValue(RequiredFlagID) == bRequiredFlagValue;
 }
 
+FJRPGEncounterSetup AJRPGEncounterZone::GetEncounterSetup() const
+{
+	return Encounter.Enemies.Num() > 0 ? Encounter : UJRPGEncounterLibrary::MakeSingleEnemyEncounter(EnemyKey, LevelMin, LevelMax);
+}
+
 void AJRPGEncounterZone::SpawnEnemy()
 {
 	UClass* Class = EnemyClass ? EnemyClass.Get() : AJRPGFieldEnemy::StaticClass();
 	FVector Floor;
 	if (!GetRandomFloorPoint(Floor))
 	{
-		Print(TEXT("não achei chão dentro da zona para criar um inimigo"), FColor::Red);
+		Print(FString::Printf(TEXT("não achei chão dentro da zona para criar um inimigo (procurando %.0f acima e abaixo do ator — FloorSearchDistance)"),
+			GetEffectiveShape() == EJRPGEncounterZoneShape::Box ? FMath::Max(BoxExtent.Z, 100.0f) : FloorSearchDistance), FColor::Red);
 		return;
 	}
 
@@ -164,22 +209,36 @@ bool AJRPGEncounterZone::GetRandomFloorPoint(FVector& OutFloor) const
 	const UWorld* World = GetWorld();
 	const UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
 	const FTransform& T = GetActorTransform();
-	const float SearchZ = Shape == EJRPGEncounterZoneShape::Box ? FMath::Max(BoxExtent.Z, 100.0f) : FloorSearchDistance;
+	const EJRPGEncounterZoneShape Effective = GetEffectiveShape();
+	const float SearchZ = Effective == EJRPGEncounterZoneShape::Box ? FMath::Max(BoxExtent.Z, 100.0f) : FloorSearchDistance;
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(JRPGEncounterZoneFloor), false, this);
+
+	// Chão achado mas fora do navmesh: serve se nenhum ponto cair no navmesh (mapa sem navmesh,
+	// ou ele ainda não foi gerado) — o inimigo anda reto quando não há caminho
+	TOptional<FVector> FloorWithoutNav;
 
 	for (int32 i = 0; i < PointAttempts; ++i)
 	{
-		FVector Local;
-		if (Shape == EJRPGEncounterZoneShape::Sphere)
+		FVector Candidate;
+		if (Effective == EJRPGEncounterZoneShape::Spline)
+		{
+			// O contorno já está em espaço de mundo; a altura é a do ator
+			FVector2D P;
+			if (!SplineArea.RandomPoint(P))
+			{
+				continue;
+			}
+			Candidate = FVector(P.X, P.Y, T.GetLocation().Z);
+		}
+		else if (Effective == EJRPGEncounterZoneShape::Sphere)
 		{
 			const FVector2D P = FMath::RandPointInCircle(Radius);
-			Local = FVector(P.X, P.Y, 0.0f);
+			Candidate = T.TransformPosition(FVector(P.X, P.Y, 0.0f));
 		}
 		else
 		{
-			Local = FVector(FMath::FRandRange(-BoxExtent.X, BoxExtent.X), FMath::FRandRange(-BoxExtent.Y, BoxExtent.Y), 0.0f);
+			Candidate = T.TransformPosition(FVector(FMath::FRandRange(-BoxExtent.X, BoxExtent.X), FMath::FRandRange(-BoxExtent.Y, BoxExtent.Y), 0.0f));
 		}
-		const FVector Candidate = T.TransformPosition(Local);
 
 		// O chão embaixo (ou em cima) do ponto: a zona pode estar no ar ou meio enterrada
 		FHitResult Hit;
@@ -197,6 +256,10 @@ bool AJRPGEncounterZone::GetRandomFloorPoint(FVector& OutFloor) const
 				OutFloor = OnNav.Location;
 				return true;
 			}
+			if (bFloor && !FloorWithoutNav.IsSet())
+			{
+				FloorWithoutNav = FVector(Hit.ImpactPoint);
+			}
 			continue;
 		}
 
@@ -206,14 +269,39 @@ bool AJRPGEncounterZone::GetRandomFloorPoint(FVector& OutFloor) const
 			return true;
 		}
 	}
+
+	if (FloorWithoutNav.IsSet())
+	{
+		if (!bWarnedNoNavmesh)
+		{
+			bWarnedNoNavmesh = true;
+			// Aviso sempre, com ou sem bPrintDebug: é problema do mapa, não da zona
+			const FString Line = FString::Printf(TEXT("EncounterZone %s: o navmesh não cobre a zona (Build > Build Paths, ou falta NavMeshBoundsVolume) — os inimigos nascem no chão e andam reto"), *GetActorNameOrLabel());
+			UE_LOG(LogTemp, Warning, TEXT("%s"), *Line);
+			if (GEngine)
+			{
+				GEngine->AddOnScreenDebugMessage(-1, 8.0f, FColor::Orange, Line);
+			}
+		}
+		OutFloor = FloorWithoutNav.GetValue();
+		return true;
+	}
 	return false;
 }
 
 float AJRPGEncounterZone::DistanceOutside(const FVector& Point) const
 {
-	if (Shape == EJRPGEncounterZoneShape::Sphere)
+	const EJRPGEncounterZoneShape Effective = GetEffectiveShape();
+	if (Effective == EJRPGEncounterZoneShape::Spline)
 	{
-		return FMath::Max(0.0f, FVector::Dist2D(Point, GetActorLocation()) - Radius);
+		return SplineArea.DistanceOutside(Point);
+	}
+	if (Effective == EJRPGEncounterZoneShape::Sphere)
+	{
+		// A esfera desenhada (e os pontos sorteados) crescem com a escala do ator
+		const FVector Scale = GetActorScale3D();
+		const float ScaledRadius = Radius * FMath::Max(FMath::Abs(Scale.X), FMath::Abs(Scale.Y));
+		return FMath::Max(0.0f, FVector::Dist2D(Point, GetActorLocation()) - ScaledRadius);
 	}
 	const FVector Local = GetActorTransform().InverseTransformPosition(Point);
 	const float Dx = FMath::Max(0.0f, FMath::Abs(Local.X) - BoxExtent.X);

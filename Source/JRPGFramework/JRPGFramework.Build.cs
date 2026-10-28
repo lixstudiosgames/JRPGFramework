@@ -36,7 +36,8 @@ public class JRPGFramework : ModuleRules
 				"UMG",
 				"Projects",
 				"RHI",
-				"RenderCore"
+				"RenderCore",
+				"Json"              // as ondas da batalha em JSON (JRPGBattleWaves.h)
 			}
 		);
 				

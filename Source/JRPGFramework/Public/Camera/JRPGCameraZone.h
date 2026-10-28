@@ -44,51 +44,51 @@ public:
 	AJRPGCameraZone();
 
 	/** O que a zona faz: trocar para uma câmera do level ou mudar a câmera do personagem. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Camera")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Zone")
 	EJRPGCameraZoneMode Mode = EJRPGCameraZoneMode::LevelCamera;
 
 	/** Level Camera: a câmera posicionada no level usada enquanto o player está dentro. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Camera", meta = (EditCondition = "Mode == EJRPGCameraZoneMode::LevelCamera", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Zone", meta = (EditCondition = "Mode == EJRPGCameraZoneMode::LevelCamera", EditConditionHides))
 	TObjectPtr<AActor> LevelCamera;
 
 	/** Player Camera: a câmera do personagem dentro da zona (AJRPGFieldCharacter). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Camera", meta = (EditCondition = "Mode == EJRPGCameraZoneMode::PlayerCamera", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Zone", meta = (EditCondition = "Mode == EJRPGCameraZoneMode::PlayerCamera", EditConditionHides))
 	FJRPGFieldCameraSettings PlayerCamera;
 
 	/** Zonas sobrepostas: vale a de maior prioridade; empatando, a última em que entrou. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Camera")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Zone")
 	int32 Priority = 0;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Camera|Control", meta = (InlineEditConditionToggle))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Zone|Control", meta = (InlineEditConditionToggle))
 	bool bOverrideControl = false;
 
 	/**
 	 * De onde vem o "cima" do controle dentro da zona (AJRPGFieldCharacter). Fixed Yaw para
 	 * cavernas e câmeras fixas: o controle segue o mapa, não o ângulo da câmera.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Camera|Control", meta = (EditCondition = "bOverrideControl"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Zone|Control", meta = (EditCondition = "bOverrideControl"))
 	EJRPGFieldControlMode ControlMode = EJRPGFieldControlMode::FixedYaw;
 
 	/** Fixed Yaw: o yaw do mundo que é "cima" no controle dentro da zona. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Camera|Control", meta = (EditCondition = "bOverrideControl && ControlMode == EJRPGFieldControlMode::FixedYaw"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Zone|Control", meta = (EditCondition = "bOverrideControl && ControlMode == EJRPGFieldControlMode::FixedYaw"))
 	float ControlYaw = 0.0f;
 
 	/** Blend da IDA para a câmera da zona ao entrar no box. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Camera")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Zone")
 	float BlendInTime = 0.75f;
 
 	/** Blend da VOLTA para a câmera anterior ao sair do box (0 = corte seco). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Camera")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Zone")
 	float FadeOutTime = 0.75f;
 
 	/**
 	 * true = fechar uma UI (loja/menu) dentro da zona também devolve a câmera
 	 * ao player. Default false: quem manda na câmera é entrar/sair do box.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Camera")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera Zone")
 	bool bAutoRestoreOnUIClose = false;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Camera")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera Zone")
 	TObjectPtr<UBoxComponent> TriggerBox;
 
 protected:

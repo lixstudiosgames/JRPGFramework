@@ -42,19 +42,19 @@ public:
 	AJRPGFieldCharacter();
 
 	/** Braço da câmera: rotação absoluta (do mundo), sem colisão. Configurado pela BaseCamera. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Camera")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Field Character|Camera")
 	TObjectPtr<USpringArmComponent> CameraBoom;
 
 	/** Câmera de cima. O CameraSubsystem volta para ela (RestoreToPlayerCamera). */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Camera")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Field Character|Camera")
 	TObjectPtr<UCameraComponent> FieldCamera;
 
 	/** Mexe a névoa da JRPGMist em volta do personagem e deixa o rastro. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Field")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Field Character")
 	TObjectPtr<UJRPGMistDisturberComponent> MistDisturber;
 
 	/** Escolhe com quem interagir (IJRPGInteractable) e chama o Interact dele. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Field")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Field Character")
 	TObjectPtr<UJRPGInteractionComponent> Interaction;
 
 	// --- Câmera e controle ---
@@ -63,15 +63,15 @@ public:
 	 * Câmera base (fora de qualquer AJRPGCameraZone). Substituída pela do AJRPGFieldMapSettings
 	 * do mapa no BeginPlay. É o que aparece no viewport do Blueprint.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Camera")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Field Character|Camera")
 	FJRPGFieldCameraSettings BaseCamera;
 
 	/** De onde vem o "cima" do controle fora das zonas. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Camera")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Field Character|Camera")
 	EJRPGFieldControlMode BaseControlMode = EJRPGFieldControlMode::CameraRelative;
 
 	/** Fixed Yaw: o yaw do mundo que é "cima" no controle. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Camera", meta = (EditCondition = "BaseControlMode == EJRPGFieldControlMode::FixedYaw", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Field Character|Camera", meta = (EditCondition = "BaseControlMode == EJRPGFieldControlMode::FixedYaw", EditConditionHides))
 	float BaseControlYaw = 0.0f;
 
 	/**
@@ -104,22 +104,22 @@ public:
 	// --- Movimento ---
 
 	/** Velocidade andando, em uu/s. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Movement", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Character|Movement", meta = (ClampMin = "0.0"))
 	float WalkSpeed = 300.0f;
 
 	/** Velocidade correndo, em uu/s. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Movement", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Character|Movement", meta = (ClampMin = "0.0"))
 	float SprintSpeed = 700.0f;
 
 	/** Desligado = o botão de correr não faz nada (World Map, cidades onde não se corre...). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Movement")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Character|Movement")
 	bool bCanSprint = true;
 
 	/**
 	 * Declara o Field ao começar (WorldStateSubsystem::SetIsInField(true)): este personagem só
 	 * existe em mapas de campo. Desligue se o mapa declara por conta própria.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Character")
 	bool bDeclareFieldOnBeginPlay = true;
 
 	/** Liga/desliga a corrida (o controller chama ao segurar/soltar o botão). */
@@ -136,7 +136,7 @@ public:
 
 	/** Disparado quando a corrida liga ou desliga. */
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSprintChanged, bool, bIsSprinting);
-	UPROPERTY(BlueprintAssignable, Category = "JRPG|Field|Movement")
+	UPROPERTY(BlueprintAssignable, Category = "Field Character|Movement")
 	FOnSprintChanged OnSprintChanged;
 
 	// --- Party ---
@@ -146,7 +146,7 @@ public:
 	 * UJRPGFieldPartyComponent usa para saber quem já está no mapa. Vazio no pawn do GameMode =
 	 * o primeiro da formação.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Party")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Field Character|Party")
 	FName PartyKey;
 
 	/**

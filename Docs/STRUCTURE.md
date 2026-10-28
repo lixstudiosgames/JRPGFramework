@@ -23,6 +23,9 @@ JRPGFramework/
 │   │   │   ├── ProgressionTypes.h ✅            ← EJRPGDifficulty + FDifficultyScaling,
 │   │   │   │                                       FLevelCurveRow, FStatGrowthRow, FGrowthCurveRow
 │   │   │   ├── JRPGGameInstance.h ✅            ← GameInstance base class (GI_Main inherits it)
+│   │   │   ├── JRPGSplineArea.h ✅              ← FJRPGSplineArea: a closed spline seen from above as a
+│   │   │   │                                       2D area (contains / distance / random point);
+│   │   │   │                                       encounter zone + battle arena
 │   │   │   └── JRPGTypes.h ✅                   ← global enums and structs
 │   │   │
 │   │   ├── Save/ ✅                             ← SAVE/LOAD COMPLETE
@@ -65,8 +68,8 @@ JRPGFramework/
 │   │   │   ├── JRPGFieldEnemyController.h ✅    ← AI controller of the field enemies (MoveTo)
 │   │   │   ├── JRPGFieldEnemyAnimInstance.h ✅  ← native anim instance, no Anim Blueprint: Idle/Walk/Run
 │   │   │   │                                       with crossfade, notifies fire; any skeleton
-│   │   │   ├── JRPGEncounterZone.h ✅           ← sphere/box area keeping MaxAlive enemies, respawn,
-│   │   │   │                                       event-flag gate
+│   │   │   ├── JRPGEncounterZone.h ✅           ← sphere/box/spline area keeping MaxAlive enemies,
+│   │   │   │                                       respawn, event-flag gate
 │   │   │   ├── JRPGFieldMapSettings.h ✅        ← one per map: base camera, controls, speeds,
 │   │   │   │                                       whether the party shows
 │   │   │   ├── JRPGInteractable.h ✅            ← interface: Interact(InteractingActor)
@@ -129,8 +132,19 @@ JRPGFramework/
 │   │   │   └── ArtsSubsystem.h 🟡               ← TeachArtToCharacter only (TODO)
 │   │   │
 │   │   └── Battle/ 🟡
-│   │       ├── BattleSubsystem.h 🟡             ← TryStartEncounter (grace window + OnEncounterStarted);
-│   │       │                                       ApplyBattleItemEffect still TODO
+│   │       ├── BattleSubsystem.h 🟡             ← TryStartEncounter (grace window), BeginBattle /
+│   │       │                                       EndBattle + OnBattleStarted/Ended; no turns yet
+│   │       │                                       (Phase 5); ApplyBattleItemEffect still TODO
+│   │       ├── BattleTypes.h ✅                 ← side, combatant type, result, FJRPGCombatant,
+│   │       │                                       FJRPGBattleSetup, FJRPGBattleVisual
+│   │       ├── JRPGBattleArena.h ✅             ← where on the map a fight is assembled, and who
+│   │       │                                       assembles it: formation preview + ground check,
+│   │       │                                       hand-drawn area, FindArenaFor, AssembleBattle /
+│   │       │                                       TeardownBattle (BATTLE_ROADMAP Phase 4)
+│   │       ├── JRPGBattleSceneSubsystem.h ✅    ← world subsystem: picks the arena, fade, OnFieldHidden /
+│   │       │                                       OnFieldShown, console commands. Guides/BATTLE_STAGE.md
+│   │       ├── JRPGBattlePawn.h ✅              ← one combatant in the scene: battle model in its seat
+│   │       ├── JRPGBattleWaves.h ✅             ← fights in a row, Muscle Dome style, waves from JSON
 │   │       ├── JRPGEncounterTypes.h ✅          ← FJRPGEncounterEnemy/Setup/Combatant + the roll and
 │   │       │                                       DT_Enemies access (UJRPGEncounterLibrary)
 │   │       └── EnemyData.h ✅                   ← FJRPGEnemyData (DT_Enemies row: in-battle stats,
@@ -141,7 +155,7 @@ JRPGFramework/
 │       ├── JRPGFramework.cpp ✅
 │       ├── JRPGFrameworkPCH.h ✅              ← module PCH: reads the engine headers that fire C4996
 │       │                                       with the warning off (Guides/BUILDING.md)
-│       ├── Core/ ✅        (CoreSubsystem.cpp ✅, JRPGGameInstance.cpp ✅)
+│       ├── Core/ ✅        (CoreSubsystem.cpp ✅, JRPGGameInstance.cpp ✅, JRPGSplineArea.cpp ✅)
 │       ├── Save/ ✅        (SaveSubsystem.cpp ✅, JRPGSaveGame.cpp ✅)
 │       ├── Inventory/ ✅   (InventorySubsystem.cpp ✅)
 │       ├── World/ ✅       (WorldStateSubsystem.cpp ✅, JRPGMistVolume.cpp ✅,
@@ -164,7 +178,8 @@ JRPGFramework/
 │       ├── Party/ ✅       (PartySubsystem.cpp ✅)
 │       ├── Status/ ✅      (StatusSubsystem.cpp ✅)
 │       ├── Arts/ 🟡        (ArtsSubsystem.cpp 🟡)
-│       └── Battle/ 🟡      (BattleSubsystem.cpp 🟡)
+│       └── Battle/ 🟡      (BattleSubsystem.cpp 🟡, JRPGBattleArena.cpp ✅, JRPGBattleSceneSubsystem.cpp ✅,
+│                           JRPGBattlePawn.cpp ✅, JRPGBattleWaves.cpp ✅)
 │
 ├── Shaders/ ✅                                  ← mapped to /Plugin/JRPGFramework
 │   ├── UltralightBlitShader.usf ✅              ← full-screen blit of the Ultralight texture (JRPGWebBrowser)
@@ -263,7 +278,7 @@ JRPGFramework/
 | **WebUI** | ✅ complete | SPA shell, 7 screens, gamepad + keyboard + mouse with their own rules, responsive scaling |
 | **Party** | ✅ complete (data) | Roster vs formation, 3 states per character, XP split among survivors as in the original, level-up with jitter, whole-roster save. The UI does not follow the formation yet |
 | **Status** | ✅ complete (data) | Equipment in 5 slots with `CanEquip` read from `DT_Items`, conditions, Ra-Seru (1..9), elemental affinity, and the original's `effective ( base )` display. The equip screen is still missing |
-| **Arts / Battle** | 🟡 stubs | They receive calls from the inventory but hold no state. `DT_Enemies` exists (179 enemies, [ENEMIES.md](Guides/ENEMIES.md)) and the battle **models** are coming in: disc extraction done, and the PS1 → Unreal converter validated on Gimard and the party's battle form ([PS1_ASSETS.md](Guides/PS1_ASSETS.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
+| **Arts / Battle** | 🟡 stage ready, no combat | A fight is assembled over the current map and taken down: battle arenas placed by hand, the original's seats, battle models from `DT_Characters` / `DT_Enemies`, camera, field enemies starting it on contact, the Muscle Dome waves ([BATTLE_STAGE.md](Guides/BATTLE_STAGE.md)). Turns, damage and Arts are still to come; `ArtsSubsystem` is a stub. `DT_Enemies` has 179 enemies ([ENEMIES.md](Guides/ENEMIES.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
 
 ---
 

@@ -3,6 +3,8 @@
 #include "Field/JRPGFieldEnemyController.h"
 #include "Field/JRPGFieldEnemyAnimInstance.h"
 #include "Battle/BattleSubsystem.h"
+#include "Battle/JRPGBattleArena.h"
+#include "Battle/JRPGBattleSceneSubsystem.h"
 #include "World/JRPGMistDisturberComponent.h"
 #include "AIController.h"
 #include "Animation/AnimInstance.h"
@@ -141,9 +143,13 @@ void AJRPGFieldEnemy::InitFromZone(AJRPGEncounterZone* InZone)
 	Zone = InZone;
 }
 
-const FJRPGEncounterSetup& AJRPGFieldEnemy::GetEncounterSetup() const
+FJRPGEncounterSetup AJRPGFieldEnemy::GetEncounterSetup() const
 {
-	return Zone ? Zone->Encounter : Encounter;
+	if (Zone)
+	{
+		return Zone->GetEncounterSetup();
+	}
+	return Encounter.Enemies.Num() > 0 ? Encounter : UJRPGEncounterLibrary::MakeSingleEnemyEncounter(EnemyKey, LevelMin, LevelMax);
 }
 
 void AJRPGFieldEnemy::BeginPlay()
@@ -160,9 +166,27 @@ void AJRPGFieldEnemy::BeginPlay()
 		if (UWebUISubsystem* WebUI = GI->GetSubsystem<UWebUISubsystem>())
 		{
 			WebUI->OnUIStateChanged.AddDynamic(this, &AJRPGFieldEnemy::HandleUIStateChanged);
-			SetFrozen(WebUI->GetUIState() != EJRPGUIState::HudOnly);
+			bMenuOpen = WebUI->GetUIState() != EJRPGUIState::HudOnly;
+		}
+		if (UBattleSubsystem* Battle = GI->GetSubsystem<UBattleSubsystem>())
+		{
+			Battle->OnBattleStarted.AddDynamic(this, &AJRPGFieldEnemy::HandleBattleStarted);
+			bInBattle = Battle->IsInBattle();
 		}
 	}
+	if (UJRPGBattleSceneSubsystem* Scene = GetWorld()->GetSubsystem<UJRPGBattleSceneSubsystem>())
+	{
+		Scene->OnFieldHidden.AddDynamic(this, &AJRPGFieldEnemy::HandleFieldHidden);
+		Scene->OnFieldShown.AddDynamic(this, &AJRPGFieldEnemy::HandleFieldShown);
+		// Nasceu (zona) com uma luta na tela: fica escondido até ela sair
+		if (Scene->IsFieldHidden())
+		{
+			bHiddenForBattle = true;
+			SetActorHiddenInGame(true);
+			SetActorEnableCollision(false);
+		}
+	}
+	UpdateFrozen();
 
 	EnterIdle(FMath::FRandRange(WaitTimeMin, WaitTimeMax));
 	GetWorldTimerManager().SetTimer(ThinkTimer, this, &AJRPGFieldEnemy::Think, DecisionInterval, true,
@@ -180,6 +204,15 @@ void AJRPGFieldEnemy::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		{
 			WebUI->OnUIStateChanged.RemoveDynamic(this, &AJRPGFieldEnemy::HandleUIStateChanged);
 		}
+		if (UBattleSubsystem* Battle = GI->GetSubsystem<UBattleSubsystem>())
+		{
+			Battle->OnBattleStarted.RemoveDynamic(this, &AJRPGFieldEnemy::HandleBattleStarted);
+		}
+	}
+	if (UJRPGBattleSceneSubsystem* Scene = GetWorld()->GetSubsystem<UJRPGBattleSceneSubsystem>())
+	{
+		Scene->OnFieldHidden.RemoveDynamic(this, &AJRPGFieldEnemy::HandleFieldHidden);
+		Scene->OnFieldShown.RemoveDynamic(this, &AJRPGFieldEnemy::HandleFieldShown);
 	}
 	Super::EndPlay(EndPlayReason);
 }
@@ -201,7 +234,7 @@ bool AJRPGFieldEnemy::ResolveVisual(FJRPGFieldEnemyVisual& Out, FString& OutSour
 	if (bVisualFromEncounter)
 	{
 		// O principal primeiro; senão, um dos outros que tenha modelo, pelo peso
-		const FJRPGEncounterSetup& Setup = GetEncounterSetup();
+		const FJRPGEncounterSetup Setup = GetEncounterSetup();
 		TArray<const FJRPGEncounterEnemy*> WithModel;
 		TArray<FName> WithoutModel;
 		const FJRPGEncounterEnemy* Main = nullptr;
@@ -378,8 +411,17 @@ void AJRPGFieldEnemy::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	if (State == EJRPGFieldEnemyState::Hidden || bFrozen)
+	if (State == EJRPGFieldEnemyState::Hidden)
 	{
+		return;
+	}
+	if (bFrozen)
+	{
+		// Parado pela luta: sem decidir nem andar, mas a animação passa para o Idle
+		if (!bMenuOpen)
+		{
+			UpdateAnimation();
+		}
 		return;
 	}
 
@@ -720,18 +762,17 @@ void AJRPGFieldEnemy::TriggerEncounter()
 	const TArray<FJRPGEncounterCombatant> Enemies = UJRPGEncounterLibrary::RollEncounter(GetEncounterSetup());
 	if (Enemies.Num() == 0)
 	{
-		Print(TEXT("encostou, mas o Encounter está vazio — nada a fazer"), FColor::Red);
+		Print(TEXT("encostou, mas não tem Enemy escolhido — nada a fazer"), FColor::Red);
 		return;
 	}
 
+	UBattleSubsystem* Battle = nullptr;
 	if (const UGameInstance* GI = GetGameInstance())
 	{
-		if (UBattleSubsystem* Battle = GI->GetSubsystem<UBattleSubsystem>())
+		Battle = GI->GetSubsystem<UBattleSubsystem>();
+		if (Battle && !Battle->TryStartEncounter(Enemies))
 		{
-			if (!Battle->TryStartEncounter(Enemies))
-			{
-				return; // outro encontro acabou de começar
-			}
+			return; // outro encontro acabou de começar, ou já há uma luta
 		}
 	}
 
@@ -740,6 +781,7 @@ void AJRPGFieldEnemy::TriggerEncounter()
 	Info.FieldEnemy = this;
 	Info.Zone = Zone;
 	Info.ContactLocation = GetActorLocation();
+	Info.Arena = AJRPGBattleArena::FindArenaFor(this, Info.ContactLocation);
 
 	TArray<FString> Names;
 	for (const FJRPGEncounterCombatant& C : Enemies)
@@ -751,10 +793,46 @@ void AJRPGFieldEnemy::TriggerEncounter()
 			bFound ? *FString::Printf(TEXT(" (HP %d)"), Data.BaseHP) : TEXT(" (fora do DT_Enemies!)")));
 	}
 	Print(FString::Printf(TEXT("ENCONTRO! %s"), *FString::Join(Names, TEXT(", "))), FColor::Red);
+	if (Info.Arena)
+	{
+		Print(FString::Printf(TEXT("luta na arena %s"), *Info.Arena->GetActorNameOrLabel()), FColor::Cyan);
+		if (bPrintDebug)
+		{
+			Info.Arena->DrawDebugFormation(Info.Arena->PreviewPartyCount, Enemies.Num(), 5.0f);
+		}
+	}
+	else
+	{
+		Print(TEXT("nenhuma arena no mapa — a luta é montada onde foi o toque"), FColor::Orange);
+	}
 
 	OnEncounterTriggered.Broadcast(Info);
 	OnContact(Info);
-	HideEnemy();
+
+	if (!bStartBattle || !Battle)
+	{
+		HideEnemy();
+		return;
+	}
+
+	// Fica parado à vista (sem colisão, para não encostar de novo) até a tela ficar preta; aí some
+	// e agenda o respawn (HandleFieldHidden)
+	bHideWhenFieldHidden = true;
+	SetActorEnableCollision(false);
+	StopMoving();
+	GetCharacterMovement()->StopMovementImmediately();
+
+	FJRPGBattleSetup Setup;
+	Setup.Enemies = Enemies;
+	Setup.Location = Info.ContactLocation;
+	// Sem arena, a party olha de quem encostou para o inimigo
+	const APawn* Player = GetPlayerPawn();
+	Setup.FacingYaw = Player ? (Info.ContactLocation - Player->GetActorLocation()).Rotation().Yaw : GetActorRotation().Yaw + 180.0f;
+	if (!Battle->BeginBattle(Setup))
+	{
+		bHideWhenFieldHidden = false;
+		HideEnemy();
+	}
 }
 
 void AJRPGFieldEnemy::HideEnemy()
@@ -864,8 +942,9 @@ void AJRPGFieldEnemy::RespawnAtFloor(FVector FloorLocation)
 	{
 		HomeLocation = GetActorLocation();
 	}
-	SetActorHiddenInGame(false);
-	SetActorEnableCollision(true);
+	// No meio de uma luta ele volta para o lugar, mas só aparece quando ela sair da tela
+	SetActorHiddenInGame(bHiddenForBattle);
+	SetActorEnableCollision(!bHiddenForBattle);
 	LastReturnTime = GetWorld()->GetTimeSeconds(); // não pula em cima do jogador ao reaparecer
 	EnterIdle(FMath::FRandRange(WaitTimeMin, WaitTimeMax));
 	Print(FString::Printf(TEXT("reapareceu (%s)"), *VisualName), FColor::Cyan);
@@ -877,25 +956,93 @@ void AJRPGFieldEnemy::RespawnAtFloor(FVector FloorLocation)
 
 void AJRPGFieldEnemy::HandleUIStateChanged(EJRPGUIState OldState, EJRPGUIState NewState)
 {
-	SetFrozen(NewState != EJRPGUIState::HudOnly);
+	bMenuOpen = NewState != EJRPGUIState::HudOnly;
+	UpdateFrozen();
+}
+
+void AJRPGFieldEnemy::HandleBattleStarted(const FJRPGBattleSetup& Setup, const TArray<FJRPGCombatant>& Combatants)
+{
+	// Para na hora, onde está, e fica em Idle; some só com a tela preta (HandleFieldHidden)
+	bInBattle = true;
+	StopMoving();
+	GetCharacterMovement()->StopMovementImmediately();
+	StopClipSounds();
+	UpdateFrozen();
+}
+
+void AJRPGFieldEnemy::HandleFieldHidden()
+{
+	bHiddenForBattle = true;
+	if (bHideWhenFieldHidden)
+	{
+		// Quem encostou: some e agenda o respawn (que espera a luta sair da tela)
+		bHideWhenFieldHidden = false;
+		HideEnemy();
+		return;
+	}
+	SetActorHiddenInGame(true);
+	SetActorEnableCollision(false);
+	StopClipSounds();
+	if (State != EJRPGFieldEnemyState::Hidden)
+	{
+		ResetToHome();
+	}
+}
+
+void AJRPGFieldEnemy::HandleFieldShown()
+{
+	bInBattle = false;
+	bHiddenForBattle = false;
+	if (bHideWhenFieldHidden)
+	{
+		// A luta acabou antes da tela ficar preta: quem encostou some agora, como sem luta
+		bHideWhenFieldHidden = false;
+		HideEnemy();
+	}
+	if (State != EJRPGFieldEnemyState::Hidden)
+	{
+		SetActorHiddenInGame(false);
+		SetActorEnableCollision(true);
+		// Não pula em cima do jogador no instante em que a tela abre
+		LastReturnTime = GetWorld()->GetTimeSeconds();
+	}
+	UpdateFrozen();
+}
+
+void AJRPGFieldEnemy::ResetToHome()
+{
+	const float Half = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	FVector Floor;
+	if (!Zone || !Zone->GetRandomFloorPoint(Floor))
+	{
+		Floor = HomeLocation - FVector(0.0f, 0.0f, Half);
+	}
+	StopMoving();
+	GetCharacterMovement()->StopMovementImmediately();
+	SetActorLocation(Floor + FVector(0.0f, 0.0f, Half), false, nullptr, ETeleportType::TeleportPhysics);
+	EnterIdle(FMath::FRandRange(WaitTimeMin, WaitTimeMax));
+	Print(TEXT("luta começou — voltou para casa"), FColor::Silver);
+}
+
+void AJRPGFieldEnemy::UpdateFrozen()
+{
+	SetFrozen(bMenuOpen || bInBattle);
 }
 
 void AJRPGFieldEnemy::SetFrozen(bool bFreeze)
 {
-	if (bFrozen == bFreeze)
-	{
-		return;
-	}
 	bFrozen = bFreeze;
-	// Dilatação 0 para movimento e animação; o Think também não decide nada enquanto isso
-	CustomTimeDilation = bFreeze ? 0.0f : 1.0f;
+	// Menu aberto: o mundo pausa (dilatação 0 para movimento e animação). Luta: ele só para de
+	// decidir e andar — a animação continua, para ele ficar em Idle e não travado no meio do passo
+	CustomTimeDilation = bMenuOpen ? 0.0f : 1.0f;
 }
+
 
 // ---------------------------------------------------------------------------------------------
 
 FString AJRPGFieldEnemy::Describe() const
 {
-	const FJRPGEncounterSetup& Setup = GetEncounterSetup();
+	const FJRPGEncounterSetup Setup = GetEncounterSetup();
 	const FString Key = Setup.Enemies.Num() > 0 ? Setup.Enemies[0].EnemyKey.ToString() : TEXT("sem encounter");
 	return FString::Printf(TEXT("%s [%s]"), *GetActorNameOrLabel(), *Key);
 }

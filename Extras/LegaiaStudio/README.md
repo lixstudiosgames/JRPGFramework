@@ -31,6 +31,15 @@ avisa se a linha estiver em uso (item citado por alguma loja, por exemplo).
 Salvar; a sidebar marca com `•` a tabela com alterações pendentes. Ao salvar, o
 CSV anterior é copiado para `Docs/Data/_backup/` com data e hora.
 
+**Ondas de batalha (aba Batalha › Ondas).** Os JSON do `AJRPGBattleWaves` (o
+Muscle Dome), em `<projeto Unreal>/Content/Data/Waves/`: party por chips na ordem
+da formação, ondas com nome, inimigos por luta e os inimigos escolhidos da
+`DT_Enemies` (level, quantidade, peso, "sempre entra"). Mostra o que cada onda
+pode sortear e avisa o que daria errado no jogo (ninguém entra, key que não
+existe, inimigo sem modelo). Salvar guarda backup em
+`<projeto Unreal>/Saved/LegaiaStudio/WavesBackup/`; o jogo lê o arquivo a cada
+play. Formato em `Docs/Guides/BATTLE_STAGE.md`.
+
 **Builds com log ao vivo.** `Build WebUI` e `Build Plugin` rodam os scripts de
 `Extras/` e transmitem a saída num painel embaixo. Enquanto roda, a interface
 fica travada — evita salvar CSV no meio de um empacotamento.
@@ -77,6 +86,8 @@ um default no `studio.py`. Para mudar sem editar o script, crie um
 ```json
 { "unreal_project": "D:\\JOGOS\\PROJETOS UNREAL\\5.8\\Legaia" }
 ```
+
+`waves_dir` troca a pasta das ondas (padrão: `<unreal_project>/Content/Data/Waves`).
 
 Caminho inexistente não quebra nada — o painel só marca as DataTables como
 "não configurado".

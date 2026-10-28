@@ -6,6 +6,10 @@
 //   POST /api/table/<id>/save       -> {rows: [[...]]}
 //   POST /api/build/<key>           -> inicia
 //   GET  /api/build/<key>/log?from= -> log incremental
+//   GET  /api/waves                 -> arquivos de ondas (pasta do projeto Unreal)
+//   GET  /api/waves/<arquivo>       -> o JSON
+//   POST /api/waves/<arquivo>/save  -> grava (backup em Saved/ do projeto)
+//   POST /api/waves/<arquivo>/new   -> cria a partir de um modelo
 //
 // A edição acontece em memória (state.tables[id].rows) e só vai para o disco
 // no botão Salvar. Enquanto houver pendência, a sidebar marca a tabela com •.
@@ -18,6 +22,7 @@
         tables: {},        // id -> {columns, rows, schema, meta, refs, dirty, sel}
         current: null,     // id da view aberta
         buildTimer: null,
+        waves: { listing: null, current: null },   // aba Ondas: {file, data, dirty}
     };
 
     // --- utilidades ---
@@ -93,6 +98,7 @@
         shield: 'M12 3l8 3v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6z',
         growth: 'M4 20V13M9 20V9M14 20v-6M19 20V4',
         enemy:  'M12 3a8 8 0 0 0-8 8c0 3 1.5 5 3 6v3h10v-3c1.5-1 3-3 3-6a8 8 0 0 0-8-8zM9 11.5h.01M15 11.5h.01M10 20v-2M14 20v-2',
+        waves:  'M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2',
         folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
     };
 
@@ -133,6 +139,11 @@
             btn.querySelector('.nav-label').textContent = b.label;
             btn.addEventListener('click', () => runBuild(b));
             buildsNav.appendChild(btn);
+        });
+
+        // Ícones fixos do index.html (data-ico)
+        document.querySelectorAll('.nav-ico[data-ico]').forEach((s) => {
+            if (!s.innerHTML) s.innerHTML = icon(s.dataset.ico);
         });
 
         document.querySelectorAll('.nav-item[data-go]').forEach((b) => {
@@ -226,6 +237,7 @@
             $('#views').appendChild(view);
             if (id === 'overview') renderOverview(view);
             else if (id === 'validation') renderValidation(view);
+            else if (id === 'waves') await openWaves(view);
             else await openTable(id, view);
         } else if (id === 'validation') {
             renderValidation(view);
@@ -850,7 +862,7 @@
                 b.appendChild(el('span', 'pname', name));
                 b.appendChild(el('span', 'pkey', key));
                 const price = colValue(src, r, src.meta.badge);
-                if (price) b.appendChild(el('span', 'pprice', price + ' G'));
+                if (price) b.appendChild(el('span', 'pprice', price + (src.meta.badgeSuffix || '')));
                 if (!has) {
                     b.addEventListener('click', () => {
                         onPick(key);
@@ -945,6 +957,357 @@
             });
         });
         return hits;
+    }
+
+    // ====================================================================
+    // ONDAS DE BATALHA (JSON do AJRPGBattleWaves)
+    // ====================================================================
+    //
+    // Um arquivo = um conjunto de ondas (o Muscle Dome). A lista da esquerda são
+    // os arquivos da pasta de ondas do projeto Unreal; a ficha edita um deles em
+    // memória e só grava no Salvar (com backup em Saved/ do projeto).
+
+    async function openWaves(view) {
+        view.innerHTML = '';
+        await Promise.all([ensureTable('DT_Enemies'), ensureTable('DT_Characters')]);
+
+        const ws = state.waves;
+        const list = el('div', 'reclist');
+        const top = el('div', 'reclist-top');
+        const info = el('div', 'reclist-info');
+        const count = el('span');
+        info.appendChild(count);
+        const addBtn = el('button', 'btn', '+ Novo');
+        addBtn.style.padding = '5px 11px';
+        addBtn.style.fontSize = '10px';
+        info.appendChild(addBtn);
+        top.appendChild(info);
+        list.appendChild(top);
+        const items = el('div', 'reclist-items');
+        list.appendChild(items);
+        view.appendChild(list);
+
+        const form = el('div', 'form');
+        view.appendChild(form);
+
+        async function refreshListing() {
+            try {
+                ws.listing = await api('waves');
+            } catch (e) {
+                banner('Não consegui listar as ondas: ' + e.message);
+                ws.listing = { files: [], dirOk: false, dir: '' };
+            }
+        }
+
+        function renderList() {
+            items.innerHTML = '';
+            const files = ws.listing.files;
+            count.textContent = files.length + (files.length === 1 ? ' arquivo' : ' arquivos');
+            if (!ws.listing.dirOk) {
+                const p = el('p', 'muted', 'A pasta ainda não existe: ' + (ws.listing.dir || '(projeto Unreal não configurado)')
+                    + '. "+ Novo" cria.');
+                p.style.padding = '10px';
+                items.appendChild(p);
+            }
+            files.forEach((f) => {
+                const active = ws.current && ws.current.file === f.file;
+                const b = el('button', 'rec' + (active ? ' active' : ''));
+                const main = el('div', 'rec-main');
+                main.appendChild(el('div', 'rec-title', f.name + (active && ws.current.dirty ? ' •' : '')));
+                main.appendChild(el('div', 'rec-sub', f.error ? f.file + '  ·  ' + f.error : f.file));
+                b.appendChild(main);
+                b.appendChild(el('span', 'rec-badge', f.error ? '!' : f.waves + (f.waves === 1 ? ' onda' : ' ondas')));
+                b.addEventListener('click', () => select(f.file));
+                items.appendChild(b);
+            });
+        }
+
+        async function select(file) {
+            if (ws.current && ws.current.dirty && ws.current.file !== file) {
+                const ok = await confirmDialog('Descartar alterações?',
+                    ws.current.file + ' tem alterações não salvas.', 'Descartar');
+                if (!ok) return;
+            }
+            try {
+                const data = await api('waves/' + file);
+                ws.current = { file: file, data: data, dirty: false };
+            } catch (e) {
+                ws.current = null;
+                toast('Não consegui abrir ' + file + ': ' + e.message, true);
+            }
+            renderList();
+            renderForm();
+        }
+
+        function dirty() {
+            ws.current.dirty = true;
+            const save = form.querySelector('.btn.primary');
+            if (save) save.disabled = false;
+            renderList();
+        }
+
+        function renderForm() {
+            form.innerHTML = '';
+            if (!ws.current) {
+                const p = el('p', 'muted', 'Escolha um arquivo de ondas, ou crie um com "+ Novo".');
+                p.style.marginTop = '30px';
+                form.appendChild(p);
+                return;
+            }
+            const d = ws.current.data;
+
+            const head = el('div', 'form-head');
+            const left = el('div');
+            left.appendChild(el('div', 'form-title', d.name || ws.current.file));
+            left.appendChild(el('div', 'form-key', 'WavesFile no Unreal:  ' + (d.unrealPath || ws.current.file)));
+            head.appendChild(left);
+            const actions = el('div', 'form-actions');
+            const save = el('button', 'btn primary', 'Salvar');
+            save.disabled = !ws.current.dirty;
+            save.addEventListener('click', saveWaves);
+            actions.appendChild(save);
+            head.appendChild(actions);
+            form.appendChild(head);
+
+            // --- o conjunto ---
+            const grid = el('div', 'fields');
+            grid.appendChild(textField('Nome', 'texto', d.name || '', (v) => { d.name = v; dirty(); }));
+            grid.appendChild(numberField('Espera inicial', 'segundos', d.startDelay, true, (v) => { d.startDelay = v; dirty(); }));
+            grid.appendChild(numberField('Espera entre ondas', 'segundos', d.delayBetweenWaves, true, (v) => { d.delayBetweenWaves = v; dirty(); }));
+            grid.appendChild(toggleField('Loop', 'depois da última, volta à primeira', !!d.loop, (v) => { d.loop = v; dirty(); }));
+            grid.appendChild(partyField(d));
+            const set = el('div', 'fieldset');
+            set.appendChild(grid);
+            form.appendChild(set);
+
+            // --- as ondas ---
+            const waves = el('div', 'waves');
+            (d.waves || []).forEach((w, i) => waves.appendChild(waveCard(d, w, i)));
+            form.appendChild(waves);
+
+            const add = el('button', 'btn', '+ Onda');
+            add.addEventListener('click', () => {
+                d.waves.push({ name: 'Onda ' + (d.waves.length + 1), enemiesMin: 1, enemiesMax: 1, enemies: [] });
+                dirty();
+                renderForm();
+            });
+            form.appendChild(add);
+        }
+
+        /** Party: chips na ordem em que são ligados (a ordem é a formação; o primeiro é o líder). */
+        function partyField(d) {
+            const f = wrap('Party', 'ordem = formação · vazio = a party ativa do save', true);
+            const box = el('div', 'chips');
+            const chars = state.tables.DT_Characters || refCache.DT_Characters;
+            const keys = chars ? chars.rows.map((r) => r[0].trim()) : [];
+            d.party = d.party || [];
+            d.party.forEach((k) => { if (keys.indexOf(k) === -1) keys.push(k); });
+
+            keys.forEach((k) => {
+                const at = d.party.indexOf(k);
+                const c = el('button', 'chip' + (at !== -1 ? ' on' : ''), at !== -1 ? (at + 1) + '. ' + k : k);
+                c.type = 'button';
+                c.addEventListener('click', () => {
+                    const i = d.party.indexOf(k);
+                    if (i === -1) d.party.push(k); else d.party.splice(i, 1);
+                    dirty();
+                    f.replaceWith(partyField(d));
+                });
+                box.appendChild(c);
+            });
+            f.appendChild(box);
+            return f;
+        }
+
+        function waveCard(d, w, i) {
+            const card = el('div', 'wave-card');
+
+            const head = el('div', 'wave-head');
+            head.appendChild(el('span', 'wave-num', 'Onda ' + (i + 1)));
+            const name = el('input');
+            name.type = 'text';
+            name.placeholder = 'nome (aparece na tela)';
+            name.value = w.name || '';
+            name.addEventListener('input', () => { w.name = name.value; dirty(); });
+            head.appendChild(name);
+
+            const tool = (label, title, fn, disabled) => {
+                const b = el('button', 'btn sm', label);
+                b.title = title;
+                b.disabled = !!disabled;
+                b.addEventListener('click', () => { fn(); dirty(); renderForm(); });
+                head.appendChild(b);
+            };
+            tool('↑', 'Subir', () => { d.waves.splice(i - 1, 0, d.waves.splice(i, 1)[0]); }, i === 0);
+            tool('↓', 'Descer', () => { d.waves.splice(i + 1, 0, d.waves.splice(i, 1)[0]); }, i === d.waves.length - 1);
+            tool('Duplicar', 'Duplicar esta onda', () => { d.waves.splice(i + 1, 0, JSON.parse(JSON.stringify(w))); });
+            tool('✕', 'Apagar esta onda', () => { d.waves.splice(i, 1); });
+            card.appendChild(head);
+
+            const totals = el('div', 'wave-totals');
+            totals.appendChild(el('span', null, 'Inimigos por luta'));
+            totals.appendChild(smallNumber(w.enemiesMin, 1, (v) => { w.enemiesMin = v; dirty(); summary(); }));
+            totals.appendChild(el('span', null, 'a'));
+            totals.appendChild(smallNumber(w.enemiesMax, 1, (v) => { w.enemiesMax = v; dirty(); summary(); }));
+            const hint = el('span', 'wave-hint');
+            totals.appendChild(hint);
+            card.appendChild(totals);
+
+            const table = el('div', 'wave-enemies');
+            const header = el('div', 'wave-row wave-row-head');
+            ['Inimigo', 'Lv mín', 'Lv máx', 'Qtd mín', 'Qtd máx', 'Peso', 'Sempre entra', ''].forEach((h) => header.appendChild(el('span', null, h)));
+            table.appendChild(header);
+            w.enemies = w.enemies || [];
+            w.enemies.forEach((e, j) => table.appendChild(enemyRow(w, e, j)));
+            card.appendChild(table);
+
+            const add = el('button', 'btn sm', '+ Inimigo');
+            add.addEventListener('click', () => {
+                openPicker('DT_Enemies', w.enemies.map((x) => x.key), (key) => {
+                    w.enemies.push({ key: key, levelMin: 1, levelMax: 1, countMin: 1, countMax: 1, weight: 1,
+                                     alwaysJoins: w.enemies.length === 0 });
+                    dirty();
+                    renderForm();
+                });
+            });
+            card.appendChild(add);
+
+            /** O que esta onda pode sortear, e o que vai dar errado no jogo. */
+            function summary() {
+                const problems = [];
+                const fixed = w.enemies.filter((e) => e.alwaysJoins).reduce((n, e) => n + (e.countMin || 0), 0);
+                const drawable = w.enemies.some((e) => !e.alwaysJoins && (e.weight || 0) > 0 && (e.countMax || 0) > 0);
+                if (!w.enemies.length) problems.push('sem inimigo nenhum');
+                else if (!fixed && !drawable) problems.push('ninguém entra: marque "Sempre entra" ou dê peso a alguém');
+                if ((w.enemiesMax || 1) < (w.enemiesMin || 1)) problems.push('máximo menor que o mínimo');
+                hint.textContent = problems.length ? problems.join(' · ')
+                    : 'sai de ' + (w.enemiesMin || 1) + ' a ' + Math.max(w.enemiesMin || 1, w.enemiesMax || 1) + ' inimigo(s)'
+                      + (fixed ? ' · ' + fixed + ' fixo(s)' : '');
+                hint.classList.toggle('bad', problems.length > 0);
+            }
+            summary();
+            return card;
+        }
+
+        function enemyRow(w, e, j) {
+            const row = el('div', 'wave-row');
+            const t = state.tables.DT_Enemies || refCache.DT_Enemies;
+            const idx = t ? t.rows.findIndex((r) => r[0].trim() === e.key) : -1;
+            const who = el('span', 'wave-who');
+            if (idx < 0) {
+                row.classList.add('missing');
+                who.appendChild(el('span', 'rname', e.key + '  (não existe no DT_Enemies)'));
+            } else {
+                const r = t.rows[idx];
+                who.appendChild(el('span', 'rname', (colValue(t, r, 'DisplayName') || e.key)));
+                who.appendChild(el('span', 'rkey', e.key + ' · ' + colValue(t, r, 'BaseHP') + ' HP'));
+                if (!colValue(t, r, 'Mesh')) {
+                    const warn = el('span', 'wave-nomodel', 'sem modelo');
+                    warn.title = 'Sem Mesh no DT_Enemies: na luta aparece só a cápsula';
+                    who.appendChild(warn);
+                }
+            }
+            row.appendChild(who);
+
+            const num = (field, low) => row.appendChild(smallNumber(e[field], low, (v) => { e[field] = v; dirty(); }));
+            num('levelMin', 1);
+            num('levelMax', 1);
+            num('countMin', 0);
+            num('countMax', 0);
+            num('weight', 0);
+
+            const cb = el('input');
+            cb.type = 'checkbox';
+            cb.checked = !!e.alwaysJoins;
+            cb.title = 'Entra em toda luta desta onda (Qtd mín..máx dele)';
+            cb.addEventListener('change', () => { e.alwaysJoins = cb.checked; dirty(); renderForm(); });
+            const cbWrap = el('span', 'wave-check');
+            cbWrap.appendChild(cb);
+            row.appendChild(cbWrap);
+
+            const x = el('button', 'rdel', '✕');
+            x.title = 'Remover';
+            x.addEventListener('click', () => { w.enemies.splice(j, 1); dirty(); renderForm(); });
+            row.appendChild(x);
+            return row;
+        }
+
+        async function saveWaves() {
+            const c = ws.current;
+            try {
+                const res = await post('waves/' + c.file + '/save', c.data);
+                c.dirty = false;
+                c.data.unrealPath = res.unrealPath;
+                await refreshListing();
+                renderList();
+                renderForm();
+                toast('Salvo · ' + c.file + (res.backup ? ' · backup em Saved/LegaiaStudio' : ''));
+            } catch (e) {
+                toast('Falhou ao salvar: ' + e.message, true);
+            }
+        }
+
+        addBtn.addEventListener('click', async () => {
+            const name = prompt('Nome do arquivo (ex.: muscle_dome):', '');
+            if (name === null) return;
+            const file = name.trim().replace(/\.json$/i, '') + '.json';
+            if (!/^[\w\-]+\.json$/.test(file)) return toast('Use só letras, números, _ e -', true);
+            try {
+                await post('waves/' + file + '/new', {});
+            } catch (e) {
+                return toast('Não consegui criar: ' + e.message, true);
+            }
+            await refreshListing();
+            await select(file);
+            toast('Criado: ' + file);
+        });
+
+        await refreshListing();
+        renderList();
+        if (ws.current) renderForm();
+        else if (ws.listing.files.length) await select(ws.listing.files[0].file);
+        else renderForm();
+    }
+
+    function numberField(label, type, value, isFloat, onChange) {
+        const d = wrap(label, type);
+        const i = el('input');
+        i.type = 'number';
+        i.min = '0';
+        if (isFloat) i.step = 'any';
+        i.value = value === undefined || value === null ? '' : value;
+        i.addEventListener('input', () => onChange(isFloat ? parseFloat(i.value) || 0 : parseInt(i.value, 10) || 0));
+        d.appendChild(i);
+        return d;
+    }
+
+    function toggleField(label, type, value, onChange) {
+        const d = wrap(label, type);
+        const lab = el('label', 'toggle');
+        const cb = el('input');
+        cb.type = 'checkbox';
+        cb.checked = value;
+        const txt = el('span', null, value ? 'Sim' : 'Não');
+        cb.addEventListener('change', () => {
+            txt.textContent = cb.checked ? 'Sim' : 'Não';
+            onChange(cb.checked);
+        });
+        lab.appendChild(cb);
+        lab.appendChild(txt);
+        d.appendChild(lab);
+        return d;
+    }
+
+    function smallNumber(value, low, onChange) {
+        const i = el('input', 'num-sm');
+        i.type = 'number';
+        i.min = String(low);
+        i.value = value === undefined || value === null ? low : value;
+        i.addEventListener('input', () => {
+            const v = parseInt(i.value, 10);
+            onChange(isNaN(v) ? low : Math.max(low, v));
+        });
+        return i;
     }
 
     // ====================================================================
