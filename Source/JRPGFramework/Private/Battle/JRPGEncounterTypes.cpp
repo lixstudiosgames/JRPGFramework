@@ -101,6 +101,25 @@ bool UJRPGEncounterLibrary::GetEnemyData(FName EnemyKey, FJRPGEnemyData& OutData
 	return false;
 }
 
+FJRPGEncounterSetup UJRPGEncounterLibrary::MakeSingleEnemyEncounter(FName EnemyKey, int32 LevelMin, int32 LevelMax)
+{
+	FJRPGEncounterSetup Setup;
+	if (EnemyKey.IsNone())
+	{
+		return Setup;
+	}
+	FJRPGEncounterEnemy& Enemy = Setup.Enemies.AddDefaulted_GetRef();
+	Enemy.EnemyKey = EnemyKey;
+	Enemy.LevelMin = FMath::Max(1, LevelMin);
+	Enemy.LevelMax = FMath::Max(Enemy.LevelMin, LevelMax);
+	Enemy.CountMin = 1;
+	Enemy.CountMax = 1;
+	Enemy.bAlwaysJoins = true;
+	Setup.EnemiesPerBattleMin = 1;
+	Setup.EnemiesPerBattleMax = 1;
+	return Setup;
+}
+
 TArray<FString> UJRPGEncounterLibrary::GetEnemyKeyOptions()
 {
 	TArray<FString> Out;

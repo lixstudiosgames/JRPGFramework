@@ -29,21 +29,21 @@ class JRPGFRAMEWORK_API AJRPGBattlePawn : public APawn
 public:
 	AJRPGBattlePawn();
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Battle")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle Pawn")
 	TObjectPtr<UCapsuleComponent> Capsule;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Battle")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle Pawn")
 	TObjectPtr<USkeletalMeshComponent> Mesh;
 
 	/**
 	 * Giro da malha para ela olhar para a frente do ator (+X). Os modelos convertidos do PS1
 	 * (Extras/ps1_glb_to_fbx.py) olham para -Y do Unreal: +90 vale para todos eles.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn")
 	float MeshYawOffset = 90.0f;
 
 	/** Segundos de mistura quando o clip troca (sem Anim Blueprint). 0 = corte seco. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn", meta = (ClampMin = "0.0"))
 	float AnimBlendTime = 0.2f;
 
 	/** Quem ele é na luta. */

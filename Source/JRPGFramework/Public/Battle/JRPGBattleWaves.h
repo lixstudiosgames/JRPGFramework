@@ -15,11 +15,11 @@ struct JRPGFRAMEWORK_API FJRPGBattleWave
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Waves")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Waves")
 	FString Name;
 
 	/** Sorteado como os do Field. Onda fixa: uma linha com bAlwaysJoins e CountMin = CountMax. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Waves")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Waves")
 	FJRPGEncounterSetup Encounter;
 };
 
@@ -60,48 +60,48 @@ public:
 	 * Vazio = usar as propriedades abaixo. Para o JSON ir no build: Project Settings > Packaging >
 	 * Additional Non-Asset Directories to Package > Data/Waves.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Waves")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Waves")
 	FString WavesFile;
 
 	/** As ondas, na ordem (substituídas pelo WavesFile, se ele existir). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Waves")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Waves")
 	TArray<FJRPGBattleWave> Waves;
 
 	/** Quem luta (keys do DT_Characters, na ordem da formação). Vazio = a party ativa. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Waves")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Waves")
 	TArray<FName> Party;
 
 	/** Onde as lutas acontecem. Vazio = a arena escolhida pela posição deste ator. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Waves")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Waves")
 	TObjectPtr<AJRPGBattleArena> Arena;
 
 	/** Começar sozinho ao dar play. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Waves")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Waves")
 	bool bAutoStart = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Waves", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Waves", meta = (ClampMin = "0.0"))
 	float StartDelay = 2.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Waves", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Waves", meta = (ClampMin = "0.0"))
 	float DelayBetweenWaves = 2.0f;
 
 	/** Depois da última, volta para a primeira. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Waves")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Waves")
 	bool bLoop = false;
 
 	/** Escreve na tela cada onda, vitória e derrota. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Waves")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Waves")
 	bool bPrintDebug = true;
 
-	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle Waves")
+	UPROPERTY(BlueprintAssignable, Category = "Battle Waves")
 	FOnJRPGWaveStarted OnWaveStarted;
 
 	/** Todas as ondas vencidas (sem bLoop). */
-	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle Waves")
+	UPROPERTY(BlueprintAssignable, Category = "Battle Waves")
 	FOnJRPGWavesCleared OnWavesCleared;
 
 	/** Uma onda perdida, fugida ou abortada: as ondas param. */
-	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle Waves")
+	UPROPERTY(BlueprintAssignable, Category = "Battle Waves")
 	FOnJRPGWavesFailed OnWavesFailed;
 
 	/** Começa da primeira onda. */
@@ -132,7 +132,7 @@ public:
 	bool LoadWavesFile(FString& OutError);
 
 	/** Copia o WavesFile para as propriedades (que ficam salvas no mapa). */
-	UFUNCTION(CallInEditor, Category = "JRPG|Battle Waves")
+	UFUNCTION(CallInEditor, Category = "Battle Waves")
 	void ImportWavesFile();
 
 	/** O caminho completo do WavesFile no disco. */

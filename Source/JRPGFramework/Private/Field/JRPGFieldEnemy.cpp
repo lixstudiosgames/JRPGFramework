@@ -143,9 +143,13 @@ void AJRPGFieldEnemy::InitFromZone(AJRPGEncounterZone* InZone)
 	Zone = InZone;
 }
 
-const FJRPGEncounterSetup& AJRPGFieldEnemy::GetEncounterSetup() const
+FJRPGEncounterSetup AJRPGFieldEnemy::GetEncounterSetup() const
 {
-	return Zone ? Zone->Encounter : Encounter;
+	if (Zone)
+	{
+		return Zone->GetEncounterSetup();
+	}
+	return Encounter.Enemies.Num() > 0 ? Encounter : UJRPGEncounterLibrary::MakeSingleEnemyEncounter(EnemyKey, LevelMin, LevelMax);
 }
 
 void AJRPGFieldEnemy::BeginPlay()
@@ -230,7 +234,7 @@ bool AJRPGFieldEnemy::ResolveVisual(FJRPGFieldEnemyVisual& Out, FString& OutSour
 	if (bVisualFromEncounter)
 	{
 		// O principal primeiro; senão, um dos outros que tenha modelo, pelo peso
-		const FJRPGEncounterSetup& Setup = GetEncounterSetup();
+		const FJRPGEncounterSetup Setup = GetEncounterSetup();
 		TArray<const FJRPGEncounterEnemy*> WithModel;
 		TArray<FName> WithoutModel;
 		const FJRPGEncounterEnemy* Main = nullptr;
@@ -758,7 +762,7 @@ void AJRPGFieldEnemy::TriggerEncounter()
 	const TArray<FJRPGEncounterCombatant> Enemies = UJRPGEncounterLibrary::RollEncounter(GetEncounterSetup());
 	if (Enemies.Num() == 0)
 	{
-		Print(TEXT("encostou, mas o Encounter está vazio — nada a fazer"), FColor::Red);
+		Print(TEXT("encostou, mas não tem Enemy escolhido — nada a fazer"), FColor::Red);
 		return;
 	}
 
@@ -1038,7 +1042,7 @@ void AJRPGFieldEnemy::SetFrozen(bool bFreeze)
 
 FString AJRPGFieldEnemy::Describe() const
 {
-	const FJRPGEncounterSetup& Setup = GetEncounterSetup();
+	const FJRPGEncounterSetup Setup = GetEncounterSetup();
 	const FString Key = Setup.Enemies.Num() > 0 ? Setup.Enemies[0].EnemyKey.ToString() : TEXT("sem encounter");
 	return FString::Printf(TEXT("%s [%s]"), *GetActorNameOrLabel(), *Key);
 }

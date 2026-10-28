@@ -49,34 +49,34 @@ public:
 	AJRPGFieldPlayerController();
 
 	/** A party andando no mapa e a troca de personagem. MemberClasses: o Blueprint de cada membro. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Party")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Field Controller|Party")
 	TObjectPtr<UJRPGFieldPartyComponent> FieldParty;
 
 	/** Contexto do Field. Vazio = o padrão criado em runtime (ver acima). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Input")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Field Controller|Input")
 	TObjectPtr<UInputMappingContext> MappingContext;
 
 	/** Andar (Axis2D: X = direita, Y = frente). Vazio = o padrão. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Input")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Field Controller|Input")
 	TObjectPtr<UInputAction> MoveAction;
 
 	/** Correr (Bool, segurar). Vazio = o padrão. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Input")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Field Controller|Input")
 	TObjectPtr<UInputAction> SprintAction;
 
 	/**
 	 * Interagir (Bool, no aperto). Vazio = o padrão. Se dividir o botão com o SprintAction,
 	 * desligue bConsumeInput nas duas ações para o mesmo botão chegar às duas.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Input")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Field Controller|Input")
 	TObjectPtr<UInputAction> InteractAction;
 
 	/** Abrir o menu do jogo (Bool, no aperto). Vazio = o padrão. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Input")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Field Controller|Input")
 	TObjectPtr<UInputAction> MenuAction;
 
 	/** Trocar para o próximo personagem da party (Bool, no aperto). Vazio = o padrão. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Input")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Field Controller|Input")
 	TObjectPtr<UInputAction> SwitchLeaderAction;
 
 	/**
@@ -90,7 +90,7 @@ public:
 	 * Enquanto o direcional segue apertado, mantém o "cima" de quando começou a andar, mesmo se
 	 * a câmera trocar (zona com câmera fixa, blend de ângulo). Soltou, vale a câmera nova.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Input")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Controller|Input")
 	bool bHoldDirectionOnCameraChange = true;
 
 	/**
@@ -98,11 +98,11 @@ public:
 	 * câmera: com a câmera alta do Field tudo estaria sempre "longe". A direção (esquerda/direita)
 	 * continua sendo a da câmera. Segue a troca de líder.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Audio")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Controller|Audio")
 	bool bHearFromPawn = true;
 
 	/** Prioridade do contexto do Field (menus por cima usam uma maior). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Input")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Field Controller|Input")
 	int32 MappingPriority = 0;
 
 	/**

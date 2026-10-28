@@ -112,9 +112,9 @@ void AJRPGEncounterZone::BeginPlay()
 		Print(FString::Printf(TEXT("travada pelo flag %s"), *RequiredFlagID.ToString()));
 		return;
 	}
-	if (Encounter.Enemies.Num() == 0)
+	if (GetEncounterSetup().Enemies.Num() == 0)
 	{
-		Print(TEXT("sem inimigos no Encounter — os inimigos vão encostar e não fazer nada"), FColor::Orange);
+		Print(TEXT("sem Enemy escolhido — os inimigos vão encostar e não fazer nada"), FColor::Orange);
 	}
 	for (int32 i = 0; i < MaxAlive; ++i)
 	{
@@ -138,6 +138,11 @@ bool AJRPGEncounterZone::IsUnlocked() const
 	const UGameInstance* GI = GetGameInstance();
 	const UWorldStateSubsystem* World = GI ? GI->GetSubsystem<UWorldStateSubsystem>() : nullptr;
 	return World && World->GetEventFlagValue(RequiredFlagID) == bRequiredFlagValue;
+}
+
+FJRPGEncounterSetup AJRPGEncounterZone::GetEncounterSetup() const
+{
+	return Encounter.Enemies.Num() > 0 ? Encounter : UJRPGEncounterLibrary::MakeSingleEnemyEncounter(EnemyKey, LevelMin, LevelMax);
 }
 
 void AJRPGEncounterZone::SpawnEnemy()

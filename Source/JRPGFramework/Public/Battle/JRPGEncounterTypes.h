@@ -92,6 +92,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Encounter")
 	static TArray<FJRPGEncounterCombatant> RollEncounter(const FJRPGEncounterSetup& Setup);
 
+	/**
+	 * Um encontro de um inimigo só: ele, sempre, um por luta, com o level sorteado na faixa. É o
+	 * que o "Enemy" do inimigo do Field e da zona vira quando não há Custom Encounter.
+	 */
+	UFUNCTION(BlueprintPure, Category = "JRPG|Encounter")
+	static FJRPGEncounterSetup MakeSingleEnemyEncounter(FName EnemyKey, int32 LevelMin = 1, int32 LevelMax = 1);
+
 	/** A linha do DT_Enemies. False se a tabela ou a key não existem. */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Encounter")
 	static bool GetEnemyData(FName EnemyKey, FJRPGEnemyData& OutData);

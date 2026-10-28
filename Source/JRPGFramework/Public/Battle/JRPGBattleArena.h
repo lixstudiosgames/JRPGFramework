@@ -45,21 +45,21 @@ struct JRPGFRAMEWORK_API FJRPGArenaSeat
 {
 	GENERATED_BODY()
 
-	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle Arena")
+	UPROPERTY(BlueprintReadOnly, Category = "Battle Arena")
 	EJRPGBattleSide Side = EJRPGBattleSide::Party;
 
-	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle Arena")
+	UPROPERTY(BlueprintReadOnly, Category = "Battle Arena")
 	int32 Index = 0;
 
 	/** Mundo: os pés no chão, virado para o lado inimigo. */
-	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle Arena")
+	UPROPERTY(BlueprintReadOnly, Category = "Battle Arena")
 	FTransform Transform;
 
-	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle Arena")
+	UPROPERTY(BlueprintReadOnly, Category = "Battle Arena")
 	EJRPGArenaSeatStatus Status = EJRPGArenaSeatStatus::Ok;
 
 	/** Por que não está Ok (vazio quando está). */
-	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle Arena")
+	UPROPERTY(BlueprintReadOnly, Category = "Battle Arena")
 	FString Problem;
 };
 
@@ -98,11 +98,11 @@ class JRPGFRAMEWORK_API AJRPGBattleArena : public AActor
 public:
 	AJRPGBattleArena();
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Battle Arena")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle Arena")
 	TObjectPtr<USceneComponent> Root;
 
 	/** A área que usa esta arena (só a forma vista de cima conta). */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Battle Arena")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Battle Arena")
 	TObjectPtr<USplineComponent> AreaSpline;
 
 #if WITH_EDITORONLY_DATA
@@ -111,35 +111,35 @@ public:
 #endif
 
 	/** Desligada, FindArenaFor ignora a arena. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena")
 	bool bEnabled = true;
 
 	/** Áreas sobrepostas: vale a de maior prioridade; empatando, a arena mais próxima. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena")
 	int32 Priority = 0;
 
 	/** Usar o AreaSpline. Desligado, a arena só é escolhida como a mais próxima. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Area")
 	bool bUseArea = true;
 
 	/** Altura máxima acima/abaixo do ator para contar como dentro da área (mapas com andares). 0 = sem limite. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena", meta = (ClampMin = "0.0", EditCondition = "bUseArea"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Area", meta = (ClampMin = "0.0", EditCondition = "bUseArea"))
 	float AreaHeightLimit = 0.0f;
 
 	/** Pode ser escolhida como "a mais próxima" quando o toque foi fora de todas as áreas. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena")
 	bool bUseAsFallback = true;
 
 	// --- Formação -----------------------------------------------------------------------------
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Formation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation")
 	EJRPGArenaFormation Formation = EJRPGArenaFormation::Original;
 
 	/**
 	 * Original: a família alternada das linhas de inimigos (3 e 4 inimigos mudam; 1 e 2 são
 	 * iguais). No jogo é a das lutas sem fuga / emboscadas (DAT_8007BD60 bit 7).
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Formation", meta = (EditCondition = "Formation == EJRPGArenaFormation::Original", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (EditCondition = "Formation == EJRPGArenaFormation::Original", EditConditionHides))
 	bool bAlternateEnemyRows = false;
 
 	/**
@@ -147,130 +147,130 @@ public:
 	 * as malhas de batalha estão na mesma unidade no disco, então as distâncias ficam fiéis ao
 	 * tamanho dos modelos (1 contra 1: 800 unidades para cada lado = 346 cm do centro).
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Formation", meta = (ClampMin = "0.01", EditCondition = "Formation == EJRPGArenaFormation::Original", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (ClampMin = "0.01", EditCondition = "Formation == EJRPGArenaFormation::Original", EditConditionHides))
 	float OriginalCmPerUnit = 0.433005f;
 
 	/** Arco: distância do centro até o arco dos heróis (atrás, -X). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Formation", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (ClampMin = "0.0"))
 	float PartyRadius = 350.0f;
 
 	/** Arco: distância do centro até o arco dos inimigos (à frente, +X). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Formation", meta = (ClampMin = "0.0"))
-	float EnemyRadius = 400.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (ClampMin = "0.0"))
+	float EnemyRadius = 475.0f;
 
 	/** Arco: abertura do arco dos heróis, em graus. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Formation", meta = (ClampMin = "0.0", ClampMax = "360.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (ClampMin = "0.0", ClampMax = "360.0"))
 	float PartyArcDegrees = 90.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Formation", meta = (ClampMin = "0.0", ClampMax = "360.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (ClampMin = "0.0", ClampMax = "360.0"))
 	float EnemyArcDegrees = 120.0f;
 
 	/** Usar PartySeats/EnemySeats (arrastados no viewport) em vez da formação automática. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Formation")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation")
 	bool bManualSeats = false;
 
 	/** Lugares dos heróis, relativos à arena. Índice que falta cai na formação automática. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Formation", meta = (MakeEditWidget, EditCondition = "bManualSeats"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (MakeEditWidget, EditCondition = "bManualSeats"))
 	TArray<FTransform> PartySeats;
 
 	/** Lugares dos inimigos, relativos à arena. Índice que falta cai na formação automática. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Formation", meta = (MakeEditWidget, EditCondition = "bManualSeats"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (MakeEditWidget, EditCondition = "bManualSeats"))
 	TArray<FTransform> EnemySeats;
 
 	// --- Durante a luta -----------------------------------------------------------------------
 
 	/** Atores escondidos enquanto a luta acontece aqui (a árvore na frente da câmera, um NPC). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Battle")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
 	TArray<TObjectPtr<AActor>> HideDuringBattle;
 
 	/**
 	 * Opcional: uma câmera posta à mão (CameraActor / CineCameraActor) para as lutas desta arena.
 	 * Vazio, o palco enquadra todos os combatentes (UCameraSubsystem::FrameGroup).
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Battle")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
 	TObjectPtr<AActor> BattleCamera;
 
 	/** O enquadramento quando não há BattleCamera (gira em volta do primeiro do grupo). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Battle")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
 	ECameraFramingPreset CameraPreset = ECameraFramingPreset::BattleWide;
 
 	/** Folga em volta dos combatentes (1 = encostando nas bordas da tela). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Battle", meta = (ClampMin = "1.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (ClampMin = "1.0"))
 	float CameraPadding = 1.15f;
 
 	/** A câmera fica atrás da party, olhando para os inimigos. Desligado, o contrário. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Battle")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
 	bool bCameraBehindParty = true;
 
 	/**
 	 * Segundos de fade para o preto ao entrar e ao sair; a cena troca com a tela toda preta.
 	 * 0 = corte seco. (A tela quebrando é a Fase 7.)
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Battle", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (ClampMin = "0.0"))
 	float TransitionTime = 0.35f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Battle")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
 	FLinearColor TransitionColor = FLinearColor::Black;
 
 	/** A classe de cada combatente na cena (um Blueprint filho dá efeitos, nome na cabeça...). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Battle")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
 	TSubclassOf<AJRPGBattlePawn> PawnClass;
 
 	// --- Chão ---------------------------------------------------------------------------------
 
 	/** Até onde procurar o chão acima de cada lugar. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Ground", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Ground", meta = (ClampMin = "0.0"))
 	float GroundSearchUp = 200.0f;
 
 	/** Até onde procurar o chão abaixo de cada lugar. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Ground", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Ground", meta = (ClampMin = "0.0"))
 	float GroundSearchDown = 1000.0f;
 
 	/** Diferença de altura até o chão do centro a partir da qual o lugar fica amarelo. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Ground", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Ground", meta = (ClampMin = "0.0"))
 	float MaxHeightDifference = 50.0f;
 
 	/** Inclinação do chão a partir da qual o lugar fica vermelho. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Ground", meta = (ClampMin = "0.0", ClampMax = "89.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Ground", meta = (ClampMin = "0.0", ClampMax = "89.0"))
 	float MaxSlopeDegrees = 35.0f;
 
 	/** O tamanho de um combatente: a cápsula do desenho e do teste de parede/objeto. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Ground", meta = (ClampMin = "10.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Ground", meta = (ClampMin = "10.0"))
 	float SeatRadius = 45.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Ground", meta = (ClampMin = "10.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Ground", meta = (ClampMin = "10.0"))
 	float SeatHalfHeight = 90.0f;
 
 	// --- Preview ------------------------------------------------------------------------------
 
 	/** Quantos heróis desenhar no editor (a luta usa a quantidade real). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Preview", meta = (ClampMin = "0", ClampMax = "16"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Preview", meta = (ClampMin = "0", ClampMax = "16"))
 	int32 PreviewPartyCount = 3;
 
 	/** Quantos inimigos desenhar no editor (o jogo original vai até 4). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Preview", meta = (ClampMin = "0", ClampMax = "16"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Preview", meta = (ClampMin = "0", ClampMax = "16"))
 	int32 PreviewEnemyCount = 5;
 
 	/** Desenhar a formação só com a arena selecionada (muitas arenas no mesmo mapa). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Preview")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Preview")
 	bool bPreviewOnlyWhenSelected = false;
 
 #if WITH_EDITORONLY_DATA
 	/** Opcional: uma malha em cada lugar de herói (ex.: o Vahn de batalha). */
-	UPROPERTY(EditAnywhere, Category = "JRPG|Battle Arena|Preview")
+	UPROPERTY(EditAnywhere, Category = "Battle Arena|Preview")
 	TObjectPtr<USkeletalMesh> PreviewPartyMesh;
 
 	/** Opcional: uma malha em cada lugar de inimigo (ex.: o Gimard). */
-	UPROPERTY(EditAnywhere, Category = "JRPG|Battle Arena|Preview")
+	UPROPERTY(EditAnywhere, Category = "Battle Arena|Preview")
 	TObjectPtr<USkeletalMesh> PreviewEnemyMesh;
 
 	/** Giro das malhas de preview. As do PS1 (Extras/ps1_glb_to_fbx.py) olham para -Y: +90. */
-	UPROPERTY(EditAnywhere, Category = "JRPG|Battle Arena|Preview")
+	UPROPERTY(EditAnywhere, Category = "Battle Arena|Preview")
 	float PreviewMeshYaw = 90.0f;
 #endif
 
 	/** Mensagens da escolha da arena e a formação desenhada no PIE quando um encontro a escolhe. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle Arena|Debug")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Debug")
 	bool bPrintDebug = false;
 
 	// --- Consulta -----------------------------------------------------------------------------
@@ -334,15 +334,15 @@ public:
 	// --- Botões no editor ---------------------------------------------------------------------
 
 	/** Lista no Message Log (Map Check) os lugares amarelos/vermelhos da formação de preview. */
-	UFUNCTION(CallInEditor, Category = "JRPG|Battle Arena")
+	UFUNCTION(CallInEditor, Category = "Battle Arena")
 	void ValidateGround();
 
 	/** Copia a formação automática (apoiada no chão) para PartySeats/EnemySeats e liga bManualSeats. */
-	UFUNCTION(CallInEditor, Category = "JRPG|Battle Arena|Formation")
+	UFUNCTION(CallInEditor, Category = "Battle Arena|Formation")
 	void CopyFormationToManualSeats();
 
 	/** Desce os pontos do contorno da área até o chão (só o desenho; a área é a mesma). */
-	UFUNCTION(CallInEditor, Category = "JRPG|Battle Arena")
+	UFUNCTION(CallInEditor, Category = "Battle Arena|Area")
 	void SnapAreaToGround();
 
 	virtual void OnConstruction(const FTransform& Transform) override;

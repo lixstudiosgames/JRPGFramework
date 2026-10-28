@@ -48,24 +48,24 @@ struct JRPGFRAMEWORK_API FJRPGFieldEnemyVisual
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy")
 	TSoftObjectPtr<USkeletalMesh> Mesh;
 
 	/** Opcional. Com ele, os clips abaixo são ignorados. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy")
 	TSubclassOf<UAnimInstance> AnimClass;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy")
 	TSoftObjectPtr<UAnimSequence> IdleAnim;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy")
 	TSoftObjectPtr<UAnimSequence> WalkAnim;
 
 	/** Perseguindo. Vazio: o WalkAnim mais rápido. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy")
 	TSoftObjectPtr<UAnimSequence> RunAnim;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy", meta = (ClampMin = "0.01"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy", meta = (ClampMin = "0.01"))
 	float Scale = 1.0f;
 };
 
@@ -76,21 +76,21 @@ struct JRPGFRAMEWORK_API FJRPGFieldEncounter
 	GENERATED_BODY()
 
 	/** Quem entra na luta (sorteado do encounter). */
-	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Field|Enemy")
+	UPROPERTY(BlueprintReadOnly, Category = "Field Enemy")
 	TArray<FJRPGEncounterCombatant> Enemies;
 
-	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Field|Enemy")
+	UPROPERTY(BlueprintReadOnly, Category = "Field Enemy")
 	TObjectPtr<AJRPGFieldEnemy> FieldEnemy = nullptr;
 
 	/** A zona que criou o inimigo; nulo se ele foi posto direto no mapa. */
-	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Field|Enemy")
+	UPROPERTY(BlueprintReadOnly, Category = "Field Enemy")
 	TObjectPtr<AJRPGEncounterZone> Zone = nullptr;
 
-	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Field|Enemy")
+	UPROPERTY(BlueprintReadOnly, Category = "Field Enemy")
 	FVector ContactLocation = FVector::ZeroVector;
 
 	/** Onde a luta vai ser montada (AJRPGBattleArena::FindArenaFor no ContactLocation); nulo se o mapa não tem arena. */
-	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Field|Enemy")
+	UPROPERTY(BlueprintReadOnly, Category = "Field Enemy")
 	TObjectPtr<AJRPGBattleArena> Arena = nullptr;
 };
 
@@ -122,8 +122,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGFieldEncounter, const FJRPGFi
  *   que cair no meio da luta espera ela sair da tela.
  * - Sem navmesh: anda reto até o alvo.
  *
- * Avulso: ponha no mapa e configure o Encounter. Em zona: o AJRPGEncounterZone cria e cuida
- * dele. Guia: Docs/Guides/FIELD_ENEMIES.md.
+ * Avulso: ponha no mapa e escolha o Enemy (uma row do DT_Enemies) — o modelo, o Idle e o Walk
+ * vêm de lá, e o toque começa uma luta contra ele. Grupo misto: Custom Encounter (avançado).
+ * Em zona: o AJRPGEncounterZone cria e cuida dele. Guia: Docs/Guides/FIELD_ENEMIES.md.
  */
 UCLASS(Blueprintable)
 class JRPGFRAMEWORK_API AJRPGFieldEnemy : public ACharacter
@@ -134,11 +135,11 @@ public:
 	AJRPGFieldEnemy();
 
 	/** Encostar no jogador (overlap só com Pawn). Segue o tamanho da cápsula. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Enemy")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Field Enemy")
 	TObjectPtr<USphereComponent> ContactSphere;
 
 	/** Abre a névoa da JRPGMist em volta dele e deixa rastro, como o jogador. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Field|Enemy")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Field Enemy")
 	TObjectPtr<UJRPGMistDisturberComponent> MistDisturber;
 
 #if WITH_EDITORONLY_DATA
@@ -151,36 +152,63 @@ public:
 	TObjectPtr<UBillboardComponent> EditorIcon;
 #endif
 
+	// --- O inimigo ---
+
+	/**
+	 * Qual inimigo ele é (row do DT_Enemies). O modelo e as animações vêm de lá — é só escolher —
+	 * e encostar começa uma luta contra um dele. Numa zona, vale o Enemy da zona.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy", meta = (DisplayName = "Enemy", GetOptions = "JRPGFramework.JRPGEncounterLibrary.GetEnemyKeyOptions"))
+	FName EnemyKey;
+
+	/** Faixa do level dele na luta (sorteado a cada encontro). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy", meta = (ClampMin = "1"))
+	int32 LevelMin = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy", meta = (ClampMin = "1"))
+	int32 LevelMax = 1;
+
+	/** Encostar começa a luta. Desligado, o toque só anuncia o encontro (como na Fase 3). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy")
+	bool bStartBattle = true;
+
+	/**
+	 * Grupo misto: vários inimigos, pesos, quantidades. Preenchido, substitui o Enemy acima (o
+	 * modelo passa a ser o do inimigo principal daqui).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy", AdvancedDisplay, meta = (DisplayName = "Custom Encounter"))
+	FJRPGEncounterSetup Encounter;
+
 	// --- Visual ---
 
-	/** Visuais deste inimigo; um é sorteado a cada spawn. Vazio: o modelo vem do encounter. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Visual")
+	/** Visuais deste inimigo; um é sorteado a cada spawn. Vazio: o modelo vem do Enemy. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Visual", AdvancedDisplay)
 	TArray<FJRPGFieldEnemyVisual> Visuals;
 
 	/** Sem Visuals: mostrar o modelo do inimigo principal do encounter (DT_Enemies: Mesh, Anims). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Visual")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Visual", AdvancedDisplay)
 	bool bVisualFromEncounter = true;
 
 	/** Quando nada acima tem modelo (inimigo do DT ainda sem Mesh). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Visual")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Visual", AdvancedDisplay)
 	FJRPGFieldEnemyVisual FallbackVisual;
 
 	/**
 	 * Giro da malha para ela olhar para a frente do ator (+X). Os modelos convertidos do PS1
 	 * (Extras/ps1_glb_to_fbx.py) olham para -Y do Unreal: +90 vale para todos eles.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Visual")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Visual")
 	float MeshYawOffset = 90.0f;
 
 	/**
 	 * Segundos de mistura quando o clip troca (Idle -> Walk -> Run), sem Anim Blueprint: o
 	 * UJRPGFieldEnemyAnimInstance faz o crossfade. 0 = corte seco. Visual com AnimClass ignora.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Visual", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Visual", meta = (ClampMin = "0.0"))
 	float AnimBlendTime = 0.2f;
 
 	/** Ajusta a cápsula ao tamanho da malha (e põe os pés da malha no chão). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Visual")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Visual")
 	bool bFitCapsuleToMesh = true;
 
 	// --- Som ---
@@ -190,18 +218,18 @@ public:
 	 * põe). Os SoundWaves são os da batalha, 2D; aqui no Field eles tocam em 3D, com a
 	 * SoundAttenuation abaixo, e um por vez por inimigo (o passo não empilha).
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Sound")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Sound")
 	bool bPlayClipSounds = true;
 
 	/** Volume dos sons dos clips no Field (multiplica o do notify). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Sound", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Sound", meta = (ClampMin = "0.0"))
 	float SoundVolume = 0.7f;
 
 	/**
 	 * Até onde se ouve: volume cheio no raio interno, cai até sumir no Falloff Distance. A
 	 * distância conta do personagem controlado (AJRPGFieldPlayerController::bHearFromPawn).
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Sound")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Sound")
 	FSoundAttenuationSettings SoundAttenuation;
 
 	/**
@@ -214,76 +242,66 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Field|Enemy")
 	void StopClipSounds();
 
-	// --- Encontro ---
-
-	/** Quem luta quando ele encosta no jogador. Numa zona, vale o encounter da zona. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Encounter")
-	FJRPGEncounterSetup Encounter;
-
-	/** Encostar começa a luta. Desligado, o toque só anuncia o encontro (como na Fase 3). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Encounter")
-	bool bStartBattle = true;
-
 	// --- Detecção e perseguição ---
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Detection", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Detection", meta = (ClampMin = "0.0"))
 	float DetectRadius = 800.0f;
 
 	/** Maior que o DetectRadius: o jogador na borda não fica ligando e desligando a perseguição. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Detection", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Detection", meta = (ClampMin = "0.0"))
 	float LoseRadius = 1200.0f;
 
 	/** Segundos com o jogador fora do LoseRadius até desistir. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Detection", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Detection", meta = (ClampMin = "0.0"))
 	float GiveUpTime = 2.0f;
 
 	/** Até onde ele se afasta de casa (avulso) ou da borda da zona antes de voltar. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Detection", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Detection", meta = (ClampMin = "0.0"))
 	float LeashDistance = 2000.0f;
 
 	/** Só detecta o jogador se não houver nada no meio (trace de Visibility). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Detection")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Detection")
 	bool bRequireLineOfSight = false;
 
 	/** Depois de desistir, não detecta de novo por este tempo (conta do início da volta). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Detection", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Detection", meta = (ClampMin = "0.0"))
 	float ReacquireDelay = 1.5f;
 
 	/** Passeando e voltando. No mínimo 400: acima do andar do jogador (300), ele alcança quem só anda. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Movement", meta = (ClampMin = "400.0", UIMin = "400.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Movement", meta = (ClampMin = "400.0", UIMin = "400.0"))
 	float WalkSpeed = 400.0f;
 
 	/**
 	 * Perseguindo. Mais que o andar do jogador (300) e menos que a corrida (700): correndo, dá
 	 * para fugir. Nunca abaixo do WalkSpeed.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Movement", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Movement", meta = (ClampMin = "0.0"))
 	float ChaseSpeed = 450.0f;
 
 	// --- Passear ---
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Wander")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Wander")
 	bool bWander = true;
 
 	/** Avulso: raio em volta de casa. Na zona, ele passeia pela zona inteira. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Wander", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Wander", meta = (ClampMin = "0.0"))
 	float WanderRadius = 500.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Wander", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Wander", meta = (ClampMin = "0.0"))
 	float WaitTimeMin = 1.5f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Wander", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Wander", meta = (ClampMin = "0.0"))
 	float WaitTimeMax = 4.0f;
 
 	// --- Respawn (avulso; na zona quem decide é a zona) ---
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Respawn")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Respawn")
 	bool bRespawn = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Respawn", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Respawn", meta = (ClampMin = "0.0"))
 	float RespawnDelayMin = 30.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Respawn", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Respawn", meta = (ClampMin = "0.0"))
 	float RespawnDelayMax = 60.0f;
 
 	// --- Debug ---
@@ -292,11 +310,11 @@ public:
 	 * Escreve na tela e no log cada acontecimento (spawn, detectou, perdeu, toque, sumiu,
 	 * voltou). Inimigo de zona usa o bPrintDebug da zona.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Field|Enemy|Debug")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Debug")
 	bool bPrintDebug = false;
 
 	/** Encostou no jogador e o encontro foi aceito. */
-	UPROPERTY(BlueprintAssignable, Category = "JRPG|Field|Enemy")
+	UPROPERTY(BlueprintAssignable, Category = "Field Enemy")
 	FOnJRPGFieldEncounter OnEncounterTriggered;
 
 	/** Gancho para o efeito do toque (a tela quebrando, um som). Chamado antes de ele sumir. */
@@ -318,9 +336,9 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Field|Enemy")
 	EJRPGFieldEnemyState GetEnemyState() const { return State; }
 
-	/** O encounter que vale para ele: o da zona, ou o próprio. */
+	/** O encontro que vale para ele: o da zona; senão o Custom Encounter; senão o Enemy, sozinho. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Field|Enemy")
-	const FJRPGEncounterSetup& GetEncounterSetup() const;
+	FJRPGEncounterSetup GetEncounterSetup() const;
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Field|Enemy")
 	AJRPGEncounterZone* GetZone() const { return Zone; }

@@ -601,7 +601,7 @@ actual count. It lives on the arena (`AJRPGBattleArena::GetSeatTransform` / `Res
 FTransform GetSeatTransform(EJRPGBattleSide Side, int32 Index, int32 Count) const;
 
 UPROPERTY(EditAnywhere) float PartyRadius     = 350.f;
-UPROPERTY(EditAnywhere) float EnemyRadius     = 400.f;
+UPROPERTY(EditAnywhere) float EnemyRadius     = 475.f;
 UPROPERTY(EditAnywhere) float PartyArcDegrees = 90.f;
 UPROPERTY(EditAnywhere) float EnemyArcDegrees = 120.f;
 ```

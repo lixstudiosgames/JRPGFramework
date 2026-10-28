@@ -33,8 +33,9 @@ enum class EJRPGEncounterZoneShape : uint8
  *
  * - Mantém MaxAlive inimigos (EnemyClass, o BP_FieldEnemy do projeto) em pontos do navmesh
  *   DENTRO da forma; eles passeiam por ela, e ao desistir de uma perseguição voltam para ela.
- * - Encounter: quem luta quando qualquer um deles encosta no jogador. Visuals: troca o visual
- *   dos inimigos desta zona (vazio = o modelo do inimigo principal do encounter, no DT_Enemies).
+ * - Enemy: qual inimigo do DT_Enemies anda por ela — o modelo e as animações vêm de lá, e cada
+ *   toque é uma luta contra um dele. Grupo misto: Custom Encounter (avançado). Visuals (avançado):
+ *   troca o visual dos inimigos desta zona.
  * - Inimigo que encostou some e volta depois de RespawnDelayMin..Max, num ponto novo — o
  *   jogador não limpa a área para sempre.
  * - RequiredFlagID: a zona só cria inimigos com esse event flag no valor pedido.
@@ -49,18 +50,18 @@ class JRPGFRAMEWORK_API AJRPGEncounterZone : public AActor
 public:
 	AJRPGEncounterZone();
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Encounter Zone")
 	TObjectPtr<USceneComponent> Root;
 
 	/** Só desenho no editor (sem colisão). */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Encounter Zone")
 	TObjectPtr<USphereComponent> AreaSphere;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Encounter Zone")
 	TObjectPtr<UBoxComponent> AreaBox;
 
 	/** Shape = Spline: o contorno da zona. Só a forma vista de cima conta. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Encounter Zone")
 	TObjectPtr<USplineComponent> AreaSpline;
 
 #if WITH_EDITORONLY_DATA
@@ -69,52 +70,70 @@ public:
 	TObjectPtr<UBillboardComponent> EditorIcon;
 #endif
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Area")
 	EJRPGEncounterZoneShape Shape = EJRPGEncounterZoneShape::Sphere;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone", meta = (ClampMin = "50.0", EditCondition = "Shape == EJRPGEncounterZoneShape::Sphere", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Area", meta = (ClampMin = "50.0", EditCondition = "Shape == EJRPGEncounterZoneShape::Sphere", EditConditionHides))
 	float Radius = 1000.0f;
 
 	/** Esfera/Spline: até onde procurar o chão acima e abaixo do ator (a zona pode estar no ar). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone", meta = (ClampMin = "50.0", EditCondition = "Shape != EJRPGEncounterZoneShape::Box", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Area", meta = (ClampMin = "50.0", EditCondition = "Shape != EJRPGEncounterZoneShape::Box", EditConditionHides))
 	float FloorSearchDistance = 2000.0f;
 
 	/** Metade do tamanho da caixa; o Z é até onde procurar o chão acima e abaixo. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone", meta = (EditCondition = "Shape == EJRPGEncounterZoneShape::Box", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Area", meta = (EditCondition = "Shape == EJRPGEncounterZoneShape::Box", EditConditionHides))
 	FVector BoxExtent = FVector(1000.0f, 1000.0f, 300.0f);
 
-	/** A classe dos inimigos (o BP_FieldEnemy do projeto, com o FallbackVisual e os ajustes). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone")
-	TSubclassOf<AJRPGFieldEnemy> EnemyClass;
+	/**
+	 * Qual inimigo anda pela zona (row do DT_Enemies). O modelo e as animações vêm de lá, e cada
+	 * toque é uma luta contra um dele.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone", meta = (DisplayName = "Enemy", GetOptions = "JRPGFramework.JRPGEncounterLibrary.GetEnemyKeyOptions"))
+	FName EnemyKey;
 
-	/** Quem luta quando um inimigo desta zona encosta no jogador. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone")
+	/** Faixa do level dele na luta (sorteado a cada encontro). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone", meta = (ClampMin = "1"))
+	int32 LevelMin = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone", meta = (ClampMin = "1"))
+	int32 LevelMax = 1;
+
+	/** Grupo misto: vários inimigos, pesos, quantidades. Preenchido, substitui o Enemy acima. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone", AdvancedDisplay, meta = (DisplayName = "Custom Encounter"))
 	FJRPGEncounterSetup Encounter;
 
-	/** Opcional: o visual dos inimigos desta zona. Vazio = o modelo do encounter (DT_Enemies). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone")
+	/** A classe dos inimigos (o BP_FieldEnemy do projeto, com o FallbackVisual e os ajustes). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone", AdvancedDisplay)
+	TSubclassOf<AJRPGFieldEnemy> EnemyClass;
+
+	/** Opcional: o visual dos inimigos desta zona. Vazio = o modelo do Enemy (DT_Enemies). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone", AdvancedDisplay)
 	TArray<FJRPGFieldEnemyVisual> Visuals;
 
 	/** Quantos andam pela zona ao mesmo tempo. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone", meta = (ClampMin = "0", ClampMax = "32"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone", meta = (ClampMin = "0", ClampMax = "32"))
 	int32 MaxAlive = 3;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Respawn", meta = (ClampMin = "0.0"))
 	float RespawnDelayMin = 30.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Respawn", meta = (ClampMin = "0.0"))
 	float RespawnDelayMax = 60.0f;
 
 	/** Event flag que libera a zona (WorldStateSubsystem). None = sempre ativa. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Unlock")
 	FName RequiredFlagID;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Encounter Zone")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Unlock")
 	bool bRequiredFlagValue = true;
 
 	/** Mensagens na tela e no log da zona E dos inimigos dela. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Encounter Zone|Debug")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Encounter Zone|Debug")
 	bool bPrintDebug = false;
+
+	/** O encontro dos inimigos desta zona: o Custom Encounter, ou o Enemy sozinho. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Encounter Zone")
+	FJRPGEncounterSetup GetEncounterSetup() const;
 
 	/** Um ponto do chão (navmesh, se houver) dentro da forma. */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Encounter Zone")
@@ -131,7 +150,7 @@ public:
 	void NotifyEnemyHidden(AJRPGFieldEnemy* Enemy);
 
 	/** Spline: desce os pontos do contorno até o chão (só o desenho; a área é a mesma). */
-	UFUNCTION(CallInEditor, Category = "JRPG|Encounter Zone")
+	UFUNCTION(CallInEditor, Category = "Encounter Zone|Area")
 	void SnapAreaToGround();
 
 	virtual void OnConstruction(const FTransform& Transform) override;

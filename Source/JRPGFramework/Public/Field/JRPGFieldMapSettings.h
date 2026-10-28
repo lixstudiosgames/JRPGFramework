@@ -25,43 +25,43 @@ public:
 	AJRPGFieldMapSettings();
 
 	/** Câmera base do mapa (o Yaw é o "norte" da tela). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Map Settings")
 	FJRPGFieldCameraSettings Camera;
 
 	/** De onde vem o "cima" do controle neste mapa. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Map Settings")
 	EJRPGFieldControlMode ControlMode = EJRPGFieldControlMode::CameraRelative;
 
 	/** Fixed Yaw: o yaw do mundo que é "cima" no controle. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field", meta = (EditCondition = "ControlMode == EJRPGFieldControlMode::FixedYaw", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Map Settings", meta = (EditCondition = "ControlMode == EJRPGFieldControlMode::FixedYaw", EditConditionHides))
 	float ControlYaw = 0.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field", meta = (InlineEditConditionToggle))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Map Settings", meta = (InlineEditConditionToggle))
 	bool bOverrideCanSprint = false;
 
 	/** Pode correr neste mapa (World Map, cidades onde não se corre...). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field", meta = (EditCondition = "bOverrideCanSprint"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Map Settings", meta = (EditCondition = "bOverrideCanSprint"))
 	bool bCanSprint = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field", meta = (InlineEditConditionToggle))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Map Settings", meta = (InlineEditConditionToggle))
 	bool bOverrideWalkSpeed = false;
 
 	/** Velocidade andando neste mapa (a escala do mapa muda o que parece rápido). */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field", meta = (EditCondition = "bOverrideWalkSpeed", ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Map Settings", meta = (EditCondition = "bOverrideWalkSpeed", ClampMin = "0.0"))
 	float WalkSpeed = 300.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field", meta = (InlineEditConditionToggle))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Map Settings", meta = (InlineEditConditionToggle))
 	bool bOverrideSprintSpeed = false;
 
 	/** Velocidade correndo neste mapa. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field", meta = (EditCondition = "bOverrideSprintSpeed", ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Map Settings", meta = (EditCondition = "bOverrideSprintSpeed", ClampMin = "0.0"))
 	float SprintSpeed = 700.0f;
 
 	/**
 	 * Os outros membros da formação andam atrás do líder neste mapa (UJRPGFieldPartyComponent).
 	 * Desligado = só o líder aparece e o R3 não troca de personagem (World Map, interiores...).
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "JRPG|Field")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Map Settings")
 	bool bShowParty = true;
 
 	/** O AJRPGFieldMapSettings do mundo (o primeiro, se houver mais de um). */

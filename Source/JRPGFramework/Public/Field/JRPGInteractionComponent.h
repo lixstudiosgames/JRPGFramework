@@ -32,14 +32,14 @@ public:
 	 * Ponte de migração: os atores que ainda usam a interface velha continuam funcionando
 	 * enquanto passam para JRPG Interactable. Esvazie quando não sobrar nenhum.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Interaction")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
 	TArray<TSoftClassPtr<UInterface>> LegacyInterfaces;
 
 	/**
 	 * Quanto pesa estar atrás do personagem, em uu: um alvo atrás conta como se estivesse esta
 	 * distância mais longe. 0 = só a distância decide.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Interaction", meta = (ClampMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction", meta = (ClampMin = "0.0"))
 	float FacingWeight = 200.0f;
 
 	/** Interage com o alvo atual (recalcula na hora). Devolve com quem interagiu, ou nullptr. */
@@ -58,11 +58,11 @@ public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInteracted, AActor*, Target);
 
 	/** O alvo mudou (entrou/saiu do alcance, virou para outro): mostrar/esconder o prompt. */
-	UPROPERTY(BlueprintAssignable, Category = "JRPG|Interaction")
+	UPROPERTY(BlueprintAssignable, Category = "Interaction")
 	FOnInteractTargetChanged OnTargetChanged;
 
 	/** Interagiu com Target (depois de chamar o Interact dele). */
-	UPROPERTY(BlueprintAssignable, Category = "JRPG|Interaction")
+	UPROPERTY(BlueprintAssignable, Category = "Interaction")
 	FOnInteracted OnInteracted;
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;

@@ -17,22 +17,24 @@ announces the encounter.
 
 ## 1. The idea: the enemy on the map is only a visual
 
-Who fights is **not** the model walking around. It is the **encounter**: a list of
-[`DT_Enemies`](ENEMIES.md) keys with levels and counts, rolled the moment the player is
-touched. So there is one class for every enemy — `AJRPGFieldEnemy` — and one Blueprint child
-in the project serves them all.
+There is one class for every enemy — `AJRPGFieldEnemy` — and one Blueprint child in the
+project serves them all. **Pick the `Enemy`** (a [`DT_Enemies`](ENEMIES.md) row, from a
+dropdown) and that is it: the model, `Idle` and `Walk` come from the row, the editor shows it
+right away, and touching it starts a fight against one of it at `LevelMin..LevelMax`.
+
+For a mixed group — several enemies, weights, counts — open the advanced section and fill
+**Custom Encounter**; when it has lines it replaces `Enemy`, and the model becomes its **main
+enemy** (`bAlwaysJoins`; with none, one of the others that has a model, by weight).
 
 The model it shows is, in order:
 
-1. one of its `Visuals`, picked at random (or the zone's `Visuals`), if any are set;
-2. otherwise the model of the encounter's **main enemy** (`bAlwaysJoins`) in `DT_Enemies` —
-   its `Mesh` and `Anims.Idle` / `Anims.Walk`; with no main enemy, one of the others that has a
-   model, by weight;
-3. otherwise the `FallbackVisual`.
+1. one of its `Visuals`, picked at random (or the zone's `Visuals`), if any are set (advanced);
+2. otherwise the `Enemy` row's `Mesh` and `Anims.Idle` / `Anims.Walk` (or the Custom
+   Encounter's main enemy);
+3. otherwise the `FallbackVisual` (advanced).
 
 So a `DT_Enemies` row that gets its `Mesh` and `Anims` (Phase 2's batch) appears on the field
-by itself, with nothing else to set. A row still without a model falls back and says so on
-screen.
+by itself. A row still without a model falls back and says so on screen.
 
 ---
 
@@ -55,7 +57,7 @@ work, walking straight at their target.
 
 ### A single enemy
 
-Drop a `BP_FieldEnemy` in the map and fill its **Encounter**. Where it is placed is home: it
+Drop a `BP_FieldEnemy` in the map and pick its **Enemy**. Where it is placed is home: it
 wanders around it (`WanderRadius`), and after an encounter it comes back there after
 `RespawnDelayMin..Max` (unless `bRespawn` is off).
 
@@ -67,15 +69,20 @@ Drop a **`JRPGEncounterZone`**:
 |---|---|
 | `Shape` | **Sphere** (`Radius`), **Box** (`BoxExtent`, rotates with the actor) or **Spline** (`AreaSpline`: a closed outline drawn by hand, any shape — concave included). Drawn in the editor |
 | `FloorSearchDistance` | Sphere/Spline: how far above and below the zone actor to look for the ground — the zone may float or sit half underground (2000) |
-| `EnemyClass` | `BP_FieldEnemy` |
-| `Encounter` | Who fights when any of its enemies touches the player |
-| `Visuals` | Optional: overrides the model for this zone's enemies |
+| `Enemy` / `LevelMin` / `LevelMax` | Which `DT_Enemies` row walks the zone, and its level range — model and animations come from the row |
 | `MaxAlive` | How many walk the zone at once |
+| `Custom Encounter` (advanced) | A mixed group; replaces `Enemy` when it has lines |
+| `EnemyClass` (advanced) | `BP_FieldEnemy` |
+| `Visuals` (advanced) | Overrides the model for this zone's enemies |
 | `RespawnDelayMin/Max` | An enemy that touched the player comes back after this, at a new point |
 | `RequiredFlagID` / `bRequiredFlagValue` | The zone only spawns with this WorldState event flag at this value |
 
 Enemies spawn on navmesh points **inside the shape**, wander inside it, and when they give up a
-chase they walk back into it. The zone's `Encounter` replaces each enemy's own.
+chase they walk back into it. The zone's `Enemy` / Custom Encounter replaces each enemy's own.
+
+**The details panel** has one section per actor — *Field Enemy*, *Encounter Zone*, *Battle
+Arena* — with at most one level of subsections (*Area*, *Respawn*, *Detection*…); rarely
+touched properties sit in each section's advanced part (the arrow at the bottom).
 
 **Spline shape.** Select the zone, then the `AreaSpline` points: drag them, Alt+drag one to
 add a point, right-click a point for more options. It starts as a 20 m square with straight
@@ -92,7 +99,7 @@ area contains the contact point, or the nearest one — and passes it in
 prints the arena's name and draws its formation for a few seconds. See
 [BATTLE_ROADMAP.md](../BATTLE_ROADMAP.md#ajrpgbattlearena--where-on-the-map-written-2026-10-27).
 
-### The encounter
+### The Custom Encounter
 
 | Field | |
 |---|---|
