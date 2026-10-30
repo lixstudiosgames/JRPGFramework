@@ -92,6 +92,12 @@ TABLES = [
      "primary": ["DisplayName", "Location", "bIsBoss", "Element", "BaseHP", "BaseMP", "BaseATK",
                  "BaseUDF", "BaseLDF", "EXP", "Gold", "DropItem", "StealItem"]},
 
+    {"id": "DT_Arts", "struct": "FJRPGArtData", "label": "Arts", "icon": "art",
+     "title": "DisplayName", "subtitle": "Character", "badge": "Kind", "badgeSuffix": "",
+     # Linha nova = Art nova (o gerador não apaga). Sequence monta as combinadas.
+     "primary": ["DisplayName", "Character", "Kind", "Command", "APGain", "APCost", "Anim",
+                 "HitPower", "HitTarget", "Sequence"]},
+
     {"id": "DT_LevelCurve", "struct": "FLevelCurveRow", "label": "Level Curve", "icon": "curve",
      "title": "Level", "subtitle": "XPTotal", "badge": "XPFromPrevious", "badgeSuffix": " xp",
      "primary": ["Level", "XPTotal", "XPFromPrevious"]},
@@ -127,7 +133,7 @@ REFERENCES = {
 }
 
 # TOMLs do LegaiaRE que ainda não viraram DataTable (mostrados como pendentes)
-KNOWN_TOML_ONLY = ["arts", "magic", "bosses", "casino", "fishing",
+KNOWN_TOML_ONLY = ["magic", "bosses", "casino", "fishing",
                    "music", "sol_tower"]
 
 # Builds expostos na sidebar. Os generate_*.py NÃO entram de propósito:

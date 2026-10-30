@@ -130,6 +130,9 @@ JRPGFramework/
 │   │   │                                           holds no state of its own
 │   │   │
 │   │   ├── Arts/ 🟡
+│   │   │   ├── ArtsData.h ✅                    ← FJRPGArtData (DT_Arts row: buttons, AP gain/cost,
+│   │   │   │                                       clip, per-hit power and target, Sequence for
+│   │   │   │                                       combined Arts). See Guides/ARTS.md
 │   │   │   └── ArtsSubsystem.h 🟡               ← TeachArtToCharacter only (TODO)
 │   │   │
 │   │   └── Battle/ 🟡
@@ -234,6 +237,9 @@ JRPGFramework/
     ├── generate_enemies_csv.py ✅               ← enemies.toml + the disc's monster archive listing →
     │                                               DT_Enemies.csv. Keeps Mesh/Anims, hand-set ids and
     │                                               rows made in the Studio; backs up first
+    ├── generate_arts_csv.py ✅                  ← arts.toml + the disc's Arts banks (hit power) +
+    │                                               the Super/Miracle sequences → DT_Arts.csv. Keeps
+    │                                               new Arts and edited balance; backs up first
     ├── generate_enemy_anims_csv.py ✅           ← the monster batch's monsters.json → Mesh and Anims of
     │                                               every DT_Enemies row (roles by the disc's action ids)
     ├── legaia_toml.py ✅                        ← shared by the generators: tomllib + Unreal CSV helpers
@@ -295,7 +301,7 @@ JRPGFramework/
 | **WebUI** | ✅ complete | SPA shell, 7 screens, gamepad + keyboard + mouse with their own rules, responsive scaling |
 | **Party** | ✅ complete (data) | Roster vs formation, 3 states per character, XP split among survivors as in the original, level-up with jitter, whole-roster save. The UI does not follow the formation yet |
 | **Status** | ✅ complete (data) | Equipment in 7 slots (4 gear + 3 accessories) with `CanEquip` read from `DT_Items`, conditions, Ra-Seru (1..9), elemental affinity, and the original's `effective ( base )` display. The equip screen is still missing |
-| **Arts / Battle** | 🟡 stage ready, no combat | A fight is assembled over the current map and taken down: battle arenas placed by hand, the original's seats, battle models from `DT_Characters` / `DT_Enemies`, camera, field enemies starting it on contact, the Muscle Dome waves ([BATTLE_STAGE.md](Guides/BATTLE_STAGE.md)). Turns, damage and Arts are still to come; `ArtsSubsystem` is a stub. `DT_Enemies` has 179 enemies ([ENEMIES.md](Guides/ENEMIES.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
+| **Arts / Battle** | 🟡 stage ready, no combat | A fight is assembled over the current map and taken down: battle arenas placed by hand, the original's seats, battle models from `DT_Characters` / `DT_Enemies`, camera, field enemies starting it on contact, the Muscle Dome waves ([BATTLE_STAGE.md](Guides/BATTLE_STAGE.md)). Turns, damage and Arts are still to come; `ArtsSubsystem` is a stub. `DT_Enemies` has 179 enemies ([ENEMIES.md](Guides/ENEMIES.md)), `DT_Arts` 82 Arts and pieces ([ARTS.md](Guides/ARTS.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
 
 ---
 

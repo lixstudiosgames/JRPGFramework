@@ -1,9 +1,9 @@
 # Battle System Roadmap
 
 **JRPGFramework — Legend of Legaia Remake**
-Approved 2026-09-13. Phases 0, 3 and 4 are done (enemies roam the map and a fight is
-assembled over it, 2026-10-27), Phase 2's pipeline is validated (2026-10-26). Next is Phase 5:
-combat itself.
+Approved 2026-09-13. Phases 0, 2, 3 and 4 are done (every monster and the party's battle clips
+are in Unreal, enemies roam the map and a fight is assembled over it, 2026-10-30). Phase 1 has
+`DT_Enemies` and `DT_Arts`. Next is Phase 5: combat itself.
 
 This is the largest unimplemented system left in the plugin, and the only one with stub
 files already in place. (Dialogue, Cutscene and Localization are also unwritten - see
@@ -87,8 +87,8 @@ Each phase ends in something you can run and watch work.
 | Phase | Scope | Status |
 |---|---|---|
 | **0** | Extract assets from the disc (RE release tools + `legaia-extract`) | **Done** |
-| **1** | Battle data (TOML → CSV → DataTable) | **In progress** — `DT_Enemies` done (179 rows); Arts, Bosses, Magic to go |
-| **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **In progress** — pipeline validated on Gimard + the party's Idle/Walk |
+| **1** | Battle data (TOML → CSV → DataTable) | **In progress** — `DT_Enemies` (179 rows) and `DT_Arts` (82 rows) done; Bosses to go. Magic moved to Phase 8 |
+| **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **Done** (2026-10-30) — all 179 monster models with sounds and notifies, the party's battle clips (real names, game speed, sounds), equipment pieces |
 | **3** | Enemies roaming the map (zone, roaming, trigger) | **Done** (2026-10-27) — `AJRPGFieldEnemy`, `AJRPGEncounterZone` (sphere/box/spline), tested in the editor |
 | **4** | Battle stage (spawn, formation, camera) | **Done** (2026-10-27) — `AJRPGBattleArena` assembles the fight, `UJRPGBattleSceneSubsystem`, `BeginBattle`/`EndBattle`, `AJRPGBattlePawn`, `AJRPGBattleWaves` + JSON/Studio; tested in the editor and on the Muscle Dome map. Party-size scaling moved to Phase 8 |
 | **5** | Basic combat (turns, damage, death, victory) | Not started |
@@ -157,7 +157,7 @@ Copy from the RE project's `data/gamedata/` into `Docs/Data/gamedata/`:
 | `enemies.toml` | 177 enemies (26 flagged `boss = true`) |
 | `arts.toml` | 60 Arts |
 | `bosses.toml` | 30 boss fights |
-| `magic.toml` | 29 spells (table now, system in Phase 8) |
+| `magic.toml` | 29 spells — table and system both in Phase 8 |
 
 Two things are not what they look like:
 
@@ -222,7 +222,11 @@ a `TMap` does not import from CSV cleanly — plus `Attacks`, an array of the at
 It is a plain `USTRUCT`, not a row: LegaiaStudio's schema regex skips nested templates such
 as `TArray<TSoftObjectPtr<...>>` inside a row struct, and shows the whole set as one field.
 
-**`Public/Arts/ArtsData.h`**
+**`Public/Arts/ArtsData.h`** — **done** (2026-10-30), 82 rows. Column reference and how to add
+Arts in [Guides/ARTS.md](Guides/ARTS.md). What changed from the sketch below: no `Directions`
+(only `Command`; Noa's mirroring is resolved at input time), the per-hit `HitPower` /
+`HitTarget` read from the disc's Art records, a `Part` kind for the pieces only played inside a
+sequence, and a `Sequence` that makes Supers, Miracles and new combined Arts plain data.
 
 ```cpp
 UENUM(BlueprintType) enum class EJRPGArtKind   : uint8 { Regular, Hyper, Super, Miracle };
@@ -244,8 +248,8 @@ USTRUCT(BlueprintType) struct FJRPGArtData : public FTableRowBase {
 `ap` (Regular → `APGain = ap / 2`; the rest → `APCost = ap`); final balance is tuned in
 LegaiaStudio, not in code.
 
-Also: **`Public/Battle/BossFightData.h`** (`FJRPGBossData`) and
-**`Public/Battle/MagicData.h`** (`FJRPGSpellData`).
+Also: **`Public/Battle/BossFightData.h`** (`FJRPGBossData`). `MagicData.h` (`FJRPGSpellData`)
+moved to Phase 8 with the spell system.
 
 ### Converters
 
@@ -277,10 +281,10 @@ this (and keeps rows created in LegaiaStudio, backing the old CSV up first).
 > Known debt: the existing `generate_*.py` scripts have a **wrong** hardcoded path
 > (`CODE\JRPGFramework\Docs\Data`, missing the `5.8`). Fix that in the same pass.
 
-**Acceptance:** `DT_Enemies`, `DT_Arts`, `DT_Bosses`, `DT_Magic` imported under
-`/Game/Data/`; LegaiaStudio lists the four new structs; a Blueprint calling
-`GetRowNames()` returns 179 / 60 / 30 / 29 (`DT_Enemies` is 177 TOML rows + Comm and Evil Bat,
-which exist only on the disc).
+**Acceptance:** `DT_Enemies`, `DT_Arts`, `DT_Bosses` imported under `/Game/Data/`;
+LegaiaStudio lists the new structs; a Blueprint calling `GetRowNames()` returns 179 / 82 / 30
+(`DT_Enemies` is 177 TOML rows + Comm and Evil Bat, which exist only on the disc; `DT_Arts` is
+the 60 Arts + 22 sequence pieces).
 
 ---
 
@@ -818,7 +822,8 @@ with nothing debug-looking on screen.
 
 Last on purpose: it depends on everything above being stable and carries the most new rules.
 
-- Spell system over the `DT_Magic` table imported in Phase 1.
+- `DT_Magic` (`magic.toml`, 29 spells → `FJRPGSpellData`, `generate_magic_csv.py`) and the spell
+  system over it.
 - **Spell power is missing** — it is not in `magic.toml`. It comes from the disc's
   move-power table (PROT 0898, stride 26), so an extra extraction pass produces
   `DT_MovePower`.
@@ -841,7 +846,7 @@ Last on purpose: it depends on everything above being stable and carries the mos
 | Larger party breaking balance | Medium | `bScaleEnemiesWithPartySize` from Phase 4, multipliers exposed as `UPROPERTY` |
 | Regenerating a CSV wiping hand-made mesh/anim mapping | Medium, destructive | Merge by row name in the generator + timestamped `.bak` in `Docs/Data/_backup/` |
 | `bosses.toml` inline tables breaking the parser | Low | Dedicated regex; validate 30/30 rows |
-| Importing 186 enemies by hand | Low (tedium, not risk) | If it hurts, add a second `JRPGFrameworkEditor` module with a batch `UAssetImportTask` commandlet |
+| ~~Importing 186 enemies by hand~~ | Retired — `Extras/ps1_monsters_batch.py` + the editor scripts' `--all` | |
 
 ---
 
