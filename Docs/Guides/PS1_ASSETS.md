@@ -225,6 +225,75 @@ Drake Ghost (hit, strong attack).
 
 ---
 
+## 6. Equipment pieces (the party)
+
+The original draws no separate item mesh. Each player battle file has five **sections** (body,
+head, weapon, Ra-Seru, feet), and equipping an item swaps whole **objects of the skeleton**: the
+Survival Knife replaces Vahn's right hand with another hand holding a blade, an armour re-sculpts
+the torso. Each section always swaps the same objects (measured on the RE site, every item of
+every section):
+
+| Section | Vahn | Noa | Gala |
+|---|---|---|---|
+| Body | 0, 1 | 0, 1 | 0, 1 |
+| Head | 2 | 2, 3 | 2 |
+| Weapon | 3, 4, 5 | 7, 8, 9 | 3, 4, 5 |
+| Ra-Seru | 6, 7, 8 | 4, 5, 6 | 6, 7, 8 |
+| Feet | 9 – 14 | 10 – 15 | 9 – 14 |
+
+Noa is left-handed: in her file sections 2 and 3 are swapped (2 = Ra-Seru Terra, 3 = weapons),
+and her weapon arm is the left one. The weapon ids the three share (34–51) are **separate models
+per character** — extract each one.
+
+Past the skeleton (15 bones for Vahn and Gala, 16 for Noa) some items add **extra objects**: Noa's
+loose weapon, her Terra's extra, Gala's high Ozma tiers. They have no animation channel of their
+own — they ride the bone before them in the section — and their index shifts with what else is
+equipped. So the cutter matches each extra to the bone whose rest pose it shares, puts it in that
+bone's section and weights it to that bone: no extra bones in the skeleton.
+
+So a hero is cut into **pieces**: per section, the objects above, taken from the character
+assembled with that one item. They go on the same skeleton as `SK_<Name>_Battle`, so every clip
+animates every piece. In battle the pieces follow the hidden `BattleMesh` (Leader Pose) —
+[BATTLE_STAGE.md](BATTLE_STAGE.md) › Equipment on the model.
+
+**1. The assembled characters.** `legaia-engine export-glb --items` misses bones on ~23 records
+(Ra-Seru tiers, some weapons: it keeps only what the item's palette touches), so the source is
+the RE site's [Characters page](https://andrewaltimit.github.io/legend-of-legaia-re/characters.html),
+whose wasm assembles any loadout (`set_equipped_character` + `equipped_character_glb`). With
+the disc loaded there, one `.glb` per item (that item equipped, the rest default) plus
+`default.glb`, Idle only, into `equip-site/<name>/` with a `manifest.json` (character, section,
+id, name, file) one level up.
+
+**2. Cut the pieces** (headless Blender):
+
+```bash
+blender -b --factory-startup --python Extras/ps1_equip_pieces.py -- \
+    legaia-vahn-battle-arts.glb equip-site/vahn pieces/vahn Vahn
+```
+
+The `arts.glb` is the one `SK_Vahn_Battle` came from: the skeleton is rebuilt from it exactly,
+and each file's rest pose is checked against it. Out: `<Name>_<Piece>_<Item>.fbx` +
+`T_<…>.png` per piece (`Vahn_Weapon_SurvivalKnife`, `Vahn_RaSeru_Lv3`, `Vahn_Body_Default`…)
+and `pieces.json`. The section table lives in the script (`SECTIONS`), with the three heroes;
+`ITEM_KEYS` maps the few items whose disc name is not their `DT_Items` key (Noa's Feral is
+`noa_feral`, Gala's Mace `gala_mace`).
+
+**3. Import** each FBX into `/Game/Legaia/Battle/Party/<Name>/Pieces/` as a Skeletal Mesh on
+`SK_<Name>_Battle_Skeleton` (no materials, textures or animations), its texture with
+**Filter = Nearest**, and an `MI_` child of `M_PS1Monster` with `BaseTexture` on the mesh slot.
+The five `Default` pieces share one texture.
+
+**4. The DataTable:**
+
+```bash
+python Extras/generate_equip_visuals_csv.py pieces/vahn
+```
+
+writes `Docs/Data/DT_EquipVisuals.csv` (rows of other characters are kept); import it into
+`/Game/Data/` as `FJRPGEquipVisualRow`.
+
+---
+
 ## What the converter does, and why
 
 Each row is a problem that was actually hit with Gimard and the party.

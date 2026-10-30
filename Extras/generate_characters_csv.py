@@ -7,7 +7,7 @@ Docs/Data/gamedata/characters.toml.
 IMPORTADOR DE UMA VEZ SÓ. Depois que a DataTable estiver importada na Unreal,
 edite pelo LegaiaStudio: rodar este script de novo SOBRESCREVE o CSV inteiro e
 apaga qualquer ajuste manual — menos o modelo de batalha (BattleMesh,
-BattleAnims), que é lido do CSV atual e mantido por RowName.
+BattleAnims, AccessoryVisuals), que é lido do CSV atual e mantido por RowName.
 
     python Extras/generate_characters_csv.py
 
@@ -33,14 +33,14 @@ CSV_PATH = os.path.join(PLUGIN_DIR, "Docs", "Data", "DT_Characters.csv")
 COLUMNS = ["Key", "XPCurveSlot", "DisplayName", "PortraitId", "RaSeru", "RaSeruElement",
            "AffinityStrong", "AffinityWeak", "WeaponClasses", "bLeftHanded",
            "BaseHP", "BaseMP", "BaseAGL", "BaseATK", "BaseUDF", "BaseLDF",
-           "BaseSPD", "BaseINT", "Notes", "BattleMesh", "BattleAnims"]
+           "BaseSPD", "BaseINT", "Notes", "BattleMesh", "BattleAnims", "AccessoryVisuals"]
 
 # Preenchidas à mão (asset paths da Fase 2): o CSV atual é a fonte delas
-MANUAL_COLUMNS = ["BattleMesh", "BattleAnims"]
+MANUAL_COLUMNS = ["BattleMesh", "BattleAnims", "AccessoryVisuals"]
 
 # Vazio de cada coluna manual. Struct vazio tem de ser "()": célula em branco faz a importação
 # da Unreal falhar ("Missing opening parenthesis").
-MANUAL_EMPTY = {"BattleMesh": "", "BattleAnims": "()"}
+MANUAL_EMPTY = {"BattleMesh": "", "BattleAnims": "()", "AccessoryVisuals": "()"}
 
 # Atributos iniciais (level 1) do jogo original US.
 #

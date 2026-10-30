@@ -69,6 +69,7 @@ remain for reference.
 | [DT_Difficulty.csv](Data/DT_Difficulty.csv) | 3 | `FDifficultyScaling` |
 | [DT_CameraPresets.csv](Data/DT_CameraPresets.csv) | 13 | `FCameraPresetRow` (import as `DT_Camera`) |
 | [DT_Enemies.csv](Data/DT_Enemies.csv) | 179 | `FJRPGEnemyData` |
+| [DT_EquipVisuals.csv](Data/DT_EquipVisuals.csv) | 146 | `FJRPGEquipVisualRow` |
 
 `Data/_backup/` holds the copies LegaiaStudio makes on every save.
 

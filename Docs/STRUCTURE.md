@@ -118,12 +118,13 @@ JRPGFramework/
 │   │   │   │                                       8 level-1 stats + EJRPGElement
 │   │   │   ├── JRPGPartyTypes.h ✅              ← FJRPGPartyMember: one character's record
 │   │   │   │                                       (3 states, level/XP, 8 stats, equipment,
-│   │   │   │                                       conditions, SeruLevel) + EJRPGEquipSlot (5 slots)
+│   │   │   │                                       conditions, SeruLevel) + EJRPGEquipSlot (7 slots:
+│   │   │   │                                       4 gear + 3 accessories)
 │   │   │   └── PartySubsystem.h ✅              ← roster vs formation, recruit/activate/bench,
 │   │   │                                           XP split among survivors, level-up, vitals, save
 │   │   │
 │   │   ├── Status/ ✅
-│   │   │   └── StatusSubsystem.h ✅             ← equipment (5 slots), conditions, Ra-Seru,
+│   │   │   └── StatusSubsystem.h ✅             ← equipment (7 slots), conditions, Ra-Seru,
 │   │   │                                           elemental affinity and the EFFECTIVE stat.
 │   │   │                                           Owns the RULES: writes into the Party record,
 │   │   │                                           holds no state of its own
@@ -136,14 +137,16 @@ JRPGFramework/
 │   │       │                                       EndBattle + OnBattleStarted/Ended; no turns yet
 │   │       │                                       (Phase 5); ApplyBattleItemEffect still TODO
 │   │       ├── BattleTypes.h ✅                 ← side, combatant type, result, FJRPGCombatant,
-│   │       │                                       FJRPGBattleSetup, FJRPGBattleVisual
+│   │       │                                       FJRPGBattleSetup, FJRPGBattleVisual, the hero's
+│   │       │                                       equipment pieces (EJRPGBattlePiece, DT_EquipVisuals row)
 │   │       ├── JRPGBattleArena.h ✅             ← where on the map a fight is assembled, and who
 │   │       │                                       assembles it: formation preview + ground check,
 │   │       │                                       hand-drawn area, FindArenaFor, AssembleBattle /
 │   │       │                                       TeardownBattle (BATTLE_ROADMAP Phase 4)
 │   │       ├── JRPGBattleSceneSubsystem.h ✅    ← world subsystem: picks the arena, fade, OnFieldHidden /
 │   │       │                                       OnFieldShown, console commands. Guides/BATTLE_STAGE.md
-│   │       ├── JRPGBattlePawn.h ✅              ← one combatant in the scene: battle model in its seat
+│   │       ├── JRPGBattlePawn.h ✅              ← one combatant in the scene: battle model in its seat;
+│   │       │                                       heroes dressed by equipment pieces (Leader Pose)
 │   │       ├── JRPGBattleWaves.h ✅             ← fights in a row, Muscle Dome style, waves from JSON
 │   │       ├── JRPGEncounterTypes.h ✅          ← FJRPGEncounterEnemy/Setup/Combatant + the roll and
 │   │       │                                       DT_Enemies access (UJRPGEncounterLibrary)
@@ -240,6 +243,10 @@ JRPGFramework/
     │                                               party, from legend-of-legaia-re) → rigged FBX for
     │                                               Unreal; --block adds the clip morphs (slimes) as
     │                                               shape keys + curves. See Guides/PS1_ASSETS.md
+    ├── ps1_equip_pieces.py ✅                   ← headless Blender: the party's battle form cut into
+    │                                               equipment pieces (one per section and item, same
+    │                                               skeleton). See Guides/PS1_ASSETS.md
+    ├── generate_equip_visuals_csv.py ✅         ← those pieces → DT_EquipVisuals.csv
     ├── ps1_monster_sounds.py ✅                 ← the monsters' battle sounds from the disc → WAV per
     │                                               monster + common ones, and sounds.json (clip/frame
     │                                               of each, for AnimNotifies). See Guides/PS1_ASSETS.md
@@ -277,7 +284,7 @@ JRPGFramework/
 | **Camera** | ✅ complete | 13 presets (+DOF), automatic restore when the UI closes, 8 shakes, manual camera + zone, conversation and FrameGroup/Orbit ready |
 | **WebUI** | ✅ complete | SPA shell, 7 screens, gamepad + keyboard + mouse with their own rules, responsive scaling |
 | **Party** | ✅ complete (data) | Roster vs formation, 3 states per character, XP split among survivors as in the original, level-up with jitter, whole-roster save. The UI does not follow the formation yet |
-| **Status** | ✅ complete (data) | Equipment in 5 slots with `CanEquip` read from `DT_Items`, conditions, Ra-Seru (1..9), elemental affinity, and the original's `effective ( base )` display. The equip screen is still missing |
+| **Status** | ✅ complete (data) | Equipment in 7 slots (4 gear + 3 accessories) with `CanEquip` read from `DT_Items`, conditions, Ra-Seru (1..9), elemental affinity, and the original's `effective ( base )` display. The equip screen is still missing |
 | **Arts / Battle** | 🟡 stage ready, no combat | A fight is assembled over the current map and taken down: battle arenas placed by hand, the original's seats, battle models from `DT_Characters` / `DT_Enemies`, camera, field enemies starting it on contact, the Muscle Dome waves ([BATTLE_STAGE.md](Guides/BATTLE_STAGE.md)). Turns, damage and Arts are still to come; `ArtsSubsystem` is a stub. `DT_Enemies` has 179 enemies ([ENEMIES.md](Guides/ENEMIES.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
 
 ---

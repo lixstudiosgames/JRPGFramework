@@ -2,6 +2,7 @@
 #include "Battle/JRPGBattlePawn.h"
 #include "Battle/JRPGEncounterTypes.h"
 #include "Camera/CameraSubsystem.h"
+#include "Core/CoreSubsystem.h"
 #include "Field/JRPGFieldCharacter.h"
 #include "Field/JRPGFieldPlayerController.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -56,6 +57,94 @@ namespace
 		{ { 0, 900 }, { -600, 700 }, { 600, 700 } },
 		{ { 0, 1000 }, { -600, 800 }, { 600, 800 }, { 0, 600 } },
 	};
+
+	/** DT_EquipVisuals (em /Game/Data, ou a do plugin). Cache fraco, como a DT_Enemies. */
+	const UDataTable* GetEquipVisualTable()
+	{
+		static TWeakObjectPtr<const UDataTable> Cached;
+		if (!Cached.IsValid())
+		{
+			Cached = UCoreSubsystem::ResolveDataTable(TEXT("DT_EquipVisuals"));
+		}
+		return Cached.Get();
+	}
+
+	FName EquippedIn(const FJRPGPartyMember& Member, EJRPGEquipSlot Slot)
+	{
+		const int32 Idx = static_cast<int32>(Slot);
+		return Member.Equipment.IsValidIndex(Idx) ? Member.Equipment[Idx] : NAME_None;
+	}
+
+	/**
+	 * O que o herói veste na luta: uma parte por seção (a do item equipado, a padrão se o item não
+	 * tem malha ou o slot está vazio) e o modelo genérico de cada slot de acessório ocupado.
+	 * Herói sem nenhuma parte padrão na DT_EquipVisuals fica com o BattleMesh inteiro.
+	 */
+	void AddEquipmentVisuals(FName Character, const FCharacterData& Row, const FJRPGPartyMember& Member, FJRPGBattleVisual& Out)
+	{
+		const EJRPGEquipSlot AccessorySlots[] = { EJRPGEquipSlot::Accessory, EJRPGEquipSlot::Accessory2, EJRPGEquipSlot::Accessory3 };
+		for (int32 Index = 0; Index < UE_ARRAY_COUNT(AccessorySlots); ++Index)
+		{
+			if (Row.AccessoryVisuals.IsValidIndex(Index) && !Row.AccessoryVisuals[Index].Mesh.IsNull()
+				&& !EquippedIn(Member, AccessorySlots[Index]).IsNone())
+			{
+				Out.Attachments.Add(Row.AccessoryVisuals[Index]);
+			}
+		}
+
+		const UDataTable* Table = GetEquipVisualTable();
+		if (!Table)
+		{
+			return;
+		}
+		const UEnum* PieceEnum = StaticEnum<EJRPGBattlePiece>();
+		auto FindRow = [&](EJRPGBattlePiece Piece, const FString& Item) -> const FJRPGEquipVisualRow*
+		{
+			const FName RowName(*FString::Printf(TEXT("%s_%s_%s"), *Character.ToString(),
+				*PieceEnum->GetNameStringByValue(static_cast<int64>(Piece)), *Item));
+			return Table->FindRow<FJRPGEquipVisualRow>(RowName, TEXT("BattleArena"), false);
+		};
+		auto ItemFor = [&](EJRPGBattlePiece Piece) -> FName
+		{
+			switch (Piece)
+			{
+			case EJRPGBattlePiece::Body:   return EquippedIn(Member, EJRPGEquipSlot::Armor);
+			case EJRPGBattlePiece::Head:   return EquippedIn(Member, EJRPGEquipSlot::Helmet);
+			case EJRPGBattlePiece::Weapon: return EquippedIn(Member, EJRPGEquipSlot::Weapon);
+			case EJRPGBattlePiece::Feet:   return EquippedIn(Member, EJRPGEquipSlot::Shoes);
+			case EJRPGBattlePiece::RaSeru: return FName(*FString::Printf(TEXT("Lv%d"), Member.SeruLevel));
+			default:                       return NAME_None;
+			}
+		};
+
+		TArray<FJRPGBattlePieceMesh> Pieces;
+		bool bHasDefaults = false;
+		for (int32 Index = 0; Index < static_cast<int32>(EJRPGBattlePiece::MAX); ++Index)
+		{
+			const EJRPGBattlePiece Piece = static_cast<EJRPGBattlePiece>(Index);
+			const FJRPGEquipVisualRow* Default = FindRow(Piece, TEXT("Default"));
+			bHasDefaults |= Default != nullptr;
+
+			const FName Item = ItemFor(Piece);
+			const FJRPGEquipVisualRow* Equipped = Item.IsNone() ? nullptr : FindRow(Piece, Item.ToString());
+			if (!Equipped && !Item.IsNone() && Default)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("BattleArena: %s — sem malha de %s na DT_EquipVisuals; vai a parte padrão."),
+					*Character.ToString(), *Item.ToString());
+			}
+			const FJRPGEquipVisualRow* Chosen = Equipped ? Equipped : Default;
+			if (Chosen && !Chosen->Mesh.IsNull())
+			{
+				FJRPGBattlePieceMesh& Part = Pieces.AddDefaulted_GetRef();
+				Part.Piece = Piece;
+				Part.Mesh = Chosen->Mesh;
+			}
+		}
+		if (bHasDefaults)
+		{
+			Out.Pieces = MoveTemp(Pieces);
+		}
+	}
 
 	const FColor PartyColor(60, 140, 255);
 	const FColor EnemyColor(255, 140, 30);
@@ -827,6 +916,11 @@ bool AJRPGBattleArena::ResolveVisual(const FJRPGCombatant& Combatant, FJRPGBattl
 		}
 		OutVisual.Mesh = Row->BattleMesh;
 		OutVisual.IdleAnim = Row->BattleAnims.Idle;
+		FJRPGPartyMember Member;
+		if (Party->GetMember(Combatant.Key, Member))
+		{
+			AddEquipmentVisuals(Combatant.Key, *Row, Member, OutVisual);
+		}
 		return true;
 	}
 
