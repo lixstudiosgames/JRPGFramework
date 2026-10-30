@@ -8,6 +8,7 @@ No console do editor (modo Cmd):
 
     py "<repo>/Extras/ue_import_monster_sounds.py" "<pasta Sounds do ps1_monster_sounds>" Gimard [Drake_Ghost ...]
     py "<repo>/Extras/ue_import_monster_sounds.py" "<pasta Sounds>" Vahn Noa Gala
+    py "<repo>/Extras/ue_import_monster_sounds.py" "<pasta Sounds>" --all   # todo monstro com malha no projeto
 
 Herói é quem tem Party/<Nome>/sounds.json na pasta; o resto é monstro (Enemies/<Nome>).
 
@@ -35,6 +36,7 @@ ENEMIES_ROOT = "/Game/Legaia/Battle/Enemies"
 PARTY_ROOT = "/Game/Legaia/Battle/Party"
 COMMON_DEST = "/Game/Legaia/Battle/Sounds/Common"
 TRACK = "Sounds"
+COMMON_DONE = set()   # comuns já importados nesta execução
 
 def apply_sound_settings(paths):
     """Os SoundWaves são os da batalha: 2D, ouvidos em todo lugar, no volume que o WAV já traz (o
@@ -110,9 +112,11 @@ def import_monster(src, monster):
     manifest = json.load(open(os.path.join(src, kind, monster, "sounds.json"), encoding="utf-8"))
     imported = import_wavs(os.path.join(src, kind, monster), own_dest)
     apply_clips(root, manifest.get("clips", []))
-    common_used = {n["sound"] for n in manifest["notifies"] if n["folder"] == "Battle/Common"}
+    # Os comuns: uma vez por execução (no --all, o 0x0D serve a 135 monstros)
+    common_used = {n["sound"] for n in manifest["notifies"] if n["folder"] == "Battle/Common"} - COMMON_DONE
     if common_used:
         imported += import_wavs(os.path.join(src, "Battle", "Common"), COMMON_DEST, common_used)
+        COMMON_DONE.update(common_used)
 
     by_clip = {}
     for n in manifest["notifies"]:
@@ -157,12 +161,24 @@ def import_monster(src, monster):
                % (monster, imported, notifies, errors))
 
 
+def with_model(src):
+    """O --all: todo monstro de <pasta>/Enemies que já tem malha no projeto."""
+    names = sorted(n for n in os.listdir(os.path.join(src, "Enemies"))
+                   if os.path.isfile(os.path.join(src, "Enemies", n, "sounds.json")))
+    have = [n for n in names if unreal.EditorAssetLibrary.does_asset_exist("%s/%s/SK_%s" % (ENEMIES_ROOT, n, n))]
+    if len(have) < len(names):
+        unreal.log_warning("ue_import_monster_sounds: sem malha no projeto, ficaram de fora: %s"
+                           % ", ".join(n for n in names if n not in have))
+    return have
+
+
 def main(argv):
     if len(argv) < 2:
-        unreal.log_error("uso: py ue_import_monster_sounds.py <pasta Sounds> <Nome> [<Nome> ...]")
+        unreal.log_error("uso: py ue_import_monster_sounds.py <pasta Sounds> (<Nome> [<Nome> ...] | --all)")
         return
     src = argv[0]
-    for monster in argv[1:]:
+    names = with_model(src) if argv[1:] == ["--all"] else argv[1:]
+    for monster in names:
         try:
             import_monster(src, monster)
         except Exception:

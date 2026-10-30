@@ -148,7 +148,45 @@ py "<repo>/Extras/ue_setup_monster.py" Gobu_Gobu Evil_Fly
 ```
 
 Then fill the monster's `Mesh` and `Anims` in `DT_Enemies` (Idle, Walk = `Move`, Flinch1 =
-`Damaged`, Knockdown, GetUp, Block, Attacks) — the field enemy shows it from there.
+`Damaged`, Knockdown, GetUp, Block, Attacks) — the field enemy shows it from there. For the
+whole archive, see the next section.
+
+### All the monsters at once
+
+Steps 2–4 and the sounds for every id, in four commands:
+
+```bash
+python Extras/ps1_monsters_batch.py --extracted extracted --asset-exe <tools>/asset.exe     --blender "<Blender>/blender.exe" --out exports/monsters/all        # ~10 min, 8 Blenders
+python Extras/ps1_monster_sounds.py --extracted extracted --asset-exe <tools>/asset.exe     --out exports/sounds/Sounds --all
+python Extras/generate_enemy_anims_csv.py exports/monsters/all/monsters.json
+```
+
+```
+py "<repo>/Extras/ue_setup_monster.py" --source "<...>/exports/monsters/all/fbx" --max 60 --all
+py "<repo>/Extras/ue_import_monster_sounds.py" "<...>/exports/sounds/Sounds" --all
+```
+
+Then reimport `DT_Enemies` from `Docs/Data/DT_Enemies.csv`.
+
+| Step | What it does |
+|---|---|
+| `ps1_monsters_batch.py` | Per id: the block (`--dump-block`, always — morphs and semi-transparency need it), the `.glb`, the FBX. Writes `monsters.json`: name, clips, which are attacks. Re-running redoes only what is missing (`--force` for all) |
+| `ue_setup_monster.py --all` | Every `<Name>.fbx` of the folder with no `SK_<Name>` in the project yet; the ones already there stay. `--max N` caps one call (~4 s per monster) |
+| `ue_import_monster_sounds.py --all` | Every monster of `Enemies/` that has a mesh in the project. The common sounds go in once per run |
+| `generate_enemy_anims_csv.py` | `Mesh` and `Anims` of every row with that `MonsterArchiveID` — roles in [ENEMIES.md](ENEMIES.md#model-phase-2) |
+
+What the disc throws at a batch:
+
+- **186 monsters in 194 slots.** 187–194 are empty.
+- **Names repeat.** Bosses and rematches reuse a lower id's name (Songi 76/136/179, Tetsu
+  79/175, Gaza 165/166, Cort 180/181). Those ids get `_<id>`: `Songi_136`, `Cort_181`
+  (`REPEATED_NAME_IDS` in `ps1_monster_sounds.py`, which both scripts share).
+- **Byte-identical blocks.** Evil Bat 176–178 = 140, Cort 183–186 = 180: no copy is made;
+  `monsters.json` gives them `same_as` and the lower id's assets. 179 models in all.
+- **A piece missing from most clips.** Koru's `object_15` only has keys in action 0x15; in
+  every other clip it stays at its node's pose.
+- **Repeated actions.** Two actions with the same id are `Action_0x13_1` / `_2`, like
+  `Attack1` / `Attack2`.
 
 ### `M_PS1Monster`
 
@@ -215,8 +253,7 @@ How the game resolves a cue, and what the script reproduces:
   (full). Output is 44.1 kHz through the SPU's **4-point Gaussian interpolation** (the 512-entry
   coefficient table the psx-spx hardware docs publish — the RE has it too, `engine-audio/spu/gauss.rs`).
   Linear interpolation sounds muffled next to the game; repeating samples (nearest) hisses on
-  sounds played far below their pitch (the party's hit `0x4C` plays at 0.14×). Sounds made
-  before this change were nearest — regenerate to update them.
+  sounds played far below their pitch (the party's hit `0x4C` plays at 0.14×).
 - The sample bodies start **4 bytes after** where the RE's `vab extract` places them (a chunk
   header sits between the VAB header and the bodies); at its offset ~95% of the ADPCM blocks
   are invalid. The script has its own decoder.
@@ -395,5 +432,5 @@ the roadmap assumed made everything 1.8× too big.
   multiply by 2 in the material.
 - **Arts with irregular key spacing** (1/22.5 s, 1/52.5 s) are sampled on whole frames; not yet
   checked in the editor.
-- **No batch.** One model at a time for now; the 186 monsters and the party's full Arts banks
-  come next.
+- **The party's Arts banks per equipped weapon** are not in yet (the swings of the default
+  section only — see "The party's clips and sounds").

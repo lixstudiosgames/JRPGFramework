@@ -259,12 +259,19 @@ def dump_block(asset_exe, archive, monster_id):
         return open(out, "rb").read() if os.path.isfile(out) else None
 
 
-def monster_name(block):
+# Ids que repetem o nome de um id menor (formas de chefe, revanches, o Evil Bat que o Songi chama):
+# levam _<id> no fim para não cair na pasta do primeiro. Songi 76 / 136 / 179, Tetsu 79 / 175,
+# Evil Bat 140 / 176-178, Gaza 165 / 166, Cort 180 / 181, 183-186.
+REPEATED_NAME_IDS = {136, 166, 175, 176, 177, 178, 179, 181, 183, 184, 185, 186}
+
+
+def monster_name(block, monster_id):
     off = struct.unpack_from("<I", block, 0)[0]
     raw = block[off:block.index(b"\0", off)].decode("ascii", "replace")
     raw = re.sub(r"^\^.\s*", "", raw)                   # tira o escape de cor "^A "
     raw = re.sub(r"\s*\$(\d+)$", r" Lv\1", raw)          # "Gimard $2" -> "Gimard Lv2"
-    return re.sub(r"[^A-Za-z0-9]+", "_", raw).strip("_")
+    name = re.sub(r"[^A-Za-z0-9]+", "_", raw).strip("_")
+    return "%s_%d" % (name, monster_id) if monster_id in REPEATED_NAME_IDS else name
 
 
 def action_entries(block):
@@ -294,8 +301,9 @@ def action_labels(entries):
 
 
 def clip_suffix(label):
-    """Igual ao Extras/ps1_glb_to_fbx.py: 'Attack #1' -> Attack1, 'Knocked Down' -> KnockedDown."""
-    s = label.split(" / ")[0].replace("#", "")
+    """Igual ao Extras/ps1_glb_to_fbx.py: 'Attack #1' -> Attack1, 'Knocked Down' -> KnockedDown,
+    'Action 0x13 #1' -> Action_0x13_1."""
+    s = re.sub(r"(Action\s+0x[0-9A-Fa-f]+)\s+#", r"\1_", label.split(" / ")[0]).replace("#", "")
     s = re.sub(r"Action\s+0x", "Action_0x", s)
     return re.sub(r"[^A-Za-z0-9_]", "", s)
 
@@ -319,7 +327,7 @@ def common_file(static_row):
 
 
 def extract_monster(monster_id, block, ctx, out_root, common_uses):
-    name = monster_name(block)
+    name = monster_name(block, monster_id)
     entries = action_entries(block)
     labels = action_labels(entries)
     snd = ctx["monster_snd"]
@@ -454,6 +462,7 @@ def main():
     ap.add_argument("--ids", default="", help="ids do arquivo de monstros, ex.: 10,16")
     ap.add_argument("--all", action="store_true", help="os 194 slots (os vazios são pulados)")
     args = ap.parse_args()
+    args.asset_exe = os.path.abspath(args.asset_exe)   # o CreateProcess não acha caminho relativo com /
 
     prot = os.path.join(args.extracted, "PROT")
 

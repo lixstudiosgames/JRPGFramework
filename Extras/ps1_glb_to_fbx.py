@@ -76,8 +76,8 @@ def log(msg):
 
 def clip_suffix(name):
     """'Attack #1' -> 'Attack1', 'Knocked Down' -> 'KnockedDown', 'Action 0x23' -> 'Action_0x23',
-    'Walk / Approach' -> 'Walk'."""
-    s = name.split(" / ")[0].replace("#", "")
+    'Action 0x13 #1' -> 'Action_0x13_1', 'Walk / Approach' -> 'Walk'."""
+    s = re.sub(r"(Action\s+0x[0-9A-Fa-f]+)\s+#", r"\1_", name.split(" / ")[0]).replace("#", "")
     s = re.sub(r"Action\s+0x", "Action_0x", s)
     return re.sub(r"[^A-Za-z0-9_]", "", s)
 
@@ -320,11 +320,26 @@ def main(argv):
     log("%s: %d peças, %d de %d clips, importado a %d fps"
         % (name, len(parts), len(clips), len(all_clips), scn.render.fps))
 
-    for o in parts.values():
-        o.animation_data.use_nla = False
+    # Peça sem trilha num clip (o object_15 do Koru só existe na ação 0x15) fica parada na pose do
+    # seu nó do glb nesse clip: guarda essa pose para voltar a ela.
+    node_pose = {}
+    for n, o in parts.items():
+        o.animation_data_create().use_nla = False
+        node_pose[n] = o.matrix_basis.copy()
+
+    def play(src):
+        for n, o in parts.items():
+            if slot_of[n] in src.slots:
+                o.animation_data.action = src
+                o.animation_data.action_slot = src.slots[slot_of[n]]
+            else:
+                o.animation_data.action = None
+                o.matrix_basis = node_pose[n]
 
     loop_names = {c.strip().lower() for c in args.loop_clips.split(",") if c.strip()}
-    all_slots = [o.animation_data.action_slot.identifier for o in parts.values()]
+    slot_of = {n: o.animation_data.action_slot.identifier if o.animation_data.action_slot else "OB" + o.name
+               for n, o in parts.items()}
+    all_slots = list(slot_of.values())
     for a in clips:
         if a.name.split(" / ")[0].lower() in loop_names:
             slots = [s for s in a.slots if s.identifier in all_slots]
@@ -333,10 +348,7 @@ def main(argv):
 
     # Pose de descanso = quadro 0 do primeiro clip (o exportador usa o idle como base).
     idle = next((a for a in clips if a.name.lower() == "idle"), clips[0])
-    slot_of = {n: o.animation_data.action_slot.identifier for n, o in parts.items()}
-    for n, o in parts.items():
-        o.animation_data.action = idle
-        o.animation_data.action_slot = idle.slots[slot_of[n]]
+    play(idle)
 
     # Cena em centímetros (1 unidade do Blender = 1 cm, o mesmo do Unreal) e a escala no nó raiz
     # do glb: daqui em diante o matrix_world das peças já está em cm, e malha, bones e poses
@@ -493,9 +505,7 @@ def main(argv):
     arm.animation_data_create()
     baked = []
     for src in clips:
-        for n, o in parts.items():
-            o.animation_data.action = src
-            o.animation_data.action_slot = src.slots[slot_of[n]]
+        play(src)
         last = int(math.ceil(src.frame_range[1] - 1e-3))
         arm.animation_data.action = None
         bpy.ops.nla.bake(frame_start=0, frame_end=last, only_selected=True, visual_keying=True,

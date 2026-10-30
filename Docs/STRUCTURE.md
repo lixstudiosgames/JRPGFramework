@@ -234,6 +234,8 @@ JRPGFramework/
     ├── generate_enemies_csv.py ✅               ← enemies.toml + the disc's monster archive listing →
     │                                               DT_Enemies.csv. Keeps Mesh/Anims, hand-set ids and
     │                                               rows made in the Studio; backs up first
+    ├── generate_enemy_anims_csv.py ✅           ← the monster batch's monsters.json → Mesh and Anims of
+    │                                               every DT_Enemies row (roles by the disc's action ids)
     ├── legaia_toml.py ✅                        ← shared by the generators: tomllib + Unreal CSV helpers
     ├── generate_progression_csv.py ✅           ← formula → DT_LevelCurve.csv + DT_Difficulty.csv
     ├── generate_mist_noise.py ✅                ← tiling noise for the mist → Mist/T_JRPGMistNoise.png
@@ -250,12 +252,16 @@ JRPGFramework/
     ├── ps1_party_sounds.py ✅                   ← the party's battle clips: real names (the Art, the win
     │                                               pose…), the game's speed (RateScale) and the sounds
     │                                               and voices each one plays. See Guides/PS1_ASSETS.md
+    ├── ps1_monsters_batch.py ✅                 ← every monster at once: .glb + block (RE asset tool),
+    │                                               FBX (ps1_glb_to_fbx.py, parallel Blenders) and
+    │                                               monsters.json. See Guides/PS1_ASSETS.md
     ├── ps1_monster_sounds.py ✅                 ← the monsters' battle sounds from the disc → WAV per
     │                                               monster + common ones, and sounds.json (clip/frame
     │                                               of each, for AnimNotifies). See Guides/PS1_ASSETS.md
     ├── ue_setup_monster.py ✅                   ← runs IN the editor (py): imports the FBX (with morph
     │                                               targets) + texture, renames the clips, PS1 texture
-    │                                               settings, MI_<Name> on the mesh
+    │                                               settings, MI_<Name> on the mesh; --all imports every
+    │                                               batch FBX not in the project yet
     ├── ue_import_monster_sounds.py ✅           ← runs IN the editor (py): imports those WAVs and puts
     │                                               the AnimNotify_PlaySound on the monster's (or hero's)
     │                                               clips; for a hero, renames the clips + sets RateScale

@@ -65,8 +65,8 @@ Same names as `FCharacterData`. (A field named plain `INT` would clash with the 
 | Column | Notes |
 |---|---|
 | `MonsterArchiveID` | The monster's slot in the disc's monster archive (PROT 0867, 1–194) — where its mesh and clips are. `asset monster-archive ... --id <this> --glb` exports it. `-1` = none |
-| `Mesh` | Soft `USkeletalMesh` — filled by the Phase 2 import |
-| `Anims` | `FJRPGMonsterAnimSet`: `Idle`, `Walk`, `Flinch1`, `Flinch2`, `Knockdown`, `GetUp`, `Ready`, `Recover`, `Defeat`, `Block` and `Attacks` (array). In the CSV: `(Idle="/Game/...",Walk="/Game/...")`, `()` when empty |
+| `Mesh` | Soft `USkeletalMesh` — filled by `Extras/generate_enemy_anims_csv.py` from the monster batch ([PS1_ASSETS.md](PS1_ASSETS.md#all-the-monsters-at-once)) |
+| `Anims` | `FJRPGMonsterAnimSet`: `Idle`, `Walk`, `Flinch1`, `Flinch2`, `Knockdown`, `GetUp`, `Ready`, `Recover`, `Defeat`, `Block` and `Attacks` (array). In the CSV: `(Idle="/Game/...",Walk="/Game/...")`, `()` when empty. Each role is the clip of the disc action with that id (0 Idle, 1 Walk, 2/3 Flinch1/2, 4 Knockdown, 5 GetUp, 7/8/9 Ready/Recover/Defeat, 0x0B Block); `Attacks` are the castable actions (0x0C..0x1F with an AGL cost — the ones the game's AI rolls), in file order |
 
 ---
 
