@@ -247,6 +247,9 @@ JRPGFramework/
     │                                               equipment pieces (one per section and item, same
     │                                               skeleton). See Guides/PS1_ASSETS.md
     ├── generate_equip_visuals_csv.py ✅         ← those pieces → DT_EquipVisuals.csv
+    ├── ps1_party_sounds.py ✅                   ← the party's battle clips: real names (the Art, the win
+    │                                               pose…), the game's speed (RateScale) and the sounds
+    │                                               and voices each one plays. See Guides/PS1_ASSETS.md
     ├── ps1_monster_sounds.py ✅                 ← the monsters' battle sounds from the disc → WAV per
     │                                               monster + common ones, and sounds.json (clip/frame
     │                                               of each, for AnimNotifies). See Guides/PS1_ASSETS.md
@@ -254,7 +257,8 @@ JRPGFramework/
     │                                               targets) + texture, renames the clips, PS1 texture
     │                                               settings, MI_<Name> on the mesh
     ├── ue_import_monster_sounds.py ✅           ← runs IN the editor (py): imports those WAVs and puts
-    │                                               the AnimNotify_PlaySound on the monster's clips
+    │                                               the AnimNotify_PlaySound on the monster's (or hero's)
+    │                                               clips; for a hero, renames the clips + sets RateScale
     ├── generate_status_map.py ✅                ← status map in the root README
     └── download_fonts.py ✅                     ← verifies/downloads the WebUI's local fonts
 ```

@@ -1,17 +1,26 @@
 """
-ue_import_monster_sounds.py — roda DENTRO do editor. Importa os sons de um monstro (e os comuns
-que ele usa) e põe um AnimNotify_PlaySound em cada clip dele, no quadro certo, a partir do
-sounds.json do Extras/ps1_monster_sounds.py.
+ue_import_monster_sounds.py — roda DENTRO do editor. Importa os sons de um monstro ou de um herói
+(e os comuns que ele usa) e põe um AnimNotify_PlaySound em cada clip dele, no quadro certo, a partir
+do sounds.json do Extras/ps1_monster_sounds.py (monstros) ou do Extras/ps1_party_sounds.py (Vahn,
+Noa, Gala).
 
 No console do editor (modo Cmd):
 
     py "<repo>/Extras/ue_import_monster_sounds.py" "<pasta Sounds do ps1_monster_sounds>" Gimard [Drake_Ghost ...]
+    py "<repo>/Extras/ue_import_monster_sounds.py" "<pasta Sounds>" Vahn Noa Gala
+
+Herói é quem tem Party/<Nome>/sounds.json na pasta; o resto é monstro (Enemies/<Nome>).
 
 Destino (Docs/Guides/PS1_ASSETS.md):
   /Game/Legaia/Battle/Enemies/<Nome>/Sounds/SW_<Nome>_<Uso>   os sons do monstro
   /Game/Legaia/Battle/Sounds/Common/SW_Battle_Cue<NN>          os comuns (só os que ele usa)
   trilha de notify "Sounds" em cada /Game/Legaia/Battle/Enemies/<Nome>/AS_<Nome>_<Clip>
+  /Game/Legaia/Battle/Party/<Nome>/Sounds/SW_<Nome>_Voice<ID>  as vozes do herói (CD-XA)
+  trilha de notify "Sounds" em cada /Game/Legaia/Battle/Party/<Nome>/AS_<Nome>_Battle_<Clip>
 Os SoundWaves ficam 2D (batalha). No Field o AJRPGFieldEnemy os toca em 3D, com raio curto.
+
+Herói: antes dos notifies, cada clip vindo do .glb ganha o nome do que é e o RateScale da
+velocidade do jogo (a lista "clips" do sounds.json).
 
 Rodar de novo refaz a trilha "Sounds" do zero (não duplica) e substitui os SoundWaves.
 """
@@ -23,6 +32,7 @@ import traceback
 import unreal
 
 ENEMIES_ROOT = "/Game/Legaia/Battle/Enemies"
+PARTY_ROOT = "/Game/Legaia/Battle/Party"
 COMMON_DEST = "/Game/Legaia/Battle/Sounds/Common"
 TRACK = "Sounds"
 
@@ -57,6 +67,28 @@ def import_wavs(folder, dest, only=None):
     return len(paths)
 
 
+def apply_clips(root, clips):
+    """Herói: cada clip do .glb ganha o nome do que é (AS_Vahn_Battle_Beatdunk -> _FireBlow) e o
+    RateScale da velocidade do jogo (Extras/ps1_party_sounds.py). Já renomeado, só acerta a escala."""
+    lib = unreal.EditorAssetLibrary
+    renamed = scaled = 0
+    for c in clips:
+        old, new = "%s/%s" % (root, c["glb"]), "%s/%s" % (root, c["clip"])
+        if old != new and lib.does_asset_exist(old) and not lib.does_asset_exist(new):
+            if lib.rename_asset(old, new):
+                renamed += 1
+        anim = lib.load_asset(new)
+        if not isinstance(anim, unreal.AnimSequence):
+            unreal.log_warning("clip não encontrado: %s" % new)
+            continue
+        if abs(anim.get_editor_property("rate_scale") - c["rate_scale"]) > 1e-6:
+            anim.set_editor_property("rate_scale", c["rate_scale"])
+            lib.save_loaded_asset(anim)
+            scaled += 1
+    if clips:
+        unreal.log("ue_import_monster_sounds: %d clip(s) renomeado(s), %d com RateScale novo" % (renamed, scaled))
+
+
 def clear_sound_notifies(anim):
     """Refaz do zero: tira as trilhas que só têm PlaySound (as deste script, ou as que a engine
     criou para sons simultâneos). Uma trilha com outro notify fica — é de alguém."""
@@ -71,10 +103,13 @@ def clear_sound_notifies(anim):
 
 
 def import_monster(src, monster):
-    root = "%s/%s" % (ENEMIES_ROOT, monster)
+    # Herói (Party/<Nome>) ou monstro (Enemies/<Nome>): o mesmo sounds.json, outra pasta
+    kind, base = ("Party", PARTY_ROOT) if os.path.isfile(os.path.join(src, "Party", monster, "sounds.json"))         else ("Enemies", ENEMIES_ROOT)
+    root = "%s/%s" % (base, monster)
     own_dest = root + "/Sounds"
-    manifest = json.load(open(os.path.join(src, "Enemies", monster, "sounds.json"), encoding="utf-8"))
-    imported = import_wavs(os.path.join(src, "Enemies", monster), own_dest)
+    manifest = json.load(open(os.path.join(src, kind, monster, "sounds.json"), encoding="utf-8"))
+    imported = import_wavs(os.path.join(src, kind, monster), own_dest)
+    apply_clips(root, manifest.get("clips", []))
     common_used = {n["sound"] for n in manifest["notifies"] if n["folder"] == "Battle/Common"}
     if common_used:
         imported += import_wavs(os.path.join(src, "Battle", "Common"), COMMON_DEST, common_used)
@@ -96,7 +131,7 @@ def import_monster(src, monster):
         # trilha nova, sem nome. Então o 2º som simultâneo vai para "Sounds 2", e assim por diante.
         layer_at = {}
         for n in notes:
-            dest = own_dest if n["folder"].startswith("Enemies") else COMMON_DEST
+            dest = COMMON_DEST if n["folder"] == "Battle/Common" else own_dest
             sound = unreal.EditorAssetLibrary.load_asset("%s/%s" % (dest, n["sound"]))
             if not sound:
                 unreal.log_warning("%s: som não encontrado: %s/%s" % (monster, dest, n["sound"]))

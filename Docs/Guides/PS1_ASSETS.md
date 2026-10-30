@@ -212,8 +212,11 @@ How the game resolves a cue, and what the script reproduces:
 - Each tone is mixed at the volume the game's key-on gives it: bank master × program volume ×
   tone volume, each /127 (`FUN_80067550` in the RE's `audio.md`) — 0.2 to 0.9. The raw samples
   are near full scale, about twice as loud as the game. The cue's key-on velocity is left out
-  (full). Output is 44.1 kHz **without interpolation**
-  (nearest) — interpolating sounds muffled next to the game.
+  (full). Output is 44.1 kHz through the SPU's **4-point Gaussian interpolation** (the 512-entry
+  coefficient table the psx-spx hardware docs publish — the RE has it too, `engine-audio/spu/gauss.rs`).
+  Linear interpolation sounds muffled next to the game; repeating samples (nearest) hisses on
+  sounds played far below their pitch (the party's hit `0x4C` plays at 0.14×). Sounds made
+  before this change were nearest — regenerate to update them.
 - The sample bodies start **4 bytes after** where the RE's `vab extract` places them (a chunk
   header sits between the VAB header and the bodies); at its offset ~95% of the ADPCM blocks
   are invalid. The script has its own decoder.
@@ -222,6 +225,56 @@ How the game resolves a cue, and what the script reproduces:
 
 Checked by ear against the game for Gimard (Tail Fire start/continuation, walk, hit/get-up) and
 Drake Ghost (hit, strong attack).
+
+### The party's clips and sounds
+
+The party's battle form comes from the RE site's Arts page `.glb` (step 2): every clip of the
+character, one per record, named by the record's internal string ("Beatdunk" is really Fire Blow)
+or its id in hex. Convert it whole with `ps1_glb_to_fbx.py` (no `--clips`), import the FBX on the
+existing `SK_<Name>_Battle_Skeleton` (animations on) and move the clips next to the mesh as
+`AS_<Name>_Battle_<Clip>`. Then:
+
+```bash
+xa demux-disc-all "<disc>.bin" -o exports/xa          # the CD-XA voices, one WAV per channel
+python Extras/ps1_party_sounds.py --extracted extracted --tools <tools> --xa exports/xa     --out exports/sounds/Sounds Vahn Noa Gala
+```
+
+```
+py "<repo>/Extras/ue_import_monster_sounds.py" "<...>/exports/sounds/Sounds" Vahn Noa Gala
+```
+
+`Party/<Name>/sounds.json` carries, besides the notifies, a `clips` list the editor script
+applies first: each clip gets **the name of what it is** and the **game's speed**.
+
+| Record | Name | RateScale |
+|---|---|---|
+| actions 0..0xB | `Idle`, `Walk`, `Flinch1/2`, `Knockdown`, `GetUp`, `Dying` (7: falls and kneels dead), `Down` (8: the clip a dead hero holds), `UseItem` (9: items and Seru magic), `Block` | 2 |
+| swings 0xC..0xF | `SwingL/R/D/U` (the default section's — the equipped weapon's are not imported yet) | 2 |
+| 0x10 | `Spirit` | 2 |
+| 0x11..0x18 | win poses, by the per-character table at SCUS `0x800788A0`: `Victory1/2` (healthy), `VictoryAlt1/2`, `VictoryWeak1/2` (low HP); the two no one uses are `VictoryExtra1/2` | 2 |
+| 0x19 / 0x1A | `ArtStarter` / `SpecialStarter` (Super and Miracle) | 2 / 0.5 |
+| 0x1B.. | the Art: the id is its Action Constant (`VahnsCraze`, `BurningFlare`, `FireBlow`, `TornadoFlameHyper`…; RE `art/tables.rs`) | 1 |
+
+Speed: the anim tick advances `(frame_dt · scale · rate) >> 1` per frame in 12.4, scale 8 =
+**15 × rate frames/s** — the monsters' pace. An Art runs at scale 4 (half; the whole fight slows
+with it), the SpecialStarter at 2; the `.glb` bakes everything at 7.5 × rate, hence the scales.
+`VahnsCraze` / `NoasArk` / `BironRage` are only the Miracle's opening: in the game the Miracle is
+a string of strikes and Arts.
+
+Sounds (`FUN_8004FE5C` on a party slot):
+
+- `0xC8..0xFF` (not `0xFA`) is the **voice**, CD-XA: Vahn `0xC8..0xD7` (XA1, XA27), Noa
+  `0xD8..0xE7` (XA3, XA28), Gala `0xE8..0xF7` (XA5, XA29). The last id of each block is the shout,
+  which the game flips between channels 7 and 6: `SW_<Name>_Voice<ID>_A` is on the notify, `_B`
+  is imported for a random SoundCue. In `/Game/Legaia/Battle/Party/<Name>/Sounds/`.
+- `< 0x48` → static row id − 1, `0x48..0x63` → static row id, `≥ 0xA7` → `bse.dat` in the battle
+  bank (PROT 0869): `SW_Battle_Cue<ID>` in `Battle/Sounds/Common`, the same files the monsters use.
+- `0x64..0xA6` play from VAB slot 7. In a fight that is the **monster's** bank (left out). In a
+  win pose it is the **victory voice**: the results sequencer loads the `monster.snd` tail clip
+  the table at SCUS `0x80078867 + action + character·8` gives (clip = byte − 1), and the pose's
+  `0xA1` plays it — `SW_<Name>_VictoryVoice<clip>`, at that frame.
+- Not on the clips: the voice and fanfare an Art's execution picks (`FUN_8004C140`), and the
+  Spirit flourish (`0x10` → `0x11`) playing `0xA1` from the monster's bank.
 
 ---
 
