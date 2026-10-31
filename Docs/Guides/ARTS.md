@@ -90,8 +90,10 @@ works in `Anim`. Clips made in Blender or Unreal come in like the disc ones; the
 `root` plus one `part_NN` bone per rigid piece, so the animation is keyed per piece
 ([PS1_ASSETS.md](PS1_ASSETS.md)).
 
-Hits of a new Art land where its clip says — the damage moment goes on the clip as a notify in
-Phase 6, not in the table.
+Hits of a new Art land where its clip says — a notify on the clip marks each hit's frame (Phase
+6), not the table. The damage is not computed there: the fight resolves the whole action
+beforehand, reading those frames from the clip as data, and the notify only shows a hit already
+computed ([BATTLE_ROADMAP.md › Phase 5 › State machine](../BATTLE_ROADMAP.md#state-machine)).
 
 ---
 
@@ -177,6 +179,7 @@ points at a clip already in the project
 
 - **Root motion** (`+0x0C` / `+0x0E` above).
 - **When each hit lands.** The disc's hit timing lives in the clip's effect script, which is
-  not pinned per hit; Phase 6 places the damage on the clip as a notify.
+  not pinned per hit; Phase 6 marks each hit's frame on the clip with a notify. The resolution
+  reads those frames as data (before the clip plays) and playback uses them to show the hit.
 - **The voice and fanfare an Art picks when it runs** (the CD-XA layer).
 - **Status the Art inflicts** (Tough Love's, for instance) — comes with Phase 8's conditions.

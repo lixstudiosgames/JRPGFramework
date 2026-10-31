@@ -353,8 +353,10 @@ The kernels exist (`battle_char_assembly::loadout::build` +
 `character_gltf::build_character_glb`) but are only exposed through the RE project's web
 viewer, and v1.10.0 still has no CLI for them. **Used: the site's Arts page**, which runs as
 WASM against your own disc image and has a *Download .glb with all battle animations* button.
-Vahn, Noa and Gala converted with Idle + Walk and play in the editor; the full Arts banks
-(46–49 clips each) are next.
+Every battle clip of Vahn, Noa and Gala is in — actions, the default section's swings, Spirit,
+win poses, starters and every Art — with its real name, the game's speed and its sounds
+([Guides/PS1_ASSETS.md › The party's clips and sounds](Guides/PS1_ASSETS.md#the-partys-clips-and-sounds)).
+Still missing: the swings of each equipped weapon.
 
 Measured: Vahn 17 pieces, Noa 18, Gala 17. The battle mesh is **assembled per equipment
 loadout**, so export with the intended loadout set.
@@ -391,7 +393,8 @@ touches nothing already in the host. No field rig is reused and no retargeting i
 
 **Acceptance:** Gimard exists as a `USkeletalMesh` with 10+ named `UAnimSequence`s and
 plays in the preview without loose pieces *(met: 9 clips, loops seamless)*; battle-form Vahn
-exists with the full Arts bank *(Idle + Walk so far, for all three)*.
+exists with the full Arts bank *(met: all three, every clip; the equipped weapons' swings are
+still out)*.
 
 > **Validate with ONE enemy before looping over 186** — done with Gimard. The fallback named
 > here (headless Blender as a GLB→FBX step) became the main path.
@@ -646,9 +649,10 @@ formation check goes with the Seru members to Phase 8.
 > **Ask before writing any code in this phase.** Whether PvP / online / local co-op must stay
 > possible changes how the combat core is written. Do not decide it alone in either
 > direction: ask the user, and record the answer in
-> [PvP, online and co-op](#pvp-online-and-co-op--undecided-ask-before-phase-5). The
-> sketches below (`PhaseTimer` in the combatant, a state machine "driven by timers and
-> AnimNotify") are the version that closes that door.
+> [PvP, online and co-op](#pvp-online-and-co-op--undecided-ask-before-phase-5). The damage
+> moment is already settled either way (computed before the clip — see "State machine"); the
+> rest of the sketches below (`PhaseTimer` in the combatant, one fighter at a time) are the
+> version that closes that door.
 
 ### `Public/Battle/BattleTypes.h`
 
@@ -743,9 +747,28 @@ Art power is per hit: `0x16–0x1A` → UDF × 12/18/20/22/28, `0x1B–0x1F` →
 `EJRPGActionPhase`, short and readable, driven by timers and AnimNotify:
 `Windup → Advance → Strike → (Chain) → Recovery → Return → Done`.
 
-If PvP / online stays possible, this machine is **presentation only**: the action's result
-(every hit, its damage, deaths, AP) is resolved before `Windup`, and the notifies only reveal
-events already computed. See [PvP, online and co-op](#pvp-online-and-co-op--undecided-ask-before-phase-5).
+**Decided (2026-10-31), whatever the PvP answer: damage is computed before the clip, not in
+it.** This machine is **presentation only**: the action's result (every hit, its damage,
+deaths, AP) is resolved before `Windup`, and the notifies only reveal events already computed.
+
+This is a departure from the original. There the anim tick (`FUN_80047430`) calls the damage
+kernel (`FUN_801EC3E4`) on each hit-event frame, so the damage is rolled **at the moment of the
+hit** (RE `docs/subsystems/battle-action-queue.md`, "Damage is one power byte per animation hit
+event"). Two things in the original depend on that timing, and the resolution has to rebuild
+them from data instead of from the playing animation:
+
+- **The juggle window.** A defender is juggleable while its current clip is still before its
+  first event frame (`actor[+0x1F7]`, `record[+0x10]`); the kernel's juggle bonus grows only
+  then. The resolution walks a virtual timeline in whole frames: each clip's length, rate and
+  hit frames are asset data (the notify times on the `UAnimSequence`, the same on every
+  machine), so "does hit N land while the target is still reeling" is arithmetic, not playback.
+- **The RNG order.** The original draws from one BIOS `rand` shared with presentation (the
+  camera variant's `rand % 2` takes from the same stream). The remake keeps the fight's stream
+  for the rules only; matching the original's draw sequence is not a goal.
+
+What playback still owns: when the hit *shows* (the notify), the flinch, the sound, the camera.
+If a clip is missing or too short, a fallback timer reveals the remaining events, so the fight
+never hangs on a notify. See also [PvP, online and co-op](#pvp-online-and-co-op--undecided-ask-before-phase-5).
 
 ### Staying in the arena
 
@@ -991,9 +1014,10 @@ network-related.
 
 ### If the answer is no
 
-The sketches in Phase 5 stand as written. Record the decision here with its date. Adding PvP
-or online later then means rewriting the resolution, and this section is the list of what
-changes.
+The sketches in Phase 5 stand as written — except the damage moment, which is decided
+(computed before the clip, Phase 5 › State machine). Record the decision here with its date.
+Adding PvP or online later then means reorganising the core around commands and teams, and
+this section is the list of what changes.
 
 ### The transport, for when it is built
 
