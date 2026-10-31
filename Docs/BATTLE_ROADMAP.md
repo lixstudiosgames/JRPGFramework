@@ -53,6 +53,7 @@ against the disc) and **assets** (meshes, animations, textures, sounds).
 | **Encounters** | Random while walking (mist) | Visible enemies roaming the map, with a chase radius and respawn |
 | **Where fights happen** | In the field scene; only the camera changes | Same — battle layers on top of the existing maps |
 | **Action state machine** | ~50 states (mixes logic, camera and effect VM) | 8 phases; presentation delegated to AnimMontage / Sequencer |
+| **Parry** | None — the defender does nothing while it is hit | **Planned, design open** (2026-10-31): a timed button during the enemy's attack. Why it shapes Phase 5: [State machine](#state-machine); what is still to decide: [Open questions](#open-questions-to-settle-in-practice-not-on-paper) |
 
 ---
 
@@ -649,10 +650,10 @@ formation check goes with the Seru members to Phase 8.
 > **Ask before writing any code in this phase.** Whether PvP / online / local co-op must stay
 > possible changes how the combat core is written. Do not decide it alone in either
 > direction: ask the user, and record the answer in
-> [PvP, online and co-op](#pvp-online-and-co-op--undecided-ask-before-phase-5). The damage
-> moment is already settled either way (computed before the clip — see "State machine"); the
-> rest of the sketches below (`PhaseTimer` in the combatant, one fighter at a time) are the
-> version that closes that door.
+> [PvP, online and co-op](#pvp-online-and-co-op--undecided-ask-before-phase-5). The hit
+> timing is already settled either way (each hit resolved at its frame on the logic's timeline,
+> not by the animation — see "State machine"); the rest of the sketches below (`PhaseTimer` in
+> the combatant, one fighter at a time) are the version that closes that door.
 
 ### `Public/Battle/BattleTypes.h`
 
@@ -747,28 +748,42 @@ Art power is per hit: `0x16–0x1A` → UDF × 12/18/20/22/28, `0x1B–0x1F` →
 `EJRPGActionPhase`, short and readable, driven by timers and AnimNotify:
 `Windup → Advance → Strike → (Chain) → Recovery → Return → Done`.
 
-**Decided (2026-10-31), whatever the PvP answer: damage is computed before the clip, not in
-it.** This machine is **presentation only**: the action's result (every hit, its damage,
-deaths, AP) is resolved before `Windup`, and the notifies only reveal events already computed.
+**Decided (2026-10-31), whatever the PvP answer: each hit is resolved at its own frame, by the
+logic's timeline — not by the animation, and not all up front.**
 
-This is a departure from the original. There the anim tick (`FUN_80047430`) calls the damage
-kernel (`FUN_801EC3E4`) on each hit-event frame, so the damage is rolled **at the moment of the
-hit** (RE `docs/subsystems/battle-action-queue.md`, "Damage is one power byte per animation hit
-event"). Two things in the original depend on that timing, and the resolution has to rebuild
-them from data instead of from the playing animation:
+- **Not all up front**, because a **parry** is planned (see "Deliberate departures"): a hit's
+  result depends on a button the defender presses *during* the attack, so it cannot exist
+  before that moment. (Without a timed mechanic, resolving up front and at the hit would feel
+  the same to the player — the number only shows when the hit lands either way.)
+- **Not by the animation**, because a notify fires when the playback gets there: frame rate,
+  hitches and montage blends move it, a missing clip never fires it, and two machines never fire
+  it at the same time.
 
-- **The juggle window.** A defender is juggleable while its current clip is still before its
-  first event frame (`actor[+0x1F7]`, `record[+0x10]`); the kernel's juggle bonus grows only
-  then. The resolution walks a virtual timeline in whole frames: each clip's length, rate and
-  hit frames are asset data (the notify times on the `UAnimSequence`, the same on every
-  machine), so "does hit N land while the target is still reeling" is arithmetic, not playback.
+So the action runs on a **logic timeline**: a fixed-step frame counter owned by the battle, in
+whole frames at the game's pace (15 × rate frames/s, [Guides/PS1_ASSETS.md](Guides/PS1_ASSETS.md#the-partys-clips-and-sounds)).
+Each clip's length, rate and hit frames are **asset data** — the notify times on the
+`UAnimSequence`, read by the logic, the same on every machine. When the counter reaches hit N's
+frame, `ResolveHit(N)` runs with the fight's state, its RNG and every input received so far
+(a parry pressed before the window closed), and emits that hit's events. The state machine above
+is the **presentation** of that timeline: the pawn plays the clip in step with the counter, and
+the `Strike` notify shows the event the logic already emitted. A clip that lags or is missing
+only shows late — the fight never hangs on a notify.
+
+This matches the original more closely than it looks. There the anim tick (`FUN_80047430`)
+calls the damage kernel (`FUN_801EC3E4`) on each hit-event frame — damage is rolled **at the
+moment of the hit** (RE `docs/subsystems/battle-action-queue.md`, "Damage is one power byte per
+animation hit event"). The difference is only who owns the clock: there the animation, here the
+logic. Two things follow:
+
+- **The juggle window** comes for free. A defender is juggleable while its current clip is still
+  before its first event frame (`actor[+0x1F7]`, `record[+0x10]`); the kernel's juggle bonus
+  grows only then. On the logic timeline that is the defender's reaction clip counted in frames —
+  the same rule, frame by frame, as on the PS1.
 - **The RNG order.** The original draws from one BIOS `rand` shared with presentation (the
   camera variant's `rand % 2` takes from the same stream). The remake keeps the fight's stream
   for the rules only; matching the original's draw sequence is not a goal.
 
-What playback still owns: when the hit *shows* (the notify), the flinch, the sound, the camera.
-If a clip is missing or too short, a fallback timer reveals the remaining events, so the fight
-never hangs on a notify. See also [PvP, online and co-op](#pvp-online-and-co-op--undecided-ask-before-phase-5).
+See also [PvP, online and co-op](#pvp-online-and-co-op--undecided-ask-before-phase-5).
 
 ### Staying in the arena
 
@@ -922,9 +937,11 @@ open.
 ### Why it has to be asked now
 
 A turn-based fight is the easiest genre to network: only **commands** travel ("Vahn: Arms,
-High, Low → slot 2"), never positions. The host resolves the turn and sends the result; the
-clients only play animations. That works only if the core is written as
-**commands in → resolution → events out**, with the presentation consuming the events. Writing
+High, Low → slot 2"), never positions — plus, with the parry, the defender's timed press. The
+host runs the fight's timeline and sends each hit's events as they happen; the clients only play
+animations. That works only if the core is written as
+**commands and inputs in → resolution on the logic timeline → events out**, with the
+presentation consuming the events. Writing
 it that way costs almost nothing in Phase 5 (it is the same code, organised differently, and
 it also makes the core testable without opening a map). Converting a core whose damage comes
 out of animation notifies means rewriting the resolution.
@@ -933,7 +950,7 @@ out of animation notifies means rewriting the resolution.
 
 | Do not | Because | Do instead |
 |---|---|---|
-| Apply damage, HP, deaths or AP in an AnimNotify or timer callback (the current "State machine" sketch) | Host and clients do not run their animations in sync (frame rate, hitches, montage blends); the result must exist before the animation plays | Resolve the whole action when it is committed, into a list of `FJRPGBattleEvent`; `Strike` and `JRPGAnimNotify_ChainCut` only *reveal* event N |
+| Apply damage, HP, deaths or AP in an AnimNotify or timer callback | Host and clients do not run their animations in sync (frame rate, hitches, montage blends) | `ResolveHit(N)` on the logic timeline emits `FJRPGBattleEvent`s; `Strike` and `JRPGAnimNotify_ChainCut` only *show* them |
 | Roll with `FMath::Rand` / `FMath::RandRange` or any global stream | Each machine rolls something different | One `FRandomStream` inside the battle state, seeded from `BeginBattle`'s `Seed`; only the resolution consumes it. Cosmetic randomness (which flinch clip, particles) uses a separate stream |
 | Keep presentation in the combatant (`EJRPGActionPhase Phase`, `float PhaseTimer` in `FJRPGCombatant`) | Ties the rules to frame time, and floats diverge between machines | `FJRPGCombatant` holds rules only, all integer; phase and timers live in the pawn / presentation |
 | Let the UI bridge mutate the battle directly (`SubmitCommand` straight from `UWebUIBridge`) | Online, the command has to travel to the host first; local co-op needs to know who sent it | Every command is a value struct (`FJRPGBattleCommand`: issuing player, slot, command, target, Art bytes) through one entry point that checks the issuer owns the slot and validates the rest (rule 22: never trust the payload) |
@@ -941,8 +958,9 @@ out of animation notifies means rewriting the resolution.
 | Read `UPartySubsystem` / `UInventorySubsystem` / `UStatusSubsystem` during resolution | In PvP the opponent's party is not in your GameInstance | Snapshot everything into the combatants at `BeginBattle`; resolution reads only the battle state; write back (HP, XP, items used) at `EndBattle` |
 | Use `GetFirstPlayerController()` in battle code (`AJRPGBattleArena`, `UJRPGBattleSceneSubsystem` do it today) | On a listen server it is always the host's controller | Pass the player explicitly; which player owns which slot lives in the battle state |
 | Let positions feed the rules (traces, distance after root motion, "staying in the arena") | Actor positions differ per machine | Targeting, range and hits are decided by slot; spacing and arena clamping stay presentation |
-| Advance the logic by time, or stop it with a pause / time dilation | The host cannot be paused for everyone | The logic advances by commands only; the presentation is what waits |
+| Advance the logic by the frame's `DeltaTime`, or let time dilation / a menu pause stop it | Variable steps land a hit on a different frame per machine; the host cannot be paused for everyone | A fixed-step integer frame counter owned by the battle; online it never pauses (single player may) |
 | Run enemy AI outside the resolution | Each machine would pick different targets | AI is a step of the resolution, using the battle stream, on the host only |
+| Judge a parry on the host's clock | The defender sees the attack late by the network delay; a press on time on their screen would arrive late | The defender's machine judges the press against its own playback and sends "parried hit N"; the host holds hit N until that input or a deadline (see "The transport") |
 
 Even with a yes, Phase 5 does **not** add replication, lobbies or EOS — it only keeps the
 core from closing the door.
@@ -954,10 +972,10 @@ arena" are the same. What changes is how Phase 5 is organised, item by item. On 
 single player, the result is identical.
 
 **The round.** The sketch's `GetActiveSlot` / `OnSlotChanged` read as one fighter at a time,
-choosing and acting. With the door open, a round has three steps:
+choosing and acting. With the door open, a round has two steps:
 
 ```
-Commands (everyone chooses; hidden from the other side) → Resolution (instant) → Playback (animations)
+Commands (everyone chooses; hidden from the other side) → Execution (the logic timeline, hit by hit; parries arrive during it)
 ```
 
 The original already almost works this way (all three heroes' commands first, then everyone
@@ -970,9 +988,10 @@ acts by initiative). In PvP both sides choose at the same time without seeing ea
 | `EJRPGBattleSide { Party, Enemy }` | Stays, but the rules ask "same team?": add `int32 Team` and `int32 OwnerPlayer` (-1 = AI). Victory is "a whole team is down", not "the enemies are dead" |
 | `EJRPGActionPhase Phase; float PhaseTimer` in `FJRPGCombatant` | **Out of the combatant**, into `AJRPGBattlePawn`. The combatant holds rules only, all integer |
 | Stats read through `GetEffectiveStat` at the moment of the hit | A **snapshot** at `BeginBattle`: base ATK + Ra-Seru bonus, and each equipment piece's ATK kept separate. This also retires the "ATK double-counted" risk |
-| `FJRPGBattleEvent { FName EventType; …; FText Text }` | `EventType` becomes an enum; `FText` goes (the UI builds the text); add `ActionIndex` / `HitIndex` so a notify knows which event to reveal |
+| `FJRPGBattleEvent { FName EventType; …; FText Text }` | `EventType` becomes an enum; `FText` goes (the UI builds the text); add `ActionIndex` / `HitIndex` so a notify knows which event to show |
 | — | **`FJRPGBattleCommand`** `{ PlayerIndex, Slot, Command, TargetSlot, ArtBytes, ItemKey }` |
-| — | **`FJRPGBattleState`** `{ Combatants, FRandomStream Rng, Round, TurnOrder }` — the whole fight in one struct |
+| — | **`FJRPGBattleInput`** `{ PlayerIndex, Slot, Kind (Parry…), HitIndex, Frame }` — what arrives during execution |
+| — | **`FJRPGBattleState`** `{ Combatants, FRandomStream Rng, Round, TurnOrder, Frame }` — the whole fight in one struct, the logic timeline's counter included |
 
 **`UBattleSubsystem`**
 
@@ -980,9 +999,10 @@ acts by initiative). In PvP both sides choose at the same time without seeing ea
 |---|---|
 | `BeginBattle(Enemies, Anchor, Seed)` (the code already has `BeginBattle(Setup)`) | Stays `BeginBattle(Setup)`, but `FJRPGBattleSetup` gains `Seed`, and `TArray<FName> Party` (read from the local `UPartySubsystem`) becomes teams carrying their snapshots — the opponent's party arrives as data, not from your save |
 | `SubmitCommand(Slot, Command, TargetSlot)` | `SubmitCommand(const FJRPGBattleCommand&)`, which checks the issuer owns the slot |
-| — | `ResolveRound()` → `TArray<FJRPGBattleEvent>`, called once every command is in |
-| `OnBattleEvent`, one event at a time | `OnRoundResolved(Events)`; the presentation plays the whole list and reports when it is done |
-| `FTickableGameObject` | **Gone.** The logic advances by commands, not time; only the presentation ticks. Open question 4 disappears |
+| — | `SubmitInput(const FJRPGBattleInput&)` — the parry, during execution |
+| — | `StepFrame()` advances the logic timeline one fixed frame; `ResolveHit(N)` runs when a hit's frame comes |
+| `OnBattleEvent`, one event at a time | Stays, with `ActionIndex` / `HitIndex` in the event — the presentation shows each one when its clip gets there |
+| `FTickableGameObject` | Stays, but as a **fixed-step accumulator** calling `StepFrame()` — never the raw `DeltaTime` into the rules. Open question 4 still applies |
 | `EndBattle` writing back to the party | Writes back (HP, XP, items used) only into the **local player's** members |
 
 **Turn order.** Same formula; the `roll` comes from the state's `Rng`. `TArray::Sort` is not
@@ -994,28 +1014,28 @@ functions take the `FRandomStream&` and the snapshot instead of asking a subsyst
 "×1.04 / ×0.96" becomes integer (`* 104 / 100`, `* 96 / 100`) — a float from
 `GetElementMultiplier` can round differently per machine.
 
-**State machine.** Still there, but **in the pawn, as playback**: `Strike` no longer computes
-damage, it reveals the next event in the list. A side benefit: if a clip is missing or too
-short, a fallback timer reveals the remaining events and the fight never hangs waiting for a
-notify.
+**State machine.** Still there, but **in the pawn, as playback** of the logic timeline
+(Phase 5 › State machine, decided either way).
 
-**Enemy AI.** Same logic, but it runs inside `ResolveRound`, on the fight's `Rng`, and finds
-targets by **team**, not by `Side`.
+**Enemy AI.** Same logic, but it runs inside the resolution when the enemy's action starts, on
+the fight's `Rng`, and finds targets by **team**, not by `Side`.
 
-**Acceptance, added.** An automation test that runs without a map: the same seed and the same
-commands produce exactly the same event list. That test is what guarantees PvP later.
+**Acceptance, added.** An automation test that runs without a map: the same seed, the same
+commands and the same inputs at the same frames produce exactly the same event list. That test
+is what guarantees PvP later.
 
 **Unchanged.** The encounter roll (`FMath::RandRange` in `JRPGEncounterTypes.cpp`) happens before
 the fight — online, the host rolls and sends the finished setup. The Phase 4 arena, pawns and
 fade. The existing `GetFirstPlayerController()` calls stay; Phase 5 just must not add new ones.
 
-**Cost.** A little more structure up front (the command struct, the playback queue), and nothing
+**Cost.** A little more structure up front (the command and input structs, the fixed-step timeline), and nothing
 network-related.
 
 ### If the answer is no
 
-The sketches in Phase 5 stand as written — except the damage moment, which is decided
-(computed before the clip, Phase 5 › State machine). Record the decision here with its date.
+The sketches in Phase 5 stand as written — except the hit timing, which is decided (each hit
+at its frame on the logic timeline, Phase 5 › State machine). Record the decision here with its
+date.
 Adding PvP or online later then means reorganising the core around commands and teams, and
 this section is the list of what changes.
 
@@ -1023,8 +1043,14 @@ this section is the list of what changes.
 
 - **Host-authoritative.** `UGameInstanceSubsystem`s do not replicate, so a replicated actor
   (`AJRPGBattleNetState`, say) carries the fight. A client sends its `FJRPGBattleCommand`
-  through a Server RPC; the host validates, resolves and multicasts the event list; every
-  machine, host included, plays the same events.
+  through a Server RPC; the host validates, runs the logic timeline and multicasts each hit's
+  events; every machine, host included, plays the same events.
+- **The parry over the network** is the one real-time piece, and the hard one. The defender
+  sees the attack late by the network delay, so their machine judges the press against its own
+  playback and sends "parried hit N" (`FJRPGBattleInput`); the host holds `ResolveHit(N)` until
+  that input arrives or a deadline passes (the window plus a latency budget), and accepts it only
+  inside a tolerance. Clair Obscur and the like are single-player and do not face this. Settle
+  it when the mode exists; local co-op has no such problem.
 - **Local co-op** needs no network: route each gamepad (or `ULocalPlayer`) to the slots it
   owns, and have the battle HUD show whose command is being entered.
 - **PvP balance** (juggles, Supers, Ra-Seru summons against a human) is its own question, to
@@ -1055,6 +1081,12 @@ this section is the list of what changes.
    writing the first automated test.
 4. **`UGameInstanceSubsystem` + `FTickableGameObject`** — a known pattern, but confirm
    whether `ETickableTickType::Conditional` is enough or `IsTickableWhenPaused()` is needed.
+5. **The parry** (planned 2026-10-31, design open). To decide: which hits can be parried (every
+   enemy hit, or only some attacks), the window in frames and whether it shrinks with
+   difficulty, what a parry does (no damage, less damage, a counter, AP), what a miss costs,
+   how the window is telegraphed (a flash, a sound, the clip itself), and whether the party's
+   Arts can be parried in PvP. The window comes from the attack clip's hit frame, so the enemy
+   clips' hit notifies have to be right. Its phase is not set yet (6 or 7).
 
 ---
 

@@ -91,9 +91,9 @@ works in `Anim`. Clips made in Blender or Unreal come in like the disc ones; the
 ([PS1_ASSETS.md](PS1_ASSETS.md)).
 
 Hits of a new Art land where its clip says — a notify on the clip marks each hit's frame (Phase
-6), not the table. The damage is not computed there: the fight resolves the whole action
-beforehand, reading those frames from the clip as data, and the notify only shows a hit already
-computed ([BATTLE_ROADMAP.md › Phase 5 › State machine](../BATTLE_ROADMAP.md#state-machine)).
+6), not the table. The damage is not computed by the notify: the fight reads those frames from
+the clip as data and resolves each hit when its own timeline reaches that frame; the notify only
+shows it ([BATTLE_ROADMAP.md › Phase 5 › State machine](../BATTLE_ROADMAP.md#state-machine)).
 
 ---
 
@@ -179,7 +179,8 @@ points at a clip already in the project
 
 - **Root motion** (`+0x0C` / `+0x0E` above).
 - **When each hit lands.** The disc's hit timing lives in the clip's effect script, which is
-  not pinned per hit; Phase 6 marks each hit's frame on the clip with a notify. The resolution
-  reads those frames as data (before the clip plays) and playback uses them to show the hit.
+  not pinned per hit; Phase 6 marks each hit's frame on the clip with a notify. The fight's
+  logic timeline reads those frames as data and resolves each hit at its frame; playback uses
+  the notify to show it.
 - **The voice and fanfare an Art picks when it runs** (the CD-XA layer).
 - **Status the Art inflicts** (Tough Love's, for instance) — comes with Phase 8's conditions.
