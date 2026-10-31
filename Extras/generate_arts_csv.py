@@ -21,7 +21,9 @@ Linhas:
     no disco são as peças.
   - Uma "Part" por registro que só é tocado dentro de uma sequência: o finalizador de cada Super,
     as peças da Miracle que não são Arts digitáveis, os segmentos seguintes de uma Art que o disco
-    divide em vários registros (o Hurricane Kick da Noa: mesmo combo em 0x1C..0x1E).
+    divide em vários registros (o Hurricane Kick da Noa: 0x1D e 0x1E, mesmo combo).
+  - Sequence da Hyper = SpecialStarter + a Art (o jogo a encena atrás do 0x1A, que liga o modo
+    especial: tudo depois dele a meia velocidade). A Regular fica vazia (ArtStarter + Anim).
 
 Poder: byte 0x16..0x1A = UDF x 12/18/20/22/28, 0x1B..0x1F = LDF, 0x0C..0x15 = o alcance
 alternativo (o alto passa por cima de inimigo baixo, o baixo por baixo de voador).
@@ -85,6 +87,11 @@ SUPERS = {
     ("Gala", "Heaven's Drop"): [0x19, 0x29, 0x0F, 0x19, 0x24, 0x0C, 0x0E, 0x1A, 0x2E],
     ("Gala", "Neo Static Raising"): [0x19, 0x26, 0x0F, 0x19, 0x25, 0x0C, 0x0D, 0x0F, 0x1A, 0x2F],
 }
+# Registro que a Art realmente toca, quando não é o Action Constant do TOML: o Hurricane Kick da Noa
+# é encenado como 1A 1D 1E (captura do jogo, crates/art/src/hyper_fanfare.rs); o 0x1C ("Illusion
+# Kick") não entra nele.
+PLAYED_RECORD = {("Noa", "Hurricane Kick"): 0x1D}
+
 # O "replacement" de cada Miracle Art (crates/art/src/miracle.rs): o queue inteiro vira isto.
 MIRACLES = {
     "Vahn": [0x0C, 0x0D, 0x0E, 0x0F, 0x1A, 0x22, 0x28, 0x23, 0x27, 0x20, 0x2A],
@@ -174,8 +181,9 @@ def build(arts, banks):
                "CommandCost": len(command), "Anim": "", "HitPower": "()", "HitTarget": "()",
                "Sequence": "()", "ActionConstant": 0}
         if kind != "Super":                       # a Super não tem registro próprio: é a receita
-            own_record(row, char, a["action_constant"])
-            by_const[(char, a["action_constant"])] = key
+            const = PLAYED_RECORD.get((char, a["name"]), a["action_constant"])
+            own_record(row, char, const)
+            by_const[(char, const)] = key
         rows.append(row)
 
     parts = {}
@@ -207,10 +215,11 @@ def build(arts, banks):
             row["Sequence"] = lt.ue_array([step(char, c) for c in seq])
         elif row["Kind"] == "Miracle":
             row["Sequence"] = lt.ue_array([step(char, c) for c in MIRACLES[char]])
-        elif banks:
-            chain = chain_of(banks[char], row["ActionConstant"])
-            if len(chain) > 1:
-                row["Sequence"] = lt.ue_array([row["---"]] + [step(char, c) for c in chain[1:]])
+        else:
+            chain = chain_of(banks[char], row["ActionConstant"]) if banks else [row["ActionConstant"]]
+            if row["Kind"] == "Hyper" or len(chain) > 1:
+                starter = "SpecialStarter" if row["Kind"] == "Hyper" else "ArtStarter"
+                row["Sequence"] = lt.ue_array([starter, row["---"]] + [step(char, c) for c in chain[1:]])
     return rows + list(parts.values()), notes
 
 
@@ -237,8 +246,18 @@ def main():
                 if old.get(c, "") not in ("", "()") or not banks and c in ("HitPower", "HitTarget"):
                     kept += old[c] != str(r[c])
                     r[c] = old[c]
-    custom = [old_rows[k] for k in old_order if k not in generated]
+    # Linhas que o gerador não cria são Arts novas e ficam. Menos uma Part com registro do disco: é
+    # peça de uma versão anterior do gerador que nenhuma sequência usa mais.
+    custom, dropped = [], []
+    for k in old_order:
+        if k in generated:
+            continue
+        old = old_rows[k]
+        stale = old.get("Kind") == "Part" and old.get("ActionConstant", "0") not in ("", "0")
+        (dropped if stale else custom).append(old)
     rows += custom
+    for old in dropped:
+        notes.append("Part antiga removida (nenhuma sequência a usa): %s" % old["---"])
 
     kinds = {}
     for r in rows:

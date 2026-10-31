@@ -36,6 +36,7 @@ ENEMIES_ROOT = "/Game/Legaia/Battle/Enemies"
 PARTY_ROOT = "/Game/Legaia/Battle/Party"
 COMMON_DEST = "/Game/Legaia/Battle/Sounds/Common"
 TRACK = "Sounds"
+CHAIN_TRACK = "Chain"
 COMMON_DONE = set()   # comuns já importados nesta execução
 
 def apply_sound_settings(paths):
@@ -73,7 +74,7 @@ def apply_clips(root, clips):
     """Herói: cada clip do .glb ganha o nome do que é (AS_Vahn_Battle_Beatdunk -> _FireBlow) e o
     RateScale da velocidade do jogo (Extras/ps1_party_sounds.py). Já renomeado, só acerta a escala."""
     lib = unreal.EditorAssetLibrary
-    renamed = scaled = 0
+    renamed = scaled = cuts = 0
     for c in clips:
         old, new = "%s/%s" % (root, c["glb"]), "%s/%s" % (root, c["clip"])
         if old != new and lib.does_asset_exist(old) and not lib.does_asset_exist(new):
@@ -85,10 +86,35 @@ def apply_clips(root, clips):
             continue
         if abs(anim.get_editor_property("rate_scale") - c["rate_scale"]) > 1e-6:
             anim.set_editor_property("rate_scale", c["rate_scale"])
-            lib.save_loaded_asset(anim)
             scaled += 1
+        if "chain_cut" in c and set_chain_cut(anim, c["chain_cut"]):
+            cuts += 1
+        lib.save_loaded_asset(anim)
     if clips:
-        unreal.log("ue_import_monster_sounds: %d clip(s) renomeado(s), %d com RateScale novo" % (renamed, scaled))
+        unreal.log("ue_import_monster_sounds: %d clip(s) renomeado(s), %d com RateScale novo, %d com Chain Cut"
+                   % (renamed, scaled, cuts))
+
+
+def set_chain_cut(anim, seconds):
+    """Refaz a trilha "Chain": um UJRPGAnimNotify_ChainCut onde o jogo corta o clip quando há outra
+    ação na fila (None = o clip toca inteiro). Precisa da classe do plugin (o build com ela)."""
+    notify_class = getattr(unreal, "JRPGAnimNotify_ChainCut", None)
+    if notify_class is None:
+        unreal.log_warning("ue_import_monster_sounds: JRPGAnimNotify_ChainCut não existe (falta o build); "
+                           "Chain Cut ficou de fora")
+        return False
+    lib = unreal.AnimationLibrary
+    tracks = [str(t) for t in lib.get_animation_notify_track_names(anim)]
+    if CHAIN_TRACK in tracks:
+        lib.remove_animation_notify_events_by_track(anim, CHAIN_TRACK)
+    if seconds is None or seconds >= anim.get_play_length():
+        if CHAIN_TRACK in tracks and len(tracks) > 1:
+            lib.remove_animation_notify_track(anim, CHAIN_TRACK)
+        return False
+    if CHAIN_TRACK not in tracks:
+        lib.add_animation_notify_track(anim, CHAIN_TRACK, unreal.LinearColor(0.2, 0.6, 1.0, 1.0))
+    lib.add_animation_notify_event(anim, CHAIN_TRACK, float(seconds), notify_class)
+    return True
 
 
 def clear_sound_notifies(anim):

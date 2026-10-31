@@ -87,7 +87,7 @@ Each phase ends in something you can run and watch work.
 | Phase | Scope | Status |
 |---|---|---|
 | **0** | Extract assets from the disc (RE release tools + `legaia-extract`) | **Done** |
-| **1** | Battle data (TOML → CSV → DataTable) | **In progress** — `DT_Enemies` (179 rows) and `DT_Arts` (82 rows) done; Bosses to go. Magic moved to Phase 8 |
+| **1** | Battle data (TOML → CSV → DataTable) | **In progress** — `DT_Enemies` (179 rows) and `DT_Arts` (81 rows) done; Bosses to go. Magic moved to Phase 8 |
 | **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **Done** (2026-10-30) — all 179 monster models with sounds and notifies, the party's battle clips (real names, game speed, sounds), equipment pieces |
 | **3** | Enemies roaming the map (zone, roaming, trigger) | **Done** (2026-10-27) — `AJRPGFieldEnemy`, `AJRPGEncounterZone` (sphere/box/spline), tested in the editor |
 | **4** | Battle stage (spawn, formation, camera) | **Done** (2026-10-27) — `AJRPGBattleArena` assembles the fight, `UJRPGBattleSceneSubsystem`, `BeginBattle`/`EndBattle`, `AJRPGBattlePawn`, `AJRPGBattleWaves` + JSON/Studio; tested in the editor and on the Muscle Dome map. Party-size scaling moved to Phase 8 |
@@ -222,7 +222,7 @@ a `TMap` does not import from CSV cleanly — plus `Attacks`, an array of the at
 It is a plain `USTRUCT`, not a row: LegaiaStudio's schema regex skips nested templates such
 as `TArray<TSoftObjectPtr<...>>` inside a row struct, and shows the whole set as one field.
 
-**`Public/Arts/ArtsData.h`** — **done** (2026-10-30), 82 rows. Column reference and how to add
+**`Public/Arts/ArtsData.h`** — **done** (2026-10-30), 81 rows. Column reference and how to add
 Arts in [Guides/ARTS.md](Guides/ARTS.md). What changed from the sketch below: no `Directions`
 (only `Command`; Noa's mirroring is resolved at input time), the per-hit `HitPower` /
 `HitTarget` read from the disc's Art records, a `Part` kind for the pieces only played inside a
@@ -282,9 +282,9 @@ this (and keeps rows created in LegaiaStudio, backing the old CSV up first).
 > (`CODE\JRPGFramework\Docs\Data`, missing the `5.8`). Fix that in the same pass.
 
 **Acceptance:** `DT_Enemies`, `DT_Arts`, `DT_Bosses` imported under `/Game/Data/`;
-LegaiaStudio lists the new structs; a Blueprint calling `GetRowNames()` returns 179 / 82 / 30
+LegaiaStudio lists the new structs; a Blueprint calling `GetRowNames()` returns 179 / 81 / 30
 (`DT_Enemies` is 177 TOML rows + Comm and Evil Bat, which exist only on the disc; `DT_Arts` is
-the 60 Arts + 22 sequence pieces).
+the 60 Arts + 21 sequence pieces).
 
 ---
 
@@ -733,6 +733,28 @@ Art power is per hit: `0x16–0x1A` → UDF × 12/18/20/22/28, `0x1B–0x1F` →
 
 `EJRPGActionPhase`, short and readable, driven by timers and AnimNotify:
 `Windup → Advance → Strike → (Chain) → Recovery → Return → Done`.
+
+### Staying in the arena
+
+Clips carry the body forward (Slash Kick, the Supers), so a long turn moves the attacker — the
+original could push fighters off the stage. **Fighters stay where their action left them**: no
+walk back to a seat after the turn (it looks bad and slows the fight). What keeps everyone in is
+a set of rules, not trimming the Arts:
+
+1. **The target is the wall.** The original's range law (`FUN_8004E2F0`, the in-range back-off
+   `0x80047C3C`) holds an attacker at the edge of its reach while it strikes: its clips cannot
+   carry it through the enemy. The remake keeps that — forward movement stops at reach distance.
+2. **The arena bounds clamp everyone.** Knockback, the arrival shove and the attacker's own root
+   movement are all clamped to the arena's area (`AJRPGBattleArena`). A target pinned against the
+   edge stops the attacker by rule 1, so the whole fight stays inside.
+3. **Fighters keep their distance.** A minimum spacing between any two combatants (allies
+   included), so a party that drifted forward does not stack on the enemy line.
+4. **Per-Art override.** A new big Art can be marked to play in place (no root movement) or to
+   cap its travel; the camera frames the action, wherever it is.
+
+Root movement itself is the disc's: per clip, a root speed (`+0x0C`) and an end step (`+0x0E`)
+(see [Guides/ARTS.md](Guides/ARTS.md)). The Art tester lines clips up by the body instead and has
+**Reset Position**.
 
 ### Enemy AI
 

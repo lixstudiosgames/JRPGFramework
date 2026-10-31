@@ -26,6 +26,10 @@ Os clips (docs do RE: battle-data-pack.md, battle-actor-rendering.md, audio.md):
                                as duas que nenhum personagem usa ficam VictoryExtra
       0x19 / 0x1A              ArtStarter / SpecialStarter (o das Super e Miracle)
       0x1B..                   a Art: o id é o Action Constant (legend-of-legaia-re, art/tables.rs)
+  - Chain Cut ("chain_cut" de cada clip, em s): com outra ação na fila do turno, o jogo corta o
+    clip assim que o quadro passa do primeiro beat (+0x10) + 2, se a trava +0x76 estiver em 0
+    (FUN_80047430). Os golpes de direção têm beat 7: emendam no quadro 10, sem a volta à guarda.
+    As Arts têm a trava e tocam inteiras.
   - Velocidade: o cursor anda (frame_dt x escala x rate) >> 1 por quadro em 12.4, escala 8 = 15 x
     rate quadros/s (o mesmo dos monstros). Uma Art (>= 0x1B) roda a escala 4 e o SpecialStarter a 2
     (o jogo desacelera a luta inteira). O .glb assa tudo a 7,5 x rate, então o clip leva RateScale 2
@@ -146,13 +150,14 @@ def clips_of(name, player_path, tools, scus):
     record0 = lzs(tools, player_path, 0x10, budget)
     clips = []
 
-    def add(label, new, anim_id, rate_scale, rate, cues):
-        clips.append({"glb": label, "clip": new, "id": anim_id, "rate_scale": rate_scale, "rate": rate,
-                      "cues": cues})
+    def add(label, new, anim_id, rate_scale, buf, entry):
+        clips.append({"glb": label, "clip": new, "id": anim_id, "rate_scale": rate_scale,
+                      "rate": buf[entry + 0x78], "cues": cue_track(buf, entry),
+                      "beat": buf[entry + 0x10], "lock": buf[entry + 0x76]})
 
     for slot, off in enumerate(struct.unpack_from("<12I", record0, 0)):
         if slot in ACTIONS and off:
-            add(ACTIONS[slot][0], ACTIONS[slot][1], slot, RATE_NORMAL, record0[off + 0x78], cue_track(record0, off))
+            add(ACTIONS[slot][0], ACTIONS[slot][1], slot, RATE_NORMAL, record0, off)
 
     # Os golpes de direção da seção padrão (id 0) de cada seção: slots 0xC..0xF
     defaults, n = [], 0
@@ -170,7 +175,7 @@ def clips_of(name, player_path, tools, scus):
         for k, label in enumerate(labels):
             entry = struct.unpack_from("<I", payload, 4 + 4 * k)[0]
             if entry:
-                add(label, label.replace(" ", ""), slot, RATE_NORMAL, payload[entry + 0x78], cue_track(payload, entry))
+                add(label, label.replace(" ", ""), slot, RATE_NORMAL, payload, entry)
             slot += 1
 
     # As poses de vitória deste herói: saudável, alternativa, fraca
@@ -207,7 +212,7 @@ def clips_of(name, player_path, tools, scus):
             index = anim_id - FIRST_ART
             new = camel(arts[index]) if index < len(arts) else "Art0x%02X" % anim_id
             rate_scale = RATE_ART
-        add(label, new, anim_id, rate_scale, record0[rec + ART_ENTRY + 0x78], cue_track(record0, rec + ART_ENTRY))
+        add(label, new, anim_id, rate_scale, record0, rec + ART_ENTRY)
     return clips
 
 
@@ -292,9 +297,12 @@ def main():
         for c in clips_of(name, prot_path(PLAYER_FILES[name]), args.tools, scus):
             glb_asset = "AS_%s_Battle_%s" % (name, clip_suffix(c["glb"]))
             clip = "AS_%s_Battle_%s" % (name, c["clip"])
-            manifest["clips"].append({"glb": glb_asset, "clip": clip, "id": "0x%02X" % c["id"],
-                                      "rate_scale": c["rate_scale"]})
             seconds_per_frame = 1.0 / (7.5 * c["rate"]) if c["rate"] else 1.0 / 15
+            # Chain Cut: com outra ação na fila, o jogo corta o clip quando o quadro passa do 1º beat
+            # + 2 (trava +0x76 em 0; FUN_80047430). Os golpes de direção: beat 7, corte no quadro 10.
+            chain_cut = round((c["beat"] + 3) * seconds_per_frame, 4) if not c["lock"] else None
+            manifest["clips"].append({"glb": glb_asset, "clip": clip, "id": "0x%02X" % c["id"],
+                                      "rate_scale": c["rate_scale"], "chain_cut": chain_cut})
             notes = []
 
             is_victory = SPIRIT < c["id"] < ART_STARTER

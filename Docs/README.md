@@ -71,7 +71,7 @@ remain for reference.
 | [DT_CameraPresets.csv](Data/DT_CameraPresets.csv) | 13 | `FCameraPresetRow` (import as `DT_Camera`) |
 | [DT_Enemies.csv](Data/DT_Enemies.csv) | 179 | `FJRPGEnemyData` |
 | [DT_EquipVisuals.csv](Data/DT_EquipVisuals.csv) | 146 | `FJRPGEquipVisualRow` |
-| [DT_Arts.csv](Data/DT_Arts.csv) | 82 | `FJRPGArtData` |
+| [DT_Arts.csv](Data/DT_Arts.csv) | 81 | `FJRPGArtData` |
 
 `Data/_backup/` holds the copies LegaiaStudio makes on every save.
 

@@ -133,6 +133,12 @@ JRPGFramework/
 │   │   │   ├── ArtsData.h ✅                    ← FJRPGArtData (DT_Arts row: buttons, AP gain/cost,
 │   │   │   │                                       clip, per-hit power and target, Sequence for
 │   │   │   │                                       combined Arts). See Guides/ARTS.md
+│   │   │   ├── JRPGArtSequence.h ✅             ← UJRPGArtSequenceLibrary: a turn's clip queue as the game
+│   │   │   │                                       stages it (leading swings, starter, Art, Sequence),
+│   │   │   │                                       its speed scale per step, the Chain Cut. Shared by
+│   │   │   │                                       the battle and the tester
+│   │   │   ├── JRPGArtTester.h ✅               ← test bench: the hero's battle model playing an Art,
+│   │   │   │                                       a hand-made combo or all of them (Details buttons)
 │   │   │   └── ArtsSubsystem.h 🟡               ← TeachArtToCharacter only (TODO)
 │   │   │
 │   │   └── Battle/ 🟡
@@ -148,6 +154,8 @@ JRPGFramework/
 │   │       │                                       TeardownBattle (BATTLE_ROADMAP Phase 4)
 │   │       ├── JRPGBattleSceneSubsystem.h ✅    ← world subsystem: picks the arena, fade, OnFieldHidden /
 │   │       │                                       OnFieldShown, console commands. Guides/BATTLE_STAGE.md
+│   │       ├── JRPGAnimNotify_ChainCut.h ✅     ← marker on a clip: where the game cuts it when another
+│   │       │                                       action is queued (swings chain at frame 10)
 │   │       ├── JRPGBattlePawn.h ✅              ← one combatant in the scene: battle model in its seat;
 │   │       │                                       heroes dressed by equipment pieces (Leader Pose)
 │   │       ├── JRPGBattleWaves.h ✅             ← fights in a row, Muscle Dome style, waves from JSON
@@ -301,7 +309,7 @@ JRPGFramework/
 | **WebUI** | ✅ complete | SPA shell, 7 screens, gamepad + keyboard + mouse with their own rules, responsive scaling |
 | **Party** | ✅ complete (data) | Roster vs formation, 3 states per character, XP split among survivors as in the original, level-up with jitter, whole-roster save. The UI does not follow the formation yet |
 | **Status** | ✅ complete (data) | Equipment in 7 slots (4 gear + 3 accessories) with `CanEquip` read from `DT_Items`, conditions, Ra-Seru (1..9), elemental affinity, and the original's `effective ( base )` display. The equip screen is still missing |
-| **Arts / Battle** | 🟡 stage ready, no combat | A fight is assembled over the current map and taken down: battle arenas placed by hand, the original's seats, battle models from `DT_Characters` / `DT_Enemies`, camera, field enemies starting it on contact, the Muscle Dome waves ([BATTLE_STAGE.md](Guides/BATTLE_STAGE.md)). Turns, damage and Arts are still to come; `ArtsSubsystem` is a stub. `DT_Enemies` has 179 enemies ([ENEMIES.md](Guides/ENEMIES.md)), `DT_Arts` 82 Arts and pieces ([ARTS.md](Guides/ARTS.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
+| **Arts / Battle** | 🟡 stage ready, no combat | A fight is assembled over the current map and taken down: battle arenas placed by hand, the original's seats, battle models from `DT_Characters` / `DT_Enemies`, camera, field enemies starting it on contact, the Muscle Dome waves ([BATTLE_STAGE.md](Guides/BATTLE_STAGE.md)). Turns, damage and Arts are still to come; `ArtsSubsystem` is a stub. `DT_Enemies` has 179 enemies ([ENEMIES.md](Guides/ENEMIES.md)), `DT_Arts` 81 Arts and pieces ([ARTS.md](Guides/ARTS.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
 
 ---
 
