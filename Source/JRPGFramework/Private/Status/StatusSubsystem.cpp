@@ -185,21 +185,55 @@ bool UStatusSubsystem::CanEquip(FName Character, FName ItemID) const
 	return true;
 }
 
+bool UStatusSubsystem::IsAccessorySlot(EJRPGEquipSlot Slot)
+{
+	return Slot == EJRPGEquipSlot::Accessory
+		|| Slot == EJRPGEquipSlot::Accessory2
+		|| Slot == EJRPGEquipSlot::Accessory3;
+}
+
 bool UStatusSubsystem::EquipItem(FName Character, FName ItemID)
+{
+	EJRPGEquipSlot Slot;
+	if (!GetSlotForItem(ItemID, Slot))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("StatusSubsystem: %s não é equipável."), *ItemID.ToString());
+		return false;
+	}
+
+	// Acessório: o primeiro dos três que estiver vazio (cheios, fica o primeiro)
+	if (IsAccessorySlot(Slot))
+	{
+		for (const EJRPGEquipSlot Candidato :
+			{ EJRPGEquipSlot::Accessory, EJRPGEquipSlot::Accessory2, EJRPGEquipSlot::Accessory3 })
+		{
+			if (GetEquipped(Character, Candidato).IsNone())
+			{
+				Slot = Candidato;
+				break;
+			}
+		}
+	}
+	return EquipItemInSlot(Character, ItemID, Slot);
+}
+
+bool UStatusSubsystem::EquipItemInSlot(FName Character, FName ItemID, EJRPGEquipSlot Slot)
 {
 	UGameInstance* GI = GetGameInstance();
 	UInventorySubsystem* Inv = GI ? GI->GetSubsystem<UInventorySubsystem>() : nullptr;
 	UPartySubsystem* Party = GI ? GI->GetSubsystem<UPartySubsystem>() : nullptr;
-	if (!Inv || !Party)
+	if (!Inv || !Party || Slot == EJRPGEquipSlot::MAX)
 	{
 		return false;
 	}
 
-	EJRPGEquipSlot Slot;
-	if (!GetSlotForItem(ItemID, Slot) || !CanEquip(Character, ItemID))
+	EJRPGEquipSlot Natural;
+	const bool bCabe = GetSlotForItem(ItemID, Natural)
+		&& (Natural == Slot || (IsAccessorySlot(Natural) && IsAccessorySlot(Slot)));
+	if (!bCabe || !CanEquip(Character, ItemID))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("StatusSubsystem: %s não pode equipar %s."),
-			*Character.ToString(), *ItemID.ToString());
+		UE_LOG(LogTemp, Warning, TEXT("StatusSubsystem: %s não pode equipar %s em %s."),
+			*Character.ToString(), *ItemID.ToString(), *UEnum::GetValueAsString(Slot));
 		return false;
 	}
 

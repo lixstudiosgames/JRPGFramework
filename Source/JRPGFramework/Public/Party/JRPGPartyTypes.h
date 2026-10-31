@@ -9,22 +9,25 @@
 #include "JRPGPartyTypes.generated.h"
 
 /**
- * Os cinco slots de equipamento, derivados do que a DT_Items descreve:
+ * Os slots de equipamento, derivados do que a DT_Items descreve:
  * arma tem WeaponType/AttackBonus, armadura tem ArmorSlot (Armor/Helmet/Shoes)
- * com UDF/LDF, e acessorio age por EffectClass.
+ * com UDF/LDF, e acessorio age por EffectClass. Sao tres slots de acessorio:
+ * qualquer acessorio entra em qualquer um deles.
  *
  * Novos valores SEMPRE no fim — o indice e serializado no save.
  */
 UENUM(BlueprintType)
 enum class EJRPGEquipSlot : uint8
 {
-	Weapon    UMETA(DisplayName = "Weapon"),
-	Armor     UMETA(DisplayName = "Armor (Body)"),
-	Helmet    UMETA(DisplayName = "Helmet (Head)"),
-	Shoes     UMETA(DisplayName = "Shoes (Feet)"),
-	Accessory UMETA(DisplayName = "Accessory"),
+	Weapon     UMETA(DisplayName = "Weapon"),
+	Armor      UMETA(DisplayName = "Armor (Body)"),
+	Helmet     UMETA(DisplayName = "Helmet (Head)"),
+	Shoes      UMETA(DisplayName = "Shoes (Feet)"),
+	Accessory  UMETA(DisplayName = "Accessory 1"),
+	Accessory2 UMETA(DisplayName = "Accessory 2"),
+	Accessory3 UMETA(DisplayName = "Accessory 3"),
 
-	MAX       UMETA(Hidden)
+	MAX        UMETA(Hidden)
 };
 
 /**

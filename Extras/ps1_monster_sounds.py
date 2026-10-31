@@ -30,8 +30,10 @@ sfx-table.md, vab.md):
     São os sons COMUNS.
   - a linha diz programa p, tom t, nota l e quantas vozes n: toca os tons t..t+n-1 do programa p
     (juntos, em camada), na nota l. A amostra toca a 44100 Hz na nota central do tom; na nota l a
-    taxa é 44100 * 2^((l - central - fino/128) / 12). Sai em 44.1 kHz sem interpolação (nearest),
-    que é o que soa como o jogo — interpolar deixa abafado.
+    taxa é 44100 * 2^((l - central - fino/128) / 12). Sai em 44.1 kHz pela interpolação gaussiana
+    de 4 pontos do SPU (a tabela de 512 coeficientes publicada no psx-spx/no$psx — documentação do
+    hardware, não bytes da Sony). Linear deixa abafado; repetir a amostra (nearest) chia nos sons
+    tocados muito abaixo do tom (o golpe 0x4C da party toca a 0,14x).
   - cada tom entra no volume que o key-on do jogo dá a ele: master do banco x volume do programa x
     volume do tom (/127 cada; de 0,2 a 0,9). Sem isso as amostras saem no talo, ~2x mais alto.
   - os corpos dos sons começam 4 bytes depois do que o `vab extract` do RE assume (há um cabeçalho
@@ -68,8 +70,61 @@ STATIC_TABLE_FILE = 0x5F998          # o mesmo endereço no arquivo SCUS_942.54
 STATIC_ROWS = 100
 CATEGORY_BANKS = {0: "0868", 2: "0869", 6: "0876", 11: "0889"}
 
+# Interpolação gaussiana de 4 pontos do SPU: o índice é o byte 4..11 do contador de passo (em
+# 1/0x1000 de amostra) e a saída mistura as quatro últimas amostras (psx-spx, "4-Point Gaussian
+# Interpolation"; a mesma tabela do legend-of-legaia-re, engine-audio/src/spu/gauss.rs).
+GAUSS = [
+    -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
+    0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 3, 3,
+    3, 4, 4, 5, 5, 6, 7, 7, 8, 9, 9, 10, 11, 12, 13, 14,
+    15, 16, 17, 18, 19, 21, 22, 24, 25, 27, 28, 30, 32, 33, 35, 37,
+    39, 41, 44, 46, 48, 51, 53, 56, 58, 61, 64, 67, 70, 73, 77, 80,
+    84, 87, 91, 95, 99, 103, 107, 111, 116, 120, 125, 130, 135, 140, 145, 150,
+    156, 161, 167, 173, 179, 186, 192, 199, 205, 212, 219, 227, 234, 242, 250, 257,
+    266, 274, 283, 291, 300, 309, 319, 328, 338, 348, 358, 369, 379, 390, 401, 412,
+    424, 436, 448, 460, 473, 485, 498, 512, 525, 539, 553, 567, 582, 597, 612, 627,
+    643, 659, 675, 692, 708, 726, 743, 761, 779, 797, 816, 835, 854, 874, 894, 914,
+    935, 956, 977, 999, 1020, 1043, 1066, 1089, 1112, 1136, 1160, 1184, 1209, 1234, 1260, 1286,
+    1312, 1339, 1366, 1394, 1422, 1450, 1479, 1508, 1537, 1567, 1598, 1628, 1660, 1691, 1723, 1756,
+    1789, 1822, 1856, 1890, 1924, 1959, 1995, 2031, 2067, 2104, 2141, 2179, 2217, 2256, 2295, 2334,
+    2374, 2415, 2456, 2497, 2539, 2582, 2624, 2668, 2712, 2756, 2801, 2846, 2892, 2938, 2985, 3032,
+    3079, 3128, 3176, 3225, 3275, 3325, 3376, 3427, 3479, 3531, 3584, 3637, 3691, 3745, 3799, 3855,
+    3910, 3967, 4023, 4081, 4138, 4197, 4255, 4315, 4374, 4435, 4495, 4557, 4619, 4681, 4744, 4807,
+    4871, 4935, 5000, 5065, 5131, 5197, 5264, 5332, 5399, 5468, 5536, 5606, 5676, 5746, 5817, 5888,
+    5959, 6032, 6104, 6177, 6251, 6325, 6400, 6475, 6550, 6626, 6702, 6779, 6856, 6934, 7012, 7091,
+    7170, 7249, 7329, 7409, 7490, 7571, 7653, 7735, 7817, 7900, 7983, 8066, 8150, 8234, 8319, 8404,
+    8489, 8575, 8661, 8748, 8834, 8922, 9009, 9097, 9185, 9273, 9362, 9451, 9541, 9630, 9720, 9811,
+    9901, 9992, 10083, 10174, 10266, 10358, 10450, 10542, 10635, 10727, 10820, 10913, 11007, 11100, 11194, 11288,
+    11382, 11476, 11571, 11665, 11760, 11855, 11950, 12045, 12140, 12236, 12331, 12427, 12522, 12618, 12714, 12809,
+    12905, 13001, 13097, 13193, 13289, 13385, 13481, 13577, 13673, 13769, 13865, 13961, 14056, 14152, 14248, 14343,
+    14439, 14534, 14630, 14725, 14820, 14915, 15010, 15104, 15199, 15293, 15387, 15481, 15575, 15669, 15762, 15855,
+    15948, 16041, 16133, 16226, 16317, 16409, 16500, 16592, 16682, 16773, 16863, 16953, 17042, 17131, 17220, 17308,
+    17396, 17484, 17571, 17658, 17744, 17830, 17916, 18001, 18086, 18170, 18254, 18337, 18420, 18502, 18584, 18665,
+    18746, 18826, 18905, 18985, 19063, 19141, 19219, 19295, 19372, 19447, 19522, 19597, 19671, 19744, 19816, 19888,
+    19959, 20030, 20100, 20169, 20238, 20306, 20373, 20439, 20505, 20570, 20634, 20698, 20760, 20822, 20884, 20944,
+    21004, 21063, 21121, 21178, 21235, 21290, 21345, 21399, 21452, 21505, 21556, 21607, 21657, 21706, 21754, 21801,
+    21848, 21893, 21938, 21982, 22025, 22066, 22107, 22148, 22187, 22225, 22262, 22299, 22334, 22369, 22402, 22435,
+    22467, 22498, 22527, 22556, 22584, 22611, 22637, 22662, 22686, 22709, 22731, 22752, 22772, 22791, 22809, 22826,
+    22842, 22857, 22872, 22885, 22897, 22908, 22918, 22927, 22935, 22942, 22948, 22953, 22957, 22960, 22962, 22963,
+]
+PITCH_MAX = 0x3FFF                   # o SPU não passa de 4x
+
 
 # --- VAB --------------------------------------------------------------------------------------
+
+def spu_resample(pcm, step):
+    """Toca as amostras no passo dado como o SPU: contador em 1/0x1000 de amostra, passo truncado
+    no máximo do hardware, cada saída a interpolação gaussiana das quatro amostras até a atual."""
+    pitch = max(1, min(PITCH_MAX, int(round(step * 0x1000))))
+    out, counter, n = [], 0, len(pcm)
+    while (counter >> 12) < n:
+        pos, i = counter >> 12, (counter >> 4) & 0xFF
+        oldest, older, old, new = (pcm[pos - k] if pos - k >= 0 else 0 for k in (3, 2, 1, 0))
+        out.append(((GAUSS[0xFF - i] * oldest) >> 15) + ((GAUSS[0x1FF - i] * older) >> 15)
+                   + ((GAUSS[0x100 + i] * old) >> 15) + ((GAUSS[i] * new) >> 15))
+        counter += pitch
+    return out
+
 
 def decode_vag(data, off, size):
     out, s1, s2 = [], 0, 0
@@ -148,8 +203,7 @@ class Vab:
                 continue
             rate = 44100.0 * 2 ** ((note - t["center"] - t["fine"] / 128.0) / 12.0)
             pcm = decode_vag(self.data, self.offsets[t["vag"] - 1], self.sizes[t["vag"] - 1])
-            step = rate / OUT_RATE
-            layers.append((t["gain"], [pcm[min(int(k * step), len(pcm) - 1)] for k in range(int(len(pcm) / step))]))
+            layers.append((t["gain"], spu_resample(pcm, rate / OUT_RATE)))
         if not layers:
             return []
         out = [0.0] * max(len(l) for _, l in layers)
@@ -205,12 +259,19 @@ def dump_block(asset_exe, archive, monster_id):
         return open(out, "rb").read() if os.path.isfile(out) else None
 
 
-def monster_name(block):
+# Ids que repetem o nome de um id menor (formas de chefe, revanches, o Evil Bat que o Songi chama):
+# levam _<id> no fim para não cair na pasta do primeiro. Songi 76 / 136 / 179, Tetsu 79 / 175,
+# Evil Bat 140 / 176-178, Gaza 165 / 166, Cort 180 / 181, 183-186.
+REPEATED_NAME_IDS = {136, 166, 175, 176, 177, 178, 179, 181, 183, 184, 185, 186}
+
+
+def monster_name(block, monster_id):
     off = struct.unpack_from("<I", block, 0)[0]
     raw = block[off:block.index(b"\0", off)].decode("ascii", "replace")
     raw = re.sub(r"^\^.\s*", "", raw)                   # tira o escape de cor "^A "
     raw = re.sub(r"\s*\$(\d+)$", r" Lv\1", raw)          # "Gimard $2" -> "Gimard Lv2"
-    return re.sub(r"[^A-Za-z0-9]+", "_", raw).strip("_")
+    name = re.sub(r"[^A-Za-z0-9]+", "_", raw).strip("_")
+    return "%s_%d" % (name, monster_id) if monster_id in REPEATED_NAME_IDS else name
 
 
 def action_entries(block):
@@ -240,8 +301,9 @@ def action_labels(entries):
 
 
 def clip_suffix(label):
-    """Igual ao Extras/ps1_glb_to_fbx.py: 'Attack #1' -> Attack1, 'Knocked Down' -> KnockedDown."""
-    s = label.split(" / ")[0].replace("#", "")
+    """Igual ao Extras/ps1_glb_to_fbx.py: 'Attack #1' -> Attack1, 'Knocked Down' -> KnockedDown,
+    'Action 0x13 #1' -> Action_0x13_1."""
+    s = re.sub(r"(Action\s+0x[0-9A-Fa-f]+)\s+#", r"\1_", label.split(" / ")[0]).replace("#", "")
     s = re.sub(r"Action\s+0x", "Action_0x", s)
     return re.sub(r"[^A-Za-z0-9_]", "", s)
 
@@ -265,7 +327,7 @@ def common_file(static_row):
 
 
 def extract_monster(monster_id, block, ctx, out_root, common_uses):
-    name = monster_name(block)
+    name = monster_name(block, monster_id)
     entries = action_entries(block)
     labels = action_labels(entries)
     snd = ctx["monster_snd"]
@@ -400,6 +462,7 @@ def main():
     ap.add_argument("--ids", default="", help="ids do arquivo de monstros, ex.: 10,16")
     ap.add_argument("--all", action="store_true", help="os 194 slots (os vazios são pulados)")
     args = ap.parse_args()
+    args.asset_exe = os.path.abspath(args.asset_exe)   # o CreateProcess não acha caminho relativo com /
 
     prot = os.path.join(args.extracted, "PROT")
 

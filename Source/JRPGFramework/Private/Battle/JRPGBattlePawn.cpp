@@ -2,8 +2,10 @@
 #include "Field/JRPGFieldEnemyAnimInstance.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Animation/AnimSequence.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMesh.h"
 
 AJRPGBattlePawn::AJRPGBattlePawn()
 {
@@ -50,6 +52,8 @@ void AJRPGBattlePawn::InitCombatant(const FJRPGCombatant& InCombatant, const FJR
 	}
 	SetActorLocationAndRotation(FeetTransform.GetLocation() + FVector(0.0f, 0.0f, Half), FeetTransform.GetRotation());
 
+	BuildPieces(Visual);
+
 	IdleClip = Visual.IdleAnim.LoadSynchronous();
 	bUsesAnimClass = Visual.AnimClass != nullptr;
 	Mesh->SetAnimationMode(EAnimationMode::AnimationBlueprint);
@@ -57,6 +61,69 @@ void AJRPGBattlePawn::InitCombatant(const FJRPGCombatant& InCombatant, const FJR
 	PlayIdle();
 
 	OnCombatantInitialized();
+}
+
+void AJRPGBattlePawn::BuildPieces(const FJRPGBattleVisual& Visual)
+{
+	for (USkeletalMeshComponent* Old : PieceComponents)
+	{
+		if (Old)
+		{
+			Old->DestroyComponent();
+		}
+	}
+	for (UStaticMeshComponent* Old : AttachmentComponents)
+	{
+		if (Old)
+		{
+			Old->DestroyComponent();
+		}
+	}
+	PieceComponents.Reset();
+	AttachmentComponents.Reset();
+
+	// Por partes, a Mesh só conduz a pose. Invisível ela pararia de atualizar os bones (por padrão
+	// só atualiza quando aparece na tela), e as partes que seguem a pose dela sumiriam junto.
+	const bool bByPieces = Visual.Pieces.Num() > 0;
+	Mesh->SetVisibility(!bByPieces);
+	Mesh->VisibilityBasedAnimTickOption = bByPieces
+		? EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones
+		: EVisibilityBasedAnimTickOption::AlwaysTickPose;
+
+	for (const FJRPGBattlePieceMesh& Part : Visual.Pieces)
+	{
+		USkeletalMesh* PartMesh = Part.Mesh.LoadSynchronous();
+		if (!PartMesh)
+		{
+			continue;
+		}
+		const FString Label = TEXT("Piece_") + StaticEnum<EJRPGBattlePiece>()->GetNameStringByValue(static_cast<int64>(Part.Piece));
+		USkeletalMeshComponent* Comp = NewObject<USkeletalMeshComponent>(this, MakeUniqueObjectName(this, USkeletalMeshComponent::StaticClass(), FName(*Label)));
+		Comp->SetupAttachment(Mesh);
+		Comp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Comp->SetCanEverAffectNavigation(false);
+		Comp->SetSkeletalMeshAsset(PartMesh);
+		Comp->RegisterComponent();
+		Comp->SetLeaderPoseComponent(Mesh);
+		PieceComponents.Add(Comp);
+	}
+
+	for (const FJRPGBattleAttachment& Attached : Visual.Attachments)
+	{
+		UStaticMesh* AttachedMesh = Attached.Mesh.LoadSynchronous();
+		if (!AttachedMesh)
+		{
+			continue;
+		}
+		UStaticMeshComponent* Comp = NewObject<UStaticMeshComponent>(this, MakeUniqueObjectName(this, UStaticMeshComponent::StaticClass(), TEXT("Accessory")));
+		Comp->SetupAttachment(Mesh, Attached.Bone);
+		Comp->SetRelativeTransform(Attached.Offset);
+		Comp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Comp->SetCanEverAffectNavigation(false);
+		Comp->SetStaticMesh(AttachedMesh);
+		Comp->RegisterComponent();
+		AttachmentComponents.Add(Comp);
+	}
 }
 
 void AJRPGBattlePawn::PlayClip(UAnimSequence* Clip, bool bLoop, float PlayRate)

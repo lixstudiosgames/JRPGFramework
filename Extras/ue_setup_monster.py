@@ -12,9 +12,14 @@ ue_setup_monster.py — roda DENTRO do editor. Importa o FBX e a textura de um m
 No console do editor (modo Cmd):
 
     py "<repo>/Extras/ue_setup_monster.py" [--source "<exports/monsters>"] Gobu_Gobu [Evil_Fly ...]
+    py "<repo>/Extras/ue_setup_monster.py" --source "<exports/monsters/all/fbx>" [--max 30] --all
+
+--all: todo <Nome>.fbx da pasta que ainda não tem SK_<Nome> no projeto (o lote do
+Extras/ps1_monsters_batch.py); os que já estão ficam. --max N: no máximo N por vez.
 
 Pode rodar de novo: o que já está certo fica.
 """
+import os
 import sys
 import traceback
 
@@ -131,12 +136,29 @@ def setup(name):
                % (name, renamed, ", ".join(clips), ", ".join(morphs) or "nenhum", ", ".join(slots)))
 
 
+def missing_in(source):
+    """Os <Nome>.fbx da pasta que ainda não têm SK_<Nome> no projeto (o --all)."""
+    lib = unreal.EditorAssetLibrary
+    names = sorted(f[:-4] for f in os.listdir(source) if f.lower().endswith(".fbx"))
+    return [n for n in names if not lib.does_asset_exist("%s/%s/SK_%s" % (ENEMIES_ROOT, n, n))]
+
+
 def main(argv):
-    source = None
+    source, limit = None, 0
     if argv[:1] == ["--source"]:
         source, argv = argv[1].replace("\\", "/"), argv[2:]
+    if argv[:1] == ["--max"]:
+        limit, argv = int(argv[1]), argv[2:]
+    if argv == ["--all"] and source:
+        argv = missing_in(source)
+        unreal.log("ue_setup_monster: %d monstro(s) da pasta ainda sem malha no projeto" % len(argv))
+        if not argv:
+            return
+        if limit:
+            argv = argv[:limit]
     if not argv:
-        unreal.log_error("uso: py ue_setup_monster.py [--source <pasta com <Nome>.fbx e T_<Nome>.png>] <Nome> [...]")
+        unreal.log_error("uso: py ue_setup_monster.py [--source <pasta com <Nome>.fbx e T_<Nome>.png> [--max N] --all] "
+                         "<Nome> [...]")
         return
     for name in argv:
         try:

@@ -1,0 +1,31 @@
+---,Key,DisplayName,Location,FightCode,Enemies,HP,MP,SpecialAttacks,SpecialAttackMP,EXP,Gold,RewardItem,RecommendedLevel,Tournament,Notes
+caruban,caruban,Caruban,Mt. Rikuroa,B0001,(caruban),1024,300,"(""Fire Breath"")",(70),750,450,healing_bloom,6-7,,
+vigurox2,vigurox2,Viguro,East Voz Forest,B0002,"(viguro,viguro)",1280,160,"(""Thunder Break"")",(50),750,600,,8-9,,Pair fight; HP applies per Viguro. 10% absorption chance baseline (40% with Ivory Book).
+songi_1st,songi_1st,Songi (1st),Zeto's Dungeon,B0003,(songi_1st),888,88,"(""Hyper Wave"")",(44),1500,750,mettle_ring,11,,Gala-only duel.
+zeto,zeto,Zeto,Zeto's Dungeon,B0004,(zeto),5000,512,"(""Big Wave"",""Call Wave"")","(100,0)",2250,2000,,11-12,,
+berserker,berserker,Berserker,Jeremi (Genesis Tree),B0005,(berserker),5000,850,"(""Spore Gas"",""Poisonous Gas"",""Stone Circle"")","(55,0,185)",2500,1667,fire_book_ii,13,,Vulnerable to Nighto for an instant-kill route.
+xain,xain,Xain,Fire Path,B0006,(xain),9511,0,"(""Terio Punch"",""Bloody Horns"")","(0,0)",4500,2000,wind_book_ii,19,,
+songi_2nd,songi_2nd,Songi (2nd),Mt. Letona,B0007,(songi_2nd),12888,800,"(""Hyper Lightning"",""Hyper Crush"")","(120,180)",6000,5000,thunder_book_ii,22,,
+van_saryu,van_saryu,Van Saryu,Ratayu,B0008,(van_saryu),13245,900,"(""Earthquake"",""Jugger Power"")","(150,100)",7500,7500,,23,,
+dohati,dohati,Dohati,Dohati's Castle,B0009,(dohati),17200,0,"(""Chaos Breath"")",(0),9000,8000,,24,,Chaos Breath inflicts Toxic/Venom; bring Pure Amulet or similar.
+gaza,gaza,Gaza,Sol Top Floor,B000A,(gaza),12000,300,"(""Astral Slash"")",(0),6750,4500,,25,,First Gaza fight (pre Sim-Seru).
+gaza_sim_seru,gaza_sim_seru,Gaza (Sim-Seru),Sol Basement,B000B,(gaza_sim_seru),15000,1200,"(""Astral Wave"",""Neo Star Slash"")","(50,200)",10500,7500,astral_sword,25-26,,
+gi_delilas,gi_delilas,Gi Delilas,Nivora Ravine,B000C,(gi_delilas),10000,500,"(""Blazing Slash"")",(0),11250,7500,fire_book_iii,27,,Delilas trio fight; siblings attack on a fixed atk-atk-special cycle.
+che_delilas,che_delilas,Che Delilas,Nivora Ravine,B000C,(che_delilas),12000,500,"(""Megaton Press"")",(0),11250,7500,thunder_book_iii,27,,
+lu_delilas,lu_delilas,Lu Delilas,Nivora Ravine,B000C,(lu_delilas),9500,500,"(""Plasma Strike"")",(0),11250,7500,wind_book_iii,27,,
+koru,koru,Koru,Nivora Ravine,B000D,(koru),20000,1000,"(""Blade Breath"",""Thunder Needle"",""Gigaton Press"",""Ultra Charge"",""Dead End Crisis"")","(100,100,100,100,100)",15000,15000,,28,,Four-turn timed kill; failure is game over.
+zora,zora,Zora,Floating Castle,B000E,(zora),22422,2000,"(""Darkness Typhoon"",""Glare"")","(200,170)",11250,7500,,30,,Glare petrifies; Wonder Amulet bypass.
+rogue,rogue,Rogue,Rogue's Tower,B000F,(rogue),28200,0,"(""Rogue Flame"",""Rogue Wind"",""Rogue Thunder"")","(0,0,0)",12000,12500,,33,,Cycles element each turn; alternate attack-then-spirit cadence.
+jette,jette,Jette,Jette's Fortress,B0010,(jette),34567,1000,"(""Shadow Break"")",(200),12750,10000,,34,,"Clone adds a copy while fewer than three monsters are seated (at most two Clones). A coin flip picks the decoy; when the original becomes the decoy the real Jette is the new actor, with full MP."
+cort,cort,Cort,Jette's Fortress (deep),B0011,(cort),50000,1000,"(""Mystic Shield"",""Guilty Cross"",""Mystic Circle"",""Evil Seru Magic"")","(170,0,100,255)",13500,12500,,35,,Shield breaks around 25k HP and unlocks Mystic Circle (1200+ AoE).
+tetsu_rematch,tetsu_rematch,Tetsu (Rematch),Rim Elm beach,B0012,(tetsu_rematch),9999,999,(),(),13500,12500,mettle_gem,36,,Master-vs-student duel after Sky Gardens story arc.
+songi_3rd,songi_3rd,Songi (3rd),Seru-Kai,B0013,(songi_3rd),48000,3000,"(""Chaos Flare"",""Genocidal Cannon"")","(120,255)",15000,15000,,36,,
+cort_juggernaut,cort_juggernaut,Cort (Juggernaut),Bio Castle,B0014,(cort_juggernaut),65535,2500,"(""Ultra Charge"",""Final Crisis"",""Doomsday"")","(100,100,255)",0,0,,,,Final boss; rewards N/A (post-victory ending follows).
+lapis,lapis,Lapis,Mt. Dhini (summit),s0005,(lapis),64800,4000,"(""Lapis Wave"")",(255),47250,15625,evil_medallion,42,,Optional superboss; sole drop is Evil Medallion.
+berserker_master,berserker_master,Berserker,Muscle Dome,,(berserker),4500,0,(),(),0,0,,,Master,
+caruban_expert,caruban_expert,Caruban,Muscle Dome,,(caruban),1200,0,(),(),0,0,,,Expert,
+aluru_expert,aluru_expert,Aluru,Muscle Dome,,(aluru),1200,0,(),(),0,0,,,Expert,
+dark_ogre_expert,dark_ogre_expert,Dark Ogre,Muscle Dome,,(dark_ogre),3500,0,(),(),0,0,,,Expert,
+gold_bison_expert,gold_bison_expert,Gold Bison,Muscle Dome,,(gold_bison),3500,0,(),(),0,0,,,Expert,
+ironman_expert,ironman_expert,Ironman,Muscle Dome,,(ironman),2500,0,(),(),0,0,,,Expert,
+viguro_lv2_master,viguro_lv2_master,Viguro Lv2,Muscle Dome,,(viguro_lv2),1200,0,(),(),0,0,,,Master,

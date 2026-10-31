@@ -44,11 +44,17 @@ public:
 	/**
 	 * Em que slot este item entra, deduzido da DT_Items: arma pela categoria,
 	 * armadura pelo ArmorSlot (Armor/Helmet/Shoes), acessório pela categoria.
+	 * Para acessório devolve o primeiro dos três (Accessory); qualquer um dos
+	 * três serve (IsAccessorySlot).
 	 *
 	 * Devolve false se o item não é equipável.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Status|Equip")
 	bool GetSlotForItem(FName ItemID, EJRPGEquipSlot& OutSlot) const;
+
+	/** Accessory, Accessory2 ou Accessory3. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Status|Equip")
+	static bool IsAccessorySlot(EJRPGEquipSlot Slot);
 
 	/**
 	 * Este personagem pode usar este item?
@@ -63,9 +69,19 @@ public:
 	/**
 	 * Equipa. Tira o item do inventário e devolve o que estava no slot.
 	 * Recusa se o personagem não pode usar ou se o item não está no inventário.
+	 * Acessório vai para o primeiro slot de acessório vazio; com os três
+	 * ocupados, troca o do primeiro.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Status|Equip")
 	bool EquipItem(FName Character, FName ItemID);
+
+	/**
+	 * Equipa num slot escolhido (a tela de equipamento escolhendo entre os
+	 * três de acessório). O slot tem que aceitar o item: o do GetSlotForItem,
+	 * ou qualquer slot de acessório para um acessório.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Status|Equip")
+	bool EquipItemInSlot(FName Character, FName ItemID, EJRPGEquipSlot Slot);
 
 	/** Desequipa e devolve o item ao inventário. */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Status|Equip")

@@ -7,6 +7,7 @@
 
 class UCapsuleComponent;
 class USkeletalMeshComponent;
+class UStaticMeshComponent;
 class UAnimSequence;
 
 /**
@@ -20,6 +21,10 @@ class UAnimSequence;
  * e, na Fase 5, para mirar). Sem Anim Blueprint, o clip Idle toca em loop e a troca de clip
  * (PlayClip) mistura com o anterior — a mesma animação nativa dos inimigos do Field, que serve
  * para qualquer esqueleto do PS1.
+ *
+ * Herói com equipamento visível (FJRPGBattleVisual::Pieces): a Mesh continua sendo quem anima,
+ * mas invisível; cada parte é um componente que segue a pose dela (Leader Pose). Os acessórios
+ * são malhas estáticas presas aos bones da Mesh.
  */
 UCLASS(Blueprintable)
 class JRPGFRAMEWORK_API AJRPGBattlePawn : public APawn
@@ -69,6 +74,17 @@ public:
 	void OnCombatantInitialized();
 
 private:
+	/** Cria as partes e os acessórios do visual (e apaga os de um InitCombatant anterior). */
+	void BuildPieces(const FJRPGBattleVisual& Visual);
+
+	/** As partes do herói (Leader Pose na Mesh). */
+	UPROPERTY(VisibleInstanceOnly, Transient, Category = "Battle Pawn")
+	TArray<TObjectPtr<USkeletalMeshComponent>> PieceComponents;
+
+	/** Os acessórios, presos aos bones da Mesh. */
+	UPROPERTY(VisibleInstanceOnly, Transient, Category = "Battle Pawn")
+	TArray<TObjectPtr<UStaticMeshComponent>> AttachmentComponents;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UAnimSequence> IdleClip;
 

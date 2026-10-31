@@ -42,8 +42,9 @@ lists to keep in sync — and one day they would diverge.
 
 ## Equipment
 
-Five slots, one per `EJRPGEquipSlot`. The record's `Equipment` array always has
-`EJRPGEquipSlot::MAX` entries; `NAME_None` means empty.
+Seven slots, one per `EJRPGEquipSlot`. The record's `Equipment` array always has
+`EJRPGEquipSlot::MAX` entries; `NAME_None` means empty. A save from before the accessory slots
+(v4, 5 entries) still loads: the array is completed on the next write.
 
 | Slot | Comes from `DT_Items` | Contributes |
 |---|---|---|
@@ -51,15 +52,20 @@ Five slots, one per `EJRPGEquipSlot`. The record's `Equipment` array always has
 | `Armor` | `Category = Armor`, `ArmorSlot = Armor` | `UDF` / `LDF` |
 | `Helmet` | `Category = Armor`, `ArmorSlot = Helmet` | `UDF` / `LDF` |
 | `Shoes` | `Category = Armor`, `ArmorSlot = Shoes` | `UDF` / `LDF` |
-| `Accessory` | `Category = Accessory` | `EffectClass` / `EffectValue` (percentage) |
+| `Accessory`, `Accessory2`, `Accessory3` | `Category = Accessory` (any of the three) | `EffectClass` / `EffectValue` (percentage) |
+
+What each slot looks like in battle is in [BATTLE_STAGE.md](BATTLE_STAGE.md) › Equipment on the
+model.
 
 ### API
 
 | Function | Behavior |
 |---|---|
-| `GetSlotForItem(ItemID, OutSlot)` | Which slot the item goes into. `false` if not equippable |
+| `GetSlotForItem(ItemID, OutSlot)` | Which slot the item goes into (`Accessory` for any accessory). `false` if not equippable |
+| `IsAccessorySlot(Slot)` | `Accessory`, `Accessory2` or `Accessory3` |
 | `CanEquip(Key, ItemID)` | Whether this character may use this item |
-| `EquipItem(Key, ItemID)` | Removes the item from the inventory, fills the slot, **returns whatever was there to the inventory** |
+| `EquipItem(Key, ItemID)` | Removes the item from the inventory, fills the slot, **returns whatever was there to the inventory**. An accessory takes the first empty accessory slot (all full: the first) |
+| `EquipItemInSlot(Key, ItemID, Slot)` | Same, into a chosen slot — the equip screen picking one of the three accessory slots. The slot must take the item |
 | `UnequipItem(Key, Slot)` | Returns it to the inventory and empties the slot |
 | `GetEquipped(Key, Slot)` | What is in the slot |
 

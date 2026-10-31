@@ -56,7 +56,40 @@ Nothing to configure per fight or per map.
   battle models, `/Game/Legaia/Battle/Party/<Name>/`. Vahn, Noa and Gala come filled in
   `Docs/Data/DT_Characters.csv`; reimport the DataTable after updating the plugin.
   `Extras/generate_characters_csv.py` keeps these two columns when it regenerates the CSV.
+- **What the hero wears:** with rows in `DT_EquipVisuals`, the hero is assembled from five
+  pieces — Body, Head, Weapon, Ra-Seru, Feet — chosen by what is equipped (see below).
 - **Enemies:** `DT_Enemies` › `Mesh` + `Anims.Idle`.
+
+### Equipment on the model
+
+The original has no item meshes: every equipment section swaps whole objects of the skeleton
+(a Survival Knife replaces Vahn's right hand with another hand that holds a blade). So a hero is
+five **pieces**, each a skeletal mesh on the same skeleton as `BattleMesh`
+([PS1_ASSETS.md](PS1_ASSETS.md) › Equipment pieces).
+
+| Piece | Chosen by | `DT_EquipVisuals` row |
+|---|---|---|
+| `Body` | `Armor` slot | `<Hero>_Body_<item key>` |
+| `Head` | `Helmet` slot | `<Hero>_Head_<item key>` |
+| `Weapon` | `Weapon` slot | `<Hero>_Weapon_<item key>` |
+| `RaSeru` | `SeruLevel` (not an equip slot) | `<Hero>_RaSeru_Lv<N>` |
+| `Feet` | `Shoes` slot | `<Hero>_Feet_<item key>` |
+
+An empty slot, or an item with no row, uses `<Hero>_<Piece>_Default` (a warning is logged for
+the second). A hero with no `Default` row at all keeps the whole `BattleMesh`, as before.
+Noa is left-handed, but pieces go by role: her `Weapon` piece is her left arm.
+
+In the fight, `AJRPGBattlePawn::Mesh` still plays the clips but is hidden; each piece is a
+component that follows its pose (Leader Pose). The hidden mesh keeps refreshing its bones
+(`AlwaysTickPoseAndRefreshBones`) — otherwise the pieces would vanish with it.
+
+**Accessories** have no model in the original. `DT_Characters` › `AccessoryVisuals` holds one
+generic static mesh per accessory slot (`[0]` = Accessory 1 … `[2]` = Accessory 3), each with
+the bone it hangs from (`part_NN`) and an offset — per hero, because the bodies differ. It shows
+while that slot holds any accessory. Empty array = no accessory is drawn.
+
+`DT_EquipVisuals.csv` is written by `Extras/generate_equip_visuals_csv.py`; import it as a
+DataTable of `FJRPGEquipVisualRow` in `/Game/Data/`.
 
 A combatant without a model appears as its capsule only, and the arena says why on screen
 (not in `DT_Characters`, `BattleMesh` empty, `Mesh` empty in `DT_Enemies`…).

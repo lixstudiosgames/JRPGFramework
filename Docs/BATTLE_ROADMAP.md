@@ -1,9 +1,9 @@
 # Battle System Roadmap
 
 **JRPGFramework — Legend of Legaia Remake**
-Approved 2026-09-13. Phases 0, 3 and 4 are done (enemies roam the map and a fight is
-assembled over it, 2026-10-27), Phase 2's pipeline is validated (2026-10-26). Next is Phase 5:
-combat itself.
+Approved 2026-09-13. Phases 0 to 4 are done (2026-10-30): the battle data (`DT_Enemies`,
+`DT_Arts`, `DT_Bosses`), every monster and the party's battle clips in Unreal, enemies roaming the
+map and a fight assembled over it. Next is Phase 5: combat itself.
 
 This is the largest unimplemented system left in the plugin, and the only one with stub
 files already in place. (Dialogue, Cutscene and Localization are also unwritten - see
@@ -87,8 +87,8 @@ Each phase ends in something you can run and watch work.
 | Phase | Scope | Status |
 |---|---|---|
 | **0** | Extract assets from the disc (RE release tools + `legaia-extract`) | **Done** |
-| **1** | Battle data (TOML → CSV → DataTable) | **In progress** — `DT_Enemies` done (179 rows); Arts, Bosses, Magic to go |
-| **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **In progress** — pipeline validated on Gimard + the party's Idle/Walk |
+| **1** | Battle data (TOML → CSV → DataTable) | **Done** (2026-10-30) — `DT_Enemies` (179 rows), `DT_Arts` (81), `DT_Bosses` (30). Magic moved to Phase 8 |
+| **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **Done** (2026-10-30) — all 179 monster models with sounds and notifies, the party's battle clips (real names, game speed, sounds), equipment pieces |
 | **3** | Enemies roaming the map (zone, roaming, trigger) | **Done** (2026-10-27) — `AJRPGFieldEnemy`, `AJRPGEncounterZone` (sphere/box/spline), tested in the editor |
 | **4** | Battle stage (spawn, formation, camera) | **Done** (2026-10-27) — `AJRPGBattleArena` assembles the fight, `UJRPGBattleSceneSubsystem`, `BeginBattle`/`EndBattle`, `AJRPGBattlePawn`, `AJRPGBattleWaves` + JSON/Studio; tested in the editor and on the Muscle Dome map. Party-size scaling moved to Phase 8 |
 | **5** | Basic combat (turns, damage, death, victory) | Not started |
@@ -157,7 +157,7 @@ Copy from the RE project's `data/gamedata/` into `Docs/Data/gamedata/`:
 | `enemies.toml` | 177 enemies (26 flagged `boss = true`) |
 | `arts.toml` | 60 Arts |
 | `bosses.toml` | 30 boss fights |
-| `magic.toml` | 29 spells (table now, system in Phase 8) |
+| `magic.toml` | 29 spells — table and system both in Phase 8 |
 
 Two things are not what they look like:
 
@@ -222,7 +222,11 @@ a `TMap` does not import from CSV cleanly — plus `Attacks`, an array of the at
 It is a plain `USTRUCT`, not a row: LegaiaStudio's schema regex skips nested templates such
 as `TArray<TSoftObjectPtr<...>>` inside a row struct, and shows the whole set as one field.
 
-**`Public/Arts/ArtsData.h`**
+**`Public/Arts/ArtsData.h`** — **done** (2026-10-30), 81 rows. Column reference and how to add
+Arts in [Guides/ARTS.md](Guides/ARTS.md). What changed from the sketch below: no `Directions`
+(only `Command`; Noa's mirroring is resolved at input time), the per-hit `HitPower` /
+`HitTarget` read from the disc's Art records, a `Part` kind for the pieces only played inside a
+sequence, and a `Sequence` that makes Supers, Miracles and new combined Arts plain data.
 
 ```cpp
 UENUM(BlueprintType) enum class EJRPGArtKind   : uint8 { Regular, Hyper, Super, Miracle };
@@ -244,13 +248,15 @@ USTRUCT(BlueprintType) struct FJRPGArtData : public FTableRowBase {
 `ap` (Regular → `APGain = ap / 2`; the rest → `APCost = ap`); final balance is tuned in
 LegaiaStudio, not in code.
 
-Also: **`Public/Battle/BossFightData.h`** (`FJRPGBossData`) and
-**`Public/Battle/MagicData.h`** (`FJRPGSpellData`).
+Also: **`Public/Battle/BossFightData.h`** (`FJRPGBossData`) — **done** (2026-10-30), 30 rows, the fight
+layer: fighters as `DT_Enemies` keys, `SpecialAttacks` + `SpecialAttackMP`, reward, level, Muscle
+Dome `Tournament` ([Guides/ENEMIES.md](Guides/ENEMIES.md#4-boss-fights--dt_bosses)). `MagicData.h` (`FJRPGSpellData`)
+moved to Phase 8 with the spell system.
 
 ### Converters
 
-Three new scripts in `Extras/`: `generate_arts_csv.py`, `generate_enemies_csv.py`
-(**done**), `generate_magic_csv.py`.
+The scripts in `Extras/`: `generate_enemies_csv.py`, `generate_arts_csv.py` and
+`generate_bosses_csv.py` (**done**); `generate_magic_csv.py` goes with Phase 8.
 
 **`Extras/legaia_toml.py` (done) does not parse TOML by hand**: it uses `tomllib` from the
 standard library (Python 3.11+), which reads hex, inline tables and multi-line arrays the way
@@ -277,10 +283,10 @@ this (and keeps rows created in LegaiaStudio, backing the old CSV up first).
 > Known debt: the existing `generate_*.py` scripts have a **wrong** hardcoded path
 > (`CODE\JRPGFramework\Docs\Data`, missing the `5.8`). Fix that in the same pass.
 
-**Acceptance:** `DT_Enemies`, `DT_Arts`, `DT_Bosses`, `DT_Magic` imported under
-`/Game/Data/`; LegaiaStudio lists the four new structs; a Blueprint calling
-`GetRowNames()` returns 179 / 60 / 30 / 29 (`DT_Enemies` is 177 TOML rows + Comm and Evil Bat,
-which exist only on the disc).
+**Acceptance:** `DT_Enemies`, `DT_Arts`, `DT_Bosses` imported under `/Game/Data/`;
+LegaiaStudio lists the new structs; a Blueprint calling `GetRowNames()` returns 179 / 81 / 30
+(`DT_Enemies` is 177 TOML rows + Comm and Evil Bat, which exist only on the disc; `DT_Arts` is
+the 60 Arts + 21 sequence pieces).
 
 ---
 
@@ -730,6 +736,28 @@ Art power is per hit: `0x16–0x1A` → UDF × 12/18/20/22/28, `0x1B–0x1F` →
 `EJRPGActionPhase`, short and readable, driven by timers and AnimNotify:
 `Windup → Advance → Strike → (Chain) → Recovery → Return → Done`.
 
+### Staying in the arena
+
+Clips carry the body forward (Slash Kick, the Supers), so a long turn moves the attacker — the
+original could push fighters off the stage. **Fighters stay where their action left them**: no
+walk back to a seat after the turn (it looks bad and slows the fight). What keeps everyone in is
+a set of rules, not trimming the Arts:
+
+1. **The target is the wall.** The original's range law (`FUN_8004E2F0`, the in-range back-off
+   `0x80047C3C`) holds an attacker at the edge of its reach while it strikes: its clips cannot
+   carry it through the enemy. The remake keeps that — forward movement stops at reach distance.
+2. **The arena bounds clamp everyone.** Knockback, the arrival shove and the attacker's own root
+   movement are all clamped to the arena's area (`AJRPGBattleArena`). A target pinned against the
+   edge stops the attacker by rule 1, so the whole fight stays inside.
+3. **Fighters keep their distance.** A minimum spacing between any two combatants (allies
+   included), so a party that drifted forward does not stack on the enemy line.
+4. **Per-Art override.** A new big Art can be marked to play in place (no root movement) or to
+   cap its travel; the camera frames the action, wherever it is.
+
+Root movement itself is the disc's: per clip, a root speed (`+0x0C`) and an end step (`+0x0E`)
+(see [Guides/ARTS.md](Guides/ARTS.md)). The Art tester lines clips up by the body instead and has
+**Reset Position**.
+
 ### Enemy AI
 
 Start honest and dumb: pick a random living target weighted toward low HP, and attack.
@@ -818,7 +846,8 @@ with nothing debug-looking on screen.
 
 Last on purpose: it depends on everything above being stable and carries the most new rules.
 
-- Spell system over the `DT_Magic` table imported in Phase 1.
+- `DT_Magic` (`magic.toml`, 29 spells → `FJRPGSpellData`, `generate_magic_csv.py`) and the spell
+  system over it.
 - **Spell power is missing** — it is not in `magic.toml`. It comes from the disc's
   move-power table (PROT 0898, stride 26), so an extra extraction pass produces
   `DT_MovePower`.
@@ -841,7 +870,7 @@ Last on purpose: it depends on everything above being stable and carries the mos
 | Larger party breaking balance | Medium | `bScaleEnemiesWithPartySize` from Phase 4, multipliers exposed as `UPROPERTY` |
 | Regenerating a CSV wiping hand-made mesh/anim mapping | Medium, destructive | Merge by row name in the generator + timestamped `.bak` in `Docs/Data/_backup/` |
 | `bosses.toml` inline tables breaking the parser | Low | Dedicated regex; validate 30/30 rows |
-| Importing 186 enemies by hand | Low (tedium, not risk) | If it hurts, add a second `JRPGFrameworkEditor` module with a batch `UAssetImportTask` commandlet |
+| ~~Importing 186 enemies by hand~~ | Retired — `Extras/ps1_monsters_batch.py` + the editor scripts' `--all` | |
 
 ---
 

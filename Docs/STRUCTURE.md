@@ -118,17 +118,27 @@ JRPGFramework/
 │   │   │   │                                       8 level-1 stats + EJRPGElement
 │   │   │   ├── JRPGPartyTypes.h ✅              ← FJRPGPartyMember: one character's record
 │   │   │   │                                       (3 states, level/XP, 8 stats, equipment,
-│   │   │   │                                       conditions, SeruLevel) + EJRPGEquipSlot (5 slots)
+│   │   │   │                                       conditions, SeruLevel) + EJRPGEquipSlot (7 slots:
+│   │   │   │                                       4 gear + 3 accessories)
 │   │   │   └── PartySubsystem.h ✅              ← roster vs formation, recruit/activate/bench,
 │   │   │                                           XP split among survivors, level-up, vitals, save
 │   │   │
 │   │   ├── Status/ ✅
-│   │   │   └── StatusSubsystem.h ✅             ← equipment (5 slots), conditions, Ra-Seru,
+│   │   │   └── StatusSubsystem.h ✅             ← equipment (7 slots), conditions, Ra-Seru,
 │   │   │                                           elemental affinity and the EFFECTIVE stat.
 │   │   │                                           Owns the RULES: writes into the Party record,
 │   │   │                                           holds no state of its own
 │   │   │
 │   │   ├── Arts/ 🟡
+│   │   │   ├── ArtsData.h ✅                    ← FJRPGArtData (DT_Arts row: buttons, AP gain/cost,
+│   │   │   │                                       clip, per-hit power and target, Sequence for
+│   │   │   │                                       combined Arts). See Guides/ARTS.md
+│   │   │   ├── JRPGArtSequence.h ✅             ← UJRPGArtSequenceLibrary: a turn's clip queue as the game
+│   │   │   │                                       stages it (leading swings, starter, Art, Sequence),
+│   │   │   │                                       its speed scale per step, the Chain Cut. Shared by
+│   │   │   │                                       the battle and the tester
+│   │   │   ├── JRPGArtTester.h ✅               ← test bench: the hero's battle model playing an Art,
+│   │   │   │                                       a hand-made combo or all of them (Details buttons)
 │   │   │   └── ArtsSubsystem.h 🟡               ← TeachArtToCharacter only (TODO)
 │   │   │
 │   │   └── Battle/ 🟡
@@ -136,17 +146,23 @@ JRPGFramework/
 │   │       │                                       EndBattle + OnBattleStarted/Ended; no turns yet
 │   │       │                                       (Phase 5); ApplyBattleItemEffect still TODO
 │   │       ├── BattleTypes.h ✅                 ← side, combatant type, result, FJRPGCombatant,
-│   │       │                                       FJRPGBattleSetup, FJRPGBattleVisual
+│   │       │                                       FJRPGBattleSetup, FJRPGBattleVisual, the hero's
+│   │       │                                       equipment pieces (EJRPGBattlePiece, DT_EquipVisuals row)
 │   │       ├── JRPGBattleArena.h ✅             ← where on the map a fight is assembled, and who
 │   │       │                                       assembles it: formation preview + ground check,
 │   │       │                                       hand-drawn area, FindArenaFor, AssembleBattle /
 │   │       │                                       TeardownBattle (BATTLE_ROADMAP Phase 4)
 │   │       ├── JRPGBattleSceneSubsystem.h ✅    ← world subsystem: picks the arena, fade, OnFieldHidden /
 │   │       │                                       OnFieldShown, console commands. Guides/BATTLE_STAGE.md
-│   │       ├── JRPGBattlePawn.h ✅              ← one combatant in the scene: battle model in its seat
+│   │       ├── JRPGAnimNotify_ChainCut.h ✅     ← marker on a clip: where the game cuts it when another
+│   │       │                                       action is queued (swings chain at frame 10)
+│   │       ├── JRPGBattlePawn.h ✅              ← one combatant in the scene: battle model in its seat;
+│   │       │                                       heroes dressed by equipment pieces (Leader Pose)
 │   │       ├── JRPGBattleWaves.h ✅             ← fights in a row, Muscle Dome style, waves from JSON
 │   │       ├── JRPGEncounterTypes.h ✅          ← FJRPGEncounterEnemy/Setup/Combatant + the roll and
 │   │       │                                       DT_Enemies access (UJRPGEncounterLibrary)
+│   │       ├── BossFightData.h ✅               ← FJRPGBossData (DT_Bosses row: a boss fight — who enters,
+│   │       │                                       named specials, reward, level). See Guides/ENEMIES.md
 │   │       └── EnemyData.h ✅                   ← FJRPGEnemyData (DT_Enemies row: in-battle stats,
 │   │                                               rewards, capturable Seru, MonsterArchiveID, mesh)
 │   │                                               + FJRPGMonsterAnimSet. See Guides/ENEMIES.md
@@ -231,6 +247,13 @@ JRPGFramework/
     ├── generate_enemies_csv.py ✅               ← enemies.toml + the disc's monster archive listing →
     │                                               DT_Enemies.csv. Keeps Mesh/Anims, hand-set ids and
     │                                               rows made in the Studio; backs up first
+    ├── generate_bosses_csv.py ✅                ← bosses.toml → DT_Bosses.csv (fighters joined to
+    │                                               DT_Enemies by name); keeps hand fixes and new fights
+    ├── generate_arts_csv.py ✅                  ← arts.toml + the disc's Arts banks (hit power) +
+    │                                               the Super/Miracle sequences → DT_Arts.csv. Keeps
+    │                                               new Arts and edited balance; backs up first
+    ├── generate_enemy_anims_csv.py ✅           ← the monster batch's monsters.json → Mesh and Anims of
+    │                                               every DT_Enemies row (roles by the disc's action ids)
     ├── legaia_toml.py ✅                        ← shared by the generators: tomllib + Unreal CSV helpers
     ├── generate_progression_csv.py ✅           ← formula → DT_LevelCurve.csv + DT_Difficulty.csv
     ├── generate_mist_noise.py ✅                ← tiling noise for the mist → Mist/T_JRPGMistNoise.png
@@ -240,14 +263,26 @@ JRPGFramework/
     │                                               party, from legend-of-legaia-re) → rigged FBX for
     │                                               Unreal; --block adds the clip morphs (slimes) as
     │                                               shape keys + curves. See Guides/PS1_ASSETS.md
+    ├── ps1_equip_pieces.py ✅                   ← headless Blender: the party's battle form cut into
+    │                                               equipment pieces (one per section and item, same
+    │                                               skeleton). See Guides/PS1_ASSETS.md
+    ├── generate_equip_visuals_csv.py ✅         ← those pieces → DT_EquipVisuals.csv
+    ├── ps1_party_sounds.py ✅                   ← the party's battle clips: real names (the Art, the win
+    │                                               pose…), the game's speed (RateScale) and the sounds
+    │                                               and voices each one plays. See Guides/PS1_ASSETS.md
+    ├── ps1_monsters_batch.py ✅                 ← every monster at once: .glb + block (RE asset tool),
+    │                                               FBX (ps1_glb_to_fbx.py, parallel Blenders) and
+    │                                               monsters.json. See Guides/PS1_ASSETS.md
     ├── ps1_monster_sounds.py ✅                 ← the monsters' battle sounds from the disc → WAV per
     │                                               monster + common ones, and sounds.json (clip/frame
     │                                               of each, for AnimNotifies). See Guides/PS1_ASSETS.md
     ├── ue_setup_monster.py ✅                   ← runs IN the editor (py): imports the FBX (with morph
     │                                               targets) + texture, renames the clips, PS1 texture
-    │                                               settings, MI_<Name> on the mesh
+    │                                               settings, MI_<Name> on the mesh; --all imports every
+    │                                               batch FBX not in the project yet
     ├── ue_import_monster_sounds.py ✅           ← runs IN the editor (py): imports those WAVs and puts
-    │                                               the AnimNotify_PlaySound on the monster's clips
+    │                                               the AnimNotify_PlaySound on the monster's (or hero's)
+    │                                               clips; for a hero, renames the clips + sets RateScale
     ├── generate_status_map.py ✅                ← status map in the root README
     └── download_fonts.py ✅                     ← verifies/downloads the WebUI's local fonts
 ```
@@ -277,8 +312,8 @@ JRPGFramework/
 | **Camera** | ✅ complete | 13 presets (+DOF), automatic restore when the UI closes, 8 shakes, manual camera + zone, conversation and FrameGroup/Orbit ready |
 | **WebUI** | ✅ complete | SPA shell, 7 screens, gamepad + keyboard + mouse with their own rules, responsive scaling |
 | **Party** | ✅ complete (data) | Roster vs formation, 3 states per character, XP split among survivors as in the original, level-up with jitter, whole-roster save. The UI does not follow the formation yet |
-| **Status** | ✅ complete (data) | Equipment in 5 slots with `CanEquip` read from `DT_Items`, conditions, Ra-Seru (1..9), elemental affinity, and the original's `effective ( base )` display. The equip screen is still missing |
-| **Arts / Battle** | 🟡 stage ready, no combat | A fight is assembled over the current map and taken down: battle arenas placed by hand, the original's seats, battle models from `DT_Characters` / `DT_Enemies`, camera, field enemies starting it on contact, the Muscle Dome waves ([BATTLE_STAGE.md](Guides/BATTLE_STAGE.md)). Turns, damage and Arts are still to come; `ArtsSubsystem` is a stub. `DT_Enemies` has 179 enemies ([ENEMIES.md](Guides/ENEMIES.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
+| **Status** | ✅ complete (data) | Equipment in 7 slots (4 gear + 3 accessories) with `CanEquip` read from `DT_Items`, conditions, Ra-Seru (1..9), elemental affinity, and the original's `effective ( base )` display. The equip screen is still missing |
+| **Arts / Battle** | 🟡 stage ready, no combat | A fight is assembled over the current map and taken down: battle arenas placed by hand, the original's seats, battle models from `DT_Characters` / `DT_Enemies`, camera, field enemies starting it on contact, the Muscle Dome waves ([BATTLE_STAGE.md](Guides/BATTLE_STAGE.md)). Turns, damage and Arts are still to come; `ArtsSubsystem` is a stub. `DT_Enemies` has 179 enemies ([ENEMIES.md](Guides/ENEMIES.md)), `DT_Arts` 81 Arts and pieces ([ARTS.md](Guides/ARTS.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
 
 ---
 

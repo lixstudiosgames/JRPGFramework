@@ -5,6 +5,7 @@
 #include "CharacterData.generated.h"
 
 class USkeletalMesh;
+class UStaticMesh;
 class UAnimSequence;
 
 /**
@@ -43,6 +44,29 @@ struct JRPGFRAMEWORK_API FJRPGHeroBattleAnims
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Character|Battle")
 	TSoftObjectPtr<UAnimSequence> Walk;
+};
+
+/**
+ * FJRPGBattleAttachment
+ * Uma malha estática presa a um bone do modelo de batalha. Hoje: o modelo genérico de cada slot
+ * de acessório (o jogo original não desenha acessório nenhum). Os bones do modelo convertido do
+ * PS1 são part_NN, um por peça do esqueleto (Extras/ps1_glb_to_fbx.py).
+ */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGBattleAttachment
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character|Battle")
+	TSoftObjectPtr<UStaticMesh> Mesh;
+
+	/** O bone onde a malha fica presa (ex.: part_00, o tronco). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character|Battle")
+	FName Bone;
+
+	/** Posição, giro e escala em relação ao bone. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character|Battle")
+	FTransform Offset;
 };
 
 /**
@@ -166,4 +190,14 @@ struct JRPGFRAMEWORK_API FCharacterData : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character|Battle")
 	FJRPGHeroBattleAnims BattleAnims;
+
+	/**
+	 * O modelo de cada slot de acessório na luta: [0] = Accessory 1, [1] = Accessory 2,
+	 * [2] = Accessory 3. Genérico por slot (o mesmo modelo para qualquer acessório naquele slot);
+	 * aparece só com o slot ocupado. O lugar (bone + offset) é por personagem porque os corpos
+	 * são diferentes. Vazio = nenhum acessório aparece. Preenchido à mão: o
+	 * generate_characters_csv.py preserva.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character|Battle")
+	TArray<FJRPGBattleAttachment> AccessoryVisuals;
 };
