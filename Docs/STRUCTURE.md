@@ -161,6 +161,8 @@ JRPGFramework/
 │   │       ├── JRPGBattleWaves.h ✅             ← fights in a row, Muscle Dome style, waves from JSON
 │   │       ├── JRPGEncounterTypes.h ✅          ← FJRPGEncounterEnemy/Setup/Combatant + the roll and
 │   │       │                                       DT_Enemies access (UJRPGEncounterLibrary)
+│   │       ├── BossFightData.h ✅               ← FJRPGBossData (DT_Bosses row: a boss fight — who enters,
+│   │       │                                       named specials, reward, level). See Guides/ENEMIES.md
 │   │       └── EnemyData.h ✅                   ← FJRPGEnemyData (DT_Enemies row: in-battle stats,
 │   │                                               rewards, capturable Seru, MonsterArchiveID, mesh)
 │   │                                               + FJRPGMonsterAnimSet. See Guides/ENEMIES.md
@@ -245,6 +247,8 @@ JRPGFramework/
     ├── generate_enemies_csv.py ✅               ← enemies.toml + the disc's monster archive listing →
     │                                               DT_Enemies.csv. Keeps Mesh/Anims, hand-set ids and
     │                                               rows made in the Studio; backs up first
+    ├── generate_bosses_csv.py ✅                ← bosses.toml → DT_Bosses.csv (fighters joined to
+    │                                               DT_Enemies by name); keeps hand fixes and new fights
     ├── generate_arts_csv.py ✅                  ← arts.toml + the disc's Arts banks (hit power) +
     │                                               the Super/Miracle sequences → DT_Arts.csv. Keeps
     │                                               new Arts and edited balance; backs up first

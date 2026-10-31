@@ -38,7 +38,7 @@ New here? Read [`ARCHITECTURE.md`](ARCHITECTURE.md), then
 | [MIST.md](Guides/MIST.md) | Living volumetric mist: strands and swirls, flows around scenery, parts around the player |
 | [FIELD_ENEMIES.md](Guides/FIELD_ENEMIES.md) | Enemies on the map: one generic `AJRPGFieldEnemy`, sphere/box/spline encounter zones, the encounter roll, battle arenas |
 | [BATTLE_STAGE.md](Guides/BATTLE_STAGE.md) | A fight assembled over the current map by the arena and taken down: models from the DataTables, camera, field enemies going home, the Muscle Dome waves (JSON + Studio), console commands |
-| [ENEMIES.md](Guides/ENEMIES.md) | `DT_Enemies` column reference, where the numbers come from, regenerating without losing manual work |
+| [ENEMIES.md](Guides/ENEMIES.md) | `DT_Enemies` column reference, where the numbers come from, regenerating without losing manual work; `DT_Bosses` (the boss fights) |
 | [ARTS.md](Guides/ARTS.md) | `DT_Arts`: the Tactical Arts, their hits and sequences, making new Arts and combined ones |
 | [PS1_ASSETS.md](Guides/PS1_ASSETS.md) | The original's battle models (monsters + party) from the disc into Unreal: extraction, the Blender converter, import, scale |
 | [MENU_AND_OPTIONS.md](Guides/MENU_AND_OPTIONS.md) | Main menu and the options screen (visuals done, controls not wired) |
@@ -72,6 +72,7 @@ remain for reference.
 | [DT_Enemies.csv](Data/DT_Enemies.csv) | 179 | `FJRPGEnemyData` |
 | [DT_EquipVisuals.csv](Data/DT_EquipVisuals.csv) | 146 | `FJRPGEquipVisualRow` |
 | [DT_Arts.csv](Data/DT_Arts.csv) | 81 | `FJRPGArtData` |
+| [DT_Bosses.csv](Data/DT_Bosses.csv) | 30 | `FJRPGBossData` |
 
 `Data/_backup/` holds the copies LegaiaStudio makes on every save.
 

@@ -1,9 +1,9 @@
 # Battle System Roadmap
 
 **JRPGFramework — Legend of Legaia Remake**
-Approved 2026-09-13. Phases 0, 2, 3 and 4 are done (every monster and the party's battle clips
-are in Unreal, enemies roam the map and a fight is assembled over it, 2026-10-30). Phase 1 has
-`DT_Enemies` and `DT_Arts`. Next is Phase 5: combat itself.
+Approved 2026-09-13. Phases 0 to 4 are done (2026-10-30): the battle data (`DT_Enemies`,
+`DT_Arts`, `DT_Bosses`), every monster and the party's battle clips in Unreal, enemies roaming the
+map and a fight assembled over it. Next is Phase 5: combat itself.
 
 This is the largest unimplemented system left in the plugin, and the only one with stub
 files already in place. (Dialogue, Cutscene and Localization are also unwritten - see
@@ -87,7 +87,7 @@ Each phase ends in something you can run and watch work.
 | Phase | Scope | Status |
 |---|---|---|
 | **0** | Extract assets from the disc (RE release tools + `legaia-extract`) | **Done** |
-| **1** | Battle data (TOML → CSV → DataTable) | **In progress** — `DT_Enemies` (179 rows) and `DT_Arts` (81 rows) done; Bosses to go. Magic moved to Phase 8 |
+| **1** | Battle data (TOML → CSV → DataTable) | **Done** (2026-10-30) — `DT_Enemies` (179 rows), `DT_Arts` (81), `DT_Bosses` (30). Magic moved to Phase 8 |
 | **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **Done** (2026-10-30) — all 179 monster models with sounds and notifies, the party's battle clips (real names, game speed, sounds), equipment pieces |
 | **3** | Enemies roaming the map (zone, roaming, trigger) | **Done** (2026-10-27) — `AJRPGFieldEnemy`, `AJRPGEncounterZone` (sphere/box/spline), tested in the editor |
 | **4** | Battle stage (spawn, formation, camera) | **Done** (2026-10-27) — `AJRPGBattleArena` assembles the fight, `UJRPGBattleSceneSubsystem`, `BeginBattle`/`EndBattle`, `AJRPGBattlePawn`, `AJRPGBattleWaves` + JSON/Studio; tested in the editor and on the Muscle Dome map. Party-size scaling moved to Phase 8 |
@@ -248,13 +248,15 @@ USTRUCT(BlueprintType) struct FJRPGArtData : public FTableRowBase {
 `ap` (Regular → `APGain = ap / 2`; the rest → `APCost = ap`); final balance is tuned in
 LegaiaStudio, not in code.
 
-Also: **`Public/Battle/BossFightData.h`** (`FJRPGBossData`). `MagicData.h` (`FJRPGSpellData`)
+Also: **`Public/Battle/BossFightData.h`** (`FJRPGBossData`) — **done** (2026-10-30), 30 rows, the fight
+layer: fighters as `DT_Enemies` keys, `SpecialAttacks` + `SpecialAttackMP`, reward, level, Muscle
+Dome `Tournament` ([Guides/ENEMIES.md](Guides/ENEMIES.md#4-boss-fights--dt_bosses)). `MagicData.h` (`FJRPGSpellData`)
 moved to Phase 8 with the spell system.
 
 ### Converters
 
-Three new scripts in `Extras/`: `generate_arts_csv.py`, `generate_enemies_csv.py`
-(**done**), `generate_magic_csv.py`.
+The scripts in `Extras/`: `generate_enemies_csv.py`, `generate_arts_csv.py` and
+`generate_bosses_csv.py` (**done**); `generate_magic_csv.py` goes with Phase 8.
 
 **`Extras/legaia_toml.py` (done) does not parse TOML by hand**: it uses `tomllib` from the
 standard library (Python 3.11+), which reads hex, inline tables and multi-line arrays the way

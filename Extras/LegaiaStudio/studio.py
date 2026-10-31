@@ -98,6 +98,12 @@ TABLES = [
      "primary": ["DisplayName", "Character", "Kind", "Command", "APGain", "APCost", "Anim",
                  "HitPower", "HitTarget", "Sequence"]},
 
+    {"id": "DT_Bosses", "struct": "FJRPGBossData", "label": "Bosses", "icon": "enemy",
+     "title": "DisplayName", "subtitle": "Location", "badge": "FightCode", "badgeSuffix": "",
+     # A camada da luta: os stats do chefe ficam no DT_Enemies (Enemies aponta para ele).
+     "primary": ["DisplayName", "Location", "Enemies", "SpecialAttacks", "SpecialAttackMP", "EXP",
+                 "Gold", "RewardItem", "RecommendedLevel", "Notes"]},
+
     {"id": "DT_LevelCurve", "struct": "FLevelCurveRow", "label": "Level Curve", "icon": "curve",
      "title": "Level", "subtitle": "XPTotal", "badge": "XPFromPrevious", "badgeSuffix": " xp",
      "primary": ["Level", "XPTotal", "XPFromPrevious"]},
@@ -130,10 +136,12 @@ REFERENCES = {
     ("DT_Shops", "FeaturedItems"): "DT_Items",
     ("DT_Enemies", "DropItem"): "DT_Items",
     ("DT_Enemies", "StealItem"): "DT_Items",
+    ("DT_Bosses", "Enemies"): "DT_Enemies",
+    ("DT_Bosses", "RewardItem"): "DT_Items",
 }
 
 # TOMLs do LegaiaRE que ainda não viraram DataTable (mostrados como pendentes)
-KNOWN_TOML_ONLY = ["magic", "bosses", "casino", "fishing",
+KNOWN_TOML_ONLY = ["magic", "casino", "fishing",
                    "music", "sol_tower"]
 
 # Builds expostos na sidebar. Os generate_*.py NÃO entram de propósito:

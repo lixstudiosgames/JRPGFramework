@@ -104,3 +104,37 @@ What the report also tells you:
 and rows created in LegaiaStudio are kept; everything else is rewritten from the sources. The
 previous CSV is copied to `Docs/Data/_backup/` first. Values hand-edited in other columns
 *are* overwritten — that is what `--dry-run` and the backup are for.
+
+---
+
+## 4. Boss fights — `DT_Bosses`
+
+A boss's **stats** live in `DT_Enemies` (`bIsBoss`). `DT_Bosses` is the layer of the **fight**:
+who enters, the named special attacks, the fight's reward and the recommended level. Row
+struct **`FJRPGBossData`** (`Public/Battle/BossFightData.h`); import `Docs/Data/DT_Bosses.csv`
+into `/Game/Data/` with it.
+
+| Column | Notes |
+|---|---|
+| `Key` | Row name: `caruban`, `songi_1st`, `gaza_sim_seru`, `caruban_expert` |
+| `DisplayName` / `Location` | Shown name and where it happens |
+| `FightCode` | The reference walkthrough's code (`B0001`..`B0014`, `s0005` for Lapis); empty for the Muscle Dome |
+| `Enemies` | `DT_Enemies` rows of who fights, one per combatant (`Vigurox2` = `(viguro,viguro)`) |
+| `HP` / `MP` | The walkthrough's numbers, for checking — the fight uses `DT_Enemies` |
+| `SpecialAttacks` / `SpecialAttackMP` | The named specials and their MP cost, same order; the plain attack is not listed |
+| `EXP` / `Gold` / `RewardItem` | The fight's reward (`RewardItem` is a `DT_Items` key) |
+| `RecommendedLevel` | `"6-7"`, `"27"` |
+| `Tournament` | `Expert` / `Master` for the Muscle Dome fights; empty in the story |
+| `Notes` | Special rules (Koru's four-turn kill, Cort's shield, Jette's clones) |
+
+**30 rows:** 22 story fights (the Delilas trio is three rows, one per sibling — each has its own
+reward), Lapis, and 7 Muscle Dome tournament fights.
+
+```bash
+python Extras/generate_bosses_csv.py
+```
+
+From `Docs/Data/gamedata/bosses.toml` (legend-of-legaia-re). `Enemies` is found by name
+(`"Songi (1st)"` → `songi_1st`, the `(Expert)` / `(Master)` suffix goes to `Tournament`, `x2` repeats
+the row); anything that does not match is reported. Regenerating keeps an `Enemies` fixed by hand
+and fights created in LegaiaStudio; the old CSV is backed up first.
