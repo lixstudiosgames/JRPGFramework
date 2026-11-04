@@ -27,8 +27,10 @@ public:
 	// v4: FJRPGPartyMember ganhou SeruLevel e os 5 slots de Equipment.
 	// v5: Equipment passou a 7 slots (Accessory2/Accessory3 no fim). Um save v4 ainda carrega:
 	//     o UStatusSubsystem completa o array na primeira escrita.
+	// v6: FJRPGPartyMember ganhou LearnedArts (as Arts que cada um sabe). Um save v5 ainda carrega,
+	//     com a lista vazia.
 	// Save de versão anterior é tratado como vazio.
-	static constexpr int32 CurrentSaveVersion = 5;
+	static constexpr int32 CurrentSaveVersion = 6;
 
 	UPROPERTY()
 	int32 SaveVersion = CurrentSaveVersion;

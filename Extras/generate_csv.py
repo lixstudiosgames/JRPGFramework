@@ -85,16 +85,17 @@ def main():
         "honey":          ("all_stats", 4),
     }
 
+    # TeachesArt = a key da Art no DT_Arts (o UArtsSubsystem::LearnArt recusa outra coisa)
     art_books_map = {
-        "fire_book_i": ("tornado_flame", "Vahn"),
-        "fire_book_ii": ("fire_blow", "Vahn"),
-        "fire_book_iii": ("burning_flare", "Vahn"),
-        "wind_book_i": ("frost_breath", "Noa"),
-        "wind_book_ii": ("vulture_blade", "Noa"),
-        "wind_book_iii": ("hurricane_kick", "Noa"),
-        "thunder_book_i": ("thunder_punch", "Gala"),
-        "thunder_book_ii": ("lightning_storm", "Gala"),
-        "thunder_book_iii": ("explosive_fist", "Gala")
+        "fire_book_i": ("vahn_tornado_flame_hyper", "Vahn"),
+        "fire_book_ii": ("vahn_fire_blow", "Vahn"),
+        "fire_book_iii": ("vahn_burning_flare", "Vahn"),
+        "wind_book_i": ("noa_frost_breath", "Noa"),
+        "wind_book_ii": ("noa_vulture_blade", "Noa"),
+        "wind_book_iii": ("noa_hurricane_kick", "Noa"),
+        "thunder_book_i": ("gala_thunder_punch_hyper", "Gala"),
+        "thunder_book_ii": ("gala_lightning_storm", "Gala"),
+        "thunder_book_iii": ("gala_explosive_fist", "Gala")
     }
     
     for ri in raw_items:

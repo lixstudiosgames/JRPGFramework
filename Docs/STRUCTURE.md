@@ -129,17 +129,26 @@ JRPGFramework/
 │   │   │                                           Owns the RULES: writes into the Party record,
 │   │   │                                           holds no state of its own
 │   │   │
-│   │   ├── Arts/ 🟡
+│   │   ├── Arts/ ✅                             ← Phase 6 without a fight; in a fight: Phase 5
 │   │   │   ├── ArtsData.h ✅                    ← FJRPGArtData (DT_Arts row: buttons, AP gain/cost,
 │   │   │   │                                       clip, per-hit power and target, Sequence for
-│   │   │   │                                       combined Arts). See Guides/ARTS.md
+│   │   │   │                                       combined Arts, Unlock, SpeedScale). See Guides/ARTS.md
+│   │   │   ├── JRPGArtsRules.h ✅               ← UJRPGArtsRules: buttons → the turn (FJRPGArtChain) as
+│   │   │   │                                       pure functions — the original's overlapping
+│   │   │   │                                       tokenizer, learn-on-use, Supers, the new AP walk,
+│   │   │   │                                       the input window and its bytes
+│   │   │   ├── JRPGArtsValidator.h ✅           ← UJRPGArtsValidator: what a DT_Arts row must satisfy
+│   │   │   │                                       (tests, Data Validation; Extras/arts_rules.py mirrors it)
 │   │   │   ├── JRPGArtSequence.h ✅             ← UJRPGArtSequenceLibrary: a turn's clip queue as the game
 │   │   │   │                                       stages it (leading swings, starter, Art, Sequence),
 │   │   │   │                                       its speed scale per step, the Chain Cut. Shared by
 │   │   │   │                                       the battle and the tester
 │   │   │   ├── JRPGArtTester.h ✅               ← test bench: the hero's battle model playing an Art,
-│   │   │   │                                       a hand-made combo or all of them (Details buttons)
-│   │   │   └── ArtsSubsystem.h 🟡               ← TeachArtToCharacter only (TODO)
+│   │   │   │                                       a hand-made combo, all of them, or typed buttons
+│   │   │   │                                       through the rules (Input + Recognition)
+│   │   │   └── ArtsSubsystem.h ✅               ← the learned list (FJRPGPartyMember::LearnedArts, in
+│   │   │                                           the save), LearnArt / HasLearnedArt, preview and
+│   │   │                                           commit out of battle, JRPG.Arts.* console
 │   │   │
 │   │   └── Battle/ 🟡
 │   │       ├── BattleSubsystem.h 🟡             ← TryStartEncounter (grace window), BeginBattle /
@@ -156,6 +165,8 @@ JRPGFramework/
 │   │       │                                       OnFieldShown, console commands. Guides/BATTLE_STAGE.md
 │   │       ├── JRPGAnimNotify_ChainCut.h ✅     ← marker on a clip: where the game cuts it when another
 │   │       │                                       action is queued (swings chain at frame 10)
+│   │       ├── JRPGAnimNotify_Hit.h ✅          ← marker on a clip: one per hit, in HitPower order (the
+│   │       │                                       fight reads the frames as data; not on the clips yet)
 │   │       ├── JRPGBattlePawn.h ✅              ← one combatant in the scene: battle model in its seat;
 │   │       │                                       heroes dressed by equipment pieces (Leader Pose)
 │   │       ├── JRPGBattleWaves.h ✅             ← fights in a row, Muscle Dome style, waves from JSON
@@ -196,9 +207,12 @@ JRPGFramework/
 │       │                      Ultralight SDK headers never appear under Public/
 │       ├── Party/ ✅       (PartySubsystem.cpp ✅)
 │       ├── Status/ ✅      (StatusSubsystem.cpp ✅)
-│       ├── Arts/ 🟡        (ArtsSubsystem.cpp 🟡)
+│       ├── Arts/ ✅        (ArtsSubsystem.cpp ✅, JRPGArtsRules.cpp ✅, JRPGArtsValidator.cpp ✅,
+│       │                    JRPGArtSequence.cpp ✅, JRPGArtTester.cpp ✅)
+│       ├── Tests/ ✅       (JRPGArtsTests.cpp ✅ — the JRPG.Arts.* automation tests, no map)
 │       └── Battle/ 🟡      (BattleSubsystem.cpp 🟡, JRPGBattleArena.cpp ✅, JRPGBattleSceneSubsystem.cpp ✅,
-│                           JRPGBattlePawn.cpp ✅, JRPGBattleWaves.cpp ✅, JRPGBattleRules.cpp ✅)
+│                           JRPGBattlePawn.cpp ✅, JRPGBattleWaves.cpp ✅, JRPGBattleRules.cpp ✅,
+│                           JRPGAnimNotify_Hit.cpp ✅)
 │
 ├── Shaders/ ✅                                  ← mapped to /Plugin/JRPGFramework
 │   ├── UltralightBlitShader.usf ✅              ← full-screen blit of the Ultralight texture (JRPGWebBrowser)
@@ -316,7 +330,8 @@ JRPGFramework/
 | **WebUI** | ✅ complete | SPA shell, 7 screens, gamepad + keyboard + mouse with their own rules, responsive scaling |
 | **Party** | ✅ complete (data) | Roster vs formation, 3 states per character, XP split among survivors as in the original, level-up with jitter, whole-roster save. The UI does not follow the formation yet |
 | **Status** | ✅ complete (data) | Equipment in 7 slots (4 gear + 3 accessories) with `CanEquip` read from `DT_Items`, conditions, Ra-Seru (1..9), elemental affinity, and the original's `effective ( base )` display. The equip screen is still missing |
-| **Arts / Battle** | 🟡 stage ready, no combat | A fight is assembled over the current map and taken down: battle arenas placed by hand, the original's seats, battle models from `DT_Characters` / `DT_Enemies`, camera, field enemies starting it on contact, the Muscle Dome waves ([BATTLE_STAGE.md](Guides/BATTLE_STAGE.md)). Turns, damage and Arts are still to come; `ArtsSubsystem` is a stub. `DT_Enemies` has 179 enemies ([ENEMIES.md](Guides/ENEMIES.md)), `DT_Arts` 81 Arts and pieces ([ARTS.md](Guides/ARTS.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
+| **Arts** | ✅ without a fight | Buttons → the turn as the original recognises it (overlapping Arts, Supers, Miracles), learning on use / taught / by chain / by the Ra-Seru, the learned list in the save, the new AP (Regulars add, specials spend, checked at each point of the chain), a validator for `DT_Arts` and the Art Tester's `Input`. A new Art is a row. Damage per hit and AP on the combatant come with combat (Phase 5). See [ARTS.md](Guides/ARTS.md) |
+| **Battle** | 🟡 stage ready, no combat | A fight is assembled over the current map and taken down: battle arenas placed by hand, the original's seats, battle models from `DT_Characters` / `DT_Enemies`, camera, field enemies starting it on contact, the Muscle Dome waves ([BATTLE_STAGE.md](Guides/BATTLE_STAGE.md)). Turns and damage are still to come. `DT_Enemies` has 179 enemies ([ENEMIES.md](Guides/ENEMIES.md)), `DT_Arts` 81 Arts and pieces ([ARTS.md](Guides/ARTS.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
 
 ---
 

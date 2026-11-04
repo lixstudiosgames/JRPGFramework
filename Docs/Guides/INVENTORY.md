@@ -63,7 +63,7 @@ promised a full heal the code never performed.)
 
 | Column | Notes |
 |---|---|
-| `TeachesArt` | Art id unlocked in `ArtsSubsystem` (`tornado_flame`) |
+| `TeachesArt` | The Art's key in `DT_Arts` (`vahn_tornado_flame_hyper`); `UArtsSubsystem::LearnArt` refuses anything else |
 | `TeachesCharacter` | Who learns it (`"Vahn"`, `"Noa"`, `"Gala"`) |
 
 ### `Weapon`
@@ -89,7 +89,7 @@ full power), `EquipOthers` (array of secondary characters), `AttackBonus` (ATK g
 |---|---|---|---|---|
 | `healing_leaf` | `Consumable` | 100 | `AnyTime` | `HealHP = 200` |
 | `life_water` | `PermanentStat` | 5000 | `FieldOnly` | `EffectClass = "hp_max"`, `EffectValue = 16`, `HealHP = 0` |
-| `fire_book_i` | `ArtBook` | 0 | `FieldOnly` | `TeachesArt = "tornado_flame"`, `TeachesCharacter = "Vahn"` |
+| `fire_book_i` | `ArtBook` | 0 | `FieldOnly` | `TeachesArt = "vahn_tornado_flame_hyper"`, `TeachesCharacter = "Vahn"` |
 | `short_sword` | `Weapon` | 2700 | `Automatic` | `WeaponType = "Sword"`, `AttackBonus = 24`, `EquipBest = "Vahn"`, `EquipOthers = ["Noa","Gala"]` |
 | `cure_amulet` | `Accessory` | 800 | `Automatic` | `EffectClass = "protect_status"`, `StatusType = "venom"` |
 
@@ -143,7 +143,7 @@ item is consumed (if consumable) and the effect is routed:
 Equipping is `UStatusSubsystem::EquipItem`, which removes the item from the inventory and
 returns whatever was in the slot. See [`STATUS.md`](STATUS.md).
 
-> `BattleSubsystem` and `ArtsSubsystem` are still stubs: the call arrives and logs a TODO.
+> `ArtBook` puts the Art in the hero's learned list (`LearnArt`, [`ARTS.md`](ARTS.md)). `BattleSubsystem`'s `ApplyBattleItemEffect` is still a stub: the call arrives and logs a TODO.
 > See [`../BATTLE_ROADMAP.md`](../BATTLE_ROADMAP.md).
 
 ---

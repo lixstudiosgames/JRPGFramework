@@ -15,6 +15,7 @@
 #include "Field/JRPGFieldPartyComponent.h"
 #include "Field/JRPGFieldPlayerController.h"
 #include "Inventory/InventorySubsystem.h"
+#include "Arts/ArtsSubsystem.h"
 #include "Blueprint/UserWidget.h"
 #include "Engine/GameInstance.h"
 #include "GameFramework/PlayerController.h"
@@ -1936,7 +1937,8 @@ FString UWebUISubsystem::BuildItemsPayloadJS() const
 			Item.EffectValue,
 			*JRPGWebUI::ToJSStringLiteral(Item.StatusType),
 			*JRPGWebUI::ToJSStringLiteral(Item.ElementType),
-			*JRPGWebUI::OptionalNameToJS(Item.TeachesArt),
+			// O nome da Art (DT_Arts), não a key: "Tornado Flame (Hyper)", não "vahn_tornado_flame_hyper"
+			*JRPGWebUI::ToJSStringLiteral(UArtsSubsystem::GetArtDisplayName(Item.TeachesArt).ToString()),
 			*JRPGWebUI::OptionalNameToJS(Item.Summons),
 			(Item.Category == EItemCategory::Key) ? TEXT("true") : TEXT("false"),
 			Inv->CanDiscardItem(Slot.ItemID) ? TEXT("true") : TEXT("false"));

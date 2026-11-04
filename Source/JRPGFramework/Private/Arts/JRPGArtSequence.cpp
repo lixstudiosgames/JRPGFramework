@@ -206,8 +206,17 @@ void UJRPGArtSequenceLibrary::ApplyGameSpeeds(TArray<FJRPGArtStep>& Steps)
 			bSpecial = true;
 			break;
 		case EJRPGArtStepKind::Art:
+		{
 			Step.GameSpeed = bSpecial ? SpeedSpecial : SpeedArt;
+			// A linha do passo pode trocar a regra (SpeedScale, 0 = a regra): uma Super nova que quer a
+			// cópia de uma Art mais rápida ou mais lenta
+			const FJRPGArtData* Row = FindArt(Step.ArtKey);
+			if (Row && Row->SpeedScale > 0)
+			{
+				Step.GameSpeed = Row->SpeedScale;
+			}
 			break;
+		}
 		default:
 			Step.GameSpeed = SpeedNormal;
 			break;

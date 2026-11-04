@@ -48,7 +48,6 @@ API_GROUPS = [
 # Funções que existem mas não fazem (tudo) o que prometem.
 API_STATE = {
     "ApplyBattleItemEffect": (PENDING, "stub — only logs TODO", "stub — só registra TODO"),
-    "TeachArtToCharacter": (PENDING, "stub — only logs TODO", "stub — só registra TODO"),
     "OpenDialogue": (PARTIAL, "final signature; the JS side only logs", "assinatura final; o JS só registra"),
 }
 
@@ -60,10 +59,6 @@ API_PLANNED = {
         ("SeatFor", "Phase 4 · ABattleStage"),
         ("OnBattleCommand", "Phase 7 · WebUI bridge"), ("OnBattleArtsButton", "Phase 7 · WebUI bridge"),
         ("OnBattleArtsCommit", "Phase 7 · WebUI bridge"), ("OnBattleTargetChanged", "Phase 7 · WebUI bridge"),
-    ],
-    "arts": [
-        ("ButtonForPad", "Phase 6"), ("RecognizeArtSequence", "Phase 6"),
-        ("GetKnownArts", "Phase 6"), ("LearnArt", "Phase 6"), ("CommitArtsChain", "Phase 6"),
     ],
 }
 
@@ -119,8 +114,8 @@ SYSTEMS = [
     [  # linha 4
         S("Battle", PENDING, 10, "Stub — 71 lines that log TODO. 9-phase plan in Docs/BATTLE_ROADMAP.md",
           "Stub — 71 linhas que registram TODO. Plano de 9 fases em Docs/BATTLE_ROADMAP.md", "Batalha"),
-        S("Arts", PENDING, 4, "Stub — directional Arts and the new AP (roadmap phase 6)",
-          "Stub — Arts direcionais e o novo AP (fase 6 do roadmap)"),
+        S("Arts", PARTIAL, 4, "Recognition with the original's overlap, learning + the learned list in the save, Supers, the new AP, validator, Art tester Input — the in-fight part closes in phase 5",
+          "Reconhecimento com a sobreposição do original, aprender + a lista no save, Supers, o novo AP, validador, Input no Art Tester — a parte dentro da luta fecha na fase 5"),
         S("Dialogue", PARTIAL, 4, "Conversation camera and OpenDialogue signature done; no dialogue runtime yet",
           "Câmera de conversa e assinatura de OpenDialogue prontas; falta o runtime de diálogo", "Diálogo"),
         S("Cutscene", PENDING, 3, "Nothing written; camera pieces already exist",
@@ -132,12 +127,12 @@ SYSTEMS = [
 
 ROADMAP_PHASES = [
     (OK, "Extract assets from the disc", "Extrair assets do disco"),
-    (PARTIAL, "Battle data (TOML → CSV → DataTable)", "Dados de batalha (TOML → CSV → DataTable)"),
-    (PARTIAL, "PS1 3D assets (GLB → Blender → FBX → SkeletalMesh)", "Assets 3D do PS1 (GLB → Blender → FBX → SkeletalMesh)"),
-    (PARTIAL, "Enemies roaming the map", "Inimigos andando pelo mapa"),
-    (PENDING, "Battle stage", "Palco da batalha"),
+    (OK, "Battle data (TOML → CSV → DataTable)", "Dados de batalha (TOML → CSV → DataTable)"),
+    (OK, "PS1 3D assets (GLB → Blender → FBX → SkeletalMesh)", "Assets 3D do PS1 (GLB → Blender → FBX → SkeletalMesh)"),
+    (OK, "Enemies roaming the map", "Inimigos andando pelo mapa"),
+    (OK, "Battle stage", "Palco da batalha"),
     (PENDING, "Basic combat", "Combate básico"),
-    (PENDING, "Directional Arts + new AP", "Arts direcionais + novo AP"),
+    (PARTIAL, "Directional Arts + new AP", "Arts direcionais + novo AP"),
     (PENDING, "Presentation (HUD, camera, sound)", "Apresentação (HUD, câmera, som)"),
     (PENDING, "Magic and Seru", "Magia e Seru"),
 ]

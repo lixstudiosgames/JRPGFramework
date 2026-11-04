@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Arts/JRPGArtSequence.h"
+#include "Arts/JRPGArtsRules.h"
 #include "JRPGArtTester.generated.h"
 
 class USkeletalMeshComponent;
@@ -53,6 +54,46 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art Tester", meta = (GetOptions = "GetComboOptions"))
 	TArray<FName> Combo;
+
+	/**
+	 * Os botões como o jogador digita, e as regras decidem o turno (Play Input): "Arms, Ra-Seru,
+	 * Arms", "A R A", ou as setas do controle ("← → ←", "Left Right Left"), estas pela mão do herói —
+	 * a Noa é canhota. O que as regras reconhecem aparece em Recognition enquanto se digita.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art Tester|Input")
+	FString Input;
+
+	/** O AP do herói no começo do turno do Input. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art Tester|Input", meta = (ClampMin = "0", ClampMax = "100"))
+	int32 InputAP = 0;
+
+	/** Depois de Play Input, o AP vira o do fim do turno (para o próximo Play Input continuar dali). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art Tester|Input")
+	bool bCarryAP = true;
+
+	/** As Arts que o herói já sabe no tester (não é o save). Play Input acrescenta as aprendidas no uso. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art Tester|Input", meta = (GetOptions = "GetArtOptions"))
+	TArray<FName> KnownArts;
+
+	/** Trata toda Art do herói como já sabida (as Supers saem logo). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art Tester|Input")
+	bool bKnowAllArts = false;
+
+	/** Play Input põe em KnownArts as Regular aprendidas no uso (como o save, no jogo). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art Tester|Input")
+	bool bLearnOnPlay = true;
+
+	/** O herói tem Ra-Seru (o original só deixa Hyper e Miracle saírem com ele). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art Tester|Input")
+	bool bHasRaSeru = true;
+
+	/** O gauge do turno, como a luta semeia do AGL (cada botão custa 30). 0 = sem limite. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Art Tester|Input", meta = (ClampMin = "0"))
+	int32 InputGauge = 0;
+
+	/** O que as regras fazem do Input: as Arts, a Super e o que tem dentro, o AP a cada passo, o que caiu (só leitura). */
+	UPROPERTY(VisibleInstanceOnly, Transient, Category = "Art Tester|Input")
+	TArray<FString> Recognition;
 
 	/**
 	 * Os botões antes do último saem como golpes simples, e o último vira starter + Art — como no
@@ -138,6 +179,17 @@ public:
 	UFUNCTION(CallInEditor, BlueprintCallable, Category = "Art Tester")
 	void PlayCombo();
 
+	/**
+	 * Fecha o Input como a luta fecha a janela de Arts — o gauge, o commit, o reconhecimento, o AP — e
+	 * toca o turno que sai. As Regular novas entram em KnownArts (bLearnOnPlay).
+	 */
+	UFUNCTION(CallInEditor, BlueprintCallable, Category = "Art Tester|Input")
+	void PlayInput();
+
+	/** Esquece as Arts do tester e zera o AP. */
+	UFUNCTION(CallInEditor, BlueprintCallable, Category = "Art Tester|Input")
+	void ResetInputState();
+
 	/** Para e volta ao Idle, onde estiver. */
 	UFUNCTION(CallInEditor, BlueprintCallable, Category = "Art Tester")
 	void Stop();
@@ -179,6 +231,16 @@ private:
 	FVector FollowBoneLocation() const;
 
 	void ApplyHeroMesh();
+
+	/** O Input em botões, cortado no gauge. Falso se uma palavra não é botão. */
+	bool ReadInput(TArray<EJRPGArtButton>& OutButtons, int32& OutDropped) const;
+
+	/** O turno do Input com o estado do tester (Arts sabidas, AP, Ra-Seru). */
+	FJRPGArtChain BuildInputChain(const TArray<EJRPGArtButton>& Buttons) const;
+
+	/** Refaz Recognition a partir do Input. */
+	void UpdateRecognition();
+
 	void StartArt(FName ArtKey);
 	void StartSteps(const FString& Title);
 	void StartStep(int32 Index);
@@ -202,6 +264,9 @@ private:
 
 	/** Tocando o Combo (o Loop repete o Combo). */
 	bool bComboMode = false;
+
+	/** Tocando o Input (o Loop repete o Input, um turno depois do outro). */
+	bool bInputMode = false;
 
 	/** Fila do Play All (vazia = só a Art escolhida). */
 	TArray<FName> Queue;

@@ -85,7 +85,7 @@ São 12 `UGameInstanceSubsystem`s que se registram sozinhos quando a GameInstanc
 | Item | Estado | Observações |
 |---|---|---|
 | **Batalha** | ⬜ Stub | 71 linhas que registram `TODO`. O plano está no [`Docs/BATTLE_ROADMAP.md`](Docs/BATTLE_ROADMAP.md): 9 fases (0–8), da extração do disco até magia e Seru |
-| **Arts** | ⬜ Stub | Arts direcionais e o novo modelo de AP (Arts normais *somam* AP, Hyper / Super / Miracle *gastam*). Fase 6 do roadmap |
+| **Arts** | 🟡 Sem luta | Arts direcionais reconhecidas como no original (Arts sobrepostas, Supers, Miracles), aprender + a lista no save, e o novo modelo de AP (Arts normais *somam* AP, Hyper / Super / Miracle *gastam*). Uma Art nova é uma linha do `DT_Arts`. Na luta com a fase 5 do roadmap |
 | **Diálogo** | 🟡 Parcial | A câmera de conversa e a assinatura de `OpenDialogue` estão prontas. Faltam o runtime de diálogo, o formato de dados e um editor |
 | **Cutscene** | ⬜ Não iniciado | As peças de câmera necessárias já existem |
 | **Localização** | 🟡 Parcial | `FText` em todo lugar e a opção de idioma já existe. Faltam a troca de cultura em runtime e um pipeline de strings (Unreal e WebUI) |
@@ -104,7 +104,7 @@ São 12 `UGameInstanceSubsystem`s que se registram sozinhos quando a GameInstanc
 | 3 | Inimigos andando pelo mapa | Não iniciada |
 | 4 | Palco da batalha (spawn, formação, câmera) | Não iniciada |
 | 5 | Combate básico (turnos, dano, morte, vitória) | Não iniciada |
-| 6 | Arts direcionais + o novo AP | Não iniciada |
+| 6 | Arts direcionais + o novo AP | Pronta sem luta (a parte dentro da luta fecha na fase 5) |
 | 7 | Apresentação (HUD, câmera de ataque, som, itens, fuga) | Não iniciada |
 | 8 | Magia e Seru | Não iniciada |
 

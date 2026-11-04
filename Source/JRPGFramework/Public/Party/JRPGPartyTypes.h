@@ -162,6 +162,16 @@ struct JRPGFRAMEWORK_API FJRPGPartyMember
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Party|Progressão")
 	int32 SeruLevel = 1;
 
+	/**
+	 * As Arts que o personagem já sabe (keys do DT_Arts), na ordem em que aprendeu: as Regular feitas
+	 * na luta, as Hyper dos livros, o que um NPC ou um gatilho ensinou.
+	 *
+	 * Mesmo esquema do Equipment: o campo mora aqui (um registro, um save), mas quem ESCREVE é o
+	 * UArtsSubsystem (LearnArt). Keys, não números — uma Art nova vai para o save como uma do disco.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Party|Arts")
+	TArray<FName> LearnedArts;
+
 	/** Morto = sem HP. Não recebe XP nem entra no divisor da divisão. */
 	bool IsDead() const { return HP <= 0; }
 

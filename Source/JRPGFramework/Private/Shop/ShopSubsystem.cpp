@@ -1,4 +1,5 @@
 #include "Shop/ShopSubsystem.h"
+#include "Arts/ArtsSubsystem.h"
 #include "Core/CoreSubsystem.h"
 #include "Inventory/InventorySubsystem.h"
 #include "World/WorldStateSubsystem.h"
@@ -92,7 +93,7 @@ static FText BuildStatsLine(const FItemData& ItemData)
 		FString Line;
 		if (!ItemData.TeachesArt.IsNone())
 		{
-			Line = FString::Printf(TEXT("Teaches %s"), *PrettifyKey(ItemData.TeachesArt.ToString()));
+			Line = FString::Printf(TEXT("Teaches %s"), *UArtsSubsystem::GetArtDisplayName(ItemData.TeachesArt).ToString());
 			if (!ItemData.TeachesCharacter.IsEmpty())
 			{
 				Line += FString::Printf(TEXT(" — %s"), *ItemData.TeachesCharacter);

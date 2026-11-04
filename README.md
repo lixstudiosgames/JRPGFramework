@@ -83,7 +83,7 @@ weights each system by estimated effort. Hover any cell for details.
 | Item | State | Notes |
 |---|---|---|
 | **Battle** | ⬜ Stub | 71 lines that log `TODO`. The plan is [`Docs/BATTLE_ROADMAP.md`](Docs/BATTLE_ROADMAP.md): 9 phases (0–8), from disc extraction to magic and Seru |
-| **Arts** | ⬜ Stub | Directional Arts and the new AP model (regular Arts *add* AP, Hyper / Super / Miracle *spend* it). Roadmap phase 6 |
+| **Arts** | 🟡 Without a fight | Directional Arts recognised as the original does (overlapping Arts, Supers, Miracles), learning + the learned list in the save, and the new AP model (regular Arts *add* AP, Hyper / Super / Miracle *spend* it). A new Art is a `DT_Arts` row. In a fight with roadmap phase 5 |
 | **Dialogue** | 🟡 Partial | The conversation camera and the `OpenDialogue` signature are done. The dialogue runtime, its data format and an editor are missing |
 | **Cutscene** | ⬜ Not started | The camera pieces it needs already exist |
 | **Localization** | 🟡 Partial | `FText` is used everywhere and the Language option exists. Runtime culture switching and a string pipeline (Unreal and WebUI) are missing |
@@ -102,7 +102,7 @@ weights each system by estimated effort. Hover any cell for details.
 | 3 | Enemies roaming the map | Not started |
 | 4 | Battle stage (spawn, formation, camera) | Not started |
 | 5 | Basic combat (turns, damage, death, victory) | Not started |
-| 6 | Directional Arts + the new AP | Not started |
+| 6 | Directional Arts + the new AP | Done without a fight (the in-fight part closes in phase 5) |
 | 7 | Presentation (HUD, attack camera, sound, items, escape) | Not started |
 | 8 | Magic and Seru | Not started |
 

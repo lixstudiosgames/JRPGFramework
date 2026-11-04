@@ -32,6 +32,23 @@ enum class EJRPGArtButton : uint8
 };
 
 /**
+ * Como a Art é aprendida (BATTLE_ROADMAP.md › Phase 6 › How each kind of Art is unlocked). ByKind é
+ * a regra do original para o Kind da linha: Regular no uso (OnUse), Hyper só ensinada (Taught, e com
+ * o Ra-Seru), Super quando todas as Arts do Command dela já eram conhecidas antes do turno
+ * (ChainKnown), Miracle pelo Ra-Seru (RaSeru). Os outros valores trocam a regra de uma linha só — uma
+ * Super nova que um NPC ensina é Taught, uma Regular que só vem de livro também.
+ */
+UENUM(BlueprintType)
+enum class EJRPGArtUnlock : uint8
+{
+	ByKind      UMETA(DisplayName = "By Kind"),
+	OnUse       UMETA(DisplayName = "On Use"),
+	Taught      UMETA(DisplayName = "Taught"),
+	ChainKnown  UMETA(DisplayName = "Chain Known"),
+	RaSeru      UMETA(DisplayName = "Ra-Seru")
+};
+
+/**
  * Que defesa um golpe enfrenta. As variantes "Misses" são o alcance alternativo do disco: o golpe
  * alto passa por cima de inimigo baixo, o baixo por baixo de inimigo voador.
  */
@@ -116,4 +133,20 @@ struct JRPGFRAMEWORK_API FJRPGArtData : public FTableRowBase
 	/** O registro da Art no disco (Action Constant 0x1B..0x32). 0 = Art nova, sem registro. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art|Disc")
 	int32 ActionConstant = 0;
+
+	/** Como a Art é aprendida. ByKind = a regra do original para o Kind (ver EJRPGArtUnlock). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art|Unlock")
+	EJRPGArtUnlock Unlock = EJRPGArtUnlock::ByKind;
+
+	/**
+	 * A escala de velocidade do jogo quando esta Art é um passo de um turno (8 / 4 / 2, a do clip
+	 * de golpe = 8). 0 = a regra do original (x4 numa Art, x2 depois do SpecialStarter).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art|Animation")
+	int32 SpeedScale = 0;
+
+#if WITH_EDITOR
+	/** Data Validation: as regras do UJRPGArtsValidator para esta linha (Docs/Guides/ARTS.md). */
+	virtual EDataValidationResult IsDataValid(FDataValidationContext& Context) const override;
+#endif
 };

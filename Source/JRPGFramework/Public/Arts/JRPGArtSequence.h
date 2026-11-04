@@ -55,7 +55,8 @@ struct JRPGFRAMEWORK_API FJRPGArtStep
  *  - Hyper: sem golpes, só o SpecialStarter e a Art (a Sequence dela).
  *  - Super e Miracle: a Sequence delas é o turno inteiro (as Arts, os conectores, o finalizador).
  *  - Velocidade (FUN_8004AD80, ctx +0x243): golpes e ArtStarter na escala 8; cada Art 4; o
- *    SpecialStarter liga o modo especial e as Arts depois dele vão a 2.
+ *    SpecialStarter liga o modo especial e as Arts depois dele vão a 2. O SpeedScale da linha do
+ *    passo, quando não é 0, troca a regra naquele passo.
  *  - Chain Cut: com outro passo depois, o clip termina no UJRPGAnimNotify_ChainCut dele.
  *
  * Os clips básicos do herói (SwingL..U, ArtStarter, SpecialStarter) são AS_<Herói>_Battle_<Nome>,
