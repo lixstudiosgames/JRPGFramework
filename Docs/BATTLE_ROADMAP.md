@@ -1069,22 +1069,30 @@ it into the turn's queue (`UJRPGArtSequenceLibrary`). Before Phase 5, the Art te
 same path without a fight: a gauge of its own, commit, recognition, queue.
 
 When AP moves, which the inversion makes a real decision (the original paid AP per Art at
-recognition time, `+0x170`). **Proposed, to confirm with the user** (open question 6):
+recognition time, `+0x170`). **Decided 2026-11-04** (open question 6):
+
+- **Regular Arts entered on their own before a special pay for it.** AP built by the loose
+  regular Arts earlier in the chain counts toward a Hyper, Super or Miracle that comes after
+  them in the same chain.
+- **The regular Arts that make up a Super do not.** They are the Super, not Arts before it: they
+  neither pay for it nor credit AP. A Super that costs 60 needs 60 from the AP the hero had at
+  the start of the turn plus the loose regular Arts entered before it.
 
 | Moment | What happens |
 |---|---|
-| **Commit** (the chain is recognized) | Each special (Hyper / Super / Miracle) is **checked** against the AP the hero has at commit, plus the `APGain` of the regular Arts that come before it in the same chain. One that does not fit is downgraded to its buttons (plain swings / the regular Arts inside it). Nothing is debited yet |
-| **Each Art, when its action reaches it** | A regular Art **credits** `APGain` when its first hit resolves (an Art cut short by the enemy's death still credits); a special **debits** `APCost` when it starts |
+| **Commit** (the chain is recognized) | Each special (Hyper / Super / Miracle) is **checked** against the AP the hero has at commit, plus the `APGain` of the loose regular Arts that come before it in the same chain — never the Arts inside a Super. One that does not fit is downgraded to its buttons (plain swings / the regular Arts inside it, which are then loose Arts and credit as usual). Nothing is debited yet |
+| **Each Art, when its action reaches it** | A loose regular Art **credits** `APGain` when its first hit resolves (an Art cut short by the enemy's death still credits); a special **debits** `APCost` when it starts; the Arts inside a Super credit nothing |
 | **The action is cancelled** (the hero dies, the fight ends) | What was not reached is neither credited nor debited |
 
-So AP gained early in a chain **can** pay for a special at its end — that is the point of the
-inversion (build, then burn), and it is what makes "Commit" check against the running total.
-Whether to keep it is open question 6; if not, the check at commit uses the AP the hero has.
+Example: Vahn has 50 AP and Tri-Somersault costs 60. `↑↓↑↑↑↓↑` alone: Somersault, Cyclone and
+Somersault are the Super's own Arts, so they add nothing, 50 < 60, and it is downgraded to the
+three Arts (which then credit as loose Arts). A loose regular Art worth 12 entered before the same
+input: 50 + 12 = 62 ≥ 60, and the Super fires.
 
 Hyper / Super / Miracle appear **unavailable** (greyed out) when AP does not cover
 `APCost` — the feedback has to be visible before the player builds the sequence. With the
-running total, the list updates as the chain is typed (a special lights up once the regular
-Arts before it pay for it).
+running total, the list updates as the chain is typed (a special lights up once the loose
+regular Arts before it pay for it).
 
 **Acceptance, in Phase 6** (Art tester + automation tests, no fight): enter `Arms, Ra-Seru,
 High` as Vahn → "Hyper Elbow" is recognized and the right animation plays; Noa's mirrored input
@@ -1094,7 +1102,8 @@ teach nothing, and `LearnArt` (the book / NPC path) teaches it, with `HasLearned
 true; Tri-Somersault entered while Cyclone is unknown learns Cyclone and plays the three Arts
 without the Super, and the same input on the next turn fires the Super; each Super's `Command` matches
 the one recomputed from its `Sequence`; the AP check at commit downgrades a special that does not
-fit and lets one paid by the regular Arts before it through (if open question 6 keeps that).
+fit and lets one paid by the loose regular Arts before it through, and never counts the Arts
+inside a Super toward it (the Tri-Somersault example above, both ways).
 
 **Acceptance, closed in Phase 5** (in a fight): damage uses the Art's power per hit and AP
 **rises**; fill AP and fire a Super Art → AP **drops** and damage is much larger; with
@@ -1358,9 +1367,10 @@ network-related.
    how the window is telegraphed (a flash, a sound, the clip itself), and whether the party's
    Arts can be parried in PvP. The window comes from the attack clip's hit frame, so the enemy
    clips' hit notifies have to be right. Its phase is not set yet (6 or 7).
-6. **AP in a chain** (Phase 6 › The input window, proposed): can AP gained by the regular Arts
-   early in a chain pay for a special at its end (the proposal says yes); when exactly a regular
-   Art credits (its first hit, its end) and a special debits (its start).
+6. ~~AP in a chain~~ — settled 2026-11-04: loose regular Arts entered before a Hyper / Super pay
+   for it; the regular Arts inside a Super neither pay for it nor credit (Phase 6 › The input
+   window). Credit at a regular Art's first hit and debit at a special's start stay as written;
+   tune them in play if needed.
 7. ~~Learning Arts by performing them~~ — settled 2026-11-04, the original's rules: Regulars on
    use (and they play as the Art), Hypers only taught (books, NPCs, triggers), a Super only over
    Arts known before the turn, Miracle by the Ra-Seru; `HasLearnedArt` for dialogue
@@ -1376,8 +1386,7 @@ network-related.
 **Phase 6 (next):** `UArtsSubsystem` — `ButtonForPad` (Noa mirrored), recognition with the
 original's overlap, learn-on-use and the learned list in the save, the AP check at commit — as
 pure functions with automation tests, then the input window and the chain in the Art tester.
-Open question 6 (AP in a chain) is to settle with the user at the start; how each kind of Art
-is unlocked is settled.
+How each kind of Art is unlocked and how AP moves in a chain are settled (open questions 6 and 7).
 
 **Phase 5 (after 6), door open** ([decided 2026-11-04](#pvp-online-and-co-op--door-open-decided-2026-11-04)):
 first the contracts (5.0 — the round, the logic timeline and its fallback, items,
