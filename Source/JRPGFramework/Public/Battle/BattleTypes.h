@@ -4,6 +4,7 @@
 #include "Battle/JRPGEncounterTypes.h"
 #include "Engine/DataTable.h"
 #include "Party/CharacterData.h"
+#include "Arts/JRPGArtsRules.h"
 #include "BattleTypes.generated.h"
 
 class USkeletalMesh;
@@ -38,9 +39,204 @@ enum class EJRPGBattleResult : uint8
 	Aborted
 };
 
+/** O que o jogador (ou a IA) manda um combatente fazer na rodada. Só Attack e Arts existem na Fase 5. */
+UENUM(BlueprintType)
+enum class EJRPGBattleCommandKind : uint8
+{
+	None,
+	Attack,
+	Arts,
+	/** Fase 7. */
+	Item,
+	/** Fase 8. */
+	Magic,
+	/** Fase 7. */
+	Escape,
+	/** O Spirit do original, Fase 7. */
+	Guard
+};
+
+/** O que chega durante a execução, carimbado com o quadro lógico. */
+UENUM(BlueprintType)
+enum class EJRPGBattleInputKind : uint8
+{
+	/** O parry planejado (BATTLE_ROADMAP.md › Open questions, 5): a janela e o efeito ainda não existem. */
+	Parry
+};
+
+/** O que a resolução conta; a UI monta o texto a partir daqui. */
+UENUM(BlueprintType)
+enum class EJRPGBattleEventType : uint8
+{
+	/** Value = o número da rodada. */
+	RoundStart,
+	/** Value = o TargetSlot do começo da ação. */
+	ActionStart,
+	/** Value = o dano; SlotIndex bate em TargetSlot. */
+	Damage,
+	/** O golpe errou pela altura (o limb-vs-height do original). */
+	Miss,
+	/** O defensor (TargetSlot) bloqueou o golpe de SlotIndex. */
+	Block,
+	Heal,
+	/** SlotIndex = quem caiu. */
+	Death,
+	/** Value = o AP novo de SlotIndex. */
+	APChanged,
+	/** A ação chegou a uma Art (FJRPGBattleEvent::ArtKey; Value = a entrada da cadeia) e, se ela era nova, a aprendeu. */
+	ArtRecognized,
+	ArtLearned,
+	/** A ação acabou (ou foi descartada: Value = 1). */
+	ActionEnd
+};
+
+/** Bits de FJRPGBattleEvent::Flags (a apresentação escolhe o clip de reação por eles). */
+struct FJRPGBattleEventFlag
+{
+	/** O golpe derruba (a reação pesada, o knockdown do original). */
+	static constexpr int32 Knockdown = 1 << 0;
+	/** O golpe foi baixo (o flinch 2) e não alto (o flinch 1). */
+	static constexpr int32 LowHit = 1 << 1;
+	/** O golpe é de uma Art. */
+	static constexpr int32 ArtHit = 1 << 2;
+};
+
 /**
- * Um combatente da luta. Na Fase 4 é só quem é e onde fica; a Fase 5 põe os stats, o gauge e
- * o estado da ação aqui (Docs/BATTLE_ROADMAP.md, "BattleTypes.h").
+ * As fases de uma ação, só da APRESENTAÇÃO: o AJRPGBattlePawn toca isto em compasso com a timeline
+ * lógica. Mora no pawn, nunca no combatente (as regras não têm fase nem timer).
+ */
+UENUM(BlueprintType)
+enum class EJRPGActionPhase : uint8
+{
+	Idle,
+	Windup,
+	Advance,
+	Strike,
+	Chain,
+	Recovery,
+	Return,
+	Done
+};
+
+/** Onde a rodada está: Commands (todo mundo escolhe) ou Execution (a timeline lógica toca). */
+UENUM(BlueprintType)
+enum class EJRPGBattleStage : uint8
+{
+	None,
+	Commands,
+	Execution,
+	Finished
+};
+
+/** De onde vem o golpe, para a dobra de equipamento (quem bate com o quê) e a regra do bloqueio. */
+UENUM(BlueprintType)
+enum class EJRPGHitSource : uint8
+{
+	/** Golpe de monstro: o ATK dele como está. */
+	Monster,
+	/** Botão Arms: ½ do ATK da arma. */
+	Arms,
+	/** Botão Ra-Seru: ½ do ATK do tier do Ra-Seru. */
+	RaSeru,
+	/** Botão High: ½ do ATK do calçado. */
+	High,
+	/** Botão Low: ½ do ATK do calçado. */
+	Low,
+	/** O starter: nada. */
+	Starter,
+	/** Golpe de uma Art: ½ da soma das cinco peças. */
+	Art
+};
+
+/** Uma condição na luta: o contrato (duração, quando age, o efeito por turno); as condições em si são da Fase 8. */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGBattleCondition
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	FName Name;
+
+	/** Rodadas que faltam; -1 = até ser curada. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 RoundsLeft = -1;
+
+	/** Age no começo do turno de quem a tem (senão, no fim). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bActsAtTurnStart = true;
+
+	/** O dano que ela dá a cada turno de quem a tem (o veneno). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 DamagePerTurn = 0;
+
+	/** Quem a tem perde o turno (o sono). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bSkipsTurn = false;
+
+	/** Continua depois da luta, no registro do herói. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bSurvivesFight = false;
+};
+
+/**
+ * Uma entrada de ação do monstro como as regras a veem (a cópia, no combatente, de uma linha do
+ * DT_EnemyActions): o que a IA enfileira e o que a linha do tempo precisa. Dados do disco, inteiros.
+ */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGBattleActionEntry
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 ActionIndex = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Tag = 0;
+
+	/** Um byte de poder por golpe (o 1º é o do primeiro golpe). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<int32> Power;
+
+	/** Os quadros de golpe do clip, em ordem. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<int32> HitFrames;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 AGLCost = 0;
+
+	/** 0 deixa o próximo golpe do turno começar no meio do clip. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Gate = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Rate = 2;
+
+	/** Os quadros do clip (o tamanho dele). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 FrameCount = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	FName Clip;
+};
+
+/** A janela de uma reação (flinch, block): o beat e o rate da entrada. Beat 0 = sem janela. */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGBattleReactionClip
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Beat = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Rate = 1;
+};
+
+/**
+ * Um combatente da luta. SÓ REGRAS, tudo inteiro: sem fase, sem timer, nada que o pawn mostre (a
+ * fase da ação mora no AJRPGBattlePawn). É uma FOTO tirada no BeginBattle — a resolução nunca lê o
+ * UPartySubsystem, o UStatusSubsystem nem o UInventorySubsystem (BATTLE_ROADMAP.md › 5.0 e
+ * PvP › What the core cannot do).
  */
 USTRUCT(BlueprintType)
 struct JRPGFRAMEWORK_API FJRPGCombatant
@@ -61,12 +257,156 @@ struct JRPGFRAMEWORK_API FJRPGCombatant
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	EJRPGCombatantType Type = EJRPGCombatantType::Character;
 
+	/** A regra pergunta "mesmo time?"; a vitória é "um time inteiro caído". */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Team = 0;
+
+	/** Quem digita os comandos dele; -1 = a IA. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 OwnerPlayer = -1;
+
 	/** O membro da party (DT_Characters) ou a row do DT_Enemies. */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	FName Key;
 
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	int32 Level = 1;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 HP = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 MaxHP = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 MP = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 MaxMP = 0;
+
+	/**
+	 * Herói: o ATK BASE, sem equipamento (o carregador do original não o dobra: a dobra é por golpe).
+	 * Inimigo: o ATK de UJRPGBattleRules::InstallEnemyStats mais a dificuldade.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 ATK = 0;
+
+	/** Herói: UStatusSubsystem::GetEffectiveStat (equipamento e Ra-Seru já dobrados na carga, como o FUN_80053CB8). Inimigo: InstallEnemyStats + dificuldade. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 UDF = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 LDF = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 SPD = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 INT = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 AGL = 0;
+
+	/**
+	 * Herói: o ATK de cada peça, por papel, na ordem de UBattleFormulas::PieceWeapon.. (Weapon, Ra-Seru
+	 * — o tier —, Shoes, Body, Head). Dobrados por golpe (UBattleFormulas::EquipmentFold).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<int32> PieceATK;
+
+	/** Herói: Vahn fogo, Noa vento, Gala trovão, Terra vento (o RaSeruElement). Inimigo: o DT_Enemies. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	EJRPGElement Element = EJRPGElement::None;
+
+	/** Inimigo: o +0x1E do registro (o miss pela altura). Herói: 0. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 TargetClass = 0;
+
+	/** O medidor persistente (as Arts somam, os especiais gastam). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 AP = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 MaxAP = 100;
+
+	/** O pool da AGL: o orçamento da janela de entrada do herói e o da IA do inimigo. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 CommandGauge = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 MaxCommandGauge = 0;
+
+	/** Herói: o custo de cada botão no gauge, indexado por EJRPGArtButton (Arms, Ra-Seru, High, Low): 30 / 42 / 54. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<int32> ButtonCost;
+
+	/** Herói: as Arts que sabe (cresce quando uma Art é aprendida na luta). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<FName> KnownArts;
+
+	/** Herói: tem o Ra-Seru (destrava a Hyper e a Miracle, Fase 6). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bHasRaSeru = true;
+
+	/** Herói: a chance, em %, de uma Regular desconhecida ser aprendida ao ser feita. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 LearnOnUseChance = 100;
+
+	/** Herói: canhoto (a Noa): o Arms é a direita. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bLeftHanded = false;
+
+	/** Tem o clip de block (tag 0x0B): só quem tem rola o bloqueio. Os heróis têm. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bHasBlock = false;
+
+	/** Tem o clip de levantar (a reação de knockdown do original só vale com ele). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bHasGetUp = false;
+
+	/** A janela do flinch leve de golpe alto (tag 2) e baixo (tag 3), do juggle. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	FJRPGBattleReactionClip FlinchHigh;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	FJRPGBattleReactionClip FlinchLow;
+
+	/** A janela do clip de block. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	FJRPGBattleReactionClip BlockClip;
+
+	/** Inimigo: os golpes que a IA sorteia (tag 0x0C..0x1F com custo de AGL), na ordem do arquivo. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<FJRPGBattleActionEntry> Swings;
+
+	/** A chave de iniciativa da rodada; 0 = já agiu (ou caiu). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 InitiativeKey = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 TargetSlot = -1;
+
+	/** Quantos golpes seguidos entraram na janela de reação dele (o juggle do kernel). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 JuggleCounter = 0;
+
+	/** O quadro lógico em que a reação atual acaba (o juggle enquanto o quadro é menor); 0 = parado. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 ReactionUntilFrame = 0;
+
+	/** A reação atual é o block (a janela dele força o próximo bloqueio). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bReactionIsBlock = false;
+
+	/** O Spirit do original (Fase 7). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bGuarding = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bAlive = true;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<FJRPGBattleCondition> Conditions;
 };
 
 /** O pedido de uma luta: quem entra e onde ela acontece. */
@@ -92,6 +432,386 @@ struct JRPGFRAMEWORK_API FJRPGBattleSetup
 	/** Sem arena: para onde a party olha (o yaw de quem encostou até o inimigo). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
 	float FacingYaw = 0.0f;
+
+	/**
+	 * A semente do Rng da luta: mesma semente + mesmos comandos + mesmos inputs = mesmos eventos. 0 =
+	 * o BeginBattle sorteia uma (fora das regras, como o sorteio do encontro) e a guarda aqui, em
+	 * GetBattleSetup(), para a luta poder ser repetida.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	int32 Seed = 0;
+
+	/**
+	 * A flag de luta roteirizada do original (ctx+0x287), que é da formação: os inimigos entram com o perfil
+	 * de stats dos chefes (UJRPGBattleRules::InstallEnemyStats), a luta não pode ser fugida e não rola a
+	 * vantagem de formação. Uma luta de DT_Bosses copia FJRPGBossData::bScriptedFight; encontro aleatório: falso.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	bool bScriptedFight = false;
+
+	/** Luta que não paga nada (_DAT_8007BAC0 no original, as lutas especiais). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	bool bNoRewards = false;
+
+	/**
+	 * A vantagem de formação já sorteada (FUN_80051D84, Fase 7): 0 nenhuma, 1 ataque pelas costas (a party
+	 * perde as chaves de iniciativa da rodada 1), 2 ataque surpresa (os inimigos perdem). A Fase 5 só honra o
+	 * que vier aqui; quem sorteia é a Fase 7, e uma luta roteirizada não sorteia.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	int32 FormationAdvantage = 0;
+};
+
+/** Um comando, um ponto de entrada: conferido contra quem é dono do slot, nunca confiado (regra 22). */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGBattleCommand
+{
+	GENERATED_BODY()
+
+	/** Quem manda (índice do jogador; 0 no jogo local). Tem que ser o OwnerPlayer do slot. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	int32 PlayerIndex = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	int32 Slot = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	EJRPGBattleCommandKind Kind = EJRPGBattleCommandKind::None;
+
+	/** O alvo, por slot (a resolução decide alcance e acerto por slot, nunca por posição). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	int32 TargetSlot = -1;
+
+	/** A cadeia inteira da janela de entrada: um byte por botão (UJRPGArtsRules::EncodeArtBytes). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	TArray<uint8> ArtBytes;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	FName ItemKey;
+};
+
+/** O que chega durante a execução, carimbado com o quadro lógico em que foi apertado. */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGBattleInput
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	int32 PlayerIndex = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	int32 Slot = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	EJRPGBattleInputKind Kind = EJRPGBattleInputKind::Parry;
+
+	/** O golpe que o input responde (o índice em FJRPGActionTimeline::Hits). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	int32 HitIndex = 0;
+
+	/** O quadro lógico em que foi apertado. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	int32 Frame = 0;
+};
+
+/** Um fato da luta, na ordem em que a resolução o produz. A apresentação o mostra quando o clip chega. */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGBattleEvent
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	EJRPGBattleEventType Type = EJRPGBattleEventType::RoundStart;
+
+	/** Quem faz (ou de quem é, na Death / APChanged). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 SlotIndex = -1;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 TargetSlot = -1;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Value = 0;
+
+	/** Qual ação (um contador da luta inteira) e qual golpe dela: o notify sabe qual evento mostrar. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 ActionIndex = -1;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 HitIndex = -1;
+
+	/** O quadro lógico da luta em que aconteceu. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Frame = 0;
+
+	/** Bits de FJRPGBattleEventFlag. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Flags = 0;
+
+	/** Na ArtRecognized / ArtLearned: a key da Art no DT_Arts. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	FName ArtKey;
+};
+
+/** O tipo de passo de uma ação (para a apresentação escolher o clip). */
+UENUM(BlueprintType)
+enum class EJRPGActionStepKind : uint8
+{
+	Swing,
+	ArtStarter,
+	SpecialStarter,
+	Art,
+	/** O golpe de um monstro (a ação ActionIndex do DT_EnemyActions). */
+	EnemySwing
+};
+
+/** Um clip da ação, em quadros lógicos a partir do começo dela. */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGActionStep
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	EJRPGActionStepKind Kind = EJRPGActionStepKind::Swing;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 StartFrame = 0;
+
+	/** Onde o passo acaba: o corte do clip (o Chain Cut), se há outro depois. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 EndFrame = 0;
+
+	/** O clip básico do herói (SwingL..U, ArtStarter, SpecialStarter) ou o clip do monstro. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	FName ClipName;
+
+	/** A Art (row do DT_Arts) do passo; None num golpe solto. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	FName ArtKey;
+
+	/** A escala de velocidade do jogo neste passo (8 normal, 4 numa Art, 2 depois do SpecialStarter). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 GameSpeed = 8;
+
+	/** Monstro: o ActionIndex da entrada. Herói: a entrada da cadeia (FJRPGArtChain::Entries). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 EntryIndex = -1;
+};
+
+/** Um golpe da ação: o quadro em que ele é resolvido e o byte de poder. */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGActionHit
+{
+	GENERATED_BODY()
+
+	/** Quadros lógicos a partir do começo da ação. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Frame = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 PowerByte = 0x18;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	EJRPGHitSource Source = EJRPGHitSource::Arms;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 StepIndex = 0;
+
+	/** A entrada da cadeia a que o golpe pertence (-1 no monstro). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 ChainEntry = -1;
+
+	/** O primeiro golpe da entrada (onde a Art soma o AP). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bFirstOfEntry = false;
+};
+
+/** O que a ação faz fora dos golpes, num quadro: o AP que anda e o aviso de uma Art. */
+UENUM(BlueprintType)
+enum class EJRPGActionMarkKind : uint8
+{
+	/** Value = o AP novo (o plano da cadeia, APBefore -> APAfter). */
+	SetAP,
+	ArtRecognized,
+	ArtLearned
+};
+
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGActionMark
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Frame = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	EJRPGActionMarkKind Kind = EJRPGActionMarkKind::SetAP;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	FName ArtKey;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Value = 0;
+};
+
+/**
+ * FJRPGActionTimeline
+ * Os quadros de uma ação, montados QUANDO ELA COMEÇA, antes de qualquer coisa tocar: o total, o golpe
+ * de cada quadro com o byte de poder, os passos (clips). Sempre de DADOS, nunca de um notify
+ * disparando: o monstro vem da linha do DT_EnemyActions, o herói do tamanho do clip e dos
+ * marcadores lidos como dado, e sem clip valem os padrões por tipo (BATTLE_ROADMAP.md › 5.0 › The
+ * logic timeline). A resolução só vê isto, então os testes alimentam a struct direto, sem asset.
+ *
+ * Quadro lógico = 1/60 s (o vblank do original); o clip de rate R na escala E anda E·R/32 quadros do
+ * clip por quadro lógico (UBattleFormulas::ClipFramesToSteps).
+ */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGActionTimeline
+{
+	GENERATED_BODY()
+
+	/** O número da ação na luta (o ActionIndex dos eventos). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 ActionIndex = -1;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 SlotIndex = -1;
+
+	/** O quadro lógico da luta em que a ação começou. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 StartFrame = 0;
+
+	/** O tempo de chegar ao alvo antes do primeiro passo (a apresentação anda; as regras só esperam). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 LeadFrames = 0;
+
+	/** Do começo da ação até ela acabar, a recuperação incluída. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 TotalFrames = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<FJRPGActionStep> Steps;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<FJRPGActionHit> Hits;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<FJRPGActionMark> Marks;
+
+	/** Algum passo usou os quadros padrão (clip ausente, sem marcador de golpe): foi registrado no log. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bUsedDefaults = false;
+};
+
+/** A ação que está tocando: o comando, a cadeia decidida, a timeline e onde ela está. */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGActiveAction
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bActive = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Slot = -1;
+
+	/** O alvo de agora (muda quando ele cai no meio da ação e há outro). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 TargetSlot = -1;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	FJRPGBattleCommand Command;
+
+	/** Herói em Arts / Attack: a cadeia que os botões deram (FJRPGArtChain), do snapshot e do Rng da luta. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	FJRPGArtChain Chain;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	FJRPGActionTimeline Timeline;
+
+	/** Quadros desde o começo da ação. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Elapsed = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 NextHit = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 NextMark = 0;
+
+	/** O dano acumulado em cada slot por esta ação (a regra do knockdown do original). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<int32> ComboDamage;
+};
+
+/**
+ * FJRPGBattleState
+ * A luta inteira numa struct: mesma semente + mesmos comandos + mesmos inputs = mesma lista de eventos. O
+ * Rng é só das regras (aleatoriedade cosmética usa outro stream).
+ */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGBattleState
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<FJRPGCombatant> Combatants;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	FRandomStream Rng;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Round = 0;
+
+	/** Quem agiu nesta rodada, na ordem dos sorteios da iniciativa. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<int32> TurnOrder;
+
+	/** O contador da timeline lógica (1/60 s), da luta inteira. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Frame = 0;
+
+	/** As recompensas já foram pagas (o EndBattle confere; uma segunda chamada não paga nada). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bRewardsPaid = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	EJRPGBattleStage Stage = EJRPGBattleStage::None;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Seed = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bScriptedFight = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 FormationAdvantage = 0;
+
+	/** O próximo ActionIndex dos eventos. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 NextActionIndex = 0;
+
+	/** O comando de cada slot nesta rodada (Kind None = ainda não entrou). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<FJRPGBattleCommand> Commands;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	FJRPGActiveAction Action;
+
+	/** Os inputs aceitos durante a execução (o parry), carimbados. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<FJRPGBattleInput> Inputs;
+
+	/** Quem está agindo (Execution) ou digitando (Commands); -1 entre uma e outra. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 ActiveSlot = -1;
+
+	/** A luta acabou (a resolução decidiu: um time inteiro caído); o BattleSubsystem chama o EndBattle. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bFinished = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	EJRPGBattleResult Result = EJRPGBattleResult::Aborted;
 };
 
 /**
