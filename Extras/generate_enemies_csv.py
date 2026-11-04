@@ -146,6 +146,7 @@ def main():
         else:
             unique[sig] = r
     disc = list(unique.values())
+    rec_by_id = {r["id"]: r for r in recs}
     by_name = collections.defaultdict(list)
     for r in disc:
         by_name[norm(r["name"])].append(r)
@@ -174,6 +175,15 @@ def main():
                     "%s: ids %s" % (name, [c["id"] for c in cands]))
         else:
             report["sem registro no disco"].append(name)
+        if not rec:
+            # Um MonsterArchiveID posto à mão no CSV é o registro desta linha: os números saem dele
+            # (crus), não do TOML — senão o EXP x3/4 do TOML seria cortado de novo pelas regras USA.
+            old = old_rows.get(row_key(name))
+            manual = str(old.get("MonsterArchiveID", "")) if old else ""
+            if manual.lstrip("-").isdigit() and int(manual) in rec_by_id:
+                rec = rec_by_id[int(manual)]
+                report["MonsterArchiveID posto à mão: registro cru aplicado"].append(
+                    "%s -> id %d" % (name, rec["id"]))
 
         row = {
             "---": row_key(name), "Key": row_key(name), "DisplayName": base_name(name),

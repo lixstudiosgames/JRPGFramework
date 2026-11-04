@@ -672,7 +672,8 @@ formation check goes with the Seru members to Phase 8.
 
 ## Phase 5 — Basic combat
 
-**Goal:** a fight that works end to end with plain attacks. No Arts, no magic.
+**Goal:** a fight that works end to end — plain attacks, and the Arts Phase 6 left ready (the
+input window inside a turn, damage per hit with each Art's power, AP on the combatant). No magic.
 
 > **Written with the door open to PvP / online / co-op (decided 2026-11-04).** It has to work
 > locally (single player, and local co-op stays possible) and leave the base ready for PvP
@@ -1055,9 +1056,10 @@ consuming longest-match:
   `LearnArt` / `TeachArtToCharacter` (books, NPCs, triggers) add to the same list.
 - A button that starts no Art is a plain swing (the connector).
 
-Validation for the generator: recompute each Super's whole input from its `Sequence` with the
-overlap rule and compare it with its `Command` (the RE derives it the same way,
-`derive_super_input`).
+Validation for the generator: tokenize each Super's `Command` with the overlap rule and compare
+the Arts it gives with the original's chain (RE `docs/formats/art-data.md` › "Super Arts", the
+find patterns of `crates/art/src/super_art.rs`; the RE derives the input the same way,
+`derive_super_input`). Not from `Sequence`: it drops the last Art for the finisher.
 
 ### The input window
 
@@ -1116,9 +1118,14 @@ create. What Phase 6 adds so that stays true once the Arts are *played*, not onl
   rows like any other (their `Command` is the derived input, checked by the generator). A Super's
   command takes precedence over the regular Arts inside its span, and the span's Arts are "inside
   the Super" for AP.
-- **A Super's own Arts are its `Sequence`'s Art keys** (the steps that are another Regular /
-  Hyper of the hero). They are what "every Art known before the turn" checks; the `Part`s and
-  basic clips are not. A Super made of one Regular repeated needs that Regular known.
+- **A Super's own Arts are what its `Command` tokenizes to** — the hero's Regular / Hyper Arts
+  that the overlap rule finds in the Super's buttons (Power Slash's seven buttons: Charging
+  Scorch, Somersault, Slash Kick). **Not** its `Sequence`: that is what *plays*, and the
+  original's replacement drops the last Art for the finisher (Power Slash's `Sequence` has no
+  Slash Kick; Super Javelin's has only Rushing Gale). The tokenized Arts are what "every Art
+  known before the turn" checks and what adds no AP while the Super fires. A Super made of one
+  Regular repeated, with its own `Command`, needs the Arts that command contains; one whose
+  command contains no Art has no prerequisite (the validator warns — give it `Unlock = Taught`).
 - **`Unlock` column** (new, `EJRPGArtUnlock`): `ByKind` (the default: Regular on use, Hyper
   taught, Super by its chain, Miracle by the Ra-Seru — [the table above](#how-each-kind-of-art-is-unlocked-decided-2026-11-04)),
   `OnUse`, `Taught`, `ChainKnown`, `RaSeru`. A new Super that should come from an NPC, or a new
@@ -1137,9 +1144,9 @@ create. What Phase 6 adds so that stays true once the Arts are *played*, not onl
   wins; a `Sequence` step that is missing, belongs to another hero or loops back to the row; a
   `Part` with a `Command`; a special without `APCost` or a Regular with one; `HitPower` and
   `HitTarget` of different lengths; an `Anim` not on the hero's battle skeleton; a clip whose hit
-  notifies do not match `HitPower`; a Super whose `Command` does not contain its own Arts'
-  commands (a `ChainKnown` Super the player could fire without knowing them). Errors stop the
-  test; warnings are listed.
+  notifies do not match `HitPower`; a `ChainKnown` Super whose `Command` tokenizes to no Art (the
+  player could fire it knowing nothing); a disc Super whose tokenized Arts differ from the
+  original's chain. Errors stop the test; warnings are listed.
 - **Recognition preview in the Art tester**: an `Input` field (buttons, as typed) shows what the
   rules recognize — the Arts, the Super, what is inside it, the running AP at each step and the downgrades —
   and plays it. A new Art is made in LegaiaStudio / the CSV and tried there without a fight.
@@ -1153,8 +1160,9 @@ gives her Arts; the overlap case (Tri-Somersault from its seven buttons) recogni
 it; an unknown Regular is learned once and survives a save / load; an unknown Hyper's buttons
 teach nothing, and `LearnArt` (the book / NPC path) teaches it, with `HasLearnedArt` flipping to
 true; Tri-Somersault entered while Cyclone is unknown learns Cyclone and plays the three Arts
-without the Super, and the same input on the next turn fires the Super; each Super's `Command` matches
-the one recomputed from its `Sequence`; the AP check at commit gives exactly the four examples
+without the Super, and the same input on the next turn fires the Super; Power Slash does not
+fire while Slash Kick (its last Art, absent from its `Sequence`) is unknown; each Super's
+`Command` tokenizes to the original's chain; the AP check at commit gives exactly the four examples
 above (a loose Art in front pays for the Super, one behind does not, the Tornado Flame case); a new Super added as one CSV row (Power Punch + two more Power Punches, its own
 `Command`) is recognized, plays in the tester and passes the validator, with no code change; the
 validator flags a duplicated `Command` and a `Sequence` step that does not exist.
