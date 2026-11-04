@@ -397,6 +397,14 @@ void UJRPGBattleSceneSubsystem::HandleBattleEvent(const FJRPGBattleEvent& Event)
 			}
 		}
 		break;
+	case EJRPGBattleEventType::ActionEnd:
+		// O fim da ação, inclusive a cortada (o último inimigo caiu no meio da combo): a cópia que o pawn tem pode ser mais
+		// longa que a que valeu, então ele fecha agora em vez de esperar o TotalFrames dela
+		if (AJRPGBattlePawn* Actor = PawnOf(Event.SlotIndex))
+		{
+			Actor->EndAction();
+		}
+		break;
 	case EJRPGBattleEventType::Damage:
 		if (AJRPGBattlePawn* Target = PawnOf(Event.TargetSlot))
 		{
@@ -463,10 +471,21 @@ void UJRPGBattleSceneSubsystem::HandleLogicFrame(int32 Frame)
 	{
 		return;
 	}
+	const UBattleSubsystem* Battle = GetBattleSubsystem(GetWorld());
 	for (AJRPGBattlePawn* Pawn : Current->GetBattlePawns())
 	{
 		if (IsValid(Pawn))
 		{
+			// A ação pode ter sido cortada depois do ActionStart (o último inimigo caiu no meio da combo): relê a timeline
+			// que valeu, para nenhum passo depois do corte tocar
+			const int32 ActionIndex = Pawn->GetActiveActionIndex();
+			if (Battle && ActionIndex != INDEX_NONE)
+			{
+				if (const FJRPGActionTimeline* Live = Battle->FindTimeline(ActionIndex))
+				{
+					Pawn->SyncActionTimeline(*Live);
+				}
+			}
 			Pawn->UpdatePlayback(Frame);
 		}
 	}
@@ -490,9 +509,21 @@ void UJRPGBattleSceneSubsystem::EnterBattleScene()
 	AJRPGBattleArena* Current = Arena.Get();
 	OnSceneAssembled.Broadcast(Current, Current ? Current->GetBattlePawns() : TArray<AJRPGBattlePawn*>());
 
-	// A cena está de pé: o relógio da luta pode andar
 	if (UBattleSubsystem* Battle = GetBattleSubsystem(GetWorld()))
 	{
+		// Uma ação que já começou com a cena de fora (só IA, ou um comando de antes) perdeu o ActionStart: começa nela agora
+		if (const FJRPGActionTimeline* Active = Battle->GetActiveTimeline())
+		{
+			const FJRPGActiveAction& Running = Battle->GetState().Action;
+			if (Current)
+			{
+				if (AJRPGBattlePawn* Actor = Current->GetPawnForSlot(Active->SlotIndex))
+				{
+					Actor->BeginAction(*Active, Current->GetPawnForSlot(Running.TargetSlot));
+				}
+			}
+		}
+		// A cena está de pé: o relógio da luta pode andar
 		Battle->HoldLogic(false);
 	}
 }

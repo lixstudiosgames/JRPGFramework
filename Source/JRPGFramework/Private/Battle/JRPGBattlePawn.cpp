@@ -451,18 +451,43 @@ void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 
 	if (Elapsed >= Action.TotalFrames)
 	{
-		// A ação acabou: fica onde está (sem voltar ao lugar) e volta ao idle
-		bActionActive = false;
-		SetPhase(EJRPGActionPhase::Done);
-		if (!bDown)
-		{
-			PlayIdle();
-		}
-		SetPhase(EJRPGActionPhase::Idle);
+		FinishAction();
 	}
 	else if (PlayedStep >= 0 && PlayedStep == Action.Steps.Num() - 1 && Elapsed >= Action.Steps[PlayedStep].EndFrame)
 	{
 		SetPhase(EJRPGActionPhase::Recovery);
+	}
+}
+
+void AJRPGBattlePawn::FinishAction()
+{
+	// A ação acabou: fica onde está (sem voltar ao lugar) e volta ao idle
+	bActionActive = false;
+	SetPhase(EJRPGActionPhase::Done);
+	if (!bDown)
+	{
+		PlayIdle();
+	}
+	SetPhase(EJRPGActionPhase::Idle);
+}
+
+void AJRPGBattlePawn::SyncActionTimeline(const FJRPGActionTimeline& Current)
+{
+	if (!bActionActive || Current.ActionIndex != Action.ActionIndex
+		|| (Current.TotalFrames == Action.TotalFrames && Current.Steps.Num() == Action.Steps.Num()))
+	{
+		return;
+	}
+	// A cópia do ActionStart ficou velha: o resolvedor cortou o resto (nenhum passo novo começa depois do corte)
+	Action = Current;
+	PlayedStep = FMath::Min(PlayedStep, Action.Steps.Num() - 1);
+}
+
+void AJRPGBattlePawn::EndAction()
+{
+	if (bActionActive)
+	{
+		FinishAction();
 	}
 }
 

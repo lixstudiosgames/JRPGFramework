@@ -98,6 +98,18 @@ public:
 	/** O quadro lógico atual da luta: anda a aproximação, entra no passo que começou, fecha a ação. */
 	void UpdatePlayback(int32 LogicFrame);
 
+	/** O ActionIndex da ação em curso; -1 se não há. */
+	int32 GetActiveActionIndex() const { return bActionActive ? Action.ActionIndex : INDEX_NONE; }
+
+	/**
+	 * A luta cortou a ação em curso (o último inimigo caiu no meio da combo): adota a linha do tempo nova, sem os
+	 * passos que não valem mais. Não faz nada se a ação em curso não é a desta timeline ou se nada mudou.
+	 */
+	void SyncActionTimeline(const FJRPGActionTimeline& Current);
+
+	/** A ação acabou (o evento ActionEnd): fecha o que estiver em curso e volta ao idle, sem esperar o TotalFrames da cópia. */
+	void EndAction();
+
 	/**
 	 * Mostra um evento que as regras já resolveram. bAsTarget: este pawn é quem sofre (Damage, Miss, Block) ou quem
 	 * caiu (Death); senão é quem age (APChanged, ArtRecognized, ArtLearned). Toca a reação e solta o Text em cima da cabeça.
@@ -182,6 +194,9 @@ private:
 	bool bActionActive = false;
 	int32 PlayedStep = -1;
 	int32 StrikesPlayed = 0;
+	/** Fecha a ação em curso (a ação acabou ou foi cortada): fica onde está e volta ao idle. */
+	void FinishAction();
+
 	FVector ApproachFrom = FVector::ZeroVector;
 	FVector ApproachTo = FVector::ZeroVector;
 	bool bDown = false;
