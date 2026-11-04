@@ -149,6 +149,13 @@ public:
 	/** Um quadro lógico. Não faz nada fora da execução (a rodada de comandos espera quem pensa). */
 	void StepFrame();
 
+	/**
+	 * Segura a passagem de Commands para Execution: com todos os comandos entrados a rodada espera aqui (os comandos
+	 * continuam sendo aceitos e guardados) até soltar. Quem solta dá o primeiro passo da execução, no mesmo chamado.
+	 * É tempo de apresentação (a cena ainda está entrando), não regra: nenhum quadro anda em Commands de qualquer modo.
+	 */
+	void SetHoldExecution(bool bHold);
+
 	/** Encerra a luta de fora (EndBattle chamado antes da hora): congela o estado e não produz mais eventos. */
 	void Halt();
 
@@ -233,6 +240,13 @@ private:
 	/** As timelines de todas as ações da luta, pelo ActionIndex (o índice é o contador, sem buracos). */
 	TArray<FJRPGActionTimeline> Timelines;
 	TSet<FString> LoggedFallbacks;
+	/** Rodadas seguidas sem ação por FALTA DE PLANO (dado que falta); uma rodada ocupada por condição não conta. */
 	int32 EmptyRounds = 0;
+	/** Rodadas seguidas sem ação porque o turno de quem estava vivo se perdeu por condição (sono, atordoamento...). */
+	int32 ConditionRounds = 0;
 	bool bActionStartedThisRound = false;
+	/** Segura Commands -> Execution (SetHoldExecution). */
+	bool bHoldExecution = false;
+	/** Alguém vivo perdeu o turno por uma condição nesta rodada (então a rodada vazia não é falta de dado). */
+	bool bTurnLostToConditionThisRound = false;
 };

@@ -16,6 +16,7 @@
 #include "Animation/AnimSequence.h"
 #include "Engine/DataTable.h"
 #include "Engine/GameInstance.h"
+#include "Engine/World.h"
 #include "HAL/PlatformTime.h"
 
 namespace
@@ -23,11 +24,23 @@ namespace
 	/** O custo de um botão no gauge quando nenhuma tabela diz outro (o 0x1E do original). */
 	constexpr int32 DefaultButtonCost = UJRPGArtsRules::DefaultButtonCost;
 
-	/** Tempo de um clip da party em quadros lógicos, na escala do passo (o clip é tocado a GameSpeed / 4 vezes o RateScale dele). */
-	int32 SecondsToSteps(double Seconds, int32 GameSpeed)
+	/**
+	 * Tempo de um clip da party em quadros lógicos, na escala do passo (o clip é tocado a GameSpeed / 4 vezes o RateScale
+	 * dele). O tempo do asset (float) vira o índice de quadro do clip UMA vez (a taxa de amostragem do próprio asset,
+	 * arredondando ao quadro mais próximo); dali em diante é só inteiro, como UBattleFormulas::ClipFramesToSteps:
+	 * ceil(quadros * 60 * 4 / (taxa * escala)). É leitura de dado do asset, não um notify disparando a lógica.
+	 */
+	int32 SecondsToSteps(double Seconds, const FFrameRate& ClipRate, int32 GameSpeed)
 	{
-		const double Speed = GameSpeed > 0 ? GameSpeed : UBattleFormulas::NormalGameSpeed;
-		return FMath::CeilToInt(Seconds * UBattleFormulas::StepsPerSecond * 4.0 / Speed);
+		const int64 Speed = GameSpeed > 0 ? GameSpeed : UBattleFormulas::NormalGameSpeed;
+		const int64 ClipFrames = ClipRate.AsFrameTime(Seconds).RoundToFrame().Value;
+		if (ClipFrames <= 0 || ClipRate.Numerator <= 0 || ClipRate.Denominator <= 0)
+		{
+			return 0;
+		}
+		const int64 Divisor = static_cast<int64>(ClipRate.Numerator) * Speed;
+		const int64 Steps = (ClipFrames * UBattleFormulas::StepsPerSecond * 4 * ClipRate.Denominator + Divisor - 1) / Divisor;
+		return static_cast<int32>(FMath::Min<int64>(Steps, MAX_int32));
 	}
 }
 
@@ -143,6 +156,7 @@ FJRPGCombatant UBattleSubsystem::MakeEnemyCombatant(const FJRPGEnemyData& Row, c
 			C.bHasBlock = true;
 			C.BlockClip.Beat = FirstBeat;
 			C.BlockClip.Rate = FMath::Max(Action->Rate, 1);
+			C.BlockClip.FrameCount = Action->FrameCount;
 			break;
 		case 5:
 			C.bHasGetUp = true;
@@ -150,10 +164,12 @@ FJRPGCombatant UBattleSubsystem::MakeEnemyCombatant(const FJRPGEnemyData& Row, c
 		case 2:
 			C.FlinchHigh.Beat = FirstBeat;
 			C.FlinchHigh.Rate = FMath::Max(Action->Rate, 1);
+			C.FlinchHigh.FrameCount = Action->FrameCount;
 			break;
 		case 3:
 			C.FlinchLow.Beat = FirstBeat;
 			C.FlinchLow.Rate = FMath::Max(Action->Rate, 1);
+			C.FlinchLow.FrameCount = Action->FrameCount;
 			break;
 		default:
 			break;
@@ -429,6 +445,9 @@ bool UBattleSubsystem::BeginBattle(const FJRPGBattleSetup& Setup)
 		UE_LOG(LogTemp, Warning, TEXT("BattleSubsystem: DT_Arts não encontrada — toda entrada de Arts vira golpe simples"));
 	}
 	Resolver.ArtsTable = ArtsTable;
+	// PvP: TimelineDefaults (editável) e os tempos lidos dos clips abaixo entram nas contas da linha do tempo, então
+	// fazem parte do SETUP DA PARTIDA — hoje cada máquina lê os dela; no PvP têm de viajar com a semente
+	// (Docs/BATTLE_ROADMAP.md, "door open").
 	Resolver.Defaults = TimelineDefaults;
 	Resolver.ClipTiming = [](FName Hero, const FJRPGClipQuery& Query, FJRPGClipTiming& OutTiming) -> bool
 	{
@@ -448,19 +467,20 @@ bool UBattleSubsystem::BeginBattle(const FJRPGBattleSetup& Setup)
 		{
 			return false;
 		}
-		OutTiming.Frames = SecondsToSteps(Clip->GetPlayLength(), Query.GameSpeed);
+		const FFrameRate ClipRate = Clip->GetSamplingFrameRate();
+		OutTiming.Frames = SecondsToSteps(Clip->GetPlayLength(), ClipRate, Query.GameSpeed);
 		const TArray<float> Hits = UJRPGAnimNotify_Hit::FindHitTimes(Clip);
 		if (Hits.Num() == Query.ExpectedHits)
 		{
 			for (const float Time : Hits)
 			{
-				OutTiming.HitFrames.Add(SecondsToSteps(Time, Query.GameSpeed));
+				OutTiming.HitFrames.Add(SecondsToSteps(Time, ClipRate, Query.GameSpeed));
 			}
 		}
 		const float Cut = UJRPGAnimNotify_ChainCut::FindCutTime(Clip);
 		if (Cut >= 0.0f)
 		{
-			OutTiming.CutFrame = SecondsToSteps(Cut, Query.GameSpeed);
+			OutTiming.CutFrame = SecondsToSteps(Cut, ClipRate, Query.GameSpeed);
 		}
 		return true;
 	};
@@ -615,6 +635,8 @@ void UBattleSubsystem::PayRewards()
 	}
 	const int32 PerHero = Party ? Party->AwardBattleXPToParticipants(RawEXP, Participants) : 0;
 
+	// TODO(Fase 7): o Golden Book (o bônus de Gold) entra aqui quando o item e o equipamento dos heróis forem lidos
+	// da luta; até lá o Gold sai sempre sem ele.
 	int32 Gold = UJRPGBattleRules::VictoryGold(Golds, false, Ruleset);
 	if (Core)
 	{
@@ -627,6 +649,21 @@ void UBattleSubsystem::PayRewards()
 // =================================================================================================
 // A luta andando
 // =================================================================================================
+
+void UBattleSubsystem::HoldLogic(bool bHold)
+{
+	bLogicHeld = bHold;
+	if (!bInBattle)
+	{
+		return;
+	}
+	// Soltar pode começar a execução (comandos já entrados durante a espera): os eventos novos saem daqui
+	Resolver.SetHoldExecution(bHold);
+	if (!bHold)
+	{
+		FlushEvents();
+	}
+}
 
 bool UBattleSubsystem::SubmitCommand(const FJRPGBattleCommand& Command)
 {
@@ -659,9 +696,22 @@ bool UBattleSubsystem::SubmitInput(const FJRPGBattleInput& Input)
 	return bAccepted;
 }
 
+UWorld* UBattleSubsystem::GetTickableGameObjectWorld() const
+{
+	// O mundo do jogo: sem ele o subsistema cairia na chamada sem mundo do UGameEngine::Tick, que ignora a pausa
+	const UGameInstance* GI = GetGameInstance();
+	return GI ? GI->GetWorld() : nullptr;
+}
+
 void UBattleSubsystem::Tick(float DeltaTime)
 {
 	if (!bInBattle || bLogicHeld)
+	{
+		return;
+	}
+	// Por segurança (o mundo ainda não existe, a viagem de mapa, a pausa): o relógio da luta não anda
+	const UWorld* World = GetTickableGameObjectWorld();
+	if (!World || World->IsPaused())
 	{
 		return;
 	}

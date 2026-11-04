@@ -1,4 +1,5 @@
 #include "Battle/JRPGEncounterTypes.h"
+#include "Battle/BossFightData.h"
 #include "Core/CoreSubsystem.h"
 #include "Engine/DataTable.h"
 
@@ -99,6 +100,48 @@ bool UJRPGEncounterLibrary::GetEnemyData(FName EnemyKey, FJRPGEnemyData& OutData
 		return true;
 	}
 	return false;
+}
+
+bool UJRPGEncounterLibrary::ResolveScriptedFight(const TArray<FJRPGEncounterCombatant>& Enemies)
+{
+	bool bAnyBoss = false;
+	TArray<FName> Keys;
+	for (const FJRPGEncounterCombatant& Enemy : Enemies)
+	{
+		FJRPGEnemyData Row;
+		bAnyBoss |= GetEnemyData(Enemy.EnemyKey, Row) && Row.bIsBoss;
+		Keys.Add(Enemy.EnemyKey);
+	}
+	if (!bAnyBoss)
+	{
+		return false;
+	}
+	Keys.Sort(FNameLexicalLess());
+
+	if (const UDataTable* Bosses = UCoreSubsystem::ResolveDataTable(TEXT("DT_Bosses")))
+	{
+		const FJRPGBossData* Found = nullptr;
+		Bosses->ForeachRow<FJRPGBossData>(TEXT("ResolveScriptedFight"), [&](const FName&, const FJRPGBossData& Boss)
+		{
+			if (Found || Boss.Enemies.Num() != Keys.Num())
+			{
+				return;
+			}
+			TArray<FName> BossKeys = Boss.Enemies;
+			BossKeys.Sort(FNameLexicalLess());
+			if (BossKeys == Keys)
+			{
+				Found = &Boss;
+			}
+		});
+		if (Found)
+		{
+			return Found->bScriptedFight;
+		}
+	}
+	UE_LOG(LogTemp, Warning, TEXT("UJRPGEncounterLibrary: luta com chefe (%s) sem linha no DT_Bosses — luta roteirizada por padrão"),
+		*FString::JoinBy(Keys, TEXT(", "), [](const FName& Key) { return Key.ToString(); }));
+	return true;
 }
 
 FJRPGEncounterSetup UJRPGEncounterLibrary::MakeSingleEnemyEncounter(FName EnemyKey, int32 LevelMin, int32 LevelMax)

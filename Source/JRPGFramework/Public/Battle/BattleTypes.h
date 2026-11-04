@@ -187,6 +187,7 @@ struct JRPGFRAMEWORK_API FJRPGBattleActionEntry
 {
 	GENERATED_BODY()
 
+	/** A ação do DT_EnemyActions; -1 = o golpe padrão (monstro sem linha de golpe: a apresentação toca o primeiro ataque do conjunto). */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	int32 ActionIndex = 0;
 
@@ -219,7 +220,10 @@ struct JRPGFRAMEWORK_API FJRPGBattleActionEntry
 	FName Clip;
 };
 
-/** A janela de uma reação (flinch, block): o beat e o rate da entrada. Beat 0 = sem janela. */
+/**
+ * A janela de uma reação (flinch, block): o beat e o rate da entrada. Beat 0 = sem janela. FrameCount é o tamanho do
+ * clip em quadros (0 = desconhecido): a janela nunca passa do clip (o disco tem um beat 10 num clip de 7 quadros).
+ */
 USTRUCT(BlueprintType)
 struct JRPGFRAMEWORK_API FJRPGBattleReactionClip
 {
@@ -230,6 +234,9 @@ struct JRPGFRAMEWORK_API FJRPGBattleReactionClip
 
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	int32 Rate = 1;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 FrameCount = 0;
 };
 
 /**

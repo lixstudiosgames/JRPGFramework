@@ -1165,6 +1165,116 @@ bool FJRPGBattleFallbackTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattleBeatBeyondClipTest, "JRPG.Battle.BeatBeyondClip", JRPG_BATTLE_TEST_FLAGS)
+bool FJRPGBattleBeatBeyondClipTest::RunTest(const FString& Parameters)
+{
+	// Um beat além do último quadro do clip nunca dispara no original (koru_05 em 200, rogue_05 em 255): a ação toca o
+	// clip e não causa dano, e o clip NÃO é esticado até o beat
+	FFight Fight;
+	Fight.bLogFallbacks = false;
+	Fight.RandOverride = []() { return 0; };
+	FJRPGCombatant Boss = Foe(1, TEXT("boss"), 1000000, 100, 1000, 28);   // SPD alto: age primeiro; o pool paga um golpe só
+	Boss.Swings[0].HitFrames = { 200 };   // o clip tem 40 quadros
+	Fight.Begin({ Hero(0, TEXT("Vahn"), 100000, 100, 1), Boss }, 1, false, 0);
+	Fight.SubmitCommand(Attack(0, 1));
+	const FJRPGActionTimeline* Active = Fight.GetActiveTimeline();
+	if (!TestNotNull(TEXT("o monstro agiu primeiro"), Active) || !TestEqual(TEXT("e é o dele"), Active->SlotIndex, 1))
+	{
+		return false;
+	}
+	const FJRPGActionTimeline Timeline = *Active;
+	TestEqual(TEXT("nenhum golpe"), Timeline.Hits.Num(), 0);
+	TestEqual(TEXT("o passo dura o clip (40 quadros, rate 2)"), Timeline.Steps.Num() == 1 ? Timeline.Steps[0].EndFrame - Timeline.Steps[0].StartFrame : -1,
+		UBattleFormulas::ClipFramesToSteps(40, UBattleFormulas::NormalGameSpeed, 2));
+	TestFalse(TEXT("não é quadro padrão"), Timeline.bUsedDefaults);
+
+	for (int32 Frames = 0; Frames < 3000 && Fight.GetState().Round == 1; ++Frames)
+	{
+		Fight.StepFrame();
+	}
+	TestEqual(TEXT("o monstro não causou dano"), CountEvents(Fight, EJRPGBattleEventType::Damage, 1), 0);
+	TestEqual(TEXT("a ação do monstro acabou"), CountEvents(Fight, EJRPGBattleEventType::ActionEnd, 1), 1);
+
+	// O beat no último quadro do clip (40) ainda dispara; o golpe padrão (sem linha) não traz índice de ação
+	FFight AtEnd;
+	AtEnd.bLogFallbacks = false;
+	AtEnd.RandOverride = []() { return 0; };
+	FJRPGCombatant Edge = Foe(1, TEXT("edge"), 1000000, 100, 1000, 28);
+	Edge.Swings[0].HitFrames = { 40 };
+	AtEnd.Begin({ Hero(0, TEXT("Vahn"), 100000, 100, 1), Edge }, 1, false, 0);
+	AtEnd.SubmitCommand(Attack(0, 1));
+	for (int32 Frames = 0; Frames < 3000 && AtEnd.GetState().Round == 1; ++Frames)
+	{
+		AtEnd.StepFrame();
+	}
+	TestEqual(TEXT("o beat no último quadro dispara"), CountEvents(AtEnd, EJRPGBattleEventType::Damage, 1), 1);
+
+	FFight NoSwing;
+	NoSwing.bLogFallbacks = false;
+	NoSwing.RandOverride = []() { return 0; };
+	FJRPGCombatant Bare = Foe(1, TEXT("bare"), 1000000, 10, 1000);
+	Bare.Swings.Reset();
+	NoSwing.Begin({ Hero(0, TEXT("Vahn"), 100000, 100, 1), Bare }, 1, false, 0);
+	NoSwing.SubmitCommand(Attack(0, 1));
+	if (const FJRPGActionTimeline* Default = NoSwing.GetActiveTimeline())
+	{
+		TestEqual(TEXT("o golpe padrão não aponta para o clip 0 (Idle)"), Default->Steps.Num() > 0 ? Default->Steps[0].EntryIndex : 0, (int32)INDEX_NONE);
+	}
+	else
+	{
+		AddError(TEXT("o monstro sem golpe agiu primeiro"));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattleReactionClipTest, "JRPG.Battle.ReactionClip", JRPG_BATTLE_TEST_FLAGS)
+bool FJRPGBattleReactionClipTest::RunTest(const FString& Parameters)
+{
+	// cort_juggernaut_02_Damaged: beat 10 num clip de 7 quadros. A janela do juggle não passa do clip (7 quadros a rate 1
+	// = 28 passos), não os 40 do beat cru
+	FFight Fight;
+	Fight.RandOverride = []() { return 0; };
+	FJRPGCombatant Juggernaut = Foe(1, TEXT("juggernaut"), 1000000, 10, 1);
+	Juggernaut.FlinchHigh.Beat = 10;
+	Juggernaut.FlinchHigh.Rate = 1;
+	Juggernaut.FlinchHigh.FrameCount = 7;
+	Juggernaut.FlinchLow = Juggernaut.FlinchHigh;
+	Fight.Begin({ Hero(0, TEXT("Vahn"), 100000, 100, 100), Juggernaut }, 1, false, 0);
+	Fight.SubmitCommand(Attack(0, 1));
+	for (int32 Frames = 0; Frames < 3000 && CountEvents(Fight, EJRPGBattleEventType::Damage, 0) + CountEvents(Fight, EJRPGBattleEventType::Block, 0) == 0
+		&& Fight.GetState().Round == 1; ++Frames)
+	{
+		Fight.StepFrame();
+	}
+	const FJRPGBattleEvent* Hit = FirstEvent(Fight, EJRPGBattleEventType::Damage, 0);
+	if (TestNotNull(TEXT("o herói acertou"), Hit))
+	{
+		TestEqual(TEXT("a janela do flinch é a do clip"), Fight.GetCombatants()[1].ReactionUntilFrame - Hit->Frame, UBattleFormulas::ReactionWindow(7, 8, 1));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattleHoldExecutionTest, "JRPG.Battle.HoldExecution", JRPG_BATTLE_TEST_FLAGS)
+bool FJRPGBattleHoldExecutionTest::RunTest(const FString& Parameters)
+{
+	// Com a execução segurada (a cena ainda entrando) o comando é aceito e guardado, mas a rodada não passa de Commands
+	FFight Fight;
+	Fight.RandOverride = []() { return 0; };
+	Fight.Begin({ Hero(0, TEXT("Vahn"), 100000, 100, 100), Foe(1, TEXT("a"), 1000000, 10, 1) }, 1, false, 0);
+	Fight.SetHoldExecution(true);
+	TestTrue(TEXT("o comando é aceito"), Fight.SubmitCommand(Attack(0, 1)));
+	TestEqual(TEXT("segue em Commands"), (int32)Fight.GetState().Stage, (int32)EJRPGBattleStage::Commands);
+	TestNull(TEXT("nenhuma ação começou"), Fight.GetActiveTimeline());
+	TestEqual(TEXT("nenhum ActionStart"), CountEvents(Fight, EJRPGBattleEventType::ActionStart), 0);
+	TestEqual(TEXT("o comando ficou guardado"), (int32)Fight.GetState().Commands[0].Kind, (int32)EJRPGBattleCommandKind::Attack);
+
+	Fight.SetHoldExecution(false);
+	TestEqual(TEXT("soltou: a execução começou"), (int32)Fight.GetState().Stage, (int32)EJRPGBattleStage::Execution);
+	TestNotNull(TEXT("e a primeira ação está de pé"), Fight.GetActiveTimeline());
+	TestEqual(TEXT("com o ActionStart"), CountEvents(Fight, EJRPGBattleEventType::ActionStart), 1);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattleArtsInFightTest, "JRPG.Battle.ArtsInFight", JRPG_BATTLE_TEST_FLAGS)
 bool FJRPGBattleArtsInFightTest::RunTest(const FString& Parameters)
 {

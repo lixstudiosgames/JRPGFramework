@@ -63,8 +63,13 @@ public:
 	virtual void Deinitialize() override;
 
 	// --- FTickableGameObject: só anda durante a luta; o jogo pausado não anda ---
+	// A pausa só vale para o objeto ligado a um mundo: sem GetTickableGameObjectWorld, o FTickableGameObject cai na
+	// chamada sem mundo do fim do UGameEngine::Tick (TickObjects(nullptr, LEVELTICK_All, bIsPaused = false)), que
+	// ignora a pausa. Com o mundo do jogo, quem tica é o UWorld::Tick, que respeita IsTickableWhenPaused (false aqui).
 	virtual void Tick(float DeltaTime) override;
 	virtual bool IsTickable() const override { return !IsTemplate() && bInBattle && !bLogicHeld; }
+	virtual bool IsTickableWhenPaused() const override { return false; }
+	virtual UWorld* GetTickableGameObjectWorld() const override;
 	virtual TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(UBattleSubsystem, STATGROUP_Tickables); }
 
 	/**
@@ -152,11 +157,12 @@ public:
 	FString DescribeEvent(const FJRPGBattleEvent& Event) const { return Resolver.DescribeEvent(Event); }
 
 	/**
-	 * Segura o relógio da luta (a cena ainda está entrando, com a tela preta): nada anda e os comandos esperam.
-	 * O UJRPGBattleSceneSubsystem segura no OnBattleStarted e solta quando a cena monta.
+	 * Segura o relógio da luta (a cena ainda está entrando, com a tela preta): nenhum quadro anda e a rodada não passa de
+	 * Commands para Execution. Os comandos continuam sendo aceitos e ficam guardados; ao soltar, a execução começa e o
+	 * ActionStart chega à cena já montada. O UJRPGBattleSceneSubsystem segura no OnBattleStarted e solta quando a cena monta.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Battle")
-	void HoldLogic(bool bHold) { bLogicHeld = bHold; }
+	void HoldLogic(bool bHold);
 
 	/**
 	 * O combatente de um inimigo a partir do DT_Enemies, pelas regras da versão (InstallEnemyStats) e a dificuldade

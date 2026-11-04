@@ -9,8 +9,25 @@ namespace
 	/** Quantas vezes sorteia um alvo vivo antes de pegar o primeiro vivo (o laço do original não tem limite). */
 	constexpr int32 MaxTargetDraws = 64;
 
-	/** Rodadas seguidas sem nenhuma ação começar: algo está errado, a luta é encerrada em vez de girar. */
-	constexpr int32 MaxEmptyRounds = 4;
+	/**
+	 * Teto de segurança (o Pump não avança quadros: sem ele, uma luta que nunca monta ação giraria para sempre).
+	 * Só rodadas vazias por FALTA DE PLANO contam (nenhum combatente com ação possível por falta de dado); alto de
+	 * propósito, e o encerramento sai no log com o motivo.
+	 */
+	constexpr int32 MaxEmptyRounds = 64;
+
+	/** O mesmo teto para as rodadas em que só condições (sono, atordoamento...) tiraram os turnos; condição sem prazo pode durar muito. */
+	constexpr int32 MaxConditionRounds = 1024;
+
+	/**
+	 * A janela de uma reação em quadros lógicos, sem passar do clip: o beat do disco pode estar além do último quadro
+	 * dele (cort_juggernaut_02_Damaged: beat 10 num clip de 7 quadros), e o clip acaba antes. FrameCount 0 = desconhecido.
+	 */
+	int32 ReactionFrames(const FJRPGBattleReactionClip& Clip, int32 GameSpeed)
+	{
+		const int32 Beat = Clip.FrameCount > 0 ? FMath::Min(Clip.Beat, Clip.FrameCount) : Clip.Beat;
+		return UBattleFormulas::ReactionWindow(Beat, GameSpeed, Clip.Rate);
+	}
 
 	/** Quadros do padrão (dados na velocidade normal, escala 8) na escala do passo: mais devagar dura mais. */
 	int32 Scaled(int32 Frames, int32 GameSpeed)
@@ -86,7 +103,10 @@ void FJRPGBattleResolver::Begin(const TArray<FJRPGCombatant>& InCombatants, int3
 	Timelines.Reset();
 	LoggedFallbacks.Reset();
 	EmptyRounds = 0;
+	ConditionRounds = 0;
 	bActionStartedThisRound = false;
+	bTurnLostToConditionThisRound = false;
+	bHoldExecution = false;
 
 	State.Combatants = InCombatants;
 	for (int32 i = 0; i < State.Combatants.Num(); ++i)
@@ -113,6 +133,16 @@ void FJRPGBattleResolver::Begin(const TArray<FJRPGCombatant>& InCombatants, int3
 	if (!CheckFinish())
 	{
 		StartRound();
+		Pump();
+	}
+}
+
+void FJRPGBattleResolver::SetHoldExecution(bool bHold)
+{
+	const bool bWasHeld = bHoldExecution;
+	bHoldExecution = bHold;
+	if (bWasHeld && !bHold)
+	{
 		Pump();
 	}
 }
@@ -146,6 +176,7 @@ void FJRPGBattleResolver::StartRound()
 	State.Inputs.Reset();
 	State.ActiveSlot = -1;
 	bActionStartedThisRound = false;
+	bTurnLostToConditionThisRound = false;
 
 	for (int32 i = 0; i < State.Combatants.Num(); ++i)
 	{
@@ -249,6 +280,12 @@ void FJRPGBattleResolver::Pump()
 				State.ActiveSlot = Slot;
 				return;
 			}
+			if (bHoldExecution)
+			{
+				// Todos comandaram, mas a cena ainda não está de pé: a execução começa quando soltarem
+				State.ActiveSlot = -1;
+				return;
+			}
 			BeginExecution();
 			continue;
 		}
@@ -271,17 +308,35 @@ void FJRPGBattleResolver::Pump()
 		// Ninguém mais tem chave: a rodada acaba
 		if (!bActionStartedThisRound)
 		{
-			++EmptyRounds;
-			if (EmptyRounds >= MaxEmptyRounds)
+			if (bTurnLostToConditionThisRound)
 			{
-				UE_LOG(LogTemp, Error, TEXT("BattleResolver: %d rodadas seguidas sem nenhuma ação — a luta foi encerrada"), EmptyRounds);
-				Finish(EJRPGBattleResult::Aborted);
-				return;
+				// Os turnos se perderam por condição (não é falta de dado): a rodada passa e as condições com prazo vencem
+				EmptyRounds = 0;
+				if (++ConditionRounds >= MaxConditionRounds)
+				{
+					UE_LOG(LogTemp, Error, TEXT("BattleResolver: %d rodadas seguidas em que só condições tiraram os turnos (alguma sem prazo?) — a luta foi ABORTADA e nada é escrito no roster"), ConditionRounds);
+					Finish(EJRPGBattleResult::Aborted);
+					return;
+				}
+			}
+			else
+			{
+				// Ninguém montou ação por falta de dado (alvo, cadeia): avisa a cada rodada e só aborta no teto alto
+				++EmptyRounds;
+				UE_LOG(LogTemp, Warning, TEXT("BattleResolver: a rodada %d acabou sem nenhuma ação (%d/%d rodadas seguidas) — nenhum combatente tem plano possível; dado faltando?"),
+					State.Round, EmptyRounds, MaxEmptyRounds);
+				if (EmptyRounds >= MaxEmptyRounds)
+				{
+					UE_LOG(LogTemp, Error, TEXT("BattleResolver: %d rodadas seguidas sem nenhuma ação por falta de plano — a luta foi ABORTADA e nada é escrito no roster"), EmptyRounds);
+					Finish(EJRPGBattleResult::Aborted);
+					return;
+				}
 			}
 		}
 		else
 		{
 			EmptyRounds = 0;
+			ConditionRounds = 0;
 		}
 		EndRound();
 		StartRound();
@@ -455,6 +510,11 @@ void FJRPGBattleResolver::StartAction(int32 Slot)
 	// As condições do começo do turno: o dano por turno e o turno perdido
 	if (!RunConditions(C, true))
 	{
+		// Perdeu o turno por condição (e não morreu): a rodada vazia que vier daí não é falta de dado
+		if (C.bAlive)
+		{
+			bTurnLostToConditionThisRound = true;
+		}
 		CheckFinish();
 		return;
 	}
@@ -494,6 +554,7 @@ void FJRPGBattleResolver::StartAction(int32 Slot)
 	State.ActiveSlot = Slot;
 	bActionStartedThisRound = true;
 	EmptyRounds = 0;
+	ConditionRounds = 0;
 	Emit(EJRPGBattleEventType::ActionStart, Slot, Target, Target);
 
 	// O que cai no quadro 0 (um golpe no primeiro quadro, o aviso da primeira Art)
@@ -961,6 +1022,8 @@ bool FJRPGBattleResolver::PlanMonsterAction(FJRPGCombatant& Monster, int32& OutT
 	if (Monster.Swings.IsEmpty())
 	{
 		FJRPGBattleActionEntry Default;
+		// Sem ação do disco: o pawn toca o primeiro golpe do inimigo (Attacks[0]), não o clip 0 (Idle)
+		Default.ActionIndex = INDEX_NONE;
 		Default.Tag = 0x0D;
 		Default.Power.Add(0x0D);
 		Default.Rate = 2;
@@ -1028,28 +1091,49 @@ void FJRPGBattleResolver::ComposeEnemyTimeline(const FJRPGCombatant& Monster, co
 			return Entry.Power.IsValidIndex(HitIndex) && Entry.Power[HitIndex] != 0 ? Entry.Power[HitIndex] : FirstPower;
 		};
 
+		// Os golpes: o beat B dispara no quadro B - 1 do clip (HitStepForBeat). No original o núcleo só dispara os beats que
+		// o cursor alcança (quadro <= FrameCount - 1), então um beat além do clip NUNCA dispara (o disco tem quatro assim:
+		// koru_05/06 em 200, rogue_05 em 255): é descartado, e o clip NÃO é esticado até ele
 		TArray<int32> HitFrames;
+		int32 BeatsOnDisc = 0;
+		int32 BeatsUnreachable = 0;
 		for (const int32 Beat : Entry.HitFrames)
 		{
-			if (Beat > 0)
+			if (Beat <= 0)
 			{
-				HitFrames.Add(UBattleFormulas::HitStepForBeat(Beat, UBattleFormulas::NormalGameSpeed, Rate));
+				continue;
 			}
+			++BeatsOnDisc;
+			if (Entry.FrameCount > 0 && Beat - 1 >= Entry.FrameCount)
+			{
+				++BeatsUnreachable;
+				continue;
+			}
+			HitFrames.Add(UBattleFormulas::HitStepForBeat(Beat, UBattleFormulas::NormalGameSpeed, Rate));
 		}
-		if (HitFrames.IsEmpty())
+		if (BeatsOnDisc == 0)
 		{
+			// A entrada não traz quadro de golpe nenhum: o golpe padrão
 			HitFrames.Add(Defaults.EnemySwingHitFrame);
+			// O quadro padrão é invenção nossa, não dado do disco: o clip cobre ele (não é o caso do beat do disco além do clip)
+			Frames = FMath::Max(Frames, HitFrames.Last() + 1);
 			Out.bUsedDefaults = true;
 			LogFallback(FString::Printf(TEXT("enemyhit:%s"), *Monster.Key.ToString()),
 				FString::Printf(TEXT("%s: o golpe não traz quadro de golpe: um golpe nos quadros padrão"), *Monster.Key.ToString()));
 		}
-		// Um quadro de golpe no fim do clip ou depois dele (o disco tem quatro assim) estica o clip até ele
-		Frames = FMath::Max(Frames, HitFrames.Last() + 1);
+		else if (HitFrames.IsEmpty())
+		{
+			// Todos os beats estão além do clip: a ação toca o clip e não causa dano (no disco, o dano desses chefes vem de
+			// script / magia — Fase 8). Continua elegível como golpe: o sorteio paga o AGL dela igual
+			LogFallback(FString::Printf(TEXT("enemyunreachable:%s:%d"), *Monster.Key.ToString(), Entry.ActionIndex),
+				FString::Printf(TEXT("%s: a ação %d tem %d quadro(s) de golpe além do clip de %d quadros: o clip toca sem golpe nem dano (o original também)"),
+					*Monster.Key.ToString(), Entry.ActionIndex, BeatsUnreachable, Entry.FrameCount));
+		}
 
 		// Com outro golpe na fila e o gate em 0, o próximo entra no meio do clip (beat + 2 < quadro) e o que ficar
 		// depois do corte se perde, como no original
 		int32 End = Frames;
-		if (j + 1 < Queue.Num() && Entry.Gate == 0 && !Entry.HitFrames.IsEmpty() && Entry.HitFrames[0] > 0)
+		if (j + 1 < Queue.Num() && Entry.Gate == 0 && !HitFrames.IsEmpty() && !Entry.HitFrames.IsEmpty() && Entry.HitFrames[0] > 0)
 		{
 			const int32 Cut = UBattleFormulas::ClipFramesToSteps(Entry.HitFrames[0] + 3, UBattleFormulas::NormalGameSpeed, Rate);
 			if (Cut < Frames)
@@ -1259,7 +1343,7 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 		{
 			Defender.JuggleCounter = 1;
 			Defender.bReactionIsBlock = true;
-			Defender.ReactionUntilFrame = State.Frame + UBattleFormulas::ReactionWindow(Defender.BlockClip.Beat, Speed, Defender.BlockClip.Rate);
+			Defender.ReactionUntilFrame = State.Frame + ReactionFrames(Defender.BlockClip, Speed);
 			Emit(EJRPGBattleEventType::Block, Attacker.SlotIndex, Defender.SlotIndex, 0, HitIndex, Flags);
 			return;
 		}
@@ -1302,7 +1386,7 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 		const FJRPGBattleReactionClip& Primary = bUpper ? Defender.FlinchHigh : Defender.FlinchLow;
 		const FJRPGBattleReactionClip& Other = bUpper ? Defender.FlinchLow : Defender.FlinchHigh;
 		const FJRPGBattleReactionClip& Flinch = Primary.Beat > 0 ? Primary : Other;
-		Defender.ReactionUntilFrame = State.Frame + UBattleFormulas::ReactionWindow(Flinch.Beat, Speed, Flinch.Rate);
+		Defender.ReactionUntilFrame = State.Frame + ReactionFrames(Flinch, Speed);
 	}
 
 	Emit(EJRPGBattleEventType::Damage, Attacker.SlotIndex, Defender.SlotIndex, Damage, HitIndex, Flags);
@@ -1344,6 +1428,17 @@ void FJRPGBattleResolver::CutRestOfAction()
 	Timeline.Hits.SetNum(FMath::Min(Action.NextHit, Timeline.Hits.Num()));
 	Timeline.Marks.SetNum(FMath::Min(Action.NextMark, Timeline.Marks.Num()));
 	Timeline.TotalFrames = FMath::Min(Timeline.TotalFrames, Action.Elapsed + Defaults.KillTailFrames);
+	// Os passos que ainda não começaram saem (a apresentação lê esta cópia e não toca clip nenhum depois do corte); os
+	// golpes que sobraram já foram resolvidos, então só apontam para passos que ficam
+	for (int32 i = Timeline.Steps.Num() - 1; i >= 0 && Timeline.Steps[i].StartFrame > Action.Elapsed; --i)
+	{
+		Timeline.Steps.RemoveAt(i);
+	}
+	if (!Timeline.Steps.IsEmpty())
+	{
+		FJRPGActionStep& Last = Timeline.Steps.Last();
+		Last.EndFrame = FMath::Min(Last.EndFrame, Timeline.TotalFrames);
+	}
 	if (Timelines.IsValidIndex(Timeline.ActionIndex))
 	{
 		Timelines[Timeline.ActionIndex] = Timeline;
