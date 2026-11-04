@@ -62,8 +62,8 @@ API_PLANNED = {
         ("OnBattleArtsCommit", "Phase 7 · WebUI bridge"), ("OnBattleTargetChanged", "Phase 7 · WebUI bridge"),
     ],
     "arts": [
-        ("DirectionByteFor", "Phase 6"), ("RecognizeArtSequence", "Phase 6"),
-        ("GetKnownArts", "Phase 6"), ("CommitArtsChain", "Phase 6"),
+        ("ButtonForPad", "Phase 6"), ("RecognizeArtSequence", "Phase 6"),
+        ("GetKnownArts", "Phase 6"), ("LearnArt", "Phase 6"), ("CommitArtsChain", "Phase 6"),
     ],
 }
 

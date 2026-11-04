@@ -147,7 +147,7 @@ JRPGFramework/
 | Document | What it is |
 |---|---|
 | [`Docs/README.md`](Docs/README.md) | Documentation index |
-| [`Docs/ARCHITECTURE.md`](Docs/ARCHITECTURE.md) | How the plugin fits together, and the 52 rules that must not be broken |
+| [`Docs/ARCHITECTURE.md`](Docs/ARCHITECTURE.md) | How the plugin fits together, and the 53 rules that must not be broken |
 | [`Docs/STRUCTURE.md`](Docs/STRUCTURE.md) | File-by-file tree: what exists, what is a stub, what is planned |
 | [`Docs/BATTLE_ROADMAP.md`](Docs/BATTLE_ROADMAP.md) | The battle system, in 9 phases |
 | [`Docs/Guides/`](Docs/Guides/) | How to use each system (save, inventory, shop, party, status, audio, camera, WebUI…) |

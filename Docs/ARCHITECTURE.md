@@ -250,6 +250,17 @@ Each of these cost a round trip with Gimard. The full walkthrough is
     wraps by itself); as an Unreal clip that is a jump on every loop. The converter appends
     the first frame after the last for Idle/Walk/Move — never for attacks or reactions.
 
+### Version rules
+
+53. **`DT_Enemies` holds the raw disc record; what a version does with it is code.** The
+    record is byte-identical on every disc; the USA executable boosts the stats when a fight
+    loads and pays EXP × 3/4 and halves the Gold twice, the Japanese and European ones do
+    neither. Those rules live in `UJRPGBattleRules`, picked by `EJRPGRuleset`
+    (`UCoreSubsystem::GetRuleset`) — never pre-multiplied into a table, because a number with
+    one version baked in cannot serve the other, nor be turned back into the record exactly
+    (the shifts truncate per enemy). The table held the American scripted-fight numbers until
+    2026-11-04, and `AwardBattleXP` would have cut the EXP by 3/4 a second time.
+
 ---
 
 ## Data
@@ -268,7 +279,7 @@ content across once and remain for reference.
 | `Data/DT_GrowthCurve.csv` | 98 | `FGrowthCurveRow` (extracted from the disc) |
 | `Data/DT_Difficulty.csv` | 3 | `FDifficultyScaling` |
 | `Data/DT_CameraPresets.csv` | 13 | `FCameraPresetRow` (import as `DT_Camera`) |
-| `Data/DT_Enemies.csv` | 179 | `FJRPGEnemyData` (enemies.toml + the disc's monster archive) |
+| `Data/DT_Enemies.csv` | 179 | `FJRPGEnemyData` (the disc's monster archive, raw; names and keys from enemies.toml) |
 
 `Data/_backup/` holds the copies LegaiaStudio makes on every save.
 

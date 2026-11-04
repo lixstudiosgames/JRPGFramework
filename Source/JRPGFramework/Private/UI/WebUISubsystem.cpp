@@ -729,6 +729,8 @@ void UWebUISubsystem::RunDevCommand(const FString& Command)
 			Out += FString::Printf(TEXT("dificuldade %s — inimigo HP x%.2f ATK x%.2f DEF x%.2f | XP x%.2f\n"),
 				*UEnum::GetDisplayValueAsText(Core->GetDifficulty()).ToString(),
 				Scaling.EnemyHP, Scaling.EnemyATK, Scaling.EnemyDEF, Scaling.XPReward);
+			Out += FString::Printf(TEXT("regras da luta %s\n"),
+				*UEnum::GetDisplayValueAsText(Core->GetRuleset()).ToString());
 			// Mostra o CAMINHO resolvido: e assim que se confere se a DataTable
 			// importada e mesmo a que o subsistema pegou.
 			auto Onde = [](const UDataTable* T, const TCHAR* Nome, bool bObrigatoria) -> FString
@@ -796,6 +798,13 @@ void UWebUISubsystem::RunDevCommand(const FString& Command)
 		Out = FString::Printf(TEXT("dificuldade = %s — HP x%.2f ATK x%.2f DEF x%.2f"),
 			*UEnum::GetDisplayValueAsText(Core->GetDifficulty()).ToString(),
 			Scaling.EnemyHP, Scaling.EnemyATK, Scaling.EnemyDEF);
+	}
+	else if (Verb == TEXT("rules.set") && Core)
+	{
+		const int32 Idx = FMath::Clamp(DevArgInt(Args, 0, 0), 0, 1);
+		Core->SetRuleset(static_cast<EJRPGRuleset>(Idx));
+		Out = FString::Printf(TEXT("regras da luta = %s"),
+			*UEnum::GetDisplayValueAsText(Core->GetRuleset()).ToString());
 	}
 	else if (Verb == TEXT("prog.stat") && Core)
 	{
@@ -900,8 +909,9 @@ void UWebUISubsystem::RunDevCommand(const FString& Command)
 	{
 		const int32 Bruto = DevArgInt(Args, 0, 1000);
 		const int32 Cada = Party->AwardBattleXP(Bruto);
-		Out = FString::Printf(TEXT("AwardBattleXP(%d): x3/4 e dividido entre os vivos = %d cada\n"),
-			Bruto, Cada);
+		const bool bUSA = !Core || Core->GetRuleset() == EJRPGRuleset::USA;
+		Out = FString::Printf(TEXT("AwardBattleXP(%d): %s e dividido entre os vivos = %d cada\n"),
+			Bruto, bUSA ? TEXT("x3/4 (USA)") : TEXT("inteiro (Japan)"), Cada);
 		for (const FJRPGPartyMember& M : Party->GetRoster())
 		{
 			Out += FString::Printf(TEXT("  %-7s LV%-3d XP %d\n"),

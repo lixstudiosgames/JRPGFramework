@@ -151,14 +151,15 @@ public:
 	/**
 	 * Distribui o XP de uma batalha, do jeito do original (FUN_8004E568):
 	 *
-	 *     total   = soma do XP dos inimigos × 3/4
-	 *     cada um = total / (quantos estão VIVOS na formação)
+	 *     total   = soma do EXP CRU dos inimigos (o da DT_Enemies), × 3/4 na versão USA
+	 *     cada um = total / (quantos estão VIVOS na formação), arredondando para cima
 	 *
 	 * Ou seja: quem está fora da formação não ganha nada, e quem morreu não
 	 * entra no divisor nem recebe. Sobrando um vivo, ele leva o total inteiro —
 	 * é por isso que jogar sozinho sobe de level bem mais rápido.
 	 *
-	 * O multiplicador de XP da dificuldade é aplicado ao total.
+	 * A versão (UCoreSubsystem::GetRuleset) decide o x3/4 (UJRPGBattleRules::VictoryEXPPool);
+	 * o multiplicador de XP da dificuldade é aplicado ao total depois dela.
 	 * Devolve o XP que cada um recebeu.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Party|XP")

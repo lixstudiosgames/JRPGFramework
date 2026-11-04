@@ -32,12 +32,14 @@ in LegaiaStudio (*Enemies* in the sidebar) and re-import.
 | `bIsBoss` | Bool | 26 bosses |
 | `Element` | `EJRPGElement` | `lightning` and `thunder` in the source are both `Thunder` |
 
-### Battle stats
+### Stats — the raw record
 
-The **in-battle** values — what the player actually fights — not the raw record on the disc.
-The original's loader boosts the record when a fight loads; the table already holds the
-result. Difficulty (`UCoreSubsystem::ScaleEnemyHP/ATK/DEF`) and the encounter's level go on
-top of these.
+The **raw record on the disc**, not what the player fights. The record is byte-identical on
+every disc (USA, Japan, Europe); what changes is the executable, and each version does
+something different with it. The table keeps the one thing they share; the version's rules are
+code — see [Version rules](#version-rules-usa--japan) below. Difficulty
+(`UCoreSubsystem::ScaleEnemyHP/ATK/DEF`) and the encounter's level go on top of what the
+version installs.
 
 | Column | Notes |
 |---|---|
@@ -55,7 +57,7 @@ Same names as `FCharacterData`. (A field named plain `INT` would clash with the 
 
 | Column | Notes |
 |---|---|
-| `EXP`, `Gold` | Already the scaled reward |
+| `EXP`, `Gold` | The raw record. What a fight pays depends on the version (below) |
 | `DropItem` / `DropChance` | Key in `DT_Items` + chance in %. Empty = no drop |
 | `StealItem` / `StealChance` | What the Evil God Icon can take. `StealChance` 0 = the default steal rule |
 | `CaptureSeru` / `CatchRate` | The Seru a killing blow can absorb (`Gimard`) and the chance in %. Empty = not capturable. Magic Boost / Ivory Book add on top |
@@ -67,6 +69,36 @@ Same names as `FCharacterData`. (A field named plain `INT` would clash with the 
 | `MonsterArchiveID` | The monster's slot in the disc's monster archive (PROT 0867, 1–194) — where its mesh and clips are. `asset monster-archive ... --id <this> --glb` exports it. `-1` = none |
 | `Mesh` | Soft `USkeletalMesh` — filled by `Extras/generate_enemy_anims_csv.py` from the monster batch ([PS1_ASSETS.md](PS1_ASSETS.md#all-the-monsters-at-once)) |
 | `Anims` | `FJRPGMonsterAnimSet`: `Idle`, `Walk`, `Flinch1`, `Flinch2`, `Knockdown`, `GetUp`, `Ready`, `Recover`, `Defeat`, `Block` and `Attacks` (array). In the CSV: `(Idle="/Game/...",Walk="/Game/...")`, `()` when empty. Each role is the clip of the disc action with that id (0 Idle, 1 Walk, 2/3 Flinch1/2, 4 Knockdown, 5 GetUp, 7/8/9 Ready/Recover/Defeat, 0x0B Block); `Attacks` are the castable actions (0x0C..0x1F with an AGL cost — the ones the game's AI rolls), in file order |
+
+### Version rules (USA / Japan)
+
+`EJRPGRuleset` (`UCoreSubsystem::GetRuleset` / `SetRuleset`, default `USA`) picks which
+executable's rules a fight follows; `UJRPGBattleRules` (`Public/Battle/JRPGBattleRules.h`) does
+the arithmetic, integer and truncating like the PS1. Source: RE `docs/subsystems/battle.md`
+› "Battle-load stat boost" / "No boost on the PAL executables", and
+`docs/subsystems/battle-formulas.md` › "Victory spoils" / "Regional difference".
+
+| | `USA` (SCUS_942.54) | `Japan` (SCPS_100.59, and the PAL SCES_019.44/45/46) |
+|---|---|---|
+| Stats installed (`InstallEnemyStats`) | Boosted. Scripted fight: ATK ×5/4, UDF/LDF ×2, INT ×9/8. Random encounter: ATK ×1, UDF/LDF ×7/4, INT ×5/4 | The record as is |
+| EXP (`VictoryEXPPool`, `VictoryEXPShare`) | Sum × 3/4, split among the living rounding up | The whole sum, split the same way |
+| Gold (`VictoryGold`) | Σ `gold >> 1`, Golden Book +¼, then halved again | Σ `gold >> 1`, Golden Book +¼ |
+
+HP, MP, AGL and SPD never change. "Scripted" is the original's formation flag, not `bIsBoss`:
+Tetsu's training spar and Lapis are scripted fights that install the random-encounter profile.
+
+Checked against the RE's captures:
+
+| Enemy (raw) | USA | Japan |
+|---|---|---|
+| Gaza (Sim-Seru), scripted — ATK/UDF/LDF/INT `288/222/200/220` | `360/444/400/247` | `288/222/200/220` |
+| Gobu Gobu, random — `17/15/14/10` | `17/25/24/12` | `17/15/14/10` |
+| Gimard — 60 Gold | 15 Gold | 30 Gold |
+| Zeto — 8000 Gold / 9000 EXP, party of three | 2000 Gold + 2250 EXP each | 4000 Gold + 3000 EXP each |
+
+The difficulty's multipliers (`DT_Difficulty`) apply after the version: Normal + `Japan` is the
+Japanese game, Hard + `USA` the American one made harder. In the dev menu, `rules.set 0|1`
+switches it (`info` shows the current one).
 
 ---
 
@@ -81,20 +113,28 @@ Python 3.11+ (it reads the TOML with `tomllib`). Two sources:
 
 | Source | Gives |
 |---|---|
-| `Docs/Data/gamedata/enemies.toml` (from legend-of-legaia-re) | Name, location, element, drop / steal keys, boss flag, the in-battle stats |
-| The monster archive listing (from your disc) | `MonsterArchiveID`, `DropChance`, `CaptureSeru` / `CatchRate`, and the raw stats used to cross-check |
+| `Docs/Data/gamedata/enemies.toml` (from legend-of-legaia-re) | Name, location, element, drop / steal keys, boss flag; its stats are only used to check the join |
+| The monster archive listing (from your disc) | `MonsterArchiveID`, `DropChance`, `CaptureSeru` / `CatchRate`, and the raw record that goes into the table: stats, `EXP`, `Gold` |
 
 The generator joins them **by name** (the disc writes `Gimard $2` where the TOML says
 `Gimard Lv2`). Names with several forms — Songi, Tetsu, Gaza, Cort — are told apart by HP,
-which is identical in both. It then checks every stat of the TOML against the disc record
-converted by the loader's factors (HP, SPD, AGL ×1 · UDF, LDF ×2 · ATK ×5/4 · INT ×9/8 ·
-EXP ×3/4 · Gold ×5/16) and reports anything more than 1 apart. Today: 177/177 matched, no
-stat off.
+which is identical in both. The TOML's numbers are the American scripted-fight view of every
+enemy (the record × HP, SPD, AGL ×1 · UDF, LDF ×2 · ATK ×5/4 · INT ×9/8 · EXP ×3/4 · Gold
+×5/16, the last one with the Golden Book), so the generator converts the disc record the same
+way and reports anything more than 1 apart — that is what proves the join picked the right
+record. Today: 177/177 matched, no stat off. The table then gets the raw record, not the TOML.
+
+Until 2026-11-04 the table held the TOML's numbers. That baked one version's rules into the
+data — and the scripted-fight profile into random encounters, and the Golden Book into every
+Gold — so it could not serve the Japanese rules, and could not be turned back into the record
+exactly (the shifts truncate per enemy).
 
 What the report also tells you:
 
-- **Only on the disc** — Comm (78) and Evil Bat (140) have no TOML entry. Their row is built
-  from the disc with the same factors; `Element` and `Location` are left empty for you.
+- **Only on the disc** — Comm (78) and Evil Bat (140) have no TOML entry. Their row is the
+  disc record; `Element` and `Location` are left empty for you.
+- **No disc record** — a TOML enemy the join cannot find keeps the TOML's numbers, which are
+  *not* raw; it is listed so you can set `MonsterArchiveID` and regenerate. Today: none.
 - **Identical records** — Cort 180 = 183–186 and Evil Bat 140 = 176–178 are byte-identical on
   the disc; the lowest id is used.
 - **Ambiguous / not found** — would be listed for you to resolve; set `MonsterArchiveID` by
@@ -122,7 +162,7 @@ into `/Game/Data/` with it.
 | `Enemies` | `DT_Enemies` rows of who fights, one per combatant (`Vigurox2` = `(viguro,viguro)`) |
 | `HP` / `MP` | The walkthrough's numbers, for checking — the fight uses `DT_Enemies` |
 | `SpecialAttacks` / `SpecialAttackMP` | The named specials and their MP cost, same order; the plain attack is not listed |
-| `EXP` / `Gold` / `RewardItem` | The fight's reward (`RewardItem` is a `DT_Items` key) |
+| `EXP` / `Gold` / `RewardItem` | The walkthrough's reward, for checking: the **American payout**, EXP **per member** (Zeto: 2250 / 2000). The fight pays from `DT_Enemies` through the version rules. `RewardItem` is a `DT_Items` key |
 | `RecommendedLevel` | `"6-7"`, `"27"` |
 | `Tournament` | `Expert` / `Master` for the Muscle Dome fights; empty in the story |
 | `Notes` | Special rules (Koru's four-turn kill, Cort's shield, Jette's clones) |

@@ -28,7 +28,7 @@
 <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line class="hatch" x1="0" y1="0" x2="0" y2="6" stroke-width="1.5" stroke-opacity=".55"/></pattern></defs>
 <rect class="bg" width="900" height="446" rx="6"/>
 <text class="t1" x="16" y="34" font-size="24" font-weight="600">Status</text>
-<text class="t2" x="884" y="34" font-size="12" text-anchor="end">Legend of Legaia Remake · JRPGFramework · dev @ 63cbdb5 · 2026-10-26</text>
+<text class="t2" x="884" y="34" font-size="12" text-anchor="end">Legend of Legaia Remake · JRPGFramework · dev @ f9a4adc · 2026-10-31</text>
 <line class="rule" x1="16" y1="44" x2="884" y2="44" stroke-width="1"/>
 <rect class="badge-k" x="16" y="56" width="72.7" height="22" rx="3"/>
 <rect class="partial" x="85.7" y="56" width="48.8" height="22" rx="3"/>
@@ -45,9 +45,9 @@
 <rect class="ok" x="360.6" y="56" width="4" height="22"/>
 <text class="badge-t" x="332.7" y="71" font-size="12" text-anchor="middle">engine</text>
 <text class="badge-t" x="395.4" y="71" font-size="12" font-weight="600" text-anchor="middle">UE 5.8.1</text>
-<text class="t1" x="16" y="102" font-size="14">Blueprint API*: 273 shipped · 2 stubs · 14 planned</text>
+<text class="t1" x="16" y="102" font-size="14">Blueprint API*: 339 shipped · 2 stubs · 15 planned</text>
 <rect class="panel" x="16" y="112" width="424" height="270"/>
-<text class="t2" x="17.5" y="123.0" font-size="10">Core + progression <tspan class="t2" fill-opacity=".8">(37)</tspan></text>
+<text class="t2" x="17.5" y="123.0" font-size="10">Core + progression <tspan class="t2" fill-opacity=".8">(39)</tspan></text>
 <rect class="ok" x="17.5" y="126.0" width="9.4" height="9.4"><title>AddGold · CoreSubsystem.h</title></rect>
 <rect class="ok" x="27.8" y="126.0" width="9.4" height="9.4"><title>RemoveGold · CoreSubsystem.h</title></rect>
 <rect class="ok" x="38.1" y="126.0" width="9.4" height="9.4"><title>GetGold · CoreSubsystem.h</title></rect>
@@ -85,6 +85,8 @@
 <rect class="ok" x="161.7" y="136.3" width="9.4" height="9.4"><title>ScaleXPReward · CoreSubsystem.h</title></rect>
 <rect class="ok" x="172.0" y="136.3" width="9.4" height="9.4"><title>ScaleGoldReward · CoreSubsystem.h</title></rect>
 <rect class="ok" x="182.3" y="136.3" width="9.4" height="9.4"><title>SetDifficultyTable · CoreSubsystem.h</title></rect>
+<rect class="ok" x="192.6" y="136.3" width="9.4" height="9.4"><title>GetRuleset · CoreSubsystem.h</title></rect>
+<rect class="ok" x="202.9" y="136.3" width="9.4" height="9.4"><title>SetRuleset · CoreSubsystem.h</title></rect>
 <text class="t2" x="17.5" y="160.6" font-size="10">Party <tspan class="t2" fill-opacity=".8">(32)</tspan></text>
 <rect class="ok" x="17.5" y="163.6" width="9.4" height="9.4"><title>RecruitCharacter · PartySubsystem.h</title></rect>
 <rect class="ok" x="27.8" y="163.6" width="9.4" height="9.4"><title>IsRecruited · PartySubsystem.h</title></rect>
@@ -148,95 +150,102 @@
 <rect class="ok" x="79.3" y="211.5" width="9.4" height="9.4"><title>HandleUIStateChanged · CameraSubsystem.h</title></rect>
 <rect class="ok" x="89.6" y="211.5" width="9.4" height="9.4"><title>HandleBeginOverlap · JRPGCameraZone.h</title></rect>
 <rect class="ok" x="99.9" y="211.5" width="9.4" height="9.4"><title>HandleEndOverlap · JRPGCameraZone.h</title></rect>
-<text class="t2" x="17.5" y="235.8" font-size="10">Field character <tspan class="t2" fill-opacity=".8">(38)</tspan></text>
-<rect class="ok" x="17.5" y="238.8" width="9.4" height="9.4"><title>GetRandomFloorPoint · JRPGEncounterZone.h</title></rect>
-<rect class="ok" x="27.8" y="238.8" width="9.4" height="9.4"><title>DistanceOutside · JRPGEncounterZone.h</title></rect>
-<rect class="ok" x="38.1" y="238.8" width="9.4" height="9.4"><title>GetEnemies · JRPGEncounterZone.h</title></rect>
-<rect class="ok" x="48.4" y="238.8" width="9.4" height="9.4"><title>SetBaseCamera · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="58.7" y="238.8" width="9.4" height="9.4"><title>SetBaseControl · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="69.0" y="238.8" width="9.4" height="9.4"><title>GetCurrentCamera · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="79.3" y="238.8" width="9.4" height="9.4"><title>GetActiveCameraZone · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="89.6" y="238.8" width="9.4" height="9.4"><title>GetControlReferenceYaw · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="99.9" y="238.8" width="9.4" height="9.4"><title>SetSprinting · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="110.2" y="238.8" width="9.4" height="9.4"><title>IsSprinting · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="120.5" y="238.8" width="9.4" height="9.4"><title>GetGroundSpeed · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="130.8" y="238.8" width="9.4" height="9.4"><title>IsPartyFollower · JRPGFieldCharacter.h</title></rect>
-<rect class="ok" x="141.1" y="238.8" width="9.4" height="9.4"><title>OnContact · JRPGFieldEnemy.h</title></rect>
-<rect class="ok" x="151.4" y="238.8" width="9.4" height="9.4"><title>TriggerEncounter · JRPGFieldEnemy.h</title></rect>
-<rect class="ok" x="161.7" y="238.8" width="9.4" height="9.4"><title>HideEnemy · JRPGFieldEnemy.h</title></rect>
-<rect class="ok" x="172.0" y="238.8" width="9.4" height="9.4"><title>RespawnAtFloor · JRPGFieldEnemy.h</title></rect>
-<rect class="ok" x="182.3" y="238.8" width="9.4" height="9.4"><title>GetEnemyState · JRPGFieldEnemy.h</title></rect>
-<rect class="ok" x="192.6" y="238.8" width="9.4" height="9.4"><title>GetEncounterSetup · JRPGFieldEnemy.h</title></rect>
-<rect class="ok" x="202.9" y="238.8" width="9.4" height="9.4"><title>GetZone · JRPGFieldEnemy.h</title></rect>
-<rect class="ok" x="213.2" y="238.8" width="9.4" height="9.4"><title>HandleContactOverlap · JRPGFieldEnemy.h</title></rect>
-<rect class="ok" x="17.5" y="249.1" width="9.4" height="9.4"><title>HandleUIStateChanged · JRPGFieldEnemy.h</title></rect>
-<rect class="ok" x="27.8" y="249.1" width="9.4" height="9.4"><title>CycleLeader · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="38.1" y="249.1" width="9.4" height="9.4"><title>SwitchLeader · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="48.4" y="249.1" width="9.4" height="9.4"><title>GetLeader · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="58.7" y="249.1" width="9.4" height="9.4"><title>GetPartyPawn · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="69.0" y="249.1" width="9.4" height="9.4"><title>GetFollowers · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="79.3" y="249.1" width="9.4" height="9.4"><title>SetFollowEnabled · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="89.6" y="249.1" width="9.4" height="9.4"><title>IsFollowEnabled · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="99.9" y="249.1" width="9.4" height="9.4"><title>SnapFollowersToLeader · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="110.2" y="249.1" width="9.4" height="9.4"><title>RefreshParty · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="120.5" y="249.1" width="9.4" height="9.4"><title>HandlePartyChanged · JRPGFieldPartyComponent.h</title></rect>
-<rect class="ok" x="130.8" y="249.1" width="9.4" height="9.4"><title>OpenGameMenu · JRPGFieldPlayerController.h</title></rect>
-<rect class="ok" x="141.1" y="249.1" width="9.4" height="9.4"><title>SetFieldInputEnabled · JRPGFieldPlayerController.h</title></rect>
-<rect class="ok" x="151.4" y="249.1" width="9.4" height="9.4"><title>IsFieldInputEnabled · JRPGFieldPlayerController.h</title></rect>
-<rect class="ok" x="161.7" y="249.1" width="9.4" height="9.4"><title>Interact · JRPGInteractable.h</title></rect>
-<rect class="ok" x="172.0" y="249.1" width="9.4" height="9.4"><title>TryInteract · JRPGInteractionComponent.h</title></rect>
-<rect class="ok" x="182.3" y="249.1" width="9.4" height="9.4"><title>GetCurrentTarget · JRPGInteractionComponent.h</title></rect>
-<rect class="ok" x="192.6" y="249.1" width="9.4" height="9.4"><title>IsInteractable · JRPGInteractionComponent.h</title></rect>
-<text class="t2" x="17.5" y="273.4" font-size="10">WebUI (shell + JS bridge) <tspan class="t2" fill-opacity=".8">(48)</tspan></text>
-<rect class="ok" x="17.5" y="276.4" width="9.4" height="9.4"><title>BindUObject · JRPGWebBrowser.h</title></rect>
-<rect class="ok" x="27.8" y="276.4" width="9.4" height="9.4"><title>SetSupportsTransparency · JRPGWebBrowser.h</title></rect>
-<rect class="ok" x="38.1" y="276.4" width="9.4" height="9.4"><title>LoadURL · JRPGWebBrowser.h</title></rect>
-<rect class="ok" x="48.4" y="276.4" width="9.4" height="9.4"><title>LoadString · JRPGWebBrowser.h</title></rect>
-<rect class="ok" x="58.7" y="276.4" width="9.4" height="9.4"><title>ExecuteJavascript · JRPGWebBrowser.h</title></rect>
-<rect class="ok" x="69.0" y="276.4" width="9.4" height="9.4"><title>LoadHTMLPage · WebContainerWidget.h</title></rect>
-<rect class="ok" x="79.3" y="276.4" width="9.4" height="9.4"><title>ExecuteJS · WebContainerWidget.h</title></rect>
-<rect class="ok" x="89.6" y="276.4" width="9.4" height="9.4"><title>Echo · WebUIBridge.h</title></rect>
-<rect class="ok" x="99.9" y="276.4" width="9.4" height="9.4"><title>OnUIReady · WebUIBridge.h</title></rect>
-<rect class="ok" x="110.2" y="276.4" width="9.4" height="9.4"><title>OnMenuOptionSelected · WebUIBridge.h</title></rect>
-<rect class="ok" x="120.5" y="276.4" width="9.4" height="9.4"><title>CloseMenu · WebUIBridge.h</title></rect>
-<rect class="ok" x="130.8" y="276.4" width="9.4" height="9.4"><title>SetCursorVisible · WebUIBridge.h</title></rect>
-<rect class="ok" x="141.1" y="276.4" width="9.4" height="9.4"><title>OnSetDifficulty · WebUIBridge.h</title></rect>
-<rect class="ok" x="151.4" y="276.4" width="9.4" height="9.4"><title>PlaySFX · WebUIBridge.h</title></rect>
-<rect class="ok" x="161.7" y="276.4" width="9.4" height="9.4"><title>OnSaveSlotSelected · WebUIBridge.h</title></rect>
-<rect class="ok" x="172.0" y="276.4" width="9.4" height="9.4"><title>OnLoadSlotSelected · WebUIBridge.h</title></rect>
-<rect class="ok" x="182.3" y="276.4" width="9.4" height="9.4"><title>OnShopBuy · WebUIBridge.h</title></rect>
-<rect class="ok" x="192.6" y="276.4" width="9.4" height="9.4"><title>OnShopSell · WebUIBridge.h</title></rect>
-<rect class="ok" x="202.9" y="276.4" width="9.4" height="9.4"><title>OnMainMenuAction · WebUIBridge.h</title></rect>
-<rect class="ok" x="213.2" y="276.4" width="9.4" height="9.4"><title>OnUIStateChanged · WebUIBridge.h</title></rect>
-<rect class="ok" x="17.5" y="286.7" width="9.4" height="9.4"><title>OpenURL · WebUIBridge.h</title></rect>
-<rect class="ok" x="27.8" y="286.7" width="9.4" height="9.4"><title>OnDevCommand · WebUIBridge.h</title></rect>
-<rect class="ok" x="38.1" y="286.7" width="9.4" height="9.4"><title>OnPartyToggle · WebUIBridge.h</title></rect>
-<rect class="ok" x="48.4" y="286.7" width="9.4" height="9.4"><title>OnItemDiscard · WebUIBridge.h</title></rect>
-<rect class="ok" x="58.7" y="286.7" width="9.4" height="9.4"><title>InitializeUIShell · WebUISubsystem.h</title></rect>
-<rect class="ok" x="69.0" y="286.7" width="9.4" height="9.4"><title>ShowItemPopup · WebUISubsystem.h</title></rect>
-<rect class="ok" x="79.3" y="286.7" width="9.4" height="9.4"><title>OpenMenu · WebUISubsystem.h</title></rect>
-<rect class="ok" x="89.6" y="286.7" width="9.4" height="9.4"><title>CloseMenu · WebUISubsystem.h</title></rect>
-<rect class="partial" x="99.9" y="286.7" width="9.4" height="9.4"><title>OpenDialogue · WebUISubsystem.h — final signature; the JS side only logs</title></rect>
-<rect x="99.9" y="286.7" width="9.4" height="9.4" fill="url(#hatch)" pointer-events="none"/>
-<rect class="ok" x="110.2" y="286.7" width="9.4" height="9.4"><title>OpenOptions · WebUISubsystem.h</title></rect>
-<rect class="ok" x="120.5" y="286.7" width="9.4" height="9.4"><title>OpenMainMenu · WebUISubsystem.h</title></rect>
-<rect class="ok" x="130.8" y="286.7" width="9.4" height="9.4"><title>OpenSaveLoad · WebUISubsystem.h</title></rect>
-<rect class="ok" x="141.1" y="286.7" width="9.4" height="9.4"><title>OpenSaveScreen · WebUISubsystem.h</title></rect>
-<rect class="ok" x="151.4" y="286.7" width="9.4" height="9.4"><title>OpenLoadScreen · WebUISubsystem.h</title></rect>
-<rect class="ok" x="161.7" y="286.7" width="9.4" height="9.4"><title>CanSaveNow · WebUISubsystem.h</title></rect>
-<rect class="ok" x="172.0" y="286.7" width="9.4" height="9.4"><title>QuitToMainMenu · WebUISubsystem.h</title></rect>
-<rect class="ok" x="182.3" y="286.7" width="9.4" height="9.4"><title>SetUICursorVisible · WebUISubsystem.h</title></rect>
-<rect class="ok" x="192.6" y="286.7" width="9.4" height="9.4"><title>OpenShop · WebUISubsystem.h</title></rect>
-<rect class="ok" x="202.9" y="286.7" width="9.4" height="9.4"><title>OpenPartyScreen · WebUISubsystem.h</title></rect>
-<rect class="ok" x="213.2" y="286.7" width="9.4" height="9.4"><title>OpenItemsScreen · WebUISubsystem.h</title></rect>
-<rect class="ok" x="17.5" y="297.0" width="9.4" height="9.4"><title>SetUIState · WebUISubsystem.h</title></rect>
-<rect class="ok" x="27.8" y="297.0" width="9.4" height="9.4"><title>GetUIState · WebUISubsystem.h</title></rect>
-<rect class="ok" x="38.1" y="297.0" width="9.4" height="9.4"><title>OpenDevMenu · WebUISubsystem.h</title></rect>
-<rect class="ok" x="48.4" y="297.0" width="9.4" height="9.4"><title>RunDevCommand · WebUISubsystem.h</title></rect>
-<rect class="ok" x="58.7" y="297.0" width="9.4" height="9.4"><title>ReloadShell · WebUISubsystem.h</title></rect>
-<rect class="ok" x="69.0" y="297.0" width="9.4" height="9.4"><title>ExecuteJS · WebUISubsystem.h</title></rect>
-<rect class="ok" x="79.3" y="297.0" width="9.4" height="9.4"><title>GetBridge · WebUISubsystem.h</title></rect>
-<rect class="ok" x="89.6" y="297.0" width="9.4" height="9.4"><title>GetContainerWidget · WebUISubsystem.h</title></rect>
+<text class="t2" x="17.5" y="235.8" font-size="10">Field character <tspan class="t2" fill-opacity=".8">(45)</tspan></text>
+<rect class="ok" x="17.5" y="238.8" width="9.4" height="9.4"><title>GetEncounterSetup · JRPGEncounterZone.h</title></rect>
+<rect class="ok" x="27.8" y="238.8" width="9.4" height="9.4"><title>GetRandomFloorPoint · JRPGEncounterZone.h</title></rect>
+<rect class="ok" x="38.1" y="238.8" width="9.4" height="9.4"><title>DistanceOutside · JRPGEncounterZone.h</title></rect>
+<rect class="ok" x="48.4" y="238.8" width="9.4" height="9.4"><title>GetEnemies · JRPGEncounterZone.h</title></rect>
+<rect class="ok" x="58.7" y="238.8" width="9.4" height="9.4"><title>SnapAreaToGround · JRPGEncounterZone.h</title></rect>
+<rect class="ok" x="69.0" y="238.8" width="9.4" height="9.4"><title>SetBaseCamera · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="79.3" y="238.8" width="9.4" height="9.4"><title>SetBaseControl · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="89.6" y="238.8" width="9.4" height="9.4"><title>GetCurrentCamera · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="99.9" y="238.8" width="9.4" height="9.4"><title>GetActiveCameraZone · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="110.2" y="238.8" width="9.4" height="9.4"><title>GetControlReferenceYaw · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="120.5" y="238.8" width="9.4" height="9.4"><title>SetSprinting · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="130.8" y="238.8" width="9.4" height="9.4"><title>IsSprinting · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="141.1" y="238.8" width="9.4" height="9.4"><title>GetGroundSpeed · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="151.4" y="238.8" width="9.4" height="9.4"><title>IsPartyFollower · JRPGFieldCharacter.h</title></rect>
+<rect class="ok" x="161.7" y="238.8" width="9.4" height="9.4"><title>StopClipSounds · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="172.0" y="238.8" width="9.4" height="9.4"><title>OnContact · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="182.3" y="238.8" width="9.4" height="9.4"><title>TriggerEncounter · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="192.6" y="238.8" width="9.4" height="9.4"><title>HideEnemy · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="202.9" y="238.8" width="9.4" height="9.4"><title>RespawnAtFloor · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="213.2" y="238.8" width="9.4" height="9.4"><title>GetEnemyState · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="17.5" y="249.1" width="9.4" height="9.4"><title>GetEncounterSetup · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="27.8" y="249.1" width="9.4" height="9.4"><title>GetZone · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="38.1" y="249.1" width="9.4" height="9.4"><title>HandleContactOverlap · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="48.4" y="249.1" width="9.4" height="9.4"><title>HandleUIStateChanged · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="58.7" y="249.1" width="9.4" height="9.4"><title>HandleBattleStarted · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="69.0" y="249.1" width="9.4" height="9.4"><title>HandleFieldHidden · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="79.3" y="249.1" width="9.4" height="9.4"><title>HandleFieldShown · JRPGFieldEnemy.h</title></rect>
+<rect class="ok" x="89.6" y="249.1" width="9.4" height="9.4"><title>PlayClip · JRPGFieldEnemyAnimInstance.h</title></rect>
+<rect class="ok" x="99.9" y="249.1" width="9.4" height="9.4"><title>CycleLeader · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="110.2" y="249.1" width="9.4" height="9.4"><title>SwitchLeader · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="120.5" y="249.1" width="9.4" height="9.4"><title>GetLeader · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="130.8" y="249.1" width="9.4" height="9.4"><title>GetPartyPawn · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="141.1" y="249.1" width="9.4" height="9.4"><title>GetFollowers · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="151.4" y="249.1" width="9.4" height="9.4"><title>SetFollowEnabled · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="161.7" y="249.1" width="9.4" height="9.4"><title>IsFollowEnabled · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="172.0" y="249.1" width="9.4" height="9.4"><title>SnapFollowersToLeader · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="182.3" y="249.1" width="9.4" height="9.4"><title>RefreshParty · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="192.6" y="249.1" width="9.4" height="9.4"><title>HandlePartyChanged · JRPGFieldPartyComponent.h</title></rect>
+<rect class="ok" x="202.9" y="249.1" width="9.4" height="9.4"><title>OpenGameMenu · JRPGFieldPlayerController.h</title></rect>
+<rect class="ok" x="213.2" y="249.1" width="9.4" height="9.4"><title>SetFieldInputEnabled · JRPGFieldPlayerController.h</title></rect>
+<rect class="ok" x="17.5" y="259.4" width="9.4" height="9.4"><title>IsFieldInputEnabled · JRPGFieldPlayerController.h</title></rect>
+<rect class="ok" x="27.8" y="259.4" width="9.4" height="9.4"><title>Interact · JRPGInteractable.h</title></rect>
+<rect class="ok" x="38.1" y="259.4" width="9.4" height="9.4"><title>TryInteract · JRPGInteractionComponent.h</title></rect>
+<rect class="ok" x="48.4" y="259.4" width="9.4" height="9.4"><title>GetCurrentTarget · JRPGInteractionComponent.h</title></rect>
+<rect class="ok" x="58.7" y="259.4" width="9.4" height="9.4"><title>IsInteractable · JRPGInteractionComponent.h</title></rect>
+<text class="t2" x="17.5" y="283.7" font-size="10">WebUI (shell + JS bridge) <tspan class="t2" fill-opacity=".8">(48)</tspan></text>
+<rect class="ok" x="17.5" y="286.7" width="9.4" height="9.4"><title>BindUObject · JRPGWebBrowser.h</title></rect>
+<rect class="ok" x="27.8" y="286.7" width="9.4" height="9.4"><title>SetSupportsTransparency · JRPGWebBrowser.h</title></rect>
+<rect class="ok" x="38.1" y="286.7" width="9.4" height="9.4"><title>LoadURL · JRPGWebBrowser.h</title></rect>
+<rect class="ok" x="48.4" y="286.7" width="9.4" height="9.4"><title>LoadString · JRPGWebBrowser.h</title></rect>
+<rect class="ok" x="58.7" y="286.7" width="9.4" height="9.4"><title>ExecuteJavascript · JRPGWebBrowser.h</title></rect>
+<rect class="ok" x="69.0" y="286.7" width="9.4" height="9.4"><title>LoadHTMLPage · WebContainerWidget.h</title></rect>
+<rect class="ok" x="79.3" y="286.7" width="9.4" height="9.4"><title>ExecuteJS · WebContainerWidget.h</title></rect>
+<rect class="ok" x="89.6" y="286.7" width="9.4" height="9.4"><title>Echo · WebUIBridge.h</title></rect>
+<rect class="ok" x="99.9" y="286.7" width="9.4" height="9.4"><title>OnUIReady · WebUIBridge.h</title></rect>
+<rect class="ok" x="110.2" y="286.7" width="9.4" height="9.4"><title>OnMenuOptionSelected · WebUIBridge.h</title></rect>
+<rect class="ok" x="120.5" y="286.7" width="9.4" height="9.4"><title>CloseMenu · WebUIBridge.h</title></rect>
+<rect class="ok" x="130.8" y="286.7" width="9.4" height="9.4"><title>SetCursorVisible · WebUIBridge.h</title></rect>
+<rect class="ok" x="141.1" y="286.7" width="9.4" height="9.4"><title>OnSetDifficulty · WebUIBridge.h</title></rect>
+<rect class="ok" x="151.4" y="286.7" width="9.4" height="9.4"><title>PlaySFX · WebUIBridge.h</title></rect>
+<rect class="ok" x="161.7" y="286.7" width="9.4" height="9.4"><title>OnSaveSlotSelected · WebUIBridge.h</title></rect>
+<rect class="ok" x="172.0" y="286.7" width="9.4" height="9.4"><title>OnLoadSlotSelected · WebUIBridge.h</title></rect>
+<rect class="ok" x="182.3" y="286.7" width="9.4" height="9.4"><title>OnShopBuy · WebUIBridge.h</title></rect>
+<rect class="ok" x="192.6" y="286.7" width="9.4" height="9.4"><title>OnShopSell · WebUIBridge.h</title></rect>
+<rect class="ok" x="202.9" y="286.7" width="9.4" height="9.4"><title>OnMainMenuAction · WebUIBridge.h</title></rect>
+<rect class="ok" x="213.2" y="286.7" width="9.4" height="9.4"><title>OnUIStateChanged · WebUIBridge.h</title></rect>
+<rect class="ok" x="17.5" y="297.0" width="9.4" height="9.4"><title>OpenURL · WebUIBridge.h</title></rect>
+<rect class="ok" x="27.8" y="297.0" width="9.4" height="9.4"><title>OnDevCommand · WebUIBridge.h</title></rect>
+<rect class="ok" x="38.1" y="297.0" width="9.4" height="9.4"><title>OnPartyToggle · WebUIBridge.h</title></rect>
+<rect class="ok" x="48.4" y="297.0" width="9.4" height="9.4"><title>OnItemDiscard · WebUIBridge.h</title></rect>
+<rect class="ok" x="58.7" y="297.0" width="9.4" height="9.4"><title>InitializeUIShell · WebUISubsystem.h</title></rect>
+<rect class="ok" x="69.0" y="297.0" width="9.4" height="9.4"><title>ShowItemPopup · WebUISubsystem.h</title></rect>
+<rect class="ok" x="79.3" y="297.0" width="9.4" height="9.4"><title>OpenMenu · WebUISubsystem.h</title></rect>
+<rect class="ok" x="89.6" y="297.0" width="9.4" height="9.4"><title>CloseMenu · WebUISubsystem.h</title></rect>
+<rect class="partial" x="99.9" y="297.0" width="9.4" height="9.4"><title>OpenDialogue · WebUISubsystem.h — final signature; the JS side only logs</title></rect>
+<rect x="99.9" y="297.0" width="9.4" height="9.4" fill="url(#hatch)" pointer-events="none"/>
+<rect class="ok" x="110.2" y="297.0" width="9.4" height="9.4"><title>OpenOptions · WebUISubsystem.h</title></rect>
+<rect class="ok" x="120.5" y="297.0" width="9.4" height="9.4"><title>OpenMainMenu · WebUISubsystem.h</title></rect>
+<rect class="ok" x="130.8" y="297.0" width="9.4" height="9.4"><title>OpenSaveLoad · WebUISubsystem.h</title></rect>
+<rect class="ok" x="141.1" y="297.0" width="9.4" height="9.4"><title>OpenSaveScreen · WebUISubsystem.h</title></rect>
+<rect class="ok" x="151.4" y="297.0" width="9.4" height="9.4"><title>OpenLoadScreen · WebUISubsystem.h</title></rect>
+<rect class="ok" x="161.7" y="297.0" width="9.4" height="9.4"><title>CanSaveNow · WebUISubsystem.h</title></rect>
+<rect class="ok" x="172.0" y="297.0" width="9.4" height="9.4"><title>QuitToMainMenu · WebUISubsystem.h</title></rect>
+<rect class="ok" x="182.3" y="297.0" width="9.4" height="9.4"><title>SetUICursorVisible · WebUISubsystem.h</title></rect>
+<rect class="ok" x="192.6" y="297.0" width="9.4" height="9.4"><title>OpenShop · WebUISubsystem.h</title></rect>
+<rect class="ok" x="202.9" y="297.0" width="9.4" height="9.4"><title>OpenPartyScreen · WebUISubsystem.h</title></rect>
+<rect class="ok" x="213.2" y="297.0" width="9.4" height="9.4"><title>OpenItemsScreen · WebUISubsystem.h</title></rect>
+<rect class="ok" x="17.5" y="307.3" width="9.4" height="9.4"><title>SetUIState · WebUISubsystem.h</title></rect>
+<rect class="ok" x="27.8" y="307.3" width="9.4" height="9.4"><title>GetUIState · WebUISubsystem.h</title></rect>
+<rect class="ok" x="38.1" y="307.3" width="9.4" height="9.4"><title>OpenDevMenu · WebUISubsystem.h</title></rect>
+<rect class="ok" x="48.4" y="307.3" width="9.4" height="9.4"><title>RunDevCommand · WebUISubsystem.h</title></rect>
+<rect class="ok" x="58.7" y="307.3" width="9.4" height="9.4"><title>ReloadShell · WebUISubsystem.h</title></rect>
+<rect class="ok" x="69.0" y="307.3" width="9.4" height="9.4"><title>ExecuteJS · WebUISubsystem.h</title></rect>
+<rect class="ok" x="79.3" y="307.3" width="9.4" height="9.4"><title>GetBridge · WebUISubsystem.h</title></rect>
+<rect class="ok" x="89.6" y="307.3" width="9.4" height="9.4"><title>GetContainerWidget · WebUISubsystem.h</title></rect>
 <text class="t2" x="229.5" y="123.0" font-size="10">Inventory <tspan class="t2" fill-opacity=".8">(18)</tspan></text>
 <rect class="ok" x="229.5" y="126.0" width="9.4" height="9.4"><title>AddItem · InventorySubsystem.h</title></rect>
 <rect class="ok" x="239.8" y="126.0" width="9.4" height="9.4"><title>RemoveItem · InventorySubsystem.h</title></rect>
@@ -256,25 +265,27 @@
 <rect class="ok" x="384.0" y="126.0" width="9.4" height="9.4"><title>GetItemQuantityRow · InventorySubsystem.h</title></rect>
 <rect class="ok" x="394.3" y="126.0" width="9.4" height="9.4"><title>UseItemRow · InventorySubsystem.h</title></rect>
 <rect class="ok" x="404.6" y="126.0" width="9.4" height="9.4"><title>SetItemDataTable · InventorySubsystem.h</title></rect>
-<text class="t2" x="229.5" y="150.3" font-size="10">Status <tspan class="t2" fill-opacity=".8">(18)</tspan></text>
+<text class="t2" x="229.5" y="150.3" font-size="10">Status <tspan class="t2" fill-opacity=".8">(20)</tspan></text>
 <rect class="ok" x="229.5" y="153.3" width="9.4" height="9.4"><title>GetSlotForItem · StatusSubsystem.h</title></rect>
-<rect class="ok" x="239.8" y="153.3" width="9.4" height="9.4"><title>CanEquip · StatusSubsystem.h</title></rect>
-<rect class="ok" x="250.1" y="153.3" width="9.4" height="9.4"><title>EquipItem · StatusSubsystem.h</title></rect>
-<rect class="ok" x="260.4" y="153.3" width="9.4" height="9.4"><title>UnequipItem · StatusSubsystem.h</title></rect>
-<rect class="ok" x="270.7" y="153.3" width="9.4" height="9.4"><title>GetEquipped · StatusSubsystem.h</title></rect>
-<rect class="ok" x="281.0" y="153.3" width="9.4" height="9.4"><title>GetBaseStat · StatusSubsystem.h</title></rect>
-<rect class="ok" x="291.3" y="153.3" width="9.4" height="9.4"><title>GetEquipmentBonus · StatusSubsystem.h</title></rect>
-<rect class="ok" x="301.6" y="153.3" width="9.4" height="9.4"><title>GetEffectiveStat · StatusSubsystem.h</title></rect>
-<rect class="ok" x="311.9" y="153.3" width="9.4" height="9.4"><title>ApplyPermanentStatUpgrade · StatusSubsystem.h</title></rect>
-<rect class="ok" x="322.2" y="153.3" width="9.4" height="9.4"><title>ApplyCondition · StatusSubsystem.h</title></rect>
-<rect class="ok" x="332.5" y="153.3" width="9.4" height="9.4"><title>RemoveCondition · StatusSubsystem.h</title></rect>
-<rect class="ok" x="342.8" y="153.3" width="9.4" height="9.4"><title>HasCondition · StatusSubsystem.h</title></rect>
-<rect class="ok" x="353.1" y="153.3" width="9.4" height="9.4"><title>GetConditions · StatusSubsystem.h</title></rect>
-<rect class="ok" x="363.4" y="153.3" width="9.4" height="9.4"><title>ClearConditions · StatusSubsystem.h</title></rect>
-<rect class="ok" x="373.7" y="153.3" width="9.4" height="9.4"><title>GetSeruLevel · StatusSubsystem.h</title></rect>
-<rect class="ok" x="384.0" y="153.3" width="9.4" height="9.4"><title>RaiseSeruLevel · StatusSubsystem.h</title></rect>
-<rect class="ok" x="394.3" y="153.3" width="9.4" height="9.4"><title>GetSeruBonus · StatusSubsystem.h</title></rect>
-<rect class="ok" x="404.6" y="153.3" width="9.4" height="9.4"><title>GetElementMultiplier · StatusSubsystem.h</title></rect>
+<rect class="ok" x="239.8" y="153.3" width="9.4" height="9.4"><title>IsAccessorySlot · StatusSubsystem.h</title></rect>
+<rect class="ok" x="250.1" y="153.3" width="9.4" height="9.4"><title>CanEquip · StatusSubsystem.h</title></rect>
+<rect class="ok" x="260.4" y="153.3" width="9.4" height="9.4"><title>EquipItem · StatusSubsystem.h</title></rect>
+<rect class="ok" x="270.7" y="153.3" width="9.4" height="9.4"><title>EquipItemInSlot · StatusSubsystem.h</title></rect>
+<rect class="ok" x="281.0" y="153.3" width="9.4" height="9.4"><title>UnequipItem · StatusSubsystem.h</title></rect>
+<rect class="ok" x="291.3" y="153.3" width="9.4" height="9.4"><title>GetEquipped · StatusSubsystem.h</title></rect>
+<rect class="ok" x="301.6" y="153.3" width="9.4" height="9.4"><title>GetBaseStat · StatusSubsystem.h</title></rect>
+<rect class="ok" x="311.9" y="153.3" width="9.4" height="9.4"><title>GetEquipmentBonus · StatusSubsystem.h</title></rect>
+<rect class="ok" x="322.2" y="153.3" width="9.4" height="9.4"><title>GetEffectiveStat · StatusSubsystem.h</title></rect>
+<rect class="ok" x="332.5" y="153.3" width="9.4" height="9.4"><title>ApplyPermanentStatUpgrade · StatusSubsystem.h</title></rect>
+<rect class="ok" x="342.8" y="153.3" width="9.4" height="9.4"><title>ApplyCondition · StatusSubsystem.h</title></rect>
+<rect class="ok" x="353.1" y="153.3" width="9.4" height="9.4"><title>RemoveCondition · StatusSubsystem.h</title></rect>
+<rect class="ok" x="363.4" y="153.3" width="9.4" height="9.4"><title>HasCondition · StatusSubsystem.h</title></rect>
+<rect class="ok" x="373.7" y="153.3" width="9.4" height="9.4"><title>GetConditions · StatusSubsystem.h</title></rect>
+<rect class="ok" x="384.0" y="153.3" width="9.4" height="9.4"><title>ClearConditions · StatusSubsystem.h</title></rect>
+<rect class="ok" x="394.3" y="153.3" width="9.4" height="9.4"><title>GetSeruLevel · StatusSubsystem.h</title></rect>
+<rect class="ok" x="404.6" y="153.3" width="9.4" height="9.4"><title>RaiseSeruLevel · StatusSubsystem.h</title></rect>
+<rect class="ok" x="414.9" y="153.3" width="9.4" height="9.4"><title>GetSeruBonus · StatusSubsystem.h</title></rect>
+<rect class="ok" x="425.2" y="153.3" width="9.4" height="9.4"><title>GetElementMultiplier · StatusSubsystem.h</title></rect>
 <text class="t2" x="229.5" y="177.6" font-size="10">Audio <tspan class="t2" fill-opacity=".8">(16)</tspan></text>
 <rect class="ok" x="229.5" y="180.6" width="9.4" height="9.4"><title>PlayBGM · AudioSubsystem.h</title></rect>
 <rect class="ok" x="239.8" y="180.6" width="9.4" height="9.4"><title>StopBGM · AudioSubsystem.h</title></rect>
@@ -328,28 +339,84 @@
 <rect class="ok" x="260.4" y="262.5" width="9.4" height="9.4"><title>DeleteSlot · SaveSubsystem.h</title></rect>
 <rect class="ok" x="270.7" y="262.5" width="9.4" height="9.4"><title>GetSlotMetadata · SaveSubsystem.h</title></rect>
 <rect class="ok" x="281.0" y="262.5" width="9.4" height="9.4"><title>GetAllSlotsMetadata · SaveSubsystem.h</title></rect>
-<text class="t2" x="229.5" y="286.8" font-size="10">Battle <tspan class="t2" fill-opacity=".8">(15)</tspan></text>
+<text class="t2" x="229.5" y="286.8" font-size="10">Battle <tspan class="t2" fill-opacity=".8">(53)</tspan></text>
 <rect class="pending" x="229.5" y="289.8" width="9.4" height="9.4"><title>ApplyBattleItemEffect · BattleSubsystem.h — stub — only logs TODO</title></rect>
 <rect class="ok" x="239.8" y="289.8" width="9.4" height="9.4"><title>TryStartEncounter · BattleSubsystem.h</title></rect>
-<rect class="ok" x="250.1" y="289.8" width="9.4" height="9.4"><title>RollEncounter · JRPGEncounterTypes.h</title></rect>
-<rect class="ok" x="260.4" y="289.8" width="9.4" height="9.4"><title>GetEnemyData · JRPGEncounterTypes.h</title></rect>
-<rect class="ok" x="270.7" y="289.8" width="9.4" height="9.4"><title>GetEnemyKeyOptions · JRPGEncounterTypes.h</title></rect>
-<rect class="pending" x="281.0" y="289.8" width="9.4" height="9.4"><title>BeginBattle — planned (Phase 5)</title></rect>
-<rect class="pending" x="291.3" y="289.8" width="9.4" height="9.4"><title>EndBattle — planned (Phase 5)</title></rect>
-<rect class="pending" x="301.6" y="289.8" width="9.4" height="9.4"><title>SubmitCommand — planned (Phase 5)</title></rect>
-<rect class="pending" x="311.9" y="289.8" width="9.4" height="9.4"><title>GetCombatants — planned (Phase 5)</title></rect>
-<rect class="pending" x="322.2" y="289.8" width="9.4" height="9.4"><title>GetActiveSlot — planned (Phase 5)</title></rect>
-<rect class="pending" x="332.5" y="289.8" width="9.4" height="9.4"><title>SeatFor — planned (Phase 4 · ABattleStage)</title></rect>
-<rect class="pending" x="342.8" y="289.8" width="9.4" height="9.4"><title>OnBattleCommand — planned (Phase 7 · WebUI bridge)</title></rect>
-<rect class="pending" x="353.1" y="289.8" width="9.4" height="9.4"><title>OnBattleArtsButton — planned (Phase 7 · WebUI bridge)</title></rect>
-<rect class="pending" x="363.4" y="289.8" width="9.4" height="9.4"><title>OnBattleArtsCommit — planned (Phase 7 · WebUI bridge)</title></rect>
-<rect class="pending" x="373.7" y="289.8" width="9.4" height="9.4"><title>OnBattleTargetChanged — planned (Phase 7 · WebUI bridge)</title></rect>
-<text class="t2" x="229.5" y="314.1" font-size="10">Arts <tspan class="t2" fill-opacity=".8">(5)</tspan></text>
-<rect class="pending" x="229.5" y="317.1" width="9.4" height="9.4"><title>TeachArtToCharacter · ArtsSubsystem.h — stub — only logs TODO</title></rect>
-<rect class="pending" x="239.8" y="317.1" width="9.4" height="9.4"><title>DirectionByteFor — planned (Phase 6)</title></rect>
-<rect class="pending" x="250.1" y="317.1" width="9.4" height="9.4"><title>RecognizeArtSequence — planned (Phase 6)</title></rect>
-<rect class="pending" x="260.4" y="317.1" width="9.4" height="9.4"><title>GetKnownArts — planned (Phase 6)</title></rect>
-<rect class="pending" x="270.7" y="317.1" width="9.4" height="9.4"><title>CommitArtsChain — planned (Phase 6)</title></rect>
+<rect class="ok" x="250.1" y="289.8" width="9.4" height="9.4"><title>BeginBattle · BattleSubsystem.h</title></rect>
+<rect class="ok" x="260.4" y="289.8" width="9.4" height="9.4"><title>EndBattle · BattleSubsystem.h</title></rect>
+<rect class="ok" x="270.7" y="289.8" width="9.4" height="9.4"><title>IsInBattle · BattleSubsystem.h</title></rect>
+<rect class="ok" x="281.0" y="289.8" width="9.4" height="9.4"><title>GetCombatants · BattleSubsystem.h</title></rect>
+<rect class="ok" x="291.3" y="289.8" width="9.4" height="9.4"><title>GetBattleSetup · BattleSubsystem.h</title></rect>
+<rect class="ok" x="301.6" y="289.8" width="9.4" height="9.4"><title>FindArenaFor · JRPGBattleArena.h</title></rect>
+<rect class="ok" x="311.9" y="289.8" width="9.4" height="9.4"><title>ContainsPoint · JRPGBattleArena.h</title></rect>
+<rect class="ok" x="322.2" y="289.8" width="9.4" height="9.4"><title>GetSeatTransform · JRPGBattleArena.h</title></rect>
+<rect class="ok" x="332.5" y="289.8" width="9.4" height="9.4"><title>ResolveSeat · JRPGBattleArena.h</title></rect>
+<rect class="ok" x="342.8" y="289.8" width="9.4" height="9.4"><title>GetFormation · JRPGBattleArena.h</title></rect>
+<rect class="ok" x="353.1" y="289.8" width="9.4" height="9.4"><title>DrawDebugFormation · JRPGBattleArena.h</title></rect>
+<rect class="ok" x="363.4" y="289.8" width="9.4" height="9.4"><title>IsBattleAssembled · JRPGBattleArena.h</title></rect>
+<rect class="ok" x="373.7" y="289.8" width="9.4" height="9.4"><title>GetBattlePawns · JRPGBattleArena.h</title></rect>
+<rect class="ok" x="384.0" y="289.8" width="9.4" height="9.4"><title>GetPawnForSlot · JRPGBattleArena.h</title></rect>
+<rect class="ok" x="394.3" y="289.8" width="9.4" height="9.4"><title>ValidateGround · JRPGBattleArena.h</title></rect>
+<rect class="ok" x="404.6" y="289.8" width="9.4" height="9.4"><title>CopyFormationToManualSeats · JRPGBattleArena.h</title></rect>
+<rect class="ok" x="414.9" y="289.8" width="9.4" height="9.4"><title>SnapAreaToGround · JRPGBattleArena.h</title></rect>
+<rect class="ok" x="425.2" y="289.8" width="9.4" height="9.4"><title>GetCombatant · JRPGBattlePawn.h</title></rect>
+<rect class="ok" x="229.5" y="300.1" width="9.4" height="9.4"><title>PlayClip · JRPGBattlePawn.h</title></rect>
+<rect class="ok" x="239.8" y="300.1" width="9.4" height="9.4"><title>PlayIdle · JRPGBattlePawn.h</title></rect>
+<rect class="ok" x="250.1" y="300.1" width="9.4" height="9.4"><title>OnCombatantInitialized · JRPGBattlePawn.h</title></rect>
+<rect class="ok" x="260.4" y="300.1" width="9.4" height="9.4"><title>InstallEnemyStats · JRPGBattleRules.h</title></rect>
+<rect class="ok" x="270.7" y="300.1" width="9.4" height="9.4"><title>VictoryEXPPool · JRPGBattleRules.h</title></rect>
+<rect class="ok" x="281.0" y="300.1" width="9.4" height="9.4"><title>VictoryEXPShare · JRPGBattleRules.h</title></rect>
+<rect class="ok" x="291.3" y="300.1" width="9.4" height="9.4"><title>VictoryGold · JRPGBattleRules.h</title></rect>
+<rect class="ok" x="301.6" y="300.1" width="9.4" height="9.4"><title>GetArena · JRPGBattleSceneSubsystem.h</title></rect>
+<rect class="ok" x="311.9" y="300.1" width="9.4" height="9.4"><title>IsFieldHidden · JRPGBattleSceneSubsystem.h</title></rect>
+<rect class="ok" x="322.2" y="300.1" width="9.4" height="9.4"><title>HandleBattleStarted · JRPGBattleSceneSubsystem.h</title></rect>
+<rect class="ok" x="332.5" y="300.1" width="9.4" height="9.4"><title>HandleBattleEnded · JRPGBattleSceneSubsystem.h</title></rect>
+<rect class="ok" x="342.8" y="300.1" width="9.4" height="9.4"><title>StartWaves · JRPGBattleWaves.h</title></rect>
+<rect class="ok" x="353.1" y="300.1" width="9.4" height="9.4"><title>StopWaves · JRPGBattleWaves.h</title></rect>
+<rect class="ok" x="363.4" y="300.1" width="9.4" height="9.4"><title>StartWave · JRPGBattleWaves.h</title></rect>
+<rect class="ok" x="373.7" y="300.1" width="9.4" height="9.4"><title>GetCurrentWave · JRPGBattleWaves.h</title></rect>
+<rect class="ok" x="384.0" y="300.1" width="9.4" height="9.4"><title>LoadWavesFromJson · JRPGBattleWaves.h</title></rect>
+<rect class="ok" x="394.3" y="300.1" width="9.4" height="9.4"><title>LoadWavesFile · JRPGBattleWaves.h</title></rect>
+<rect class="ok" x="404.6" y="300.1" width="9.4" height="9.4"><title>ImportWavesFile · JRPGBattleWaves.h</title></rect>
+<rect class="ok" x="414.9" y="300.1" width="9.4" height="9.4"><title>HandleBattleEnded · JRPGBattleWaves.h</title></rect>
+<rect class="ok" x="425.2" y="300.1" width="9.4" height="9.4"><title>RollEncounter · JRPGEncounterTypes.h</title></rect>
+<rect class="ok" x="229.5" y="310.4" width="9.4" height="9.4"><title>MakeSingleEnemyEncounter · JRPGEncounterTypes.h</title></rect>
+<rect class="ok" x="239.8" y="310.4" width="9.4" height="9.4"><title>GetEnemyData · JRPGEncounterTypes.h</title></rect>
+<rect class="ok" x="250.1" y="310.4" width="9.4" height="9.4"><title>GetEnemyKeyOptions · JRPGEncounterTypes.h</title></rect>
+<rect class="pending" x="260.4" y="310.4" width="9.4" height="9.4"><title>BeginBattle — planned (Phase 5)</title></rect>
+<rect class="pending" x="270.7" y="310.4" width="9.4" height="9.4"><title>EndBattle — planned (Phase 5)</title></rect>
+<rect class="pending" x="281.0" y="310.4" width="9.4" height="9.4"><title>SubmitCommand — planned (Phase 5)</title></rect>
+<rect class="pending" x="291.3" y="310.4" width="9.4" height="9.4"><title>GetCombatants — planned (Phase 5)</title></rect>
+<rect class="pending" x="301.6" y="310.4" width="9.4" height="9.4"><title>GetActiveSlot — planned (Phase 5)</title></rect>
+<rect class="pending" x="311.9" y="310.4" width="9.4" height="9.4"><title>SeatFor — planned (Phase 4 · ABattleStage)</title></rect>
+<rect class="pending" x="322.2" y="310.4" width="9.4" height="9.4"><title>OnBattleCommand — planned (Phase 7 · WebUI bridge)</title></rect>
+<rect class="pending" x="332.5" y="310.4" width="9.4" height="9.4"><title>OnBattleArtsButton — planned (Phase 7 · WebUI bridge)</title></rect>
+<rect class="pending" x="342.8" y="310.4" width="9.4" height="9.4"><title>OnBattleArtsCommit — planned (Phase 7 · WebUI bridge)</title></rect>
+<rect class="pending" x="353.1" y="310.4" width="9.4" height="9.4"><title>OnBattleTargetChanged — planned (Phase 7 · WebUI bridge)</title></rect>
+<text class="t2" x="229.5" y="334.7" font-size="10">Arts <tspan class="t2" fill-opacity=".8">(23)</tspan></text>
+<rect class="pending" x="229.5" y="337.7" width="9.4" height="9.4"><title>TeachArtToCharacter · ArtsSubsystem.h — stub — only logs TODO</title></rect>
+<rect class="ok" x="239.8" y="337.7" width="9.4" height="9.4"><title>AppendArtSteps · JRPGArtSequence.h</title></rect>
+<rect class="ok" x="250.1" y="337.7" width="9.4" height="9.4"><title>AppendButtonSwing · JRPGArtSequence.h</title></rect>
+<rect class="ok" x="260.4" y="337.7" width="9.4" height="9.4"><title>ApplyGameSpeeds · JRPGArtSequence.h</title></rect>
+<rect class="ok" x="270.7" y="337.7" width="9.4" height="9.4"><title>StepPlayRate · JRPGArtSequence.h</title></rect>
+<rect class="ok" x="281.0" y="337.7" width="9.4" height="9.4"><title>SwingClipName · JRPGArtSequence.h</title></rect>
+<rect class="ok" x="291.3" y="337.7" width="9.4" height="9.4"><title>LoadHeroClip · JRPGArtSequence.h</title></rect>
+<rect class="ok" x="301.6" y="337.7" width="9.4" height="9.4"><title>HeroArts · JRPGArtSequence.h</title></rect>
+<rect class="ok" x="311.9" y="337.7" width="9.4" height="9.4"><title>Play · JRPGArtTester.h</title></rect>
+<rect class="ok" x="322.2" y="337.7" width="9.4" height="9.4"><title>PlayCombo · JRPGArtTester.h</title></rect>
+<rect class="ok" x="332.5" y="337.7" width="9.4" height="9.4"><title>Stop · JRPGArtTester.h</title></rect>
+<rect class="ok" x="342.8" y="337.7" width="9.4" height="9.4"><title>PlayAll · JRPGArtTester.h</title></rect>
+<rect class="ok" x="353.1" y="337.7" width="9.4" height="9.4"><title>ResetPosition · JRPGArtTester.h</title></rect>
+<rect class="ok" x="363.4" y="337.7" width="9.4" height="9.4"><title>NextArt · JRPGArtTester.h</title></rect>
+<rect class="ok" x="373.7" y="337.7" width="9.4" height="9.4"><title>PreviousArt · JRPGArtTester.h</title></rect>
+<rect class="ok" x="384.0" y="337.7" width="9.4" height="9.4"><title>GetHeroOptions · JRPGArtTester.h</title></rect>
+<rect class="ok" x="394.3" y="337.7" width="9.4" height="9.4"><title>GetArtOptions · JRPGArtTester.h</title></rect>
+<rect class="ok" x="404.6" y="337.7" width="9.4" height="9.4"><title>GetComboOptions · JRPGArtTester.h</title></rect>
+<rect class="pending" x="414.9" y="337.7" width="9.4" height="9.4"><title>ButtonForPad — planned (Phase 6)</title></rect>
+<rect class="pending" x="425.2" y="337.7" width="9.4" height="9.4"><title>RecognizeArtSequence — planned (Phase 6)</title></rect>
+<rect class="pending" x="229.5" y="348.0" width="9.4" height="9.4"><title>GetKnownArts — planned (Phase 6)</title></rect>
+<rect class="pending" x="239.8" y="348.0" width="9.4" height="9.4"><title>LearnArt — planned (Phase 6)</title></rect>
+<rect class="pending" x="250.1" y="348.0" width="9.4" height="9.4"><title>CommitArtsChain — planned (Phase 6)</title></rect>
 <text class="t1" x="462" y="102" font-size="14">Plugin systems*: 65.0% (weighted by effort)</text>
 <rect class="ok" x="462.0" y="113.5" width="100.3" height="55.0"><title>Core: Gold, playtime, current map, New Game, DataTable resolution</title></rect>
 <text class="badge-t" x="512.1" y="145.0" font-size="11" text-anchor="middle" pointer-events="none">Core</text>

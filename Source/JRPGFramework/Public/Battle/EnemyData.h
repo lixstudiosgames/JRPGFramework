@@ -64,10 +64,12 @@ struct JRPGFRAMEWORK_API FJRPGMonsterAnimSet
  * Docs/Data/gamedata/enemies.toml + a listagem do arquivo de monstros do disco via
  * Extras/generate_enemies_csv.py). O row name é a EnemyKey que os encontros usam.
  *
- * Os stats são os DE BATALHA — o que o jogador enfrenta —, não o registro cru do disco: o
- * loader do original multiplica o registro ao carregar a luta (UDF/LDF x2, ATK x5/4, INT x9/8;
- * EXP x3/4 e Gold x5/16 na recompensa). A dificuldade (UCoreSubsystem::ScaleEnemyHP/ATK/DEF)
- * e o level do encontro entram por cima destes valores.
+ * Stats, EXP e Gold são o REGISTRO CRU do disco, igual em todas as versões do jogo. O que o
+ * jogador enfrenta e recebe sai das regras da versão (UJRPGBattleRules + EJRPGRuleset): na USA
+ * o loader dá boost nos stats ao carregar a luta e o fim paga EXP x3/4 e Gold cortado duas
+ * vezes; na versão japonesa não há boost e o pagamento é maior. A dificuldade
+ * (UCoreSubsystem::ScaleEnemyHP/ATK/DEF, ScaleXPReward/ScaleGoldReward) e o level do encontro
+ * entram por cima do que a versão deu.
  *
  * Guia: Docs/Guides/ENEMIES.md.
  */
@@ -94,7 +96,7 @@ struct JRPGFRAMEWORK_API FJRPGEnemyData : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy")
 	EJRPGElement Element = EJRPGElement::None;
 
-	// --- Stats de batalha ---
+	// --- Stats (registro cru; UJRPGBattleRules::InstallEnemyStats dá os da luta) ---
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy|Stats")
 	int32 BaseHP = 0;
@@ -125,9 +127,11 @@ struct JRPGFRAMEWORK_API FJRPGEnemyData : public FTableRowBase
 
 	// --- Recompensa ---
 
+	/** EXP cru do registro. O que a luta paga: UJRPGBattleRules::VictoryEXPPool. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy|Rewards")
 	int32 EXP = 0;
 
+	/** Gold cru do registro. O que a luta paga: UJRPGBattleRules::VictoryGold. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy|Rewards")
 	int32 Gold = 0;
 

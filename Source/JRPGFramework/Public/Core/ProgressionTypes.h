@@ -20,6 +20,29 @@ enum class EJRPGDifficulty : uint8
 };
 
 /**
+ * EJRPGRuleset
+ * De qual versão do jogo original vêm as regras da luta. O registro dos monstros é o mesmo
+ * byte a byte em todos os discos (é o que a DT_Enemies guarda); o que muda é o executável:
+ *
+ *   - USA (SCUS_942.54): ao carregar a luta, dá boost em ATK/UDF/LDF/INT (dois perfis: luta
+ *     roteirizada ou encontro aleatório); no fim, paga EXP x3/4 e corta o Gold pela metade
+ *     mais uma vez.
+ *   - Japan (SCPS_100.59, e os PAL SCES_019.44/45/46): sem boost, EXP inteiro, sem o segundo
+ *     corte do Gold.
+ *
+ * As contas ficam em UJRPGBattleRules (Battle/JRPGBattleRules.h). É um eixo separado da
+ * dificuldade: a dificuldade multiplica por cima do que a versão deu.
+ *
+ * Novos valores SEMPRE no fim — são serializados em Blueprints.
+ */
+UENUM(BlueprintType)
+enum class EJRPGRuleset : uint8
+{
+	USA   UMETA(DisplayName = "USA (NTSC-U)"),
+	Japan UMETA(DisplayName = "Japan / Europe (JP, PAL)")
+};
+
+/**
  * FDifficultyScaling
  * Multiplicadores de uma dificuldade (linha da DataTable DT_Difficulty).
  * O row name é o nome do valor de EJRPGDifficulty ("Normal", "Hard",

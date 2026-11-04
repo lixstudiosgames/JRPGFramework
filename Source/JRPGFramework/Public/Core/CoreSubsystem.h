@@ -373,6 +373,20 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "JRPG|Core|Difficulty")
 	FOnDifficultyChangedSignature OnDifficultyChanged;
 
+	// ============================================================
+	// VERSÃO DAS REGRAS (USA / Japan)
+	// ============================================================
+
+	/**
+	 * De qual versão do original vêm as regras da luta: o boost dos stats dos inimigos e o
+	 * EXP/Gold do fim (UJRPGBattleRules). A dificuldade multiplica por cima. Default USA.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Core|Rules")
+	EJRPGRuleset GetRuleset() const { return Ruleset; }
+
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Core|Rules")
+	void SetRuleset(EJRPGRuleset NewRuleset);
+
 	// --- Usado pelo USaveSubsystem ao aplicar um Load (não exposto a BP) ---
 	void RestoreFromSave(int32 InGold, double InPlaytimeSeconds, const FString& InMapDisplayName);
 
@@ -381,6 +395,9 @@ private:
 
 	/** Dificuldade atual da partida. Normal = jogo original. */
 	EJRPGDifficulty Difficulty = EJRPGDifficulty::Normal;
+
+	/** Versão das regras da luta. USA = o executável que o RE mede. */
+	EJRPGRuleset Ruleset = EJRPGRuleset::USA;
 
 	/** True desde o StartNewGame até um save ser carregado. */
 	bool bIsNewGame = false;

@@ -392,16 +392,21 @@ and shop prices.
 ```cpp
 UCoreSubsystem* Core = GetGameInstance()->GetSubsystem<UCoreSubsystem>();
 
-Enemy.MaxHP  = Core->ScaleEnemyHP(BaseHP);
-Enemy.Attack = Core->ScaleEnemyATK(BaseATK);
-Enemy.UDF    = Core->ScaleEnemyDEF(BaseUDF);
+// DT_Enemies holds the raw disc record: the version's rules first, the difficulty on top.
+const FJRPGEnemyBattleStats S =
+    UJRPGBattleRules::InstallEnemyStats(EnemyRow, bScriptedFight, Core->GetRuleset());
+Enemy.MaxHP  = Core->ScaleEnemyHP(S.HP);
+Enemy.Attack = Core->ScaleEnemyATK(S.ATK);
+Enemy.UDF    = Core->ScaleEnemyDEF(S.UDF);
 
-const int32 XP   = Core->ScaleXPReward(BaseXP);
-const int32 Gold = Core->ScaleGoldReward(BaseGold);
+const int32 Gold = Core->ScaleGoldReward(
+    UJRPGBattleRules::VictoryGold(DefeatedEnemyGold, bGoldenBook, Core->GetRuleset()));
+// XP: UPartySubsystem::AwardBattleXP(raw EXP sum) applies the version and the difficulty.
 ```
 
 All are `BlueprintPure`, so they work directly in enemy and loot Blueprints — **the system is
-already ready to receive enemies**.
+already ready to receive enemies**. The version rules (USA / Japan) are in
+[`Guides/ENEMIES.md`](../Guides/ENEMIES.md#version-rules-usa--japan).
 
 The multipliers come from `DT_Difficulty` when that DataTable is assigned to
 `UCoreSubsystem::DifficultyTable`; without it, the built-in defaults apply (the same numbers).

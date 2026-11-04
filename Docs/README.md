@@ -16,7 +16,7 @@ New here? Read [`ARCHITECTURE.md`](ARCHITECTURE.md), then
 | Document | What it is |
 |---|---|
 | [`../SETUP.md`](../SETUP.md) | Build from a clean clone: prerequisites, Ultralight SDK, WebUI, packaging |
-| **[ARCHITECTURE.md](ARCHITECTURE.md)** | **How the plugin is put together**, the data flows, and the 52 rules that must not be broken |
+| **[ARCHITECTURE.md](ARCHITECTURE.md)** | **How the plugin is put together**, the data flows, and the 53 rules that must not be broken |
 | [STRUCTURE.md](STRUCTURE.md) | File-by-file tree: what exists (✅), what is a stub (🟡), what is planned (⬜) |
 | [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) | The largest unimplemented system, in 8 phases |
 

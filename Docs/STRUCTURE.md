@@ -20,7 +20,7 @@ JRPGFramework/
 │   │   │   │                                       (tick-free), current map, player position for
 │   │   │   │                                       saves, StartNewGame/bIsNewGame, XP curve, stat
 │   │   │   │                                       growth and difficulty
-│   │   │   ├── ProgressionTypes.h ✅            ← EJRPGDifficulty + FDifficultyScaling,
+│   │   │   ├── ProgressionTypes.h ✅            ← EJRPGDifficulty + FDifficultyScaling, EJRPGRuleset,
 │   │   │   │                                       FLevelCurveRow, FStatGrowthRow, FGrowthCurveRow
 │   │   │   ├── JRPGGameInstance.h ✅            ← GameInstance base class (GI_Main inherits it)
 │   │   │   ├── JRPGSplineArea.h ✅              ← FJRPGSplineArea: a closed spline seen from above as a
@@ -159,11 +159,14 @@ JRPGFramework/
 │   │       ├── JRPGBattlePawn.h ✅              ← one combatant in the scene: battle model in its seat;
 │   │       │                                       heroes dressed by equipment pieces (Leader Pose)
 │   │       ├── JRPGBattleWaves.h ✅             ← fights in a row, Muscle Dome style, waves from JSON
+│   │       ├── JRPGBattleRules.h ✅             ← UJRPGBattleRules: what each version (USA / Japan) does
+│   │       │                                       with the raw record — the enemy stat boost, the
+│   │       │                                       victory EXP and Gold. Guides/ENEMIES.md
 │   │       ├── JRPGEncounterTypes.h ✅          ← FJRPGEncounterEnemy/Setup/Combatant + the roll and
 │   │       │                                       DT_Enemies access (UJRPGEncounterLibrary)
 │   │       ├── BossFightData.h ✅               ← FJRPGBossData (DT_Bosses row: a boss fight — who enters,
 │   │       │                                       named specials, reward, level). See Guides/ENEMIES.md
-│   │       └── EnemyData.h ✅                   ← FJRPGEnemyData (DT_Enemies row: in-battle stats,
+│   │       └── EnemyData.h ✅                   ← FJRPGEnemyData (DT_Enemies row: the raw disc record,
 │   │                                               rewards, capturable Seru, MonsterArchiveID, mesh)
 │   │                                               + FJRPGMonsterAnimSet. See Guides/ENEMIES.md
 │   │
@@ -195,7 +198,7 @@ JRPGFramework/
 │       ├── Status/ ✅      (StatusSubsystem.cpp ✅)
 │       ├── Arts/ 🟡        (ArtsSubsystem.cpp 🟡)
 │       └── Battle/ 🟡      (BattleSubsystem.cpp 🟡, JRPGBattleArena.cpp ✅, JRPGBattleSceneSubsystem.cpp ✅,
-│                           JRPGBattlePawn.cpp ✅, JRPGBattleWaves.cpp ✅)
+│                           JRPGBattlePawn.cpp ✅, JRPGBattleWaves.cpp ✅, JRPGBattleRules.cpp ✅)
 │
 ├── Shaders/ ✅                                  ← mapped to /Plugin/JRPGFramework
 │   ├── UltralightBlitShader.usf ✅              ← full-screen blit of the Ultralight texture (JRPGWebBrowser)

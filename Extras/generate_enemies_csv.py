@@ -6,17 +6,24 @@ generate_enemies_csv.py — gera Docs/Data/DT_Enemies.csv (Row Struct: FJRPGEnem
 
 Duas fontes, cada uma com o que a outra não tem:
   - Docs/Data/gamedata/enemies.toml (do legend-of-legaia-re): nome, local, elemento, drop e
-    steal por key do DT_Items, boss, e os stats DE BATALHA (o que o jogador enfrenta).
+    steal por key do DT_Items, boss. Os stats dele são os de uma luta de boss da versão
+    americana (registro do disco x fatores) — servem só para conferir o casamento.
   - A listagem do arquivo de monstros do disco (PROT 0867), feita com as ferramentas do RE:
         asset monster-archive extracted/PROT/0867_battle_data.BIN > monster_list.txt
     Traz o id do slot (que é onde está o modelo — MonsterArchiveID), a chance do drop, o Seru
-    capturável e a chance de captura, e o registro cru dos stats.
+    capturável e a chance de captura, e o registro cru: stats, EXP e Gold.
+
+A tabela guarda o REGISTRO CRU do disco (stats, EXP, Gold), igual em todas as versões do
+jogo. O que cada versão faz com ele — o boost dos stats ao carregar a luta, o corte de EXP e
+de Gold no fim — é regra de código (UJRPGBattleRules + EJRPGRuleset), não dado: a versão
+japonesa paga mais e não dá boost, e um número pré-multiplicado não volta ao cru exato.
 
 Junta as duas pelo nome (o disco escreve "Gimard $2" onde o TOML diz "Gimard Lv2"). Nome com
 várias formas (Songi, Tetsu, Gaza, Cort) desempata pelo HP, que é igual nas duas fontes.
 Registros do disco idênticos byte a byte entre si (o Cort em 180/183..186) ficam no menor id.
-Inimigo que só existe no disco (Comm, Evil Bat) vira linha com os stats do disco convertidos
-pelos fatores de batalha. Tudo que não casar sai no relatório e fica para resolver à mão.
+Inimigo que só existe no disco (Comm, Evil Bat) vira linha com o registro do disco. Inimigo
+do TOML sem registro no disco fica com os números do TOML (que NÃO são crus) e sai no
+relatório. Tudo que não casar fica para resolver à mão.
 
 Regenerar NÃO apaga trabalho manual: Mesh e Anims (preenchidos pela Fase 2), um
 MonsterArchiveID posto à mão onde o gerador não achou, e linhas criadas no LegaiaStudio são
@@ -51,8 +58,19 @@ ELEMENTS = {
     "water": "Water", "earth": "Earth", "light": "Light", "dark": "Dark", "evil": "Evil",
 }
 
-# Registro cru do disco -> valor de batalha (crates/gamedata/tests/enemy_stats_vs_disc.rs).
 # stats do registro, na ordem do arquivo: AGL, ATK, UDF, LDF, INT, SPD.
+def raw_stats(rec):
+    """O registro do disco como está: é o que vai para a tabela."""
+    agl, atk, udf, ldf, intel, spd = rec["stats"]
+    return {
+        "BaseHP": rec["hp"], "BaseMP": rec["mp"], "BaseAGL": agl,
+        "BaseATK": atk, "BaseUDF": udf, "BaseLDF": ldf, "BaseSPD": spd, "BaseINT": intel,
+        "EXP": rec["exp"], "Gold": rec["gold"],
+    }
+
+
+# Registro cru do disco -> o que o enemies.toml traz (crates/gamedata/tests/enemy_stats_vs_disc.rs):
+# a luta de boss americana, com EXP x3/4 e Gold x5/16 (com o Golden Book). Só para conferir.
 def battle_stats(rec):
     agl, atk, udf, ldf, intel, spd = rec["stats"]
     return {
@@ -179,11 +197,16 @@ def main():
                 row["CatchRate"] = rec["catch"]
                 if seru_names and row["CaptureSeru"] not in seru_names:
                     report["Seru fora do magic.toml"].append("%s: %s" % (name, row["CaptureSeru"]))
-            # O TOML (de batalha) tem que bater com o disco convertido, a menos de 1.
+            # O TOML (de batalha) tem que bater com o disco convertido, a menos de 1 — é o que
+            # prova que o casamento pelo nome pegou o registro certo.
             calc = battle_stats(rec)
             off = ["%s %s/%s" % (k, row[k], v) for k, v in calc.items() if abs(int(row[k]) - v) > 1]
             if off:
                 report["TOML difere do disco (toml/disco)"].append("%s: %s" % (name, ", ".join(off)))
+            # Na tabela vai o registro cru.
+            row.update(raw_stats(rec))
+        else:
+            report["sem registro no disco: ficou com os números do TOML, que NÃO são crus"].append(name)
         rows.append(row)
 
     for r in disc:
@@ -196,13 +219,13 @@ def main():
                "bIsBoss": "False", "Element": "None", "DropItem": "", "DropChance": 0,
                "StealItem": "", "StealChance": 0, "CaptureSeru": "", "CatchRate": 0,
                "MonsterArchiveID": r["id"]}
-        row.update(battle_stats(r))
+        row.update(raw_stats(r))
         if r["seru"]:
             row["CaptureSeru"], row["CatchRate"] = base_name(r["name"]), r["catch"]
         note = "id %d %s" % (r["id"], r["name"])
         if r["drop"]:
             note += " (drop do disco: item #%d, sem key — preencher DropItem à mão)" % r["drop"]
-        report["só no disco (stats do disco x fatores; Element e Location vazios)"].append(note)
+        report["só no disco (Element e Location vazios)"].append(note)
         rows.append(row)
 
     for keep, dups in duplicates.items():

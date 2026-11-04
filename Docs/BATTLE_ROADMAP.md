@@ -15,17 +15,19 @@ is done and will be consumed by the battle system rather than rewritten.
 
 ## Current state
 
-Battle is **71 lines of stubs**:
+The fight is **assembled but not fought** (2026-11-04):
 
-| File | Lines | Content |
-|---|---|---|
-| `Public/Battle/BattleSubsystem.h` | 25 | Declares `ApplyBattleItemEffect` only |
-| `Private/Battle/BattleSubsystem.cpp` | 11 | A single `UE_LOG("TODO")` |
-| `Public/Arts/ArtsSubsystem.h` | 24 | Declares `TeachArtToCharacter` only |
-| `Private/Arts/ArtsSubsystem.cpp` | 11 | A single `UE_LOG("TODO")` |
+| Exists | Where |
+|---|---|
+| `BeginBattle(FJRPGBattleSetup)` / `EndBattle(EJRPGBattleResult)` (Victory, Defeat, Escaped, Aborted), the combatant list (who and where, no stats yet), `OnBattleStarted` / `OnBattleEnded` | `UBattleSubsystem` |
+| The arena, the pawns in their seats, the fade, the Muscle Dome waves | Phase 4 — `AJRPGBattleArena`, `UJRPGBattleSceneSubsystem`, `AJRPGBattlePawn`, `AJRPGBattleWaves` |
+| The data: enemies (raw disc record), Arts, bosses | Phase 1 — `DT_Enemies`, `DT_Arts`, `DT_Bosses` |
+| What each version does with an enemy's record: stat boost, victory EXP and Gold | `UJRPGBattleRules` + `EJRPGRuleset` ([Version rules](#version-rules--usa-or-japan)) |
+| A turn's clip queue from `DT_Arts` | `UJRPGArtSequenceLibrary` (the Art tester plays it) |
 
-The inventory already routes item use into `ApplyBattleItemEffect`; the call arrives and
-does nothing.
+Still stubs: `ApplyBattleItemEffect` (the inventory routes item use into it; the call arrives and
+does nothing), `UArtsSubsystem` (only `TeachArtToCharacter`, a `UE_LOG("TODO")`). No turns,
+no damage, no rewards yet — that is Phase 5.
 
 ---
 
@@ -65,7 +67,8 @@ None of this needs to be written — only called.
 |---|---|
 | Combatant record (HP/MP/AP, 8 stats, 5 equip slots, conditions, SeruLevel) | `FJRPGPartyMember` (`Public/Party/JRPGPartyTypes.h`) |
 | Damage, heal, restore MP, `SetAP`, revive, full restore | `UPartySubsystem` |
-| XP split among survivors, level-up with jitter | `UPartySubsystem::AwardBattleXP` / `LevelUpMember` |
+| XP split among survivors, level-up with jitter | `UPartySubsystem::AwardBattleXP` (takes the **raw** EXP sum; applies the version and the difficulty) / `LevelUpMember` |
+| Enemy stats installed and victory EXP / Gold, per version (USA / Japan) | `UJRPGBattleRules` (`InstallEnemyStats`, `VictoryEXPPool`, `VictoryEXPShare`, `VictoryGold`) + `UCoreSubsystem::GetRuleset` |
 | Effective stat (base + equipment + Ra-Seru) | `UStatusSubsystem::GetEffectiveStat` |
 | Ra-Seru bonus (1..9) | `UStatusSubsystem::GetSeruBonus` |
 | Elemental affinity multiplier | `UStatusSubsystem::GetElementMultiplier` |
@@ -94,7 +97,7 @@ Each phase ends in something you can run and watch work.
 | **4** | Battle stage (spawn, formation, camera) | **Done** (2026-10-27) — `AJRPGBattleArena` assembles the fight, `UJRPGBattleSceneSubsystem`, `BeginBattle`/`EndBattle`, `AJRPGBattlePawn`, `AJRPGBattleWaves` + JSON/Studio; tested in the editor and on the Muscle Dome map. Party-size scaling moved to Phase 8 |
 | **5** | Basic combat (turns, damage, death, victory) | Not started |
 | **6** | Directional Arts + the new AP | Not started |
-| **7** | Presentation (HUD, attack camera, sound, items, escape) | Not started |
+| **7** | Remaining commands (item, escape, guard, drop / steal) and presentation (HUD, attack camera, sound) | Not started |
 | **8** | Magic and Seru | Not started |
 
 ```
@@ -110,7 +113,7 @@ Phase 0 (extraction)
                                   ▼
                          Phase 6 (Arts + new AP)
                                   ▼
-                         Phase 7 (presentation)
+                         Phase 7 (commands + presentation)
                                   ▼
                          Phase 8 (magic and Seru)
 ```
@@ -183,11 +186,19 @@ says `Gimard Lv2`). Multi-form bosses share a name across several ids (Gaza, Cor
 generator must report them and leave them to a human.
 
 The two sources do not hold the same numbers, and that is expected: `enemies.toml` records the
-**in-battle** values (what the player fights), the disc the raw record the battle loader
-boosts. The RE project pins the factors (`crates/gamedata/tests/enemy_stats_vs_disc.rs`):
-HP, SPD, AGL ×1 · UDF, LDF ×2 · ATK ×5/4 · INT ×9/8 · EXP ×3/4 · Gold ×5/16 (±1 rounding).
-Store the in-battle values; an enemy that exists only on the disc gets the raw values times
-those factors.
+American **scripted-fight** view (what the player fights in a boss fight on the USA disc), the
+disc the raw record the battle loader boosts. The RE project pins the factors
+(`crates/gamedata/tests/enemy_stats_vs_disc.rs`): HP, SPD, AGL ×1 · UDF, LDF ×2 · ATK ×5/4 ·
+INT ×9/8 · EXP ×3/4 · Gold ×5/16 (±1 rounding; the Gold one includes the Golden Book).
+
+**Decided (2026-11-04): the table stores the raw record**, and the factors are code. They are
+one version's rules, not data: the USA executable boosts the stats (two profiles — scripted
+fight and random encounter) and cuts EXP and Gold; the Japanese and European executables do
+neither, on the same bytes. The first version of the table stored the TOML's numbers — the
+scripted profile even for random encounters, the Golden Book in every Gold, and an EXP that
+`AwardBattleXP` would have cut by 3/4 a second time. See
+[Version rules](#version-rules--usa-or-japan). The generator still converts the record and
+compares it with the TOML: that check is what proves the name join picked the right record.
 
 ### New structs
 
@@ -201,8 +212,8 @@ One `UPROPERTY` per line, no `meta=(...)` with nested parentheses, struct closin
 ```cpp
 USTRUCT(BlueprintType) struct FJRPGEnemyData : public FTableRowBase {
   FName Key; FText DisplayName; FString Location; bool bIsBoss; EJRPGElement Element;
-  int32 BaseHP, BaseMP, BaseAGL, BaseATK, BaseUDF, BaseLDF, BaseSPD, BaseINT;  // in-battle
-  int32 EXP, Gold;
+  int32 BaseHP, BaseMP, BaseAGL, BaseATK, BaseUDF, BaseLDF, BaseSPD, BaseINT;  // raw record
+  int32 EXP, Gold;                        // raw record
   FName DropItem;    int32 DropChance;    // DropChance comes from the disc
   FName StealItem;   int32 StealChance;
   FName CaptureSeru; int32 CatchRate;     // from the disc
@@ -236,7 +247,7 @@ UENUM(BlueprintType) enum class EJRPGArtButton : uint8 { Arms, RaSeru, High, Low
 USTRUCT(BlueprintType) struct FJRPGArtData : public FTableRowBase {
   FName Key; FName Character; FText DisplayName; EJRPGArtKind Kind;
   TArray<FString> Command;      // tokens: Arms / Ra-Seru / High / Low
-  TArray<int32>   Directions;   // bytes 1..4, already in the owner's scheme
+  TArray<int32>   Directions;   // NOT kept: the struct has Command only (see above)
   int32 ActionConstant;         // 0x1B..0x32, stored as decimal
   int32 APGain  = 0;            // Regular: how much AP it ADDS
   int32 APCost  = 0;            // Hyper/Super/Miracle: how much it SPENDS
@@ -650,33 +661,103 @@ formation check goes with the Seru members to Phase 8.
 > **Ask before writing any code in this phase.** Whether PvP / online / local co-op must stay
 > possible changes how the combat core is written. Do not decide it alone in either
 > direction: ask the user, and record the answer in
-> [PvP, online and co-op](#pvp-online-and-co-op--undecided-ask-before-phase-5). The hit
-> timing is already settled either way (each hit resolved at its frame on the logic's timeline,
-> not by the animation — see "State machine"); the rest of the sketches below (`PhaseTimer` in
-> the combatant, one fighter at a time) are the version that closes that door.
+> [PvP, online and co-op](#pvp-online-and-co-op--undecided-ask-before-phase-5). Settled
+> either way: the contracts in "5.0" below, and the hit timing (each hit resolved at its frame on
+> the logic's timeline, not by the animation — see "State machine"), so the combatant holds rules
+> only, never presentation. The rest of the sketches below (one entry point per slot, the
+> combatant read from the local subsystems) are the version that closes the PvP door.
+
+### 5.0 — Contracts first
+
+The first step of Phase 5, before any turn is played: write down (in this section, then in code
+and tests) what each piece promises, so the core does not grow silent assumptions. These hold
+whatever the PvP answer is.
+
+**Data and the version's rules — done (2026-11-04).** `DT_Enemies` is the raw disc record;
+`UJRPGBattleRules` installs the stats and computes EXP / Gold for the rules picked by
+`EJRPGRuleset` ([Version rules](#version-rules--usa-or-japan)). `BeginBattle` snapshots each
+enemy through `InstallEnemyStats(row, Setup.bScriptedFight, ruleset)` and then the difficulty
+(`ScaleEnemyHP/ATK/DEF`). `FJRPGBattleSetup` gains `bScriptedFight` (and `Seed`): the original's
+flag is per formation, not per boss, so `DT_Bosses` gets a column for it (Tetsu's training and
+Lapis are scripted fights with the random-encounter profile).
+
+**The round.** The original's: **every hero's command is entered first, then the round plays
+out** in initiative order (enemies included). That is a gameplay decision, not only a network
+one — "each fighter chooses when its turn comes" would be a departure and would go in
+"Deliberate departures". A round is `Commands → Execution`; `GetActiveSlot` / `OnSlotChanged`
+mean "whose command is being entered" during Commands and "who is acting" during Execution.
+
+**The logic timeline** ("State machine" below says why):
+
+| Question | Contract |
+|---|---|
+| Where an action's frames come from | Built **when the action starts**, before anything plays: from each clip's asset data (length, rate, hit frames from the notifies) into a plain `FJRPGActionTimeline` (total frames, hit frames, chain-cut frames). Validated there: a hit frame past the clip's end, or a clip without hit notifies where `HitPower` says there are hits, is logged |
+| A clip that is missing or broken | The timeline falls back to defaults per kind (swing, Art, enemy attack: one hit at a fixed frame, a fixed length), logs it, and the fight goes on. The fallback is data, not a guess at play time |
+| When the damage is committed | At the hit's frame, by `ResolveHit(N)`, with every input received up to that frame. Never earlier (the parry) and never by a notify |
+| When a parry input counts | Only inside the hit's window (open question 5), stamped with the frame it arrived on; one input per hit; anything outside is ignored, not queued |
+| Several hits in one action | Each has its own frame, window and `ResolveHit`; a parry answers one hit |
+| Pause / menu | The counter does not advance while the game is paused (single player). Nothing is resolved during a pause |
+| Animation that lags | Presentation only: the pawn catches up to the counter, and shows the events already emitted. The logic never waits for a notify |
+
+**Items.** `UInventorySubsystem::UseItem` removes the item **before** routing the effect. The
+battle does not call it at command time: choosing Item **reserves** it (counted against the
+stack, so two heroes cannot use the last one); the item is **consumed when its action
+resolves**; an action that does not happen (the user died, the fight ended, the target is gone
+and the item is single-target with no retarget) releases the reservation. The effect goes
+through the battle (`ApplyBattleItemEffect` on the combatant snapshot), not the field path.
+
+**Conditions.** Today a condition is a name in `FJRPGPartyMember::Conditions`. The battle needs
+duration (rounds or "until cured"), the moment it acts (start / end of the bearer's turn), its
+per-turn effect (Poison's damage, Sleep's skipped turn), expiry, and which ones survive the
+fight. The contract is written in Phase 5 (a condition struct on the combatant, ticked by the
+resolution); the conditions themselves come with Phase 8.
+
+**End of the fight** — what each result writes back:
+
+| | HP / MP | AP | Items used | EXP / Gold / drop | Then |
+|---|---|---|---|---|---|
+| **Victory** | Kept as they are | Kept | Gone | Paid once | Back to the field |
+| **Defeat** | — | — | — | Nothing | Game over (Muscle Dome: the waves stop) |
+| **Escaped** | Kept | Kept | Gone | Nothing | Back to the field, grace period |
+| **Aborted** (debug, map change) | Untouched: as before the fight | Untouched | Not consumed | Nothing | Back to the field |
+
+So the snapshot is written back only on Victory and Escaped, and `Aborted` throws it away.
+**Rewards are paid once**: a flag in the battle state, set when they are paid, checked by
+`EndBattle` (a second `EndBattle`, or a victory that arrives twice from two last hits, pays
+nothing more). Some original fights pay nothing at all (`_DAT_8007BAC0`, the special battles):
+`FJRPGBattleSetup` gets `bNoRewards`.
+
+**Who gets the EXP.** `AwardBattleXP` walks the **active** formation and reads who is dead from
+the roster, but the fight uses `Setup.Party` when it is given (the Muscle Dome gives it) and
+keeps HP in the combatants. So, in this order: write the survivors' HP back to the roster, then
+pay EXP to **the fight's heroes** who are alive — `AwardBattleXP` takes the participants
+(an overload with `TArray<FName>`). The sum it gets is the raw EXP of the defeated enemies
+(`DT_Enemies.EXP`); the version and the difficulty are applied inside. Gold:
+`VictoryGold(raw golds, Golden Book, ruleset)`, then `ScaleGoldReward`, then `AddGold`.
 
 ### `Public/Battle/BattleTypes.h`
 
 ```cpp
-UENUM(BlueprintType) enum class EJRPGBattleSide   : uint8 { Party, Enemy };
-UENUM(BlueprintType) enum class EJRPGBattleCommand: uint8 { None, Attack, Arts, Item, Magic, Escape };
-UENUM(BlueprintType) enum class EJRPGActionPhase  : uint8 {
+UENUM(BlueprintType) enum class EJRPGBattleSide   : uint8 { Party, Enemy };          // exists
+UENUM(BlueprintType) enum class EJRPGBattleCommand: uint8 { None, Attack, Arts, Item, Magic, Escape, Guard };
+UENUM(BlueprintType) enum class EJRPGActionPhase  : uint8 {   // presentation: lives in the pawn
     Idle, Windup, Advance, Strike, Chain, Recovery, Return, Done
 };
 
+// Exists since Phase 4 with SlotIndex, Side, SideIndex, Type, Key, Level; Phase 5 adds the rest.
+// Rules only, all integer: no phase, no timer, nothing the pawn shows.
 USTRUCT(BlueprintType) struct FJRPGCombatant {
-  int32 SlotIndex; EJRPGBattleSide Side; EJRPGCombatantType Type;
+  int32 SlotIndex; EJRPGBattleSide Side; int32 SideIndex; EJRPGCombatantType Type;
   FName Key;                  // party member, seru, or DT_Enemies row
   int32 Level;
   int32 HP, MaxHP, MP, MaxMP;
-  int32 ATK, UDF, LDF, SPD, INT, AGL;
+  int32 ATK, UDF, LDF, SPD, INT, AGL;   // enemies: InstallEnemyStats + difficulty
   EJRPGElement Element;
   int32 AP;                   // persistent meter (Arts add, specials spend)
   int32 CommandGauge;         // per-turn input budget, seeded from AGL
   int32 InitiativeKey;
-  EJRPGActionPhase Phase; float PhaseTimer;
   int32 TargetSlot; int32 JuggleCounter; bool bGuarding; bool bAlive;
-  TArray<FName> Conditions;
+  TArray<FJRPGBattleCondition> Conditions;   // 5.0 › Conditions
 };
 
 USTRUCT(BlueprintType) struct FJRPGBattleEvent {
@@ -691,8 +772,8 @@ USTRUCT(BlueprintType) struct FJRPGBattleEvent {
 `ETickableTickType::Conditional`).
 
 ```cpp
-bool BeginBattle(const TArray<FJRPGEncounterSpawn>& Enemies, const FTransform& Anchor, int32 Seed);
-void EndBattle(bool bVictory);
+bool BeginBattle(const FJRPGBattleSetup& Setup);   // exists; Setup gains Seed, bScriptedFight, bNoRewards
+void EndBattle(EJRPGBattleResult Result);         // exists: Victory / Defeat / Escaped / Aborted
 bool SubmitCommand(int32 Slot, EJRPGBattleCommand Command, int32 TargetSlot);
 const TArray<FJRPGCombatant>& GetCombatants() const;
 int32 GetActiveSlot() const;
@@ -745,7 +826,8 @@ Art power is per hit: `0x16–0x1A` → UDF × 12/18/20/22/28, `0x1B–0x1F` →
 
 ### State machine
 
-`EJRPGActionPhase`, short and readable, driven by timers and AnimNotify:
+`EJRPGActionPhase`, short and readable, played by the pawn **in step with the logic timeline**
+(below) — not driven by its own timers or by AnimNotify:
 `Windup → Advance → Strike → (Chain) → Recovery → Return → Done`.
 
 **Decided (2026-10-31), whatever the PvP answer: each hit is resolved at its own frame, by the
@@ -766,8 +848,9 @@ Each clip's length, rate and hit frames are **asset data** — the notify times 
 frame, `ResolveHit(N)` runs with the fight's state, its RNG and every input received so far
 (a parry pressed before the window closed), and emits that hit's events. The state machine above
 is the **presentation** of that timeline: the pawn plays the clip in step with the counter, and
-the `Strike` notify shows the event the logic already emitted. A clip that lags or is missing
-only shows late — the fight never hangs on a notify.
+the `Strike` notify shows the event the logic already emitted. A clip that lags only shows late,
+and a missing one falls back to default frames (5.0 › The logic timeline) — the fight never
+hangs on a notify.
 
 This matches the original more closely than it looks. There the anim tick (`FUN_80047430`)
 calls the damage kernel (`FUN_801EC3E4`) on each hit-event frame — damage is rolled **at the
@@ -814,7 +897,21 @@ The RE project documents the real selector (`FUN_801E9FD4`) when you want to go 
 
 **Acceptance:** touch a Gimard → turn order computed → choose Attack → animation plays,
 damage shows, HP drops → the enemy retaliates → kill it → `Defeat` animation, victory, XP
-distributed through `AwardBattleXP`, back to the map, pawn gone.
+distributed through `AwardBattleXP` (raw sum; with `USA` and three heroes, a Gimard's 55 EXP
+pays 14 each), back to the map, pawn gone.
+
+And the failures, each an automation test where it can be one (no map):
+
+| Case | Expected |
+|---|---|
+| The target dies before the action | Retarget to another living combatant on that side (check the original's rule in the RE first); none left → the action is dropped, nothing consumed |
+| The attacker dies before its turn | Its command is dropped; a reserved item is released |
+| Two equal initiative keys | A fixed order (ties by `SlotIndex`), the same every run |
+| The last enemy dies in the middle of a combo | The rest of the chain does not resolve; victory once the action ends |
+| A clip is missing | The default frames; the fight goes on, a log line says which |
+| The fight ends during a transition (fade, a second `EndBattle`) | Ends once; rewards once |
+| `Aborted` | The party exactly as before the fight; no item consumed, no reward |
+| Japan rules | `rules.set 1`: the same fight installs the raw stats and pays the full EXP |
 
 ---
 
@@ -835,31 +932,65 @@ player builds AP by performing Arts and burns it on the big ones.
 ### `UArtsSubsystem`
 
 ```cpp
-static int32 DirectionByteFor(FName Character, EJRPGArtButton Button);
-// Vahn/Gala: Arms=1 RaSeru=2 High=4 Low=3 | Noa: Arms=2 RaSeru=1 (left-handed, mirrored)
+static EJRPGArtButton ButtonForPad(FName Character, EPadButton Pad);
+// Noa is left-handed: her Arms is the right button (resolved here, never stored)
 
-TArray<int32> RecognizeArtSequence(FName Character, const TArray<int32>& Input) const;
+// The Arts the buttons perform, overlapping as in the original; the unknown ones it meets
+// come back flagged, and LearnArt adds them
+TArray<FJRPGRecognizedArt> RecognizeArtSequence(FName Character, const TArray<EJRPGArtButton>& Input) const;
 TArray<FName> GetKnownArts(FName Character) const;
-void TeachArtToCharacter(const FString& CharacterName, FName ArtKey);   // preserved
+bool LearnArt(FName Character, FName ArtKey);                           // true = newly learned
+void TeachArtToCharacter(const FString& CharacterName, FName ArtKey);   // preserved (Art books)
 ```
 
-Recognition is **greedy longest-match**, left to right, over the Arts the character
-actually **knows**: at each position, the longest Art whose `Directions` prefix the
-remaining input is consumed and emitted; a position that starts no Art is skipped as a
-connector.
+Recognition follows the original's tokenizer (`FUN_801EED1C`; RE `crates/art/src/tokenize.rs`,
+`docs/subsystems/battle-action-queue.md` › "Normalize arrows into art constants"), **not** a
+consuming longest-match:
 
-> `arts.toml` already stores `directions[]` in the owner's scheme, so the table needs no
-> scheme column — Noa's mirroring only matters at *input* time. Validation for the
-> converter: recompute `directions[]` from `command[]` and compare against the TOML.
+- **Arts overlap.** The original walks the input tail-first and restarts right after each
+  match, so one button can belong to two Arts: Tri-Somersault is seven buttons because
+  Somersault, Cyclone and Somersault share their ends. A greedy match that *consumes* the
+  input would see Somersault and then lose the Arts that start on its last button. `ARTS.md`
+  already says it for the Supers ("one's last button is the next one's first").
+- **Over every Art of the character, known or not**, matched on `Command` (`DT_Arts`; there is
+  no `Directions` column — Noa's mirroring is resolved when the button is read). An Art the
+  hero did not know is **learned by performing it** — the original's learn-on-use
+  (`FUN_801EFBFC`: it inserts the Art in the hero's learned list and stages it with `0x1A`
+  instead of `0x19`, so the "learned" banner shows once). The original gates it (a per-hero cap
+  on the innate Arts and a learn flag, plus a 1/512 roll); which of those the remake keeps is
+  open question 7.
+- **The learned list is saved.** It is per hero and goes into the save (a `TArray<FName>` of
+  `DT_Arts` keys in `FJRPGPartyMember`, written by `UArtsSubsystem` only; `SaveVersion` goes up).
+  `TeachArtToCharacter` (the Art books) adds to the same list.
+- A button that starts no Art is a plain swing (the connector).
+
+Validation for the generator: recompute each Super's whole input from its `Sequence` with the
+overlap rule and compare it with its `Command` (the RE derives it the same way,
+`derive_super_input`).
 
 ### The input window
 
 `SubmitCommand(Slot, Arts, …)` opens the window; each button debits `CommandCost` from
-`CommandGauge` and pushes a byte; `CommitArtsChain` recognizes the chain, resolves the
-hits, credits `APGain` for regular Arts and debits `APCost` for the specials.
+`CommandGauge` and pushes a byte; `CommitArtsChain` recognizes the chain and turns it into the
+turn's queue (`UJRPGArtSequenceLibrary`).
+
+When AP moves, which the inversion makes a real decision (the original paid AP per Art at
+recognition time, `+0x170`). **Proposed, to confirm with the user** (open question 6):
+
+| Moment | What happens |
+|---|---|
+| **Commit** (the chain is recognized) | Each special (Hyper / Super / Miracle) is **checked** against the AP the hero has at commit, plus the `APGain` of the regular Arts that come before it in the same chain. One that does not fit is downgraded to its buttons (plain swings / the regular Arts inside it). Nothing is debited yet |
+| **Each Art, when its action reaches it** | A regular Art **credits** `APGain` when its first hit resolves (an Art cut short by the enemy's death still credits); a special **debits** `APCost` when it starts |
+| **The action is cancelled** (the hero dies, the fight ends) | What was not reached is neither credited nor debited |
+
+So AP gained early in a chain **can** pay for a special at its end — that is the point of the
+inversion (build, then burn), and it is what makes "Commit" check against the running total.
+Whether to keep it is open question 6; if not, the check at commit uses the AP the hero has.
 
 Hyper / Super / Miracle appear **unavailable** (greyed out) when AP does not cover
-`APCost` — the feedback has to be visible before the player builds the sequence.
+`APCost` — the feedback has to be visible before the player builds the sequence. With the
+running total, the list updates as the chain is typed (a special lights up once the regular
+Arts before it pay for it).
 
 **Acceptance:** enter `Arms, Ra-Seru, High` as Vahn → "Hyper Elbow" is recognized, the right
 animation plays, damage uses the Art's power and AP **rises**. Fill AP and fire a Super Art
@@ -867,9 +998,25 @@ animation plays, damage uses the Art's power and AP **rises**. Fill AP and fire 
 
 ---
 
-## Phase 7 — Presentation
+## Phase 7 — Remaining commands and presentation
 
-**Goal:** the battle stops looking like a prototype.
+**Goal:** every command works, and the battle stops looking like a prototype.
+
+Two kinds of work, kept apart: the **rules** go through the combat core like Phase 5's
+(commands in, resolution, events out, automation tests without a map, the 5.0 contracts); the
+**presentation** only consumes events.
+
+### Rules
+
+- **Item** — 5.0 › Items: reserved at command time, consumed when its action resolves, the
+  effect applied to the combatant through `ApplyBattleItemEffect` (still a stub today).
+- **Escape** — the roll (party SPD vs enemies; the RE has the original's), `EndBattle(Escaped)`
+  and what it keeps (5.0 › End of the fight). Not in scripted fights.
+- **Guard** — what it changes in the damage (the kernel already reads `bGuarding`) and how long.
+- **Rewards beyond EXP / Gold** — the drop roll (at most one item per fight, the original's
+  `0x8004F3D8`) and the steal; `DropItem` / `StealItem` are already in `DT_Enemies`.
+
+### Presentation
 
 - **HUD in `shell.html`.** A new `battle` screen: party HP/MP/AP strip, enemy row, the AP
   bar with its cost markers, damage log. Add `Battle` to `EJRPGUIState` **at the end of the
@@ -880,9 +1027,7 @@ animation plays, damage uses the Art's power and AP **rises**. Fill AP and fire 
   on victory.
 - **Sound.** Impacts, Art voice lines and battle BGM extracted via the RE project's `vab` /
   `xa` crates, wired into `UAudioSubsystem`.
-- **Remaining commands:** Item (reuses `ApplyBattleItemEffect` and `UInventorySubsystem`),
-  Escape (roll based on party SPD vs enemies), Guard.
-- **Rewards:** gold, drop and steal are already in `DT_Enemies`.
+- **The victory screen** — EXP, Gold and the item, from the events the rules emitted.
 
 **Acceptance:** a full fight with sound, reactive camera, usable items and working escape,
 with nothing debug-looking on screen.
@@ -905,6 +1050,36 @@ Last on purpose: it depends on everything above being stable and carries the mos
   content. With them: `bScaleEnemiesWithPartySize` (more heroes, more enemies rolled) and the
   5-hero formation check left over from Phase 4's acceptance.
 - Ra-Seru summons (200–255 MP, gated behind sidequests).
+
+---
+
+## Version rules — USA or Japan
+
+**Decided 2026-11-04.** The monster records are byte-identical on every disc; the executables
+differ (RE `docs/subsystems/battle.md` › "Battle-load stat boost" and "No boost on the PAL
+executables", `docs/subsystems/battle-formulas.md` › "Regional difference"):
+
+| | USA (SCUS_942.54) | Japan (SCPS_100.59) and PAL (SCES_019.44/45/46) |
+|---|---|---|
+| Enemy stats when the fight loads | Boosted: scripted fight ATK ×5/4, UDF/LDF ×2, INT ×9/8; random encounter UDF/LDF ×7/4, INT ×5/4 | The record |
+| EXP | Sum × 3/4, split among the living rounding up | The sum, split the same way |
+| Gold | Σ `gold >> 1`, Golden Book +¼, halved again | Σ `gold >> 1`, Golden Book +¼ |
+
+So the framework keeps the record as data and the rules as code:
+
+- **`DT_Enemies` is the raw record** (generator, 2026-11-04; rule 53 in
+  [ARCHITECTURE.md](ARCHITECTURE.md)).
+- **`EJRPGRuleset { USA, Japan }`** in `UCoreSubsystem` (`GetRuleset` / `SetRuleset`, default
+  `USA`, the executable the RE measures). A separate axis from the difficulty: the difficulty
+  multiplies on top of what the version gave, so Normal + Japan is the Japanese game.
+- **`UJRPGBattleRules`** does the arithmetic (`InstallEnemyStats`, `VictoryEXPPool`,
+  `VictoryEXPShare`, `VictoryGold`), integer and truncating; `AwardBattleXP` already uses it.
+  Checked against the RE's captures in [Guides/ENEMIES.md](Guides/ENEMIES.md#version-rules-usa--japan).
+
+Still open: where the player picks it (the Options screen next to the difficulty, or New Game
+only) and whether it goes into the save — like the difficulty, it is runtime only today. Other
+regional differences the RE documents (the Seru-magic debuff lockout on bosses is a product of
+the USA boost alone) follow from the same switch when Phase 8 gets there.
 
 ---
 
@@ -952,7 +1127,7 @@ out of animation notifies means rewriting the resolution.
 |---|---|---|
 | Apply damage, HP, deaths or AP in an AnimNotify or timer callback | Host and clients do not run their animations in sync (frame rate, hitches, montage blends) | `ResolveHit(N)` on the logic timeline emits `FJRPGBattleEvent`s; `Strike` and `JRPGAnimNotify_ChainCut` only *show* them |
 | Roll with `FMath::Rand` / `FMath::RandRange` or any global stream | Each machine rolls something different | One `FRandomStream` inside the battle state, seeded from `BeginBattle`'s `Seed`; only the resolution consumes it. Cosmetic randomness (which flinch clip, particles) uses a separate stream |
-| Keep presentation in the combatant (`EJRPGActionPhase Phase`, `float PhaseTimer` in `FJRPGCombatant`) | Ties the rules to frame time, and floats diverge between machines | `FJRPGCombatant` holds rules only, all integer; phase and timers live in the pawn / presentation |
+| Keep presentation in the combatant (`EJRPGActionPhase Phase`, `float PhaseTimer` in `FJRPGCombatant`) | Ties the rules to frame time, and floats diverge between machines | `FJRPGCombatant` holds rules only, all integer; phase and timers live in the pawn / presentation — already the plan either way (Phase 5's sketch) |
 | Let the UI bridge mutate the battle directly (`SubmitCommand` straight from `UWebUIBridge`) | Online, the command has to travel to the host first; local co-op needs to know who sent it | Every command is a value struct (`FJRPGBattleCommand`: issuing player, slot, command, target, Art bytes) through one entry point that checks the issuer owns the slot and validates the rest (rule 22: never trust the payload) |
 | Send an Arts chain button by button to the rules | Each button would be a round trip | The input window stays local; `CommitArtsChain` sends the whole chain as one command |
 | Read `UPartySubsystem` / `UInventorySubsystem` / `UStatusSubsystem` during resolution | In PvP the opponent's party is not in your GameInstance | Snapshot everything into the combatants at `BeginBattle`; resolution reads only the battle state; write back (HP, XP, items used) at `EndBattle` |
@@ -971,22 +1146,21 @@ The rules themselves stay: the damage formula, the turn order, the dumb AI and "
 arena" are the same. What changes is how Phase 5 is organised, item by item. On screen, in
 single player, the result is identical.
 
-**The round.** The sketch's `GetActiveSlot` / `OnSlotChanged` read as one fighter at a time,
-choosing and acting. With the door open, a round has two steps:
+**The round.** Already `Commands → Execution` either way (5.0 › The round, the original's
+model). With the door open, Commands are also **hidden from the other side**:
 
 ```
 Commands (everyone chooses; hidden from the other side) → Execution (the logic timeline, hit by hit; parries arrive during it)
 ```
 
-The original already almost works this way (all three heroes' commands first, then everyone
-acts by initiative). In PvP both sides choose at the same time without seeing each other.
+In PvP both sides choose at the same time without seeing each other.
 
 **`BattleTypes.h`**
 
 | In the sketch | With the door open |
 |---|---|
 | `EJRPGBattleSide { Party, Enemy }` | Stays, but the rules ask "same team?": add `int32 Team` and `int32 OwnerPlayer` (-1 = AI). Victory is "a whole team is down", not "the enemies are dead" |
-| `EJRPGActionPhase Phase; float PhaseTimer` in `FJRPGCombatant` | **Out of the combatant**, into `AJRPGBattlePawn`. The combatant holds rules only, all integer |
+| `EJRPGActionPhase` | Already out of the combatant, in `AJRPGBattlePawn` (decided either way, 2026-11-04) |
 | Stats read through `GetEffectiveStat` at the moment of the hit | A **snapshot** at `BeginBattle`: base ATK + Ra-Seru bonus, and each equipment piece's ATK kept separate. This also retires the "ATK double-counted" risk |
 | `FJRPGBattleEvent { FName EventType; …; FText Text }` | `EventType` becomes an enum; `FText` goes (the UI builds the text); add `ActionIndex` / `HitIndex` so a notify knows which event to show |
 | — | **`FJRPGBattleCommand`** `{ PlayerIndex, Slot, Command, TargetSlot, ArtBytes, ItemKey }` |
@@ -997,7 +1171,7 @@ acts by initiative). In PvP both sides choose at the same time without seeing ea
 
 | In the sketch | With the door open |
 |---|---|
-| `BeginBattle(Enemies, Anchor, Seed)` (the code already has `BeginBattle(Setup)`) | Stays `BeginBattle(Setup)`, but `FJRPGBattleSetup` gains `Seed`, and `TArray<FName> Party` (read from the local `UPartySubsystem`) becomes teams carrying their snapshots — the opponent's party arrives as data, not from your save |
+| `BeginBattle(Setup)` | Stays, with `Seed` (5.0), and `TArray<FName> Party` (read from the local `UPartySubsystem`) becomes teams carrying their snapshots — the opponent's party arrives as data, not from your save |
 | `SubmitCommand(Slot, Command, TargetSlot)` | `SubmitCommand(const FJRPGBattleCommand&)`, which checks the issuer owns the slot |
 | — | `SubmitInput(const FJRPGBattleInput&)` — the parry, during execution |
 | — | `StepFrame()` advances the logic timeline one fixed frame; `ResolveHit(N)` runs when a hit's frame comes |
@@ -1033,9 +1207,9 @@ network-related.
 
 ### If the answer is no
 
-The sketches in Phase 5 stand as written — except the hit timing, which is decided (each hit
-at its frame on the logic timeline, Phase 5 › State machine). Record the decision here with its
-date.
+The sketches in Phase 5 stand as written — the hit timing (each hit at its frame on the logic
+timeline, Phase 5 › State machine) and the 5.0 contracts are decided either way. Record the
+decision here with its date.
 Adding PvP or online later then means reorganising the core around commands and teams, and
 this section is the list of what changes.
 
@@ -1066,6 +1240,7 @@ this section is the list of what changes.
 | PS1 over-bright vertex colours (> 1.0) clamped by the 8-bit vertex colour | Low — flames and glowing blades look duller | Export the colour halved and double it in `M_PS1Monster` |
 | ATK double-counted (`GetEffectiveStat` already includes equipment) | **High**, because it is invisible — inflates damage uniformly | Explicit test: Vahn's combatant with a sword equipped must read `ATK == base + Seru bonus` |
 | PS1 integer arithmetic translated as float | Medium | `int32`/`int64` throughout the damage kernel, no `FMath::` |
+| A version's factor applied twice, or baked into a table | **High**, invisible — the first `DT_Enemies` held EXP × 3/4 and `AwardBattleXP` cut it again (≈56% of the EXP) | The table is the raw record; every factor lives once, in `UJRPGBattleRules` (rule 53). Tests pin the RE's captures (Gaza, Gobu Gobu, Gimard, Zeto) |
 | Larger party breaking balance | Medium | `bScaleEnemiesWithPartySize` from Phase 4, multipliers exposed as `UPROPERTY` |
 | Regenerating a CSV wiping hand-made mesh/anim mapping | Medium, destructive | Merge by row name in the generator + timestamped `.bak` in `Docs/Data/_backup/` |
 | `bosses.toml` inline tables breaking the parser | Low | Dedicated regex; validate 30/30 rows |
@@ -1087,6 +1262,13 @@ this section is the list of what changes.
    how the window is telegraphed (a flash, a sound, the clip itself), and whether the party's
    Arts can be parried in PvP. The window comes from the attack clip's hit frame, so the enemy
    clips' hit notifies have to be right. Its phase is not set yet (6 or 7).
+6. **AP in a chain** (Phase 6 › The input window, proposed): can AP gained by the regular Arts
+   early in a chain pay for a special at its end (the proposal says yes); when exactly a regular
+   Art credits (its first hit, its end) and a special debits (its start).
+7. **Learning Arts by performing them** (Phase 6 › `UArtsSubsystem`): which of the original's
+   gates stay (the per-hero innate cap, the learn flag, the 1/512 roll), and whether an unknown
+   Art still plays as that Art the first time (the original's) or only as swings.
+8. **The version switch** (Version rules): Options or New Game only, and saved or not.
 
 ---
 
@@ -1096,6 +1278,8 @@ this section is the list of what changes.
 ([the section](#pvp-online-and-co-op--undecided-ask-before-phase-5) says why and what each
 answer means).
 
-**Phase 5:** basic combat on the Muscle Dome — combatant stats, the original's turn order,
-the integer damage kernel, the action state machine, a dumb enemy AI, victory / defeat. In
-parallel, the party's battle clips (attack, hit, KO) that it needs.
+**Phase 5:** first the contracts (5.0 — the round, the logic timeline and its fallback, items,
+end of the fight, who gets the EXP), then basic combat on the Muscle Dome — combatant stats
+through the version rules, the original's turn order, the integer damage kernel, the action
+state machine, a dumb enemy AI, victory / defeat. In parallel, the party's battle clips
+(attack, hit, KO) that it needs.

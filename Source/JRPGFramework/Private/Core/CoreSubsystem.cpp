@@ -446,6 +446,16 @@ void UCoreSubsystem::SetDifficulty(EJRPGDifficulty NewDifficulty)
 	OnDifficultyChanged.Broadcast(Difficulty);
 }
 
+void UCoreSubsystem::SetRuleset(EJRPGRuleset NewRuleset)
+{
+	if (Ruleset == NewRuleset)
+	{
+		return;
+	}
+	Ruleset = NewRuleset;
+	UE_LOG(LogTemp, Log, TEXT("CoreSubsystem: regras da luta -> %s."), *UEnum::GetValueAsString(Ruleset));
+}
+
 FDifficultyScaling UCoreSubsystem::GetDifficultyScaling() const
 {
 	// A DataTable é opcional: sem ela o sistema funciona com os defaults abaixo,
