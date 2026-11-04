@@ -243,13 +243,13 @@ const FJRPGEnemyActionData* AJRPGBattlePawn::FindEnemyActionByTag(int32 Tag) con
 	return EnemyActions.FindByPredicate([Tag](const FJRPGEnemyActionData& Row) { return Row.Tag == Tag; });
 }
 
-UAnimSequence* AJRPGBattlePawn::FindRoleClip(FName Role, float& OutPlayRate) const
+UAnimSequence* AJRPGBattlePawn::FindRoleClip(FName ClipRole, float& OutPlayRate) const
 {
 	OutPlayRate = 1.0f;
 	if (Combatant.Type == EJRPGCombatantType::Enemy)
 	{
 		// O clip da linha do DT_EnemyActions com a tag do papel, tocado no rate dele (a escala 8: 15 x rate quadros/s)
-		const int32 Tag = TagForRole(Role);
+		const int32 Tag = TagForRole(ClipRole);
 		if (const FJRPGEnemyActionData* Row = Tag >= 0 ? FindEnemyActionByTag(Tag) : nullptr)
 		{
 			if (UAnimSequence* Clip = Row->Anim.LoadSynchronous())
@@ -260,12 +260,12 @@ UAnimSequence* AJRPGBattlePawn::FindRoleClip(FName Role, float& OutPlayRate) con
 		}
 		// Sem a tabela de ações: o conjunto de clips do DT_Enemies (rate 2, o de quase todo clip do original)
 		const TSoftObjectPtr<UAnimSequence>* Soft = nullptr;
-		if (Role == RoleIdle)           { Soft = &EnemyAnims.Idle; }
-		else if (Role == RoleWalk)      { Soft = &EnemyAnims.Walk; }
-		else if (Role == RoleFlinch1)   { Soft = &EnemyAnims.Flinch1; }
-		else if (Role == RoleFlinch2)   { Soft = &EnemyAnims.Flinch2; }
-		else if (Role == RoleKnockdown) { Soft = &EnemyAnims.Knockdown; }
-		else if (Role == RoleBlock)     { Soft = &EnemyAnims.Block; }
+		if (ClipRole == RoleIdle)           { Soft = &EnemyAnims.Idle; }
+		else if (ClipRole == RoleWalk)      { Soft = &EnemyAnims.Walk; }
+		else if (ClipRole == RoleFlinch1)   { Soft = &EnemyAnims.Flinch1; }
+		else if (ClipRole == RoleFlinch2)   { Soft = &EnemyAnims.Flinch2; }
+		else if (ClipRole == RoleKnockdown) { Soft = &EnemyAnims.Knockdown; }
+		else if (ClipRole == RoleBlock)     { Soft = &EnemyAnims.Block; }
 		if (Soft && !Soft->IsNull())
 		{
 			OutPlayRate = 2.0f;
@@ -275,7 +275,7 @@ UAnimSequence* AJRPGBattlePawn::FindRoleClip(FName Role, float& OutPlayRate) con
 	}
 
 	// O herói: AS_<Nome>_Battle_<Papel>, com o RateScale já na velocidade do jogo (escala 8 = 2 x o clip)
-	UAnimSequence* Clip = UJRPGArtSequenceLibrary::LoadHeroClip(Combatant.Key, Role.ToString());
+	UAnimSequence* Clip = UJRPGArtSequenceLibrary::LoadHeroClip(Combatant.Key, ClipRole.ToString());
 	if (Clip && Clip->RateScale > KINDA_SMALL_NUMBER)
 	{
 		OutPlayRate = 2.0f / Clip->RateScale;
@@ -283,11 +283,11 @@ UAnimSequence* AJRPGBattlePawn::FindRoleClip(FName Role, float& OutPlayRate) con
 	return Clip;
 }
 
-void AJRPGBattlePawn::PlayReaction(FName Role, bool bHold)
+void AJRPGBattlePawn::PlayReaction(FName ClipRole, bool bHold)
 {
 	float Rate = 1.0f;
-	UAnimSequence* Clip = FindRoleClip(Role, Rate);
-	if (!Clip && Role == RoleDying)
+	UAnimSequence* Clip = FindRoleClip(ClipRole, Rate);
+	if (!Clip && ClipRole == RoleDying)
 	{
 		Clip = FindRoleClip(RoleKnockdown, Rate);   // o herói sem o clip de morrer cai pelo de derrubar
 	}

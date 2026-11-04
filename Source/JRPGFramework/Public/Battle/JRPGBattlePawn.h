@@ -154,10 +154,10 @@ private:
 	void PlayStep(const FJRPGActionStep& Step);
 
 	/** Um clip de reação / pose do papel (Idle, Walk, Flinch1, Flinch2, Knockdown, Block, Dying...) e o play rate dele. */
-	UAnimSequence* FindRoleClip(FName Role, float& OutPlayRate) const;
+	UAnimSequence* FindRoleClip(FName ClipRole, float& OutPlayRate) const;
 
 	/** Toca uma reação de uma vez e volta ao idle quando acabar (a menos que tenha caído). */
-	void PlayReaction(FName Role, bool bHold);
+	void PlayReaction(FName ClipRole, bool bHold);
 	void ReturnToIdle();
 
 	/** A linha do DT_EnemyActions com este índice de ação (nula em herói ou sem tabela). */
