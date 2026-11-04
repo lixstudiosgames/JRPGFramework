@@ -3,8 +3,9 @@
 How a fight is assembled over the current map and taken down again. Phase 4 of
 [BATTLE_ROADMAP.md](../BATTLE_ROADMAP.md).
 
-There is **no combat yet** (Phase 5). A fight starts, the scene is assembled, the heroes and
-the enemies stand in their seats in `Idle`, and it ends from the console.
+A fight starts, the scene is assembled, the heroes and the enemies stand in their seats in `Idle`. Since
+Phase 5 the fight is **played** (written, to build and test: [BATTLE.md](BATTLE.md)); this guide is
+still the stage.
 
 **The only thing placed in a map is the arena.** Everything else exists by itself.
 
@@ -183,12 +184,13 @@ Directories to Package*. The testers can then change the waves without a new bui
 |---|---|
 | `JRPG.Battle.Start <EnemyKey> [Count] [Level]` | A fight where the player stands. `JRPG.Battle.Start gimard 3` |
 | `JRPG.Battle.End [victory\|defeat\|escape\|abort]` | Ends the current fight (victory by default). In the Muscle Dome, `victory` calls the next wave. |
+| `JRPG.Battle.Attack [enemy]`, `JRPG.Battle.Arts <buttons> [enemy]`, `JRPG.Battle.Auto` | Play the fight without a HUD ([BATTLE.md](BATTLE.md) section 2) |
 
 ---
 
 ## 6. Known limits (Phase 4)
 
-- No combat, no HUD: the fight only ends from the console.
+- No HUD (Phase 7): the fight is played from the console ([BATTLE.md](BATTLE.md)); `JRPG.Battle.End` still ends it from outside.
 - The heroes only have `Idle` and `Walk` so far (Phase 2).
 - A monster with morph targets (Green Slime) crashes PIE when the project's GPU skin cache is
   off (engine assertion in `SkeletalRenderGPUSkin.cpp`). Turn on **Project Settings ›

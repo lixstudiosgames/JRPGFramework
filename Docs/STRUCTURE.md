@@ -151,12 +151,23 @@ JRPGFramework/
 │   │   │                                           commit out of battle, JRPG.Arts.* console
 │   │   │
 │   │   └── Battle/ 🟡
-│   │       ├── BattleSubsystem.h 🟡             ← TryStartEncounter (grace window), BeginBattle /
-│   │       │                                       EndBattle + OnBattleStarted/Ended; no turns yet
-│   │       │                                       (Phase 5); ApplyBattleItemEffect still TODO
-│   │       ├── BattleTypes.h ✅                 ← side, combatant type, result, FJRPGCombatant,
+│   │       ├── BattleSubsystem.h 🟡             ← TryStartEncounter, BeginBattle (the snapshot) / EndBattle
+│   │       │                                       (write-back, rewards once), the fixed-step clock,
+│   │       │                                       SubmitCommand / SubmitInput, OnBattleEvent / OnSlotChanged
+│   │       │                                       (Phase 5, written - to build and test, Guides/BATTLE.md);
+│   │       │                                       ApplyBattleItemEffect still TODO (Phase 7)
+│   │       ├── JRPGBattleResolver.h 🟡          ← FJRPGBattleResolver (no UObject): the round, the logic
+│   │       │                                       timeline, ResolveHit, the original's physical AI, Arts + AP
+│   │       ├── BattleFormulas.h 🟡              ← UBattleFormulas: the melee kernel, block, element matrix,
+│   │       │                                       equipment fold, initiative, enemy swing queue (pure, integer)
+│   │       ├── BattleTypes.h ✅                 ← side, combatant type, result, FJRPGCombatant (the rules-only
+│   │       │                                       snapshot), command / input / event / state / timeline,
 │   │       │                                       FJRPGBattleSetup, FJRPGBattleVisual, the hero's
 │   │       │                                       equipment pieces (EJRPGBattlePiece, DT_EquipVisuals row)
+│   │       ├── EnemyActionData.h ✅             ← FJRPGEnemyActionData (DT_EnemyActions row: a monster clip's
+│   │       │                                       hit frames, power bytes, AGL cost, rate)
+│   │       ├── HeroBattleData.h ✅              ← FJRPGRaSeruTierData (DT_RaSeruTiers), FJRPGWeaponCostData
+│   │       │                                       (DT_WeaponCosts)
 │   │       ├── JRPGBattleArena.h ✅             ← where on the map a fight is assembled, and who
 │   │       │                                       assembles it: formation preview + ground check,
 │   │       │                                       hand-drawn area, FindArenaFor, AssembleBattle /
@@ -168,7 +179,8 @@ JRPGFramework/
 │   │       ├── JRPGAnimNotify_Hit.h ✅          ← marker on a clip: one per hit, in HitPower order (the
 │   │       │                                       fight reads the frames as data; not on the clips yet)
 │   │       ├── JRPGBattlePawn.h ✅              ← one combatant in the scene: battle model in its seat;
-│   │       │                                       heroes dressed by equipment pieces (Leader Pose)
+│   │       │                                       heroes dressed by equipment pieces (Leader Pose); in a
+│   │       │                                       fight it plays the logic timeline and shows the events
 │   │       ├── JRPGBattleWaves.h ✅             ← fights in a row, Muscle Dome style, waves from JSON
 │   │       ├── JRPGBattleRules.h ✅             ← UJRPGBattleRules: what each version (USA / Japan) does
 │   │       │                                       with the raw record — the enemy stat boost, the
@@ -209,8 +221,10 @@ JRPGFramework/
 │       ├── Status/ ✅      (StatusSubsystem.cpp ✅)
 │       ├── Arts/ ✅        (ArtsSubsystem.cpp ✅, JRPGArtsRules.cpp ✅, JRPGArtsValidator.cpp ✅,
 │       │                    JRPGArtSequence.cpp ✅, JRPGArtTester.cpp ✅)
-│       ├── Tests/ ✅       (JRPGArtsTests.cpp ✅ — the JRPG.Arts.* automation tests, no map)
-│       └── Battle/ 🟡      (BattleSubsystem.cpp 🟡, JRPGBattleArena.cpp ✅, JRPGBattleSceneSubsystem.cpp ✅,
+│       ├── Tests/ ✅       (JRPGArtsTests.cpp ✅ — the JRPG.Arts.* automation tests, no map;
+│       │                    JRPGBattleTests.cpp 🟡 — the JRPG.Battle.* ones, written, to run)
+│       └── Battle/ 🟡      (BattleSubsystem.cpp 🟡, JRPGBattleResolver.cpp 🟡, BattleFormulas.cpp 🟡,
+│                           JRPGBattleArena.cpp ✅, JRPGBattleSceneSubsystem.cpp ✅,
 │                           JRPGBattlePawn.cpp ✅, JRPGBattleWaves.cpp ✅, JRPGBattleRules.cpp ✅,
 │                           JRPGAnimNotify_Hit.cpp ✅)
 │
@@ -331,7 +345,7 @@ JRPGFramework/
 | **Party** | ✅ complete (data) | Roster vs formation, 3 states per character, XP split among survivors as in the original, level-up with jitter, whole-roster save. The UI does not follow the formation yet |
 | **Status** | ✅ complete (data) | Equipment in 7 slots (4 gear + 3 accessories) with `CanEquip` read from `DT_Items`, conditions, Ra-Seru (1..9), elemental affinity, and the original's `effective ( base )` display. The equip screen is still missing |
 | **Arts** | ✅ without a fight | Buttons → the turn as the original recognises it (overlapping Arts, Supers, Miracles), learning on use / taught / by chain / by the Ra-Seru, the learned list in the save, the new AP (Regulars add, specials spend, checked at each point of the chain), a validator for `DT_Arts` and the Art Tester's `Input`. A new Art is a row. Damage per hit and AP on the combatant come with combat (Phase 5). See [ARTS.md](Guides/ARTS.md) |
-| **Battle** | 🟡 stage ready, no combat | A fight is assembled over the current map and taken down: battle arenas placed by hand, the original's seats, battle models from `DT_Characters` / `DT_Enemies`, camera, field enemies starting it on contact, the Muscle Dome waves ([BATTLE_STAGE.md](Guides/BATTLE_STAGE.md)). Turns and damage are still to come. `DT_Enemies` has 179 enemies ([ENEMIES.md](Guides/ENEMIES.md)), `DT_Arts` 81 Arts and pieces ([ARTS.md](Guides/ARTS.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
+| **Battle** | 🟡 basic combat written, to build and test | A fight is assembled over the current map and taken down ([BATTLE_STAGE.md](Guides/BATTLE_STAGE.md)) and **played** ([BATTLE.md](Guides/BATTLE.md)): commands then execution, the original's damage kernel hit by hit on a logic timeline, the physical enemy AI, Arts and AP, victory with the rewards paid once; `JRPG.Battle.*` tests and console commands to play without a HUD. No HUD, items, escape or magic yet. `DT_Enemies` has 179 enemies, `DT_EnemyActions` 1753 clips ([ENEMIES.md](Guides/ENEMIES.md)), `DT_Arts` 81 Arts and pieces ([ARTS.md](Guides/ARTS.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
 
 ---
 

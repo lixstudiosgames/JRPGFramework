@@ -4,9 +4,9 @@
 Approved 2026-09-13. Phases 0 to 4 are done (2026-10-30): the battle data (`DT_Enemies`,
 `DT_Arts`, `DT_Bosses`), every monster and the party's battle clips in Unreal, enemies roaming the
 map and a fight assembled over it. Phase 6, the Arts, is done without a fight (2026-11-04:
-recognition, learning, the Supers, the new AP, the validator, the Art Tester's `Input`); next is
-Phase 5, combat itself, which closes Phase 6's in-fight part (order swapped 2026-11-04:
-[Phases](#phases)). The combat core keeps the door open to PvP / online / co-op
+recognition, learning, the Supers, the new AP, the validator, the Art Tester's `Input`). Phase 5,
+combat itself, which closes Phase 6's in-fight part (order swapped 2026-11-04: [Phases](#phases)), is
+**written (2026-11-04), to build and test** ([Guides/BATTLE.md](Guides/BATTLE.md)). The combat core keeps the door open to PvP / online / co-op
 ([decided 2026-11-04](#pvp-online-and-co-op--door-open-decided-2026-11-04)).
 
 This is the largest unimplemented system left in the plugin, and the only one with stub
@@ -19,7 +19,8 @@ is done and will be consumed by the battle system rather than rewritten.
 
 ## Current state
 
-The fight is **assembled but not fought** (2026-11-04):
+The fight was **assembled but not fought** until Phase 5 was written (2026-11-04: it now is played, see
+[Phase 5](#phase-5--basic-combat); the table is what Phase 5 started from):
 
 | Exists | Where |
 |---|---|
@@ -31,7 +32,7 @@ The fight is **assembled but not fought** (2026-11-04):
 | The Arts: buttons → the turn (recognition with the original's overlap, Supers, the new AP), learning and the learned list in the save, the validator | Phase 6 — `UJRPGArtsRules`, `UArtsSubsystem`, `UJRPGArtsValidator`, the Art Tester's `Input` ([Guides/ARTS.md › 4](Guides/ARTS.md#4-recognition-learning-and-ap)) |
 
 Still a stub: `ApplyBattleItemEffect` (the inventory routes item use into it; the call arrives and
-does nothing). No turns, no damage, no rewards yet — that is Phase 5.
+does nothing; Phase 7). Phase 5 added the turns, the damage and the rewards.
 
 ---
 
@@ -106,7 +107,7 @@ Each phase ends in something you can run and watch work.
 | **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **Done** (2026-10-30) — all 179 monster models with sounds and notifies, the party's battle clips (real names, game speed, sounds), equipment pieces |
 | **3** | Enemies roaming the map (zone, roaming, trigger) | **Done** (2026-10-27) — `AJRPGFieldEnemy`, `AJRPGEncounterZone` (sphere/box/spline), tested in the editor |
 | **4** | Battle stage (spawn, formation, camera) | **Done** (2026-10-27) — `AJRPGBattleArena` assembles the fight, `UJRPGBattleSceneSubsystem`, `BeginBattle`/`EndBattle`, `AJRPGBattlePawn`, `AJRPGBattleWaves` + JSON/Studio; tested in the editor and on the Muscle Dome map. Party-size scaling moved to Phase 8 |
-| **5** | Basic combat (turns, damage, death, victory) | **Next** — also closes Phase 6's in-fight part |
+| **5** | Basic combat (turns, damage, death, victory) | **Written 2026-11-04, to build and test** — also closes Phase 6's in-fight part. "Done" only after it is built and played in the editor ([Guides/BATTLE.md](Guides/BATTLE.md)) |
 | **6** | Directional Arts + the new AP | **Done without a fight** (2026-11-04) — recognition, learning, Supers, AP, validator, tester `Input`, automation tests. In a fight: Phase 5 |
 | **7** | Remaining commands (item, escape, Spirit, formation advantage, drop / steal) and presentation (HUD, attack camera, VFX, the remaining sounds) | Not started |
 | **8** | Magic and Seru | Not started |
@@ -122,7 +123,7 @@ Phase 0 (extraction)
                                   ▼
                          Phase 6 (Arts + new AP)       ← done without a fight
                                   ▼
-                         Phase 5 (basic combat)        ← next
+                         Phase 5 (basic combat)        ← written, to build and test
                                   ▼
                          Phase 7 (commands + presentation)
                                   ▼
@@ -593,7 +594,8 @@ same separation the rest of the plugin keeps.
 `AJRPGBattleWaves`: fights in a row. A list of encounters (one per wave), the party, the
 arena; a won wave calls the next after a delay, a lost / escaped / aborted one stops. It runs
 on the field GameMode — no separate battle GameMode, pawn or controller — so it tests the same
-path a field encounter takes. With no combat yet, a wave ends from the console.
+path a field encounter takes. A wave ends when the fight does (the party wins, falls or escapes);
+`JRPG.Battle.End` still ends it from the console.
 
 The waves live in a JSON (`WavesFile`, `Content/Data/Waves/*.json`) read on every play and
 edited in **LegaiaStudio › Ondas**. Packaged with *Additional Non-Asset Directories*, the
@@ -698,6 +700,37 @@ input window inside a turn, damage per hit with each Art's power, AP on the comb
 > constants, order and truncation — and gets refined later, in play, if it needs to be. The
 > sections below cite the RE function and doc for each rule; read it before writing the code.
 
+**Written 2026-11-04 — to build and test.** Nothing below was compiled or run by the author (the build is manual);
+"Done" goes in this section only after the user builds, imports the new tables and plays it. Usage in
+[Guides/BATTLE.md](Guides/BATTLE.md). What the implementation settled that the draft left open:
+
+- **The core is `FJRPGBattleResolver`** (no UObject): `Begin`, `SubmitCommand`, `SubmitInput`, `StepFrame`; `UBattleSubsystem` takes
+  the snapshot, runs the clock (a fixed-step accumulator, 1/60 s a frame; the raw `DeltaTime` never reaches the rules) and
+  writes back. `UBattleFormulas` holds the contas as pure static functions with a rand source.
+- **The logic frame is 1/60 s** (the original's tick). A clip of rate *R* at game speed *S* advances *S·R/32* clip frames per
+  logic frame (`UBattleFormulas::ClipFramesToSteps`); a hit beat *b* fires at clip frame *b − 1*; a flinch's juggle window is its
+  beat over its rate (the RE's measurements are tests: Gobu Gobu 16, Zeto 32, Caruban 40, Vahn 12, Gilium under an Art 32).
+- **The block's second gate** is "the defender still stands" (above). **Inside a reaction window** the roll is overridden as in the
+  RE port: a defender in its block window keeps blocking, one in a flinch window cannot block.
+- **Knockdown**: a hit that kills, or (on someone with a get-up clip) takes more than ¼ of max HP in one action or leaves it under ¼,
+  knocks down and opens no juggle window; the others flinch (high hit: flinch 1, low: flinch 2) and open the window.
+- **The monster's swings** are queued with the original's budget loop (a random candidate; it is queued if the AGL pool pays;
+  15 swings or 16 unpaid draws); with a next swing queued and `Gate` 0 the clip is cut at beat + 3 and the later hits are lost. A monster
+  with no swing row (the data is missing, or `cort`, whose script is Phase 8) hits with a default swing, logged.
+- **The party's timeline** reads the clip's length, `UJRPGAnimNotify_Hit` markers and Chain Cut as data through an optional provider;
+  the markers are not on the clips yet, so the per-kind defaults (`FJRPGTimelineDefaults`, editable on the subsystem) are the normal path
+  and are logged once per kind of step.
+- **`AwardBattleXPToParticipants`** is the "overload with `TArray<FName>`": a differently named plain method, because UHT does not take an
+  overloaded `UFUNCTION`.
+- **The parry** (`SubmitInput`): the input is validated (owner, alive, a stamp that is not from the future), stamped and kept in the state; it
+  changes nothing yet — its window and effect are open question 5.
+- **The fight waits** while the scene is entering (`HoldLogic`), `FinishDelayFrames` (90) after the last blow before `EndBattle`, and for as long
+  as the player takes to enter the commands.
+- **Not done**: Item, Escape, Spirit, formation advantage roll, drop / steal (Phase 7); magic and the scripted bosses (Phase 8); the
+  enemies' level scaling (the encounter's level is stored, no curve exists); the `UJRPGAnimNotify_Hit` markers on the party's clips
+  (content); rule 3 of "Staying in the arena" (minimum spacing) and rule 4 (the per-Art override) — the pawn walks to the reach, the
+  arena's area clamps the step, nobody walks back; the Rim Elm / Tetsu training row of `DT_Bosses` (the training is not in `bosses.toml`).
+
 ### 5.0 — Contracts first
 
 The first step of Phase 5, before any turn is played: write down (in this section, then in code
@@ -706,7 +739,7 @@ single player and PvP alike.
 
 **Data and the version's rules.** *Done (2026-11-04):* `DT_Enemies` is the raw disc record, and
 `UJRPGBattleRules` installs the stats and computes EXP / Gold for the rules picked by
-`EJRPGRuleset` ([Version rules](#version-rules--usa-or-japan)). *Phase 5 (not written yet):*
+`EJRPGRuleset` ([Version rules](#version-rules--usa-or-japan)). *Phase 5 (written 2026-11-04):*
 `BeginBattle` snapshots each enemy through `InstallEnemyStats(row, Setup.bScriptedFight, ruleset)`
 and then the difficulty (`ScaleEnemyHP/ATK/DEF`); `FJRPGBattleSetup` gains `bScriptedFight`,
 `Seed` and `bNoRewards` (none of them exists today). The original's flag is per formation, not per
@@ -714,7 +747,9 @@ boss, so `DT_Bosses` gets a column for it (Tetsu's training and Lapis are script
 random-encounter profile). A scripted fight also cannot be escaped and rolls no formation
 advantage (`ctx+0x287`).
 
-**Data the fight still needs from the disc** (Phase 5, generator work like Phase 1's):
+**Data the fight needs from the disc** (Phase 5 generator work like Phase 1's — **written 2026-11-04**:
+`DT_EnemyActions`, `DT_Enemies.TargetClass`, `DT_Bosses.bScriptedFight`, `DT_RaSeruTiers`, `DT_WeaponCosts`;
+[Guides/ENEMIES.md](Guides/ENEMIES.md)):
 
 | Data | From (RE) | For |
 |---|---|---|
@@ -923,7 +958,10 @@ misses when `b >= 0x11`; against class 3 when `b < 0x11`. A miss draws nothing a
 (a `Miss` event).
 
 **Block** (a defender that has a block clip — tag `0x0B` — and passes the RE's second gate,
-`target[+0x0] < defender HP`; confirm what that word is before writing it):
+`target[+0x0] < defender HP` — settled 2026-11-04 from the RE port (`World::roll_block`): the word is the combo
+total already pending on the defender, which the original applies to HP only when the combo lands, so the gate
+is "the defender still stands on the accumulated total". The remake takes each hit's damage off HP at once, so
+the gate is `defender HP > 0`):
 
 ```
 a = A.SPD + A.ATK*4/5;   d = D.SPD + D.ATK*4/5;   a = max(a, d)
@@ -1341,7 +1379,8 @@ validator flags a duplicated `Command` and a `Sequence` step that does not exist
 *Each item is a `JRPG.Arts.*` automation test (2026-11-04; run in the editor after the build); the
 animations are checked by eye with the Art Tester's `Input`.*
 
-**Acceptance, closed in Phase 5** (in a fight): damage uses the Art's power per hit and AP
+**Acceptance, closed in Phase 5** (in a fight; written 2026-11-04, to be played: `JRPG.Battle.ArtsInFight` and
+`SuperInFight` test it without a map): damage uses the Art's power per hit and AP
 **rises**; fill AP and fire a Super Art → AP **drops** and damage is much larger; with
 insufficient AP, the Super shows as blocked.
 
@@ -1611,7 +1650,9 @@ network-related.
 2. ~~PSX→cm scale~~ — settled at **0.433005 cm per unit** (Phase 2 › Scale).
 3. ~~`EAutomationTestFlags` in 5.8~~ — settled by Phase 6's `JRPG.Arts.*` tests; Phase 5's
    follow them.
-4. **`UGameInstanceSubsystem` + `FTickableGameObject`** — a known pattern, but confirm
+4. **`UGameInstanceSubsystem` + `FTickableGameObject`** — written as `ETickableTickType::Conditional`
+   (`IsTickable()` true only during a fight, `IsTickableWhenPaused()` false, so a paused game stops the logic): to be
+   confirmed in play. The original question: a known pattern, but confirm
    whether `ETickableTickType::Conditional` is enough or `IsTickableWhenPaused()` is needed.
 5. **The parry** (planned 2026-10-31, design open). To decide: which hits can be parried (every
    enemy hit, or only some attacks), the window in frames and whether it shrinks with
@@ -1644,7 +1685,9 @@ save, `LearnArt` / `HasLearnedArt`, commit from the bytes), `UJRPGArtsValidator`
 Validation + `Extras/arts_rules.py`), the `Unlock` / `SpeedScale` columns and the Art Tester's
 `Input`. Run `JRPG.Arts.*` after the build.
 
-**Phase 5 (next), door open** ([decided 2026-11-04](#pvp-online-and-co-op--door-open-decided-2026-11-04)):
+**Phase 5 — written 2026-11-04, to build and test** ([Guides/BATTLE.md](Guides/BATTLE.md)): import the new tables, build,
+run `JRPG.Battle.*`, play `JRPG.Battle.Start gimard 2` + `JRPG.Battle.Auto`, then mark it Done. Next: the markers on the party's
+clips, then Phase 7. The plan it was written from, door open ([decided 2026-11-04](#pvp-online-and-co-op--door-open-decided-2026-11-04)):
 first the contracts (5.0 — the round, the logic timeline and its fallback, items,
 end of the fight, who gets the EXP) and the disc data the fight still needs (5.0 › `DT_EnemyActions`,
 the target class, the Ra-Seru tiers, the per-button cost), then basic combat on the Muscle Dome —

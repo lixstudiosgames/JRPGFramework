@@ -4,8 +4,7 @@ The table every battle and every encounter reads its enemies from. One row per e
 original game has — 179 of them — keyed by the `EnemyKey` the encounters use (`gimard`,
 `gimard_lv2`). Phase 1 of [BATTLE_ROADMAP.md](../BATTLE_ROADMAP.md).
 
-No system reads it yet: it is the data the battle (Phase 5) and the field encounters
-(Phase 3) are built on.
+The battle (Phase 5, [BATTLE.md](BATTLE.md)) and the field encounters (Phase 3) are built on it.
 
 ---
 

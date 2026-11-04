@@ -48,7 +48,10 @@ GI_Main (BP, inherits UJRPGGameInstance)
  │                            Owns the RULES — writes into the Party's record
  ├── UArtsSubsystem        ← the Arts each hero knows (writes LearnedArts in the Party record);
  │                            preview / commit out of battle. The rules: UJRPGArtsRules
- └── UBattleSubsystem  🟡  ← TryStartEncounter (the field enemies' door into a fight); battle itself still a stub
+ └── UBattleSubsystem  🟡  ← TryStartEncounter (the field enemies' door into a fight); basic combat
+                              (Phase 5, written - to build and test): the snapshot, the fixed-step clock, commands in /
+                              events out, write-back and rewards at EndBattle. The rules: FJRPGBattleResolver +
+                              UBattleFormulas
 ```
 
 ## Data flows
