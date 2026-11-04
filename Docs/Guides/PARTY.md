@@ -76,9 +76,15 @@ The party walking on the map is in [PLAYER.md](PLAYER.md#party-in-the-field).
 Faithful to the original (`FUN_8004E568`):
 
 ```
-total    = sum of enemy XP × 3/4
-per head = total / (how many are ALIVE in the formation)
+total    = sum of the enemies' raw EXP (DT_Enemies), × 3/4 under the USA rules
+per head = total / (how many are ALIVE in the formation), rounded up
 ```
+
+`EnemyXPSum` is the **raw** record's EXP. The × 3/4 is the American executable's cut — the
+Japanese and European ones pay the whole sum — so it comes from the version rules
+(`UCoreSubsystem::GetRuleset`, which the difficulty picks — Easy is `Japan`, the rest `USA` —
+and `UJRPGBattleRules::VictoryEXPPool`), not from the table. See
+[ENEMIES.md › Version rules](ENEMIES.md#version-rules-usa--japan).
 
 Three consequences, all verified:
 
@@ -88,15 +94,16 @@ Three consequences, all verified:
 - **A lone survivor takes the whole total** — 3× what they would take in a formation of
   three. This is why you can focus a character by benching the others.
 
-The difficulty's XP multiplier applies to the total before the division.
+The difficulty's XP multiplier applies to the total after the version's cut, before the
+division.
 
-Real example (enemies summing 10000):
+Real example (enemies summing 10000 raw):
 
-| Formation | Each receives |
-|---|---|
-| 3 alive | 2500 |
-| 2 alive (one died) | 3750 |
-| 1 alive | 7500 |
+| Formation | Each receives (Normal — USA) | Each receives (Easy — Japan) |
+|---|---|---|
+| 3 alive | 2500 | 3334 |
+| 2 alive (one died) | 3750 | 5000 |
+| 1 alive | 7500 | 10000 |
 
 ---
 
@@ -183,6 +190,8 @@ A script that exercises the whole design:
 5. `party.active Noa 0` → Noa is benched
 6. `party.xp 10000` → only Vahn gets paid, **7500**
 7. `party` → Noa is still at her previous level, untouched
+8. `diff.set 3` (Easy, the Japanese rules), then `party.xp 10000` → Vahn alone gets the whole
+   **10000** (Japan pays the full sum); `diff.set 0` goes back to Normal
 
 ---
 

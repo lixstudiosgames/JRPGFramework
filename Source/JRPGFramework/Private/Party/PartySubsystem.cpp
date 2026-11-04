@@ -1,5 +1,6 @@
 #include "Party/PartySubsystem.h"
 
+#include "Battle/JRPGBattleRules.h"
 #include "Core/CoreSubsystem.h"
 #include "Party/CharacterData.h"
 #include "Engine/DataTable.h"
@@ -344,18 +345,20 @@ int32 UPartySubsystem::AwardBattleXP(int32 EnemyXPSum)
 		return 0;
 	}
 
-	// FUN_8004E568: total = soma * 3/4, depois dividido entre os VIVOS.
-	int32 Total = EnemyXPSum - (EnemyXPSum >> 2);
-
+	// FUN_8004E568: a soma do EXP cru (x3/4 na versão USA), depois dividida com teto entre os
+	// VIVOS. A dificuldade multiplica o total antes da divisão.
+	const UCoreSubsystem* Core = nullptr;
 	if (const UGameInstance* GI = GetGameInstance())
 	{
-		if (const UCoreSubsystem* Core = GI->GetSubsystem<UCoreSubsystem>())
-		{
-			Total = Core->ScaleXPReward(Total);
-		}
+		Core = GI->GetSubsystem<UCoreSubsystem>();
+	}
+	int32 Total = UJRPGBattleRules::VictoryEXPPool(EnemyXPSum, Core ? Core->GetRuleset() : EJRPGRuleset::USA);
+	if (Core)
+	{
+		Total = Core->ScaleXPReward(Total);
 	}
 
-	const int32 PorMembro = Total / Vivos.Num();
+	const int32 PorMembro = UJRPGBattleRules::VictoryEXPShare(Total, Vivos.Num());
 	for (const FName& Key : Vivos)
 	{
 		GrantXP(Key, PorMembro);

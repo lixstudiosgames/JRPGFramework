@@ -5,24 +5,78 @@
 #include "ProgressionTypes.generated.h"
 
 /**
- * Dificuldade da partida. Normal reproduz o jogo original (US) exatamente:
- * todos os multiplicadores valem 1.0.
+ * Dificuldade da partida. Normal reproduz o jogo original americano (US) exatamente:
+ * todos os multiplicadores valem 1.0 e as regras da luta são as da versão USA. Easy é o
+ * original japonês: multiplicadores 1.0 e as regras da versão Japan (FDifficultyScaling::Ruleset).
  *
  * Novas dificuldades SEMPRE no fim — os valores são serializados em Blueprints
- * e nos saves.
+ * e nos saves. Por isso Easy vem depois de Juggernaut: a ordem do VALOR não é a ordem de
+ * dificuldade. Para comparar "mais difícil que", use JRPGDifficulty::Rank, nunca o valor.
  */
 UENUM(BlueprintType)
 enum class EJRPGDifficulty : uint8
 {
 	Normal     UMETA(DisplayName = "Normal"),
 	Hard       UMETA(DisplayName = "Hard"),
-	Juggernaut UMETA(DisplayName = "Juggernaut")
+	Juggernaut UMETA(DisplayName = "Juggernaut"),
+	Easy       UMETA(DisplayName = "Easy")
+};
+
+namespace JRPGDifficulty
+{
+	/** A posição na escala de dificuldade: Easy 0, Normal 1, Hard 2, Juggernaut 3. */
+	inline int32 Rank(EJRPGDifficulty Difficulty)
+	{
+		switch (Difficulty)
+		{
+		case EJRPGDifficulty::Easy:       return 0;
+		case EJRPGDifficulty::Normal:     return 1;
+		case EJRPGDifficulty::Hard:       return 2;
+		case EJRPGDifficulty::Juggernaut: return 3;
+		default:                          return 1;
+		}
+	}
+
+	/**
+	 * A posição para o gate de crescimento (FStatGrowthRow::MinDifficulty): igual a Rank,
+	 * mas Easy conta como Normal. O gate só existe para liberar quem não cresce no original
+	 * (a Terra) nas dificuldades pesadas; Easy e Normal são os dois originais, e uma
+	 * DT_StatGrowth importada com MinDifficulty = Normal continua deixando os heróis crescerem.
+	 */
+	inline int32 GrowthRank(EJRPGDifficulty Difficulty)
+	{
+		return Rank(Difficulty == EJRPGDifficulty::Easy ? EJRPGDifficulty::Normal : Difficulty);
+	}
+}
+
+/**
+ * EJRPGRuleset
+ * De qual versão do jogo original vêm as regras da luta. O registro dos monstros é o mesmo
+ * byte a byte em todos os discos (é o que a DT_Enemies guarda); o que muda é o executável:
+ *
+ *   - USA (SCUS_942.54): ao carregar a luta, dá boost em ATK/UDF/LDF/INT (dois perfis: luta
+ *     roteirizada ou encontro aleatório); no fim, paga EXP x3/4 e corta o Gold pela metade
+ *     mais uma vez.
+ *   - Japan (SCPS_100.59, e os PAL SCES_019.44/45/46): sem boost, EXP inteiro, sem o segundo
+ *     corte do Gold.
+ *
+ * As contas ficam em UJRPGBattleRules (Battle/JRPGBattleRules.h). Cada dificuldade escolhe a
+ * sua (FDifficultyScaling::Ruleset: Easy = Japan, as outras = USA), e os multiplicadores dela
+ * entram por cima do que a versão deu.
+ *
+ * Novos valores SEMPRE no fim — são serializados em Blueprints e no DT_Difficulty.
+ */
+UENUM(BlueprintType)
+enum class EJRPGRuleset : uint8
+{
+	USA   UMETA(DisplayName = "USA (NTSC-U)"),
+	Japan UMETA(DisplayName = "Japan / Europe (JP, PAL)")
 };
 
 /**
  * FDifficultyScaling
  * Multiplicadores de uma dificuldade (linha da DataTable DT_Difficulty).
- * O row name é o nome do valor de EJRPGDifficulty ("Normal", "Hard",
+ * O row name é o nome do valor de EJRPGDifficulty ("Easy", "Normal", "Hard",
  * "Juggernaut").
  *
  * REGRA DE DESIGN: a dificuldade mexe nos INIMIGOS. Os personagens que existem
@@ -69,6 +123,14 @@ struct JRPGFRAMEWORK_API FDifficultyScaling : public FTableRowBase
 	/** Multiplicador do gold concedido pelos inimigos. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Difficulty|Reward")
 	float GoldReward = 1.0f;
+
+	/**
+	 * De qual versão do original vêm as regras da luta (boost dos stats dos inimigos, EXP e
+	 * Gold do fim — UJRPGBattleRules). Os multiplicadores acima entram por cima dela.
+	 * Easy = Japan; Normal, Hard e Juggernaut = USA.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Difficulty|Rules")
+	EJRPGRuleset Ruleset = EJRPGRuleset::USA;
 };
 
 /**
@@ -153,10 +215,14 @@ struct JRPGFRAMEWORK_API FStatGrowthRow : public FTableRowBase
 	 *
 	 * Normal (o default) = cresce sempre, que é o caso dos três do disco.
 	 *
+	 * Comparado por JRPGDifficulty::GrowthRank, não pelo valor do enum: Easy conta
+	 * como Normal (os dois são o jogo original, um japonês e outro americano), então
+	 * Normal e Easy aqui valem o mesmo e as tabelas já importadas continuam certas.
+	 *
 	 * Existe por causa da Terra: no jogo original ela NÃO sobe de level — é
 	 * por isso que não há parâmetros de crescimento pra ela no `SCUS_942.54`.
-	 * No Normal a gente reproduz isso; no Hard e no Juggernaut ela cresce,
-	 * para ter como ajudar de verdade num jogo mais pesado.
+	 * No Easy e no Normal a gente reproduz isso; no Hard e no Juggernaut ela
+	 * cresce, para ter como ajudar de verdade num jogo mais pesado.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stat Growth")
 	EJRPGDifficulty MinDifficulty = EJRPGDifficulty::Normal;

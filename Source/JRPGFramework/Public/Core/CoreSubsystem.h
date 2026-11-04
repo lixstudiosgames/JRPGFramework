@@ -328,8 +328,9 @@ public:
 
 	/**
 	 * Multiplicadores da dificuldade atual. Vêm de DifficultyTable quando ela
-	 * está atribuída; senão dos defaults embutidos (Normal 1.0 / Hard 1.5 /
-	 * Juggernaut 2.5), para o sistema funcionar sem depender de asset.
+	 * está atribuída (e tem a linha); senão dos defaults embutidos, os mesmos do
+	 * DT_Difficulty.csv (Easy e Normal 1.0, Hard 1.8 HP, Juggernaut 3.0 HP...), para
+	 * o sistema funcionar sem depender de asset.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Core|Difficulty")
 	FDifficultyScaling GetDifficultyScaling() const;
@@ -372,6 +373,14 @@ public:
 	/** Disparado quando a dificuldade muda. */
 	UPROPERTY(BlueprintAssignable, Category = "JRPG|Core|Difficulty")
 	FOnDifficultyChangedSignature OnDifficultyChanged;
+
+	/**
+	 * De qual versão do original vêm as regras da luta — o boost dos stats dos inimigos e o
+	 * EXP/Gold do fim (UJRPGBattleRules). Vem da dificuldade (FDifficultyScaling::Ruleset):
+	 * Easy = Japan; Normal, Hard e Juggernaut = USA. Os multiplicadores entram por cima.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Core|Difficulty")
+	EJRPGRuleset GetRuleset() const;
 
 	// --- Usado pelo USaveSubsystem ao aplicar um Load (não exposto a BP) ---
 	void RestoreFromSave(int32 InGold, double InPlaytimeSeconds, const FString& InMapDisplayName);

@@ -105,17 +105,23 @@ def build_difficulty():
     tomava 5.7x por golpe, e o inimigo matava primeiro. Ver a analise em
     Docs/Referencia/progressao.md.
 
-    Row name = nome do valor de EJRPGDifficulty. Normal = jogo original.
+    Row name = nome do valor de EJRPGDifficulty. Normal = jogo original americano.
+
+    Ruleset = de qual versão do original vêm as regras da luta (UJRPGBattleRules): Easy é o
+    original JAPONÊS — inimigos sem o boost da versão americana, EXP inteiro, mais Gold — com
+    os multiplicadores em 1.0; as outras seguem a versão USA.
     """
     columns = ["DisplayName", "Description", "EnemyHP", "EnemyATK", "EnemyDEF",
-               "XPReward", "GoldReward"]
+               "XPReward", "GoldReward", "Ruleset"]
     rows = [
+        ["Easy", "Easy", "The Japanese original: no American enemy boost, full EXP and more Gold.",
+         "1.0", "1.0", "1.0", "1.0", "1.0", "Japan"],
         ["Normal", "Normal", "O balanceamento do jogo original.",
-         "1.0", "1.0", "1.0", "1.0", "1.0"],
+         "1.0", "1.0", "1.0", "1.0", "1.0", "USA"],
         ["Hard", "Hard", "Inimigos aguentam bem mais e batem mais forte.",
-         "1.8", "1.2", "1.25", "1.25", "1.25"],
+         "1.8", "1.2", "1.25", "1.25", "1.25", "USA"],
         ["Juggernaut", "Juggernaut", "Cada encontro e uma ameaca real.",
-         "3.0", "1.45", "1.4", "1.5", "1.5"],
+         "3.0", "1.45", "1.4", "1.5", "1.5", "USA"],
     ]
     return columns, rows
 

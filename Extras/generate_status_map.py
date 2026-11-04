@@ -62,8 +62,8 @@ API_PLANNED = {
         ("OnBattleArtsCommit", "Phase 7 · WebUI bridge"), ("OnBattleTargetChanged", "Phase 7 · WebUI bridge"),
     ],
     "arts": [
-        ("DirectionByteFor", "Phase 6"), ("RecognizeArtSequence", "Phase 6"),
-        ("GetKnownArts", "Phase 6"), ("CommitArtsChain", "Phase 6"),
+        ("ButtonForPad", "Phase 6"), ("RecognizeArtSequence", "Phase 6"),
+        ("GetKnownArts", "Phase 6"), ("LearnArt", "Phase 6"), ("CommitArtsChain", "Phase 6"),
     ],
 }
 
@@ -94,8 +94,8 @@ SYSTEMS = [
           "Roster vs formação, XP dividido entre sobreviventes, level-up — a UI ainda não segue a formação"),
         S("Status", OK, 2.5, "5 equip slots, conditions, Ra-Seru 1..9, elemental affinity, effective stat",
           "5 slots de equipamento, condições, Ra-Seru 1..9, afinidade elemental, stat efetivo"),
-        S("Progression", OK, 2, "XP curve, stat growth from the disc, Normal / Hard / Juggernaut",
-          "Curva de XP, crescimento de stats tirado do disco, Normal / Hard / Juggernaut", "Progressão"),
+        S("Progression", OK, 2, "XP curve, stat growth from the disc, Easy / Normal / Hard / Juggernaut",
+          "Curva de XP, crescimento de stats tirado do disco, Easy / Normal / Hard / Juggernaut", "Progressão"),
         S("Camera", OK, 3, "13 presets, 8 shakes, level cameras + zones, conversation, FrameGroup / Orbit",
           "13 presets, 8 tremores, câmeras de nível + zonas, conversa, FrameGroup / Orbit", "Câmera"),
         S("Data", OK, 1.5, "8 DataTables as CSV, the source of truth", "8 DataTables em CSV, a fonte da verdade", "Dados"),

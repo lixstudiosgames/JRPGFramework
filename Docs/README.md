@@ -16,7 +16,7 @@ New here? Read [`ARCHITECTURE.md`](ARCHITECTURE.md), then
 | Document | What it is |
 |---|---|
 | [`../SETUP.md`](../SETUP.md) | Build from a clean clone: prerequisites, Ultralight SDK, WebUI, packaging |
-| **[ARCHITECTURE.md](ARCHITECTURE.md)** | **How the plugin is put together**, the data flows, and the 52 rules that must not be broken |
+| **[ARCHITECTURE.md](ARCHITECTURE.md)** | **How the plugin is put together**, the data flows, and the 53 rules that must not be broken |
 | [STRUCTURE.md](STRUCTURE.md) | File-by-file tree: what exists (✅), what is a stub (🟡), what is planned (⬜) |
 | [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) | The largest unimplemented system, in 8 phases |
 
@@ -67,7 +67,7 @@ remain for reference.
 | [DT_LevelCurve.csv](Data/DT_LevelCurve.csv) | 98 | `FLevelCurveRow` |
 | [DT_StatGrowth.csv](Data/DT_StatGrowth.csv) | 32 | `FStatGrowthRow` |
 | [DT_GrowthCurve.csv](Data/DT_GrowthCurve.csv) | 98 | `FGrowthCurveRow` |
-| [DT_Difficulty.csv](Data/DT_Difficulty.csv) | 3 | `FDifficultyScaling` |
+| [DT_Difficulty.csv](Data/DT_Difficulty.csv) | 4 | `FDifficultyScaling` |
 | [DT_CameraPresets.csv](Data/DT_CameraPresets.csv) | 13 | `FCameraPresetRow` (import as `DT_Camera`) |
 | [DT_Enemies.csv](Data/DT_Enemies.csv) | 179 | `FJRPGEnemyData` |
 | [DT_EquipVisuals.csv](Data/DT_EquipVisuals.csv) | 146 | `FJRPGEquipVisualRow` |

@@ -30,7 +30,7 @@ basics work on a controller).
 
 | Tab | What you can do |
 |---|---|
-| **State** | Snapshot of what is loaded: gold, playtime, map, difficulty with its active multipliers, which DataTables were imported, and `bIsInField` |
+| **State** | Snapshot of what is loaded: gold, playtime, map, difficulty with its active multipliers and battle rules (USA / Japan), which DataTables were imported, and `bIsInField` |
 | **Progression** | Change difficulty; see a character's 8 stats at a level; query one stat with the next level's gain; compare XP across the roster |
 | **Items & Gold** | Add/remove gold; add and remove items by row name |
 | **World & Save** | Toggle `bIsInField` (this is what unlocks the SAVE tab); toggle event flags; save and load slots |
@@ -72,7 +72,7 @@ line cannot.
 | `gold.add <n>` | `gold.add -500` |
 | `item.add <id> <qty>` | `item.add healing_leaf 5` |
 | `item.remove <id> <qty>` | `item.remove healing_leaf 1` |
-| `diff.set <0\|1\|2>` | `diff.set 2` |
+| `diff.set <0\|1\|2\|3>` | `diff.set 2` — the enum value: 0 Normal, 1 Hard, 2 Juggernaut, **3 Easy** (Easy plays by the Japanese rules, [ENEMIES.md](ENEMIES.md#version-rules-usa--japan)) |
 | `prog.sheet <char> <level>` | `prog.sheet Terra 50` |
 | `prog.stat <char> <stat> <level>` | `prog.stat Noa ATK 40` |
 | `prog.xp <level>` | `prog.xp 38` |

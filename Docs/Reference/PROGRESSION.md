@@ -156,17 +156,19 @@ for any other character you create in LegaiaStudio.
 | SPD |  45 |  520 | 1 | 1 |
 | INT |  25 |  360 | 1 | 0 |
 
-**On Normal she still does not grow** — the `MinDifficulty` column on her rows is `Hard`, and
-`GetStatGainCore` returns 0 when the current difficulty is below the minimum. On Normal the
-numbers above never come into play: she stays at her starting values all game, exactly like
-the source game.
+**On Easy and Normal she still does not grow** — the `MinDifficulty` column on her rows is
+`Hard`, and `GetStatGainCore` returns 0 when the current difficulty ranks below the minimum
+(`JRPGDifficulty::GrowthRank`: Easy = Normal < Hard < Juggernaut — Easy and Normal are both the
+original game, one Japanese and one American). There the numbers above never come into play:
+she stays at her starting values all game, exactly like the source game. Vahn's, Noa's and
+Gala's rows are `Normal` — they grow on every difficulty, Easy included.
 
 **On Hard and Juggernaut she grows.** It is the only exception to the rule that difficulty
 never touches a player character, and it exists precisely because she has no progression in
 the original: unlocking her growth on a heavy run is real help without altering Vahn, Noa or
 Gala at all.
 
-| Terra at L50 | Normal | Hard / Juggernaut |
+| Terra at L50 | Easy / Normal | Hard / Juggernaut |
 |---|---|---|
 | HP  | 400 | 2910 |
 | ATK |  45 |  277 |
@@ -291,7 +293,17 @@ game retouches Vahn's and Noa's entry template when they join the group. Gala's 
 
 ## 5. Difficulty
 
-`EJRPGDifficulty`: **Normal**, **Hard**, **Juggernaut**.
+`EJRPGDifficulty`: **Easy**, **Normal**, **Hard**, **Juggernaut** (in the enum, Easy is the
+last value — new values always go at the end, rule 28 — so "harder than" goes through
+`JRPGDifficulty::Rank`, never the value; the growth gate uses `GrowthRank`, where Easy counts as
+Normal).
+
+**Each difficulty also picks the original's version whose battle rules it plays by**
+(`FDifficultyScaling::Ruleset`, read with `UCoreSubsystem::GetRuleset`): **Easy is the
+Japanese original** — enemies without the American boost, the full EXP and more Gold
+([Guides/ENEMIES.md › Version rules](../Guides/ENEMIES.md#version-rules-usa--japan)) — with
+every multiplier at 1.0. **Normal is the American original.** Hard and Juggernaut are the
+American rules with the multipliers below on top.
 
 **Difficulty touches enemies.** Vahn, Noa and Gala always grow on the original's curve, so
 level, stats and XP stay comparable across difficulties — and the Status menu never shows a
@@ -302,13 +314,18 @@ grow on higher difficulties, through `FStatGrowthRow`'s `MinDifficulty`. Today t
 only to Terra (`Hard`). It never alters the three characters who have progression in the
 original.
 
-| | Normal | Hard | Juggernaut |
-|---|---|---|---|
-| Enemy HP | 1.0× | **1.8×** | **3.0×** |
-| Enemy ATK | 1.0× | **1.2×** | **1.45×** |
-| Enemy DEF (UDF/LDF) | 1.0× | **1.25×** | **1.4×** |
-| XP awarded | 1.0× | 1.25× | 1.5× |
-| Gold awarded | 1.0× | 1.25× | 1.5× |
+| | Easy | Normal | Hard | Juggernaut |
+|---|---|---|---|---|
+| Battle rules (`Ruleset`) | **Japan** | USA | USA | USA |
+| Enemy HP | 1.0× | 1.0× | **1.8×** | **3.0×** |
+| Enemy ATK | 1.0× | 1.0× | **1.2×** | **1.45×** |
+| Enemy DEF (UDF/LDF) | 1.0× | 1.0× | **1.25×** | **1.4×** |
+| XP awarded | 1.0× | 1.0× | 1.25× | 1.5× |
+| Gold awarded | 1.0× | 1.0× | 1.25× | 1.5× |
+
+The multipliers apply on top of what the rules installed and paid. Easy is easier through the
+rules alone: the enemies fight with their raw record (no ×2 on UDF/LDF in a boss fight), the EXP
+is not cut to 3/4 and the Gold is not halved a second time.
 
 XP and gold rise slightly on Hard/Juggernaut to compensate for longer fights, without turning
 difficulty into a farming shortcut.
@@ -392,16 +409,21 @@ and shop prices.
 ```cpp
 UCoreSubsystem* Core = GetGameInstance()->GetSubsystem<UCoreSubsystem>();
 
-Enemy.MaxHP  = Core->ScaleEnemyHP(BaseHP);
-Enemy.Attack = Core->ScaleEnemyATK(BaseATK);
-Enemy.UDF    = Core->ScaleEnemyDEF(BaseUDF);
+// DT_Enemies holds the raw disc record: the version's rules first, the difficulty on top.
+const FJRPGEnemyBattleStats S =
+    UJRPGBattleRules::InstallEnemyStats(EnemyRow, bScriptedFight, Core->GetRuleset());
+Enemy.MaxHP  = Core->ScaleEnemyHP(S.HP);
+Enemy.Attack = Core->ScaleEnemyATK(S.ATK);
+Enemy.UDF    = Core->ScaleEnemyDEF(S.UDF);
 
-const int32 XP   = Core->ScaleXPReward(BaseXP);
-const int32 Gold = Core->ScaleGoldReward(BaseGold);
+const int32 Gold = Core->ScaleGoldReward(
+    UJRPGBattleRules::VictoryGold(DefeatedEnemyGold, bGoldenBook, Core->GetRuleset()));
+// XP: UPartySubsystem::AwardBattleXP(raw EXP sum) applies the version and the difficulty.
 ```
 
 All are `BlueprintPure`, so they work directly in enemy and loot Blueprints — **the system is
-already ready to receive enemies**.
+already ready to receive enemies**. The version rules (USA / Japan) are in
+[`Guides/ENEMIES.md`](../Guides/ENEMIES.md#version-rules-usa--japan).
 
 The multipliers come from `DT_Difficulty` when that DataTable is assigned to
 `UCoreSubsystem::DifficultyTable`; without it, the built-in defaults apply (the same numbers).

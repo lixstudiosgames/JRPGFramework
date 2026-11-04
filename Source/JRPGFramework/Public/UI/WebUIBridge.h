@@ -55,7 +55,8 @@ public:
 
 	/**
 	 * O JS trocou a dificuldade na tela de opções (bridge.onsetdifficulty).
-	 * O índice casa com EJRPGDifficulty: 0 Normal, 1 Hard, 2 Juggernaut.
+	 * Chega o VALOR de EJRPGDifficulty: 0 Normal, 1 Hard, 2 Juggernaut, 3 Easy (a tela mostra
+	 * Easy primeiro e traduz a posição no JS).
 	 */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|WebUI")
 	void OnSetDifficulty(int32 DifficultyIndex);

@@ -64,7 +64,7 @@ São 12 `UGameInstanceSubsystem`s que se registram sozinhos quando a GameInstanc
 | Sistema | Destaques |
 |---|---|
 | **Core** | Gold com `OnGoldChanged`, tempo de jogo sem tick, mapa e posição para o save, New Game, resolução de DataTable com fallback |
-| **Progressão** | Curva de XP e crescimento de stats tirados do disco original e conferidos contra ele, mais as dificuldades Normal / Hard / Juggernaut ([detalhes](Docs/Reference/PROGRESSION.md)) |
+| **Progressão** | Curva de XP e crescimento de stats tirados do disco original e conferidos contra ele, mais as dificuldades Easy (as regras do original japonês) / Normal (o original americano) / Hard / Juggernaut ([detalhes](Docs/Reference/PROGRESSION.md)) |
 | **Save / Load** | 15 slots, coleta e restauração automáticas, troca de mapa + teleporte, versionamento de save |
 | **Inventário** | `DT_Items` (225 linhas), pilhas de até 99, uso de item roteado para o subsistema certo |
 | **Estado do mundo** | Flags de evento, baús, Revival Trees, `bIsInField` (bloqueia a aba SAVE) |
@@ -150,7 +150,7 @@ JRPGFramework/
 | Documento | O que é |
 |---|---|
 | [`Docs/README.md`](Docs/README.md) | Índice da documentação |
-| [`Docs/ARCHITECTURE.md`](Docs/ARCHITECTURE.md) | Como o plugin se encaixa, e as 52 regras que não podem ser quebradas |
+| [`Docs/ARCHITECTURE.md`](Docs/ARCHITECTURE.md) | Como o plugin se encaixa, e as 53 regras que não podem ser quebradas |
 | [`Docs/STRUCTURE.md`](Docs/STRUCTURE.md) | Árvore arquivo por arquivo: o que existe, o que é stub, o que está planejado |
 | [`Docs/BATTLE_ROADMAP.md`](Docs/BATTLE_ROADMAP.md) | O sistema de batalha, em 9 fases |
 | [`Docs/Guides/`](Docs/Guides/) | Como usar cada sistema (save, inventário, loja, party, status, áudio, câmera, WebUI…) |

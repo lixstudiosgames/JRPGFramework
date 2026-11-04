@@ -5657,6 +5657,7 @@ html.kbd-mode #screen-dev * {
             <div class="dev-panel" data-panel="1">
                 <div class="dev-row">
                     <label>Dificuldade</label>
+                    <button class="dev-btn" data-cmd="diff.set 3">Easy</button>
                     <button class="dev-btn" data-cmd="diff.set 0">Normal</button>
                     <button class="dev-btn" data-cmd="diff.set 1">Hard</button>
                     <button class="dev-btn" data-cmd="diff.set 2">Juggernaut</button>
@@ -7153,9 +7154,12 @@ window.JRPGOptions = (function () {
                     title: 'Game Settings',
                     rows: [
                         {
-                            id: 'difficulty', type: 'cycler', label: 'Difficulty', index: 0,
-                            values: ['Normal', 'Hard', 'Juggernaut'],
-                            desc: 'Normal segue o balanceamento do jogo original. Hard e Juggernaut deixam os INIMIGOS mais fortes (1.5x e 2.5x em HP, ataque e defesa) e dão um pouco mais de XP e gold. Seus personagens crescem igual em qualquer dificuldade.'
+                            // Ordem da tela (fácil → difícil). enumValues é o VALOR de
+                            // EJRPGDifficulty de cada posição: Easy entrou por último no enum.
+                            id: 'difficulty', type: 'cycler', label: 'Difficulty', index: 1,
+                            values: ['Easy', 'Normal', 'Hard', 'Juggernaut'],
+                            enumValues: [3, 0, 1, 2],
+                            desc: 'Easy plays by the Japanese original\'s rules: enemies without the American version\'s boost, full EXP and more Gold. Normal is the American original. Hard and Juggernaut make the ENEMIES tougher (more HP, attack and defense) and give a little more EXP and Gold. Your characters grow the same on every difficulty.'
                         },
                         {
                             id: 'language', type: 'cycler', label: 'Language', index: 0,
@@ -7507,12 +7511,12 @@ window.JRPGOptions = (function () {
 
         playSound('Next');
 
-        // A dificuldade é a primeira opção que aplica de verdade: o índice
-        // casa com EJRPGDifficulty (0 Normal, 1 Hard, 2 Juggernaut).
+        // A dificuldade é a primeira opção que aplica de verdade. Vai o VALOR de
+        // EJRPGDifficulty (0 Normal, 1 Hard, 2 Juggernaut, 3 Easy), não a posição na tela.
         if (def.id === 'difficulty') {
             const bridge = getBridge();
             if (bridge && typeof bridge.onsetdifficulty === 'function') {
-                bridge.onsetdifficulty(def.index);
+                bridge.onsetdifficulty(def.enumValues[def.index]);
                 log(`Options: dificuldade = ${def.values[def.index]}.`);
             } else {
                 log(`Options: dificuldade = ${def.values[def.index]} (ponte offline).`);
@@ -7694,12 +7698,14 @@ window.JRPGOptions = (function () {
 
         /**
          * C++: sincroniza a dificuldade mostrada com a do CoreSubsystem.
-         * Chamado no OpenOptions, antes de a tela aparecer.
+         * Chamado no OpenOptions, antes de a tela aparecer. Recebe o VALOR de
+         * EJRPGDifficulty; um valor desconhecido mostra Normal.
          */
-        setDifficulty(index) {
+        setDifficulty(value) {
             const def = findRowDef('difficulty');
             if (!def) return;
-            def.index = Math.max(0, Math.min(def.values.length - 1, index | 0));
+            const pos = def.enumValues.indexOf(value | 0);
+            def.index = pos >= 0 ? pos : def.enumValues.indexOf(0);
 
             const entry = findRowEntry(def);
             if (entry) {
