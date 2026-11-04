@@ -62,7 +62,7 @@ Battle: [f82 a0] Vahn#0 ends
 |---|---|
 | `Party`, `Enemies`, `Location`, `FacingYaw` | As in Phase 4 |
 | `Seed` | The fight's `FRandomStream` seed. **0 draws one** (outside the rules, like the encounter roll) and stores it in `GetBattleSetup()`, so a fight can be repeated |
-| `bScriptedFight` | The original's scripted-fight flag (`ctx+0x287`): the enemies take the **boss** stat profile, the fight cannot be escaped, no formation advantage. A fight from `DT_Bosses` copies `bScriptedFight` of the row; a random encounter leaves it false |
+| `bScriptedFight` | The original's scripted-fight flag (`ctx+0x287`): the enemies take the **boss** stat profile, the fight cannot be escaped, no formation advantage. **Who sets it**: the code that builds the fight copies it with `UJRPGEncounterLibrary::ResolveScriptedFight(Enemies)` (`AJRPGFieldEnemy` and `AJRPGBattleWaves` already do). No enemy is `bIsBoss` in `DT_Enemies` → false (a random encounter). Otherwise it finds the `DT_Bosses` row whose `Enemies` are exactly the fight's (any order) and uses that row's `bScriptedFight` (Lapis is false). A boss with no row → true, with a warning in the log. A fight you build by hand (the debug `JRPG.Battle.Start` too) leaves the field false unless you call it |
 | `bNoRewards` | A fight that pays nothing (the original's special battles) |
 | `FormationAdvantage` | 0 none, 1 back attack (the party loses its round-1 initiative keys), 2 pre-emptive (the enemies do). The roll is Phase 7; Phase 5 honours what arrives |
 
@@ -123,6 +123,10 @@ the next round
 - **AGL pool**: a hero's input window is paid from it (each button its cost); a monster's AI queues
   swings while the pool pays their `AGLCost` (up to 15, or 16 draws that did not fit). It is
   restored every round.
+- **A round with no action**: a round whose every turn was lost to a condition (sleep, stun…) just passes. A round in
+  which nobody could plan an action (a target or a chain missing — a data problem) logs a warning each time; only
+  after 64 such rounds in a row, with a clear error in the log, is the fight `Aborted` (which writes nothing back), as
+  a safety net because the resolver does not advance frames while it loops. 1024 rounds of conditions only: the same net.
 - **Retarget**: a hero whose target fell hits the **lowest living enemy slot**; a monster draws another
   living hero; none left → the action is dropped and nothing is spent.
 - **The enemy AI** is the original's physical half: uniform random living hero, swings drawn from
@@ -143,15 +147,32 @@ special starter) advances *S·R/32* clip frames per logic frame.
 
 - **Monsters**: the `DT_EnemyActions` row. A hit beat *b* fires at clip frame *b − 1*; the power byte is
   the row's byte at the hit's index. With a next swing queued and `Gate` 0, the next swing starts at beat + 3 and the
-  hits that would fall after it are lost, as in the original.
+  hits that would fall after it are lost, as in the original. **A beat past the clip never fires**: the original
+  only fires the beats its cursor reaches (clip frame ≤ `FrameCount` − 1), so a beat with *b* − 1 ≥ `FrameCount` is
+  dropped and the clip is **not** stretched to it. A row with no hit frame at all keeps the default swing; a row
+  whose beats are *all* past the clip is an action that plays its clip and deals no damage (logged once) — still
+  eligible for the AI and paying its AGL. The disc has four such rows (`koru_05_Action_0x10` and `koru_06_Action_0x15`
+  at beat 200, `rogue_05_Attack` at 255, and the flinch `cort_juggernaut_02_Damaged` at beat 10 in 7 frames); the first
+  three are bosses whose damage is script / magic (Phase 8). `generate_enemy_actions_csv.py` lists them; the CSV keeps
+  the disc's values. A flinch / block window is capped at its clip's length (`FJRPGBattleReactionClip::FrameCount`).
+  A monster with no swing row hits with the default swing (`ActionIndex` −1: the pawn plays the first attack of its
+  clip set, not clip 0).
 - **The party**: the clip's length and its `UJRPGAnimNotify_Hit` markers, read **as data** when the
   action starts. **The markers are not on the party's clips yet**, so for now the fallback by kind is
   the normal path: a plain swing is one hit; an Art is *N* hits (`HitPower`) spaced along the clip. The
   frames are `UBattleSubsystem::TimelineDefaults` (editable) and the use is logged once per kind of step
   ("golpe simples sem marcador de golpe no clip: quadros padrão"). Placing the markers
   ([ARTS.md](ARTS.md)) is how a clip gets its real frames.
-- **Pause**: the counter does not advance while the game is paused; the fight waits at the command
-  prompt for as long as the player thinks.
+- **Pause**: the counter does not advance while the game is paused. `UBattleSubsystem` ties its tick to the game
+  world (`GetTickableGameObjectWorld`, via the `UGameInstance`) — an `FTickableGameObject` with no world is ticked by
+  the engine's world-less call, which ignores the pause — and `Tick` also returns early if there is no world or it is
+  paused. The fight waits at the command prompt for as long as the player thinks.
+- **While the scene enters** (`HoldLogic`): a command is still accepted and kept, but the round does not pass from
+  Commands to Execution and no frame advances; when the scene is up the execution starts and the first `ActionStart`
+  reaches the pawns. If an action had already started with the scene out (all-AI party), the scene starts it on the pawn.
+- **A cut action**: when the last enemy falls in the middle of a combo the resolver trims the action's timeline (hits,
+  marks and the steps that had not started). The pawn re-reads it every logic frame and closes on `ActionEnd`, so no clip
+  of the cut steps plays.
 
 A hero's hit bytes: Arms, Ra-Seru and High swings `0x18` (power 20, UDF), Low `0x1D` (power 20, LDF); an
 Art's `HitPower` and `HitTarget` become `Upper 0x16+i`, `Lower 0x1B+i`, `UpperMissesShort 0x0C+i`,
@@ -231,6 +252,6 @@ no `FText`. `FindTimeline(ActionIndex)` gives the frames of any action of the fi
 
 `JRPG.Battle.*` (all without a map): `PowerBytes`, `Element`, `EquipmentFold`, `Melee`, `EvilFly`, `Block`, `Initiative`,
 `EnemyQueue`, `Time`, `Rand` — the formulas against the RE's numbers; `Round`, `CommandOwner`, `Retarget`, `AttackerDies`,
-`Ties`, `KernelWiring`, `Combo`, `Fallback`, `ArtsInFight`, `SuperInFight`, `BlockInFight`, `EndOnce`, `VersionRules` — the
+`Ties`, `KernelWiring`, `Combo`, `Fallback`, `BeatBeyondClip`, `ReactionClip`, `HoldExecution`, `ArtsInFight`, `SuperInFight`, `BlockInFight`, `EndOnce`, `VersionRules` — the
 state machine and the failure table of the roadmap; `Determinism` — the same seed, commands and inputs give exactly the
 same events.

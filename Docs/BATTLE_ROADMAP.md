@@ -716,7 +716,11 @@ input window inside a turn, damage per hit with each Art's power, AP on the comb
   knocks down and opens no juggle window; the others flinch (high hit: flinch 1, low: flinch 2) and open the window.
 - **The monster's swings** are queued with the original's budget loop (a random candidate; it is queued if the AGL pool pays;
   15 swings or 16 unpaid draws); with a next swing queued and `Gate` 0 the clip is cut at beat + 3 and the later hits are lost. A monster
-  with no swing row (the data is missing, or `cort`, whose script is Phase 8) hits with a default swing, logged.
+  with no swing row (the data is missing, or `cort`, whose script is Phase 8) hits with a default swing, logged (`ActionIndex` −1: the pawn
+  plays the first attack of its clip set). **A hit beat past the clip never fires** (the original only fires the beats its cursor reaches,
+  frame ≤ `FrameCount` − 1): such beats are dropped and the clip is not stretched; a row whose beats are all past the clip plays and deals no
+  damage (logged once), still eligible and paying its AGL — `koru_05` / `koru_06` at beat 200 and `rogue_05` at 255, bosses whose damage is
+  Phase 8 script. A flinch window is capped at its clip (`cort_juggernaut_02_Damaged`: beat 10, 7 frames).
 - **The party's timeline** reads the clip's length, `UJRPGAnimNotify_Hit` markers and Chain Cut as data through an optional provider;
   the markers are not on the clips yet, so the per-kind defaults (`FJRPGTimelineDefaults`, editable on the subsystem) are the normal path
   and are logged once per kind of step.
@@ -724,7 +728,10 @@ input window inside a turn, damage per hit with each Art's power, AP on the comb
   overloaded `UFUNCTION`.
 - **The parry** (`SubmitInput`): the input is validated (owner, alive, a stamp that is not from the future), stamped and kept in the state; it
   changes nothing yet — its window and effect are open question 5.
-- **The fight waits** while the scene is entering (`HoldLogic`), `FinishDelayFrames` (90) after the last blow before `EndBattle`, and for as long
+- **A round with no action** counts only when nobody could plan one for lack of data (64 in a row, warned each time, then `Aborted` with an
+  error in the log — a safety net, the resolver loops without advancing frames); a round emptied by conditions (sleep, stun) does not count.
+- **The fight waits** while the scene is entering (`HoldLogic`: commands are accepted and kept but the round stays in Commands; releasing it
+  starts the execution), `FinishDelayFrames` (90) after the last blow before `EndBattle`, and for as long
   as the player takes to enter the commands.
 - **Not done**: Item, Escape, Spirit, formation advantage roll, drop / steal (Phase 7); magic and the scripted bosses (Phase 8); the
   enemies' level scaling (the encounter's level is stored, no curve exists); the `UJRPGAnimNotify_Hit` markers on the party's clips
@@ -1541,6 +1548,10 @@ out of animation notifies means rewriting the resolution.
 Phase 5 does **not** add replication, lobbies or EOS — it only keeps the core from closing the
 door.
 
+**Match setup in PvP (noted, not implemented).** `UBattleSubsystem::TimelineDefaults` (editable) and the times read from the party's clips
+(length, `UJRPGAnimNotify_Hit` and Chain Cut markers, through `ClipTiming`) feed the logic timeline, so the two machines must agree on them:
+they are part of the match's setup, to travel with the seed, the party snapshots and the ruleset. Today each machine reads its own.
+
 ### Phase 5 with the door open — what changes in the plan
 
 The rules themselves stay: the damage formula, the turn order, the enemy AI and "Staying in the
@@ -1651,8 +1662,10 @@ network-related.
 3. ~~`EAutomationTestFlags` in 5.8~~ — settled by Phase 6's `JRPG.Arts.*` tests; Phase 5's
    follow them.
 4. **`UGameInstanceSubsystem` + `FTickableGameObject`** — written as `ETickableTickType::Conditional`
-   (`IsTickable()` true only during a fight, `IsTickableWhenPaused()` false, so a paused game stops the logic): to be
-   confirmed in play. The original question: a known pattern, but confirm
+   (`IsTickable()` true only during a fight, `IsTickableWhenPaused()` false). Found in review: without
+   `GetTickableGameObjectWorld()` the engine ticks it in its world-less call (`UGameEngine::Tick` →
+   `TickObjects(nullptr, LEVELTICK_All, false)`), which ignores the pause; it now returns the game instance's world, and
+   `Tick` also returns early if the world is null or paused. To be confirmed in play. The original question: a known pattern, but confirm
    whether `ETickableTickType::Conditional` is enough or `IsTickableWhenPaused()` is needed.
 5. **The parry** (planned 2026-10-31, design open). To decide: which hits can be parried (every
    enemy hit, or only some attacks), the window in frames and whether it shrinks with

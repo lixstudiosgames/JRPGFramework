@@ -82,6 +82,7 @@ def main():
     old_rows, old_order = lt.read_rows(TABLE)
     report = {"sem MonsterArchiveID": [], "clips do lote não casam com as entradas": [],
               "ataque sem golpe (tag 0x0C..0x1F, custo real, sem quadro)": [],
+              "quadro de golpe além do clip (nunca dispara no original; num golpe a ação toca sem dano, num flinch a janela é a do clip)": [],
               "Anim mantido do CSV (posto à mão)": []}
 
     rows = []
@@ -104,6 +105,11 @@ def main():
                     anim = asset(entry["name"], "AS_%s_%s" % (entry["name"], clip))
                 if 0x0C <= a["tag"] <= 0x1F and a["agl_cost"] != 0xFF and not a["hit_frames"]:
                     report["ataque sem golpe (tag 0x0C..0x1F, custo real, sem quadro)"].append(row_key)
+                # O núcleo do original só dispara o beat que o cursor alcança (quadro = beat - 1 <= FrameCount - 1):
+                # um beat além do clip nunca dispara. O CSV guarda o valor do disco; o resolvedor o descarta
+                if a["frames"] > 0 and any(h - 1 >= a["frames"] for h in a["hit_frames"] if h > 0):
+                    report["quadro de golpe além do clip (nunca dispara no original; num golpe a ação toca sem dano, num flinch a janela é a do clip)"].append(
+                        "%s (golpe %s, clip de %d quadros)" % (row_key, ",".join(str(h) for h in a["hit_frames"]), a["frames"]))
                 rows.append({
                     "---": row_key, "Enemy": key, "ArchiveID": monster_id,
                     "ActionIndex": a["index"], "Tag": a["tag"], "Clip": clip, "Anim": anim,

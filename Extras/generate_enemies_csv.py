@@ -264,6 +264,9 @@ def main():
             for r in rows:
                 monster_id = int(r["MonsterArchiveID"])
                 if monster_id < 0:
+                    # Sem registro no disco para ler: a TargetClass que já está no CSV, senão 0 (nunca vazia)
+                    old = old_rows.get(r["---"])
+                    r["TargetClass"] = old.get("TargetClass", 0) if old and old.get("TargetClass", "") != "" else 0
                     continue
                 block = reader.read(monster_id)
                 r["TargetClass"] = block["target_class"]
