@@ -3,7 +3,9 @@
 **JRPGFramework — Legend of Legaia Remake**
 Approved 2026-09-13. Phases 0 to 4 are done (2026-10-30): the battle data (`DT_Enemies`,
 `DT_Arts`, `DT_Bosses`), every monster and the party's battle clips in Unreal, enemies roaming the
-map and a fight assembled over it. Next is Phase 5: combat itself.
+map and a fight assembled over it. Next is Phase 6, the Arts, and then Phase 5, combat itself
+(order swapped 2026-11-04: [Phases](#phases)). The combat core keeps the door open to PvP /
+online / co-op ([decided 2026-11-04](#pvp-online-and-co-op--door-open-decided-2026-11-04)).
 
 This is the largest unimplemented system left in the plugin, and the only one with stub
 files already in place. (Dialogue, Cutscene and Localization are also unwritten - see
@@ -95,8 +97,8 @@ Each phase ends in something you can run and watch work.
 | **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **Done** (2026-10-30) — all 179 monster models with sounds and notifies, the party's battle clips (real names, game speed, sounds), equipment pieces |
 | **3** | Enemies roaming the map (zone, roaming, trigger) | **Done** (2026-10-27) — `AJRPGFieldEnemy`, `AJRPGEncounterZone` (sphere/box/spline), tested in the editor |
 | **4** | Battle stage (spawn, formation, camera) | **Done** (2026-10-27) — `AJRPGBattleArena` assembles the fight, `UJRPGBattleSceneSubsystem`, `BeginBattle`/`EndBattle`, `AJRPGBattlePawn`, `AJRPGBattleWaves` + JSON/Studio; tested in the editor and on the Muscle Dome map. Party-size scaling moved to Phase 8 |
-| **5** | Basic combat (turns, damage, death, victory) | Not started |
-| **6** | Directional Arts + the new AP | Not started |
+| **5** | Basic combat (turns, damage, death, victory) | Not started — after Phase 6 |
+| **6** | Directional Arts + the new AP | **Next** (before Phase 5) |
 | **7** | Remaining commands (item, escape, guard, drop / steal) and presentation (HUD, attack camera, sound) | Not started |
 | **8** | Magic and Seru | Not started |
 
@@ -109,9 +111,9 @@ Phase 0 (extraction)
                                   ▼
                          Phase 4 (battle stage)
                                   ▼
-                         Phase 5 (basic combat)
+                         Phase 6 (Arts + new AP)       ← next
                                   ▼
-                         Phase 6 (Arts + new AP)
+                         Phase 5 (basic combat)
                                   ▼
                          Phase 7 (commands + presentation)
                                   ▼
@@ -119,6 +121,20 @@ Phase 0 (extraction)
 ```
 
 Phases 1 and 2 are independent and can run in parallel. From 3 onward it is sequential.
+
+**Phase 6 before Phase 5 (decided 2026-11-04).** The Arts come first so the fight has them to
+test with from its first turn. What that means for each phase:
+
+- **Phase 6 does not wait for the combat core.** Recognition, learning, the learned list in the
+  save and the AP rules are pure functions over the input and the hero, tested without a map;
+  the recognized chain plays in the Art tester (`JRPGArtTester`, [Guides/ARTS.md](Guides/ARTS.md))
+  through `UJRPGArtSequenceLibrary`. Nothing in it reads a combatant or deals damage.
+- **The parts of Phase 6 that need a fight close in Phase 5**: the input window inside a turn
+  (`CommandGauge` seeded from AGL), damage with the Art's power per hit, and AP moving on the
+  combatant as its action reaches each Art.
+- **The same rules apply to Phase 6** as to the combat core (door open): integer only, no global
+  RNG, and the chain leaves the input window as one value (the Art bytes of the future
+  `FJRPGBattleCommand`), never button by button.
 
 ---
 
@@ -658,20 +674,20 @@ formation check goes with the Seru members to Phase 8.
 
 **Goal:** a fight that works end to end with plain attacks. No Arts, no magic.
 
-> **Ask before writing any code in this phase.** Whether PvP / online / local co-op must stay
-> possible changes how the combat core is written. Do not decide it alone in either
-> direction: ask the user, and record the answer in
-> [PvP, online and co-op](#pvp-online-and-co-op--undecided-ask-before-phase-5). Settled
-> either way: the contracts in "5.0" below, and the hit timing (each hit resolved at its frame on
-> the logic's timeline, not by the animation — see "State machine"), so the combatant holds rules
-> only, never presentation. The rest of the sketches below (one entry point per slot, the
-> combatant read from the local subsystems) are the version that closes the PvP door.
+> **Written with the door open to PvP / online / co-op (decided 2026-11-04).** It has to work
+> locally (single player, and local co-op stays possible) and leave the base ready for PvP
+> later, with no network code in Phases 5–8. So the core is
+> **commands and inputs in → resolution on the logic timeline → events out**, and
+> [Phase 5 with the door open](#phase-5-with-the-door-open--what-changes-in-the-plan) is the
+> plan: the sketches below are written that way, and the table in
+> [What the core cannot do](#what-the-core-cannot-do) is binding. Comes **after Phase 6**
+> ([Phases](#phases)), so the Arts are there to test from the first turn.
 
 ### 5.0 — Contracts first
 
 The first step of Phase 5, before any turn is played: write down (in this section, then in code
-and tests) what each piece promises, so the core does not grow silent assumptions. These hold
-whatever the PvP answer is.
+and tests) what each piece promises, so the core does not grow silent assumptions. They hold for
+single player and PvP alike.
 
 **Data and the version's rules — done (2026-11-04).** `DT_Enemies` is the raw disc record;
 `UJRPGBattleRules` installs the stats and computes EXP / Gold for the rules picked by
@@ -738,20 +754,28 @@ pay EXP to **the fight's heroes** who are alive — `AwardBattleXP` takes the pa
 ### `Public/Battle/BattleTypes.h`
 
 ```cpp
-UENUM(BlueprintType) enum class EJRPGBattleSide   : uint8 { Party, Enemy };          // exists
-UENUM(BlueprintType) enum class EJRPGBattleCommand: uint8 { None, Attack, Arts, Item, Magic, Escape, Guard };
-UENUM(BlueprintType) enum class EJRPGActionPhase  : uint8 {   // presentation: lives in the pawn
+UENUM(BlueprintType) enum class EJRPGBattleSide       : uint8 { Party, Enemy };          // exists
+UENUM(BlueprintType) enum class EJRPGBattleCommandKind: uint8 { None, Attack, Arts, Item, Magic, Escape, Guard };
+UENUM(BlueprintType) enum class EJRPGBattleInputKind  : uint8 { Parry };
+UENUM(BlueprintType) enum class EJRPGBattleEventType  : uint8 {   // the UI builds the text
+    RoundStart, ActionStart, Damage, Miss, Heal, Death, APChanged, ArtRecognized, ArtLearned, ActionEnd
+};
+UENUM(BlueprintType) enum class EJRPGActionPhase      : uint8 {   // presentation: lives in the pawn
     Idle, Windup, Advance, Strike, Chain, Recovery, Return, Done
 };
 
 // Exists since Phase 4 with SlotIndex, Side, SideIndex, Type, Key, Level; Phase 5 adds the rest.
-// Rules only, all integer: no phase, no timer, nothing the pawn shows.
+// Rules only, all integer: no phase, no timer, nothing the pawn shows. A snapshot taken at
+// BeginBattle — resolution never reads UPartySubsystem / UStatusSubsystem / UInventorySubsystem.
 USTRUCT(BlueprintType) struct FJRPGCombatant {
   int32 SlotIndex; EJRPGBattleSide Side; int32 SideIndex; EJRPGCombatantType Type;
+  int32 Team;                 // the rules ask "same team?"; victory = a whole team is down
+  int32 OwnerPlayer = -1;     // who enters its commands; -1 = AI
   FName Key;                  // party member, seru, or DT_Enemies row
   int32 Level;
   int32 HP, MaxHP, MP, MaxMP;
-  int32 ATK, UDF, LDF, SPD, INT, AGL;   // enemies: InstallEnemyStats + difficulty
+  int32 ATK, UDF, LDF, SPD, INT, AGL;   // heroes: base + Ra-Seru bonus; enemies: InstallEnemyStats + difficulty
+  TArray<int32> EquipATK;     // each piece's ATK apart, folded per command at the hit
   EJRPGElement Element;
   int32 AP;                   // persistent meter (Arts add, specials spend)
   int32 CommandGauge;         // per-turn input budget, seeded from AGL
@@ -760,21 +784,47 @@ USTRUCT(BlueprintType) struct FJRPGCombatant {
   TArray<FJRPGBattleCondition> Conditions;   // 5.0 › Conditions
 };
 
+// One command, one entry point: checked against who owns the slot, never trusted (rule 22).
+USTRUCT(BlueprintType) struct FJRPGBattleCommand {
+  int32 PlayerIndex, Slot; EJRPGBattleCommandKind Kind; int32 TargetSlot;
+  TArray<uint8> ArtBytes;     // the whole chain from the input window (Phase 6)
+  FName ItemKey;
+};
+
+// What arrives during execution, stamped with the logic frame.
+USTRUCT(BlueprintType) struct FJRPGBattleInput {
+  int32 PlayerIndex, Slot; EJRPGBattleInputKind Kind; int32 HitIndex, Frame;
+};
+
 USTRUCT(BlueprintType) struct FJRPGBattleEvent {
-  FName EventType;   // Damage / Miss / Death / TurnStart / APChanged / ArtRecognized
-  int32 SlotIndex, TargetSlot, Value; FText Text;
+  EJRPGBattleEventType Type;
+  int32 SlotIndex, TargetSlot, Value;
+  int32 ActionIndex, HitIndex, Frame;   // the presentation shows it when its clip gets there
+};
+
+// The whole fight in one struct: same seed + same commands + same inputs = same events.
+USTRUCT(BlueprintType) struct FJRPGBattleState {
+  TArray<FJRPGCombatant> Combatants; FRandomStream Rng;   // rules only; cosmetic randomness uses another
+  int32 Round; TArray<int32> TurnOrder; int32 Frame;
+  bool bRewardsPaid;
 };
 ```
 
 ### `UBattleSubsystem`, expanded
 
 `UGameInstanceSubsystem` + `FTickableGameObject` (`IsTickable()` true only during a fight,
-`ETickableTickType::Conditional`).
+`ETickableTickType::Conditional`), ticking as a **fixed-step accumulator** that calls
+`StepFrame()` — the raw `DeltaTime` never reaches the rules.
 
 ```cpp
-bool BeginBattle(const FJRPGBattleSetup& Setup);   // exists; Setup gains Seed, bScriptedFight, bNoRewards
-void EndBattle(EJRPGBattleResult Result);         // exists: Victory / Defeat / Escaped / Aborted
-bool SubmitCommand(int32 Slot, EJRPGBattleCommand Command, int32 TargetSlot);
+bool BeginBattle(const FJRPGBattleSetup& Setup);   // exists; Setup gains Seed, bScriptedFight, bNoRewards,
+                                                   // and teams carrying their snapshots (the opponent's party arrives as data)
+void EndBattle(EJRPGBattleResult Result);         // exists: Victory / Defeat / Escaped / Aborted;
+                                                   // writes back only into the local player's members
+bool SubmitCommand(const FJRPGBattleCommand& Command);   // checks the issuer owns the slot
+bool SubmitInput(const FJRPGBattleInput& Input);         // the parry, during execution
+void StepFrame();                                  // one fixed frame; ResolveHit(N) when a hit's frame comes
+const FJRPGBattleState& GetState() const;
 const TArray<FJRPGCombatant>& GetCombatants() const;
 int32 GetActiveSlot() const;
 
@@ -788,7 +838,9 @@ FOnBattleEnded   OnBattleEnded;
 
 The original's initiative key is `key = SPD + roll + 1 + wounded_bonus`, where the bonus is
 the missing HP shifted (shift 4 below a quarter of max, 5 below half). Implement that and
-leave room to tune — sorting by descending key is what produces the original's feel.
+leave room to tune — sorting by descending key is what produces the original's feel. The `roll`
+comes from the state's `Rng`; `TArray::Sort` is not stable, so ties break explicitly by
+`SlotIndex`.
 
 ### Damage formula
 
@@ -801,7 +853,8 @@ Offense     = (BaseOffense + rand % (BaseOffense/8 + 1)) * Power / 16
               + CurrentHP / 256
               + (juggle * ATK) / 64
 If Art:       Offense = Offense * 13 / 10
-Element:      x1.04 on opposed pairs, x0.96 on same element
+Element:      * 104 / 100 on opposed pairs, * 96 / 100 on same element (integer,
+              not the float from GetElementMultiplier)
 Defense     = DEF + rand % (DEF/8 + 1)       // UDF on high hits, LDF on low ones
 Damage      = Offense - Defense, capped at 9999
 Floor:        when defense would win it does not clamp to 1 — it rebuilds the
@@ -818,7 +871,8 @@ Two things matter more than the rest:
 
 Since this is not a 1:1 port, all of it lives in
 `UBattleFormulas : public UBlueprintFunctionLibrary` as pure static functions with exposed
-constants — rebalancing should not mean recompiling the state machine.
+constants — rebalancing should not mean recompiling the state machine. They take the
+`FRandomStream&` and the combatant snapshot, never a subsystem.
 
 Art power is per hit: `0x16–0x1A` → UDF × 12/18/20/22/28, `0x1B–0x1F` → LDF × the same,
 `0x0C–0x15` → the same scale in the "alt" range (misses floating or short enemies). So
@@ -866,7 +920,7 @@ logic. Two things follow:
   camera variant's `rand % 2` takes from the same stream). The remake keeps the fight's stream
   for the rules only; matching the original's draw sequence is not a goal.
 
-See also [PvP, online and co-op](#pvp-online-and-co-op--undecided-ask-before-phase-5).
+See also [PvP, online and co-op](#pvp-online-and-co-op--door-open-decided-2026-11-04).
 
 ### Staying in the arena
 
@@ -894,6 +948,8 @@ Root movement itself is the disc's: per clip, a root speed (`+0x0C`) and an end 
 
 Start honest and dumb: pick a random living target weighted toward low HP, and attack.
 The RE project documents the real selector (`FUN_801E9FD4`) when you want to go further.
+It is a step of the resolution: it runs when the enemy's action starts, draws from the fight's
+`Rng`, and finds targets by **team**, not by `Side`.
 
 **Acceptance:** touch a Gimard → turn order computed → choose Attack → animation plays,
 damage shows, HP drops → the enemy retaliates → kill it → `Defeat` animation, victory, XP
@@ -912,12 +968,19 @@ And the failures, each an automation test where it can be one (no map):
 | The fight ends during a transition (fade, a second `EndBattle`) | Ends once; rewards once |
 | `Aborted` | The party exactly as before the fight; no item consumed, no reward |
 | Easy (Japan rules) | `diff.set 3`: the same fight installs the raw stats and pays the full EXP |
+| Determinism (no map) | The same seed, the same commands and the same inputs at the same frames produce exactly the same event list — the test that guarantees PvP later |
+| A command for a slot the issuer does not own | Rejected; nothing changes |
 
 ---
 
 ## Phase 6 — Directional Arts and the new AP
 
 **Goal:** the heart of Legaia, with the AP inversion.
+
+**Comes before Phase 5** (decided 2026-11-04, [Phases](#phases)): the recognition, learning and
+AP rules are written and tested on their own, and the chain plays in the Art tester; what needs a
+fight (the window inside a turn, damage, AP on the combatant) closes in Phase 5. The acceptance
+below is split that way.
 
 ### Two meters, not one
 
@@ -970,9 +1033,12 @@ overlap rule and compare it with its `Command` (the RE derives it the same way,
 
 ### The input window
 
-`SubmitCommand(Slot, Arts, …)` opens the window; each button debits `CommandCost` from
-`CommandGauge` and pushes a byte; `CommitArtsChain` recognizes the chain and turns it into the
-turn's queue (`UJRPGArtSequenceLibrary`).
+Choosing Arts opens the window, and the window is **local**: each button debits `CommandCost`
+from `CommandGauge` and pushes a byte, with no round trip to the rules. `CommitArtsChain` closes
+it and sends the whole chain as **one** command (`FJRPGBattleCommand` with `ArtBytes`, through
+`SubmitCommand`); the rules recognize it again from the bytes (never trust the payload) and turn
+it into the turn's queue (`UJRPGArtSequenceLibrary`). Before Phase 5, the Art tester plays the
+same path without a fight: a gauge of its own, commit, recognition, queue.
 
 When AP moves, which the inversion makes a real decision (the original paid AP per Art at
 recognition time, `+0x170`). **Proposed, to confirm with the user** (open question 6):
@@ -992,9 +1058,16 @@ Hyper / Super / Miracle appear **unavailable** (greyed out) when AP does not cov
 running total, the list updates as the chain is typed (a special lights up once the regular
 Arts before it pay for it).
 
-**Acceptance:** enter `Arms, Ra-Seru, High` as Vahn → "Hyper Elbow" is recognized, the right
-animation plays, damage uses the Art's power and AP **rises**. Fill AP and fire a Super Art
-→ AP **drops** and damage is much larger. With insufficient AP, the Super shows as blocked.
+**Acceptance, in Phase 6** (Art tester + automation tests, no fight): enter `Arms, Ra-Seru,
+High` as Vahn → "Hyper Elbow" is recognized and the right animation plays; Noa's mirrored input
+gives her Arts; the overlap case (Tri-Somersault from its seven buttons) recognizes every Art in
+it; an unknown Art is learned once and survives a save / load; each Super's `Command` matches
+the one recomputed from its `Sequence`; the AP check at commit downgrades a special that does not
+fit and lets one paid by the regular Arts before it through (if open question 6 keeps that).
+
+**Acceptance, closed in Phase 5** (in a fight): damage uses the Art's power per hit and AP
+**rises**; fill AP and fire a Super Art → AP **drops** and damage is much larger; with
+insufficient AP, the Super shows as blocked.
 
 ---
 
@@ -1086,18 +1159,14 @@ switch when Phase 8 gets there.
 
 ---
 
-## PvP, online and co-op — undecided, ask before Phase 5
+## PvP, online and co-op — door open (decided 2026-11-04)
 
-**Status:** an idea, not planned and not decided (raised 2026-10-31). Nothing here is to be
-built in Phases 5–8. The only question for now is whether the combat core leaves the door
-open.
-
-> **For whoever implements Phase 5, human or agent:** before writing the combat core, **ask
-> the user** whether PvP / online / local co-op should stay possible, and show them both
-> versions — the Phase 5 plan as written, and
-> [Phase 5 with the door open](#phase-5-with-the-door-open--what-changes-in-the-plan) — so
-> they know what each answer means. Do not assume either answer. Write the decision
-> and its date in this section.
+**Decided 2026-11-04 (the user):** the fight has to work **locally** and leave the **base ready
+for PvP later**. So the combat core keeps the door open — Phase 5 is written as
+[Phase 5 with the door open](#phase-5-with-the-door-open--what-changes-in-the-plan), and
+[What the core cannot do](#what-the-core-cannot-do) is binding for Phases 5–8 (and for Phase 6,
+which comes first). The modes themselves are still **not planned**: no replication, lobbies, EOS
+or second-player input is built in Phases 5–8. (Raised 2026-10-31.)
 
 ### What the idea is
 
@@ -1112,7 +1181,7 @@ open.
   preferred option), Steam lobbies (needs an AppID, and Sony-derived assets cannot ship there)
   or a typed IP (port forwarding or Tailscale/Radmin).
 
-### Why it has to be asked now
+### Why it was decided before Phase 5
 
 A turn-based fight is the easiest genre to network: only **commands** travel ("Vahn: Arms,
 High, Low → slot 2"), never positions — plus, with the parry, the defender's timed press. The
@@ -1124,7 +1193,7 @@ it that way costs almost nothing in Phase 5 (it is the same code, organised diff
 it also makes the core testable without opening a map). Converting a core whose damage comes
 out of animation notifies means rewriting the resolution.
 
-### If the answer is yes: what the core cannot do
+### What the core cannot do
 
 | Do not | Because | Do instead |
 |---|---|---|
@@ -1140,14 +1209,15 @@ out of animation notifies means rewriting the resolution.
 | Run enemy AI outside the resolution | Each machine would pick different targets | AI is a step of the resolution, using the battle stream, on the host only |
 | Judge a parry on the host's clock | The defender sees the attack late by the network delay; a press on time on their screen would arrive late | The defender's machine judges the press against its own playback and sends "parried hit N"; the host holds hit N until that input or a deadline (see "The transport") |
 
-Even with a yes, Phase 5 does **not** add replication, lobbies or EOS — it only keeps the
-core from closing the door.
+Phase 5 does **not** add replication, lobbies or EOS — it only keeps the core from closing the
+door.
 
 ### Phase 5 with the door open — what changes in the plan
 
 The rules themselves stay: the damage formula, the turn order, the dumb AI and "Staying in the
 arena" are the same. What changes is how Phase 5 is organised, item by item. On screen, in
-single player, the result is identical.
+single player, the result is identical. The Phase 5 sketches were rewritten this way on
+2026-11-04; this list keeps what changed from the closed-door version, and why.
 
 **The round.** Already `Commands → Execution` either way (5.0 › The round, the original's
 model). With the door open, Commands are also **hidden from the other side**:
@@ -1160,7 +1230,7 @@ In PvP both sides choose at the same time without seeing each other.
 
 **`BattleTypes.h`**
 
-| In the sketch | With the door open |
+| Door closed (the old sketch) | Door open (the plan) |
 |---|---|
 | `EJRPGBattleSide { Party, Enemy }` | Stays, but the rules ask "same team?": add `int32 Team` and `int32 OwnerPlayer` (-1 = AI). Victory is "a whole team is down", not "the enemies are dead" |
 | `EJRPGActionPhase` | Already out of the combatant, in `AJRPGBattlePawn` (decided either way, 2026-11-04) |
@@ -1172,7 +1242,7 @@ In PvP both sides choose at the same time without seeing each other.
 
 **`UBattleSubsystem`**
 
-| In the sketch | With the door open |
+| Door closed (the old sketch) | Door open (the plan) |
 |---|---|
 | `BeginBattle(Setup)` | Stays, with `Seed` (5.0), and `TArray<FName> Party` (read from the local `UPartySubsystem`) becomes teams carrying their snapshots — the opponent's party arrives as data, not from your save |
 | `SubmitCommand(Slot, Command, TargetSlot)` | `SubmitCommand(const FJRPGBattleCommand&)`, which checks the issuer owns the slot |
@@ -1207,14 +1277,6 @@ fade. The existing `GetFirstPlayerController()` calls stay; Phase 5 just must no
 
 **Cost.** A little more structure up front (the command and input structs, the fixed-step timeline), and nothing
 network-related.
-
-### If the answer is no
-
-The sketches in Phase 5 stand as written — the hit timing (each hit at its frame on the logic
-timeline, Phase 5 › State machine) and the 5.0 contracts are decided either way. Record the
-decision here with its date.
-Adding PvP or online later then means reorganising the core around commands and teams, and
-this section is the list of what changes.
 
 ### The transport, for when it is built
 
@@ -1279,11 +1341,13 @@ this section is the list of what changes.
 
 ## Next concrete step
 
-**Before Phase 5:** ask the user whether PvP / online / local co-op must stay possible
-([the section](#pvp-online-and-co-op--undecided-ask-before-phase-5) says why and what each
-answer means).
+**Phase 6 (next):** `UArtsSubsystem` — `ButtonForPad` (Noa mirrored), recognition with the
+original's overlap, learn-on-use and the learned list in the save, the AP check at commit — as
+pure functions with automation tests, then the input window and the chain in the Art tester.
+Open questions 6 (AP in a chain) and 7 (learning Arts) are to settle with the user at the start.
 
-**Phase 5:** first the contracts (5.0 — the round, the logic timeline and its fallback, items,
+**Phase 5 (after 6), door open** ([decided 2026-11-04](#pvp-online-and-co-op--door-open-decided-2026-11-04)):
+first the contracts (5.0 — the round, the logic timeline and its fallback, items,
 end of the fight, who gets the EXP), then basic combat on the Muscle Dome — combatant stats
 through the version rules, the original's turn order, the integer damage kernel, the action
 state machine, a dumb enemy AI, victory / defeat. In parallel, the party's battle clips

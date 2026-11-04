@@ -20,6 +20,9 @@ __pycache__/
 .vscode/
 .idea/
 .claude/settings.local.json
+.claude/unreal-mcp/
+.mcp.json
+CLAUDE.local.md
 
 # --- OS ---
 Thumbs.db
