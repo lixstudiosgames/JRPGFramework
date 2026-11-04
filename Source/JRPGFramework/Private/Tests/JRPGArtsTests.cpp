@@ -118,9 +118,9 @@ namespace JRPGArtsTests
 		}
 		return Out;
 	}
-}
 
-using namespace JRPGArtsTests;
+// Os testes ficam dentro do namespace: um using namespace pôria Ar / Lo... no escopo global, e os
+// parâmetros FArchive& Ar dos templates da engine dariam C4459 (oculta uma declaração global).
 
 // --- Botões ----------------------------------------------------------------------------------
 
@@ -538,5 +538,7 @@ bool FJRPGArtsDeterminismTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("chance 0"), UJRPGArtsRules::BuildChain(Arts, C, Buttons, Rng).NewlyLearned.IsEmpty());
 	return true;
 }
+
+} // namespace JRPGArtsTests
 
 #endif // WITH_DEV_AUTOMATION_TESTS
