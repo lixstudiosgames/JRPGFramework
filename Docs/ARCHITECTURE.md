@@ -298,6 +298,9 @@ content across once and remain for reference.
 | `Data/DT_Difficulty.csv` | 4 | `FDifficultyScaling` (Easy = Japanese rules) |
 | `Data/DT_CameraPresets.csv` | 13 | `FCameraPresetRow` (import as `DT_Camera`) |
 | `Data/DT_Enemies.csv` | 179 | `FJRPGEnemyData` (the disc's monster archive, raw; names and keys from enemies.toml) |
+| `Data/DT_EnemyActions.csv` | 1753 | `FJRPGEnemyActionData` (one row per monster clip: power bytes, hit frames, AGL cost, rate) |
+| `Data/DT_RaSeruTiers.csv` | 3 | `FJRPGRaSeruTierData` (the Ra-Seru's ATK per tier, one row per hero) |
+| `Data/DT_WeaponCosts.csv` | 18 | `FJRPGWeaponCostData` (the Arms button's cost per hero and weapon, when it is not 30) |
 
 `Data/_backup/` holds the copies LegaiaStudio makes on every save.
 
@@ -311,5 +314,6 @@ content across once and remain for reference.
 | `Extras/extract_growth_from_disc.py` | Reads `SCUS_942.54` → `DT_StatGrowth` + `DT_GrowthCurve` |
 | `Extras/ps1_glb_to_fbx.py` | Runs in headless Blender: a PS1 battle model `.glb` (monster or party) → rigged FBX for Unreal. See [`Guides/PS1_ASSETS.md`](Guides/PS1_ASSETS.md) |
 | `Extras/generate_*.py` | TOML → CSV importers (one-way) — except `generate_enemies_csv.py`, which keeps manual columns and rows |
+| `Extras/generate_enemy_actions_csv.py`, `generate_hero_battle_csv.py`, `monster_block.py` | Disc → CSV (the monsters' action entries, the Ra-Seru tiers and the weapon costs), through the RE's `asset.exe`; `monster_block.py` reads a decoded monster block. See [`Guides/ENEMIES.md`](Guides/ENEMIES.md) |
 | `Extras/legaia_toml.py` | What the generators share: `tomllib` (Python 3.11+) + the Unreal CSV helpers |
 | `Extras/download_fonts.py` | Verifies/downloads the WebUI's local fonts |

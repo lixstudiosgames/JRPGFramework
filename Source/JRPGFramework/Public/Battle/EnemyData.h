@@ -96,6 +96,14 @@ struct JRPGFRAMEWORK_API FJRPGEnemyData : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy")
 	EJRPGElement Element = EJRPGElement::None;
 
+	/**
+	 * A classe de altura do monstro (+0x1E do registro): quais golpes do herói o alcançam. 0 = todo golpe
+	 * alcança; 2 = voando, o golpe baixo ("Lower, misses floating") erra; 3 = baixo, o golpe alto ("Upper,
+	 * misses short") erra. Os golpes de poder 0x16+ alcançam qualquer um. Ver UBattleFormulas::LimbMisses.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy")
+	int32 TargetClass = 0;
+
 	// --- Stats (registro cru; UJRPGBattleRules::InstallEnemyStats dá os da luta) ---
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy|Stats")

@@ -89,7 +89,7 @@ TABLES = [
     {"id": "DT_Enemies", "struct": "FJRPGEnemyData", "label": "Enemies", "icon": "enemy",
      "title": "DisplayName", "subtitle": "Location", "badge": "BaseHP", "badgeSuffix": " HP",
      # Stats e recompensas vêm do original (enemies.toml + disco); Mesh/Anims são da Fase 2.
-     "primary": ["DisplayName", "Location", "bIsBoss", "Element", "BaseHP", "BaseMP", "BaseATK",
+     "primary": ["DisplayName", "Location", "bIsBoss", "Element", "TargetClass", "BaseHP", "BaseMP", "BaseATK",
                  "BaseUDF", "BaseLDF", "EXP", "Gold", "DropItem", "StealItem"]},
 
     {"id": "DT_Arts", "struct": "FJRPGArtData", "label": "Arts", "icon": "art",
@@ -102,8 +102,21 @@ TABLES = [
     {"id": "DT_Bosses", "struct": "FJRPGBossData", "label": "Bosses", "icon": "enemy",
      "title": "DisplayName", "subtitle": "Location", "badge": "FightCode", "badgeSuffix": "",
      # A camada da luta: os stats do chefe ficam no DT_Enemies (Enemies aponta para ele).
-     "primary": ["DisplayName", "Location", "Enemies", "SpecialAttacks", "SpecialAttackMP", "EXP",
+     "primary": ["DisplayName", "Location", "Enemies", "bScriptedFight", "SpecialAttacks", "SpecialAttackMP", "EXP",
                  "Gold", "RewardItem", "RecommendedLevel", "Notes"]},
+
+    {"id": "DT_EnemyActions", "struct": "FJRPGEnemyActionData", "label": "Enemy Actions", "icon": "enemy",
+     "title": "Clip", "subtitle": "Enemy", "badge": "Tag", "badgeSuffix": "",
+     # A entrada de ação do disco (golpes, quadros, custo de AGL): gerada por generate_enemy_actions_csv.py.
+     "primary": ["Enemy", "Clip", "Tag", "Power", "HitFrames", "AGLCost", "Rate", "FrameCount", "Anim"]},
+
+    {"id": "DT_RaSeruTiers", "struct": "FJRPGRaSeruTierData", "label": "Ra-Seru Tiers", "icon": "party",
+     "title": "Character", "subtitle": None, "badge": None, "badgeSuffix": "",
+     "primary": ["Character", "TierATK"]},
+
+    {"id": "DT_WeaponCosts", "struct": "FJRPGWeaponCostData", "label": "Weapon Costs", "icon": "item",
+     "title": None, "subtitle": "Character", "badge": "ArmsCost", "badgeSuffix": "",
+     "primary": ["Character", "Item", "ArmsCost"]},
 
     {"id": "DT_LevelCurve", "struct": "FLevelCurveRow", "label": "Level Curve", "icon": "curve",
      "title": "Level", "subtitle": "XPTotal", "badge": "XPFromPrevious", "badgeSuffix": " xp",
@@ -139,6 +152,8 @@ REFERENCES = {
     ("DT_Enemies", "StealItem"): "DT_Items",
     ("DT_Bosses", "Enemies"): "DT_Enemies",
     ("DT_Bosses", "RewardItem"): "DT_Items",
+    ("DT_EnemyActions", "Enemy"): "DT_Enemies",
+    ("DT_WeaponCosts", "Item"): "DT_Items",
     ("DT_Items", "TeachesArt"): "DT_Arts",
 }
 

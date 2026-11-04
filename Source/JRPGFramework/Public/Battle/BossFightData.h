@@ -39,6 +39,15 @@ struct JRPGFRAMEWORK_API FJRPGBossData : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boss")
 	TArray<FName> Enemies;
 
+	/**
+	 * A flag de luta roteirizada do original (ctx+0x287), que é da FORMAÇÃO e não do chefe: a luta ganha o perfil de
+	 * stats dos chefes (UJRPGBattleRules::InstallEnemyStats), não pode ser fugida e não rola vantagem de formação.
+	 * A Lapis e o treino do Tetsu são lutas da história com a flag desligada (o perfil do encontro aleatório). Quem
+	 * monta a luta copia isto para FJRPGBattleSetup::bScriptedFight.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boss")
+	bool bScriptedFight = true;
+
 	/** HP do chefe pelo guia, para conferência (o da luta é o do DT_Enemies). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boss|Reference")
 	int32 HP = 0;

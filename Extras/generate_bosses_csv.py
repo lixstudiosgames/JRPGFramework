@@ -16,7 +16,10 @@ Enemies: os rows do DT_Enemies de quem entra, achados pelo nome — "Songi (1st)
 viguro_lv2; o torneio ("(Expert)", "(Master)") sai do nome e vai para Tournament. Quem não casar sai
 no relatório e fica para resolver à mão.
 
-Regenerar NÃO apaga trabalho manual: Enemies posto à mão é mantido, e linhas criadas no
+bScriptedFight (a flag de luta roteirizada: o perfil de stats e a fuga, BATTLE_ROADMAP.md › 5.0) é
+verdadeira em todos os chefes menos a Lapis; ver NOT_SCRIPTED.
+
+Regenerar NÃO apaga trabalho manual: Enemies e bScriptedFight postos à mão são mantidos, e linhas criadas no
 LegaiaStudio (lutas novas) ficam. O CSV anterior vai para Docs/Data/_backup/.
 """
 
@@ -33,10 +36,19 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 TABLE = "DT_Bosses"
-COLUMNS = ["Key", "DisplayName", "Location", "FightCode", "Enemies", "HP", "MP", "SpecialAttacks",
-           "SpecialAttackMP", "EXP", "Gold", "RewardItem", "RecommendedLevel", "Tournament", "Notes"]
+COLUMNS = ["Key", "DisplayName", "Location", "FightCode", "Enemies", "bScriptedFight", "HP", "MP",
+           "SpecialAttacks", "SpecialAttackMP", "EXP", "Gold", "RewardItem", "RecommendedLevel",
+           "Tournament", "Notes"]
 # Corrigidos à mão: mantidos numa regeneração
-MANUAL_COLUMNS = ["Enemies"]
+MANUAL_COLUMNS = ["Enemies", "bScriptedFight"]
+
+# A flag de luta roteirizada do original (ctx+0x287) é da FORMAÇÃO, não do chefe: o byte de cabeçalho da
+# linha do encontro. Todo chefe da história a liga (perfil de stats B, sem fuga, sem vantagem de
+# formação), menos as lutas cuja linha tem o byte 0 — a Lapis (a linha do disco forçada, 0xA7) e o treino
+# do Tetsu (town01, linha 4; RE docs/subsystems/battle.md, "Scripted-battle entry"), que usam o perfil do
+# encontro aleatório. O treino NÃO está no bosses.toml (a Lapis sim): a luta dele é montada com
+# FJRPGBattleSetup::bScriptedFight = false à mão. As lutas da Muscle Dome seguem os chefes que reusam.
+NOT_SCRIPTED = {"lapis"}
 
 
 def snake(text):
@@ -83,6 +95,7 @@ def main():
             "---": key, "Key": key, "DisplayName": base if tournament or count > 1 else b["name"],
             "Location": b.get("location", ""), "FightCode": b.get("meth_id") or "",
             "Enemies": lt.ue_array([enemy] * count) if found else "()",
+            "bScriptedFight": lt.ue_bool(key not in NOT_SCRIPTED),
             "HP": b.get("hp_max") or 0, "MP": b.get("mp") or 0,
             "SpecialAttacks": lt.ue_array([a["name"] for a in attacks], quote=True),
             "SpecialAttackMP": lt.ue_array([a.get("mp") or 0 for a in attacks]),
@@ -98,7 +111,7 @@ def main():
         for c in MANUAL_COLUMNS:
             if old and old.get(c, "") not in ("", "()") and old[c] != r[c]:
                 r[c] = old[c]
-                report["Enemies mantido do CSV (posto à mão)"].append(r["---"])
+                report["%s mantido do CSV (posto à mão)" % c].append(r["---"])
     custom = [old_rows[k] for k in old_order if k not in generated]
     rows += custom
 
