@@ -719,7 +719,7 @@ advantage (`ctx+0x287`).
 | Data | From (RE) | For |
 |---|---|---|
 | Each monster's **action entries**: per clip the power bytes (`+0x00..+0x03`, one per hit), the hit frames (the event-frame list `+0x10..+0x13`), the AGL cost (`+0x74`), the playback rate (`+0x78`), the status selector (`+0x7A`), the tag (`0x0D..0x0F` attacks, `0x0B` block) | `docs/formats/monster-animation.md` › action entry; the monster archive (PROT 867) | The enemy's timeline, its damage, its AI budget, its block. A table (`DT_EnemyActions`, a row per monster clip), **not notifies** |
-| Each monster's **target class** (record `+0x1E`: 2 = only low hits reach it, 3 = only high ones) | `battle-formulas.md` › "The limb-vs-height miss" | The miss by height. A column in `DT_Enemies` |
+| Each monster's **target class** (record `+0x1E`: 2 = floating, the "Lower, misses floating" hits miss it; 3 = short, the "Upper, misses short" hits miss it; 0 = every hit reaches) | `battle-formulas.md` › "The limb-vs-height miss" | The miss by height. A column in `DT_Enemies` |
 | The **Ra-Seru tiers** as equipment rows (ATK, UDF, LDF, SPD per tier; weapon category with the Ra-Seru bit) | `docs/formats/equipment-table.md` (the ~24 per-tier entries the curated tables collapsed) | The Ra-Seru's ATK fold and its stats at load. The hero's tier is `SeruLevel` |
 | The party's **per-button cost** (`+0x74` of the weapon section: 30 / 42 / 54) | `arts-command-gauge.md` › "Where the cost comes from" | The input window's cost per button, per weapon |
 
