@@ -184,3 +184,9 @@ points at a clip already in the project
   the notify to show it.
 - **The voice and fanfare an Art picks when it runs** (the CD-XA layer).
 - **Status the Art inflicts** (Tough Love's, for instance) — comes with Phase 8's conditions.
+- **`Unlock`** (how the Art is learned: on use, taught, by its chain, by the Ra-Seru; default by
+  `Kind`) and **`SpeedScale`** (a step's speed instead of the original's x8 / x4 / x2 rule), the
+  **Arts validator** (duplicated commands, missing `Sequence` steps, hits that do not match the
+  clip...) and the tester's **`Input`** preview — Phase 6
+  ([BATTLE_ROADMAP.md › Making new Arts](../BATTLE_ROADMAP.md#making-new-arts--the-base)). Until
+  then a new Super already plays in the tester from its row.
