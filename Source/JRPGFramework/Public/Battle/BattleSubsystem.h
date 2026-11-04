@@ -25,6 +25,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGBattleEnded, EJRPGBattleResul
 /** A resolução produziu um fato (dano, miss, bloqueio, queda...), na ordem em que acontece. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGBattleEvent, const FJRPGBattleEvent&, Event);
 
+/** Um quadro lógico (1/60 s) andou: a apresentação toca os clips em compasso com ele. */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGLogicFrame, int32, Frame);
+
 /** Quem digita (Commands) ou age (Execution) mudou; Slot -1 = ninguém. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnJRPGSlotChanged, int32, Slot, EJRPGBattleStage, Stage);
 
@@ -141,6 +144,9 @@ public:
 	/** A linha do tempo da ação em curso (para a apresentação tocar os clips em compasso); nula fora de uma ação. */
 	const FJRPGActionTimeline* GetActiveTimeline() const { return Resolver.GetActiveTimeline(); }
 
+	/** A linha do tempo de uma ação pelo ActionIndex dos eventos, mesmo depois de ela acabar. */
+	const FJRPGActionTimeline* FindTimeline(int32 ActionIndex) const { return Resolver.FindTimeline(ActionIndex); }
+
 	/** O texto de um evento ("[f132 a3] Vahn#0 hits Gimard#3 for 275"). */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle")
 	FString DescribeEvent(const FJRPGBattleEvent& Event) const { return Resolver.DescribeEvent(Event); }
@@ -219,6 +225,10 @@ public:
 	/** Quem digita / age mudou (para a câmera e a UI). */
 	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle")
 	FOnJRPGSlotChanged OnSlotChanged;
+
+	/** Cada quadro lógico, depois dos eventos dele: a apresentação anda os clips por este contador. */
+	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle")
+	FOnJRPGLogicFrame OnLogicFrame;
 
 private:
 	/** A foto dos combatentes (heróis pelo Party / Status / Inventory, inimigos pelo DT_Enemies e DT_EnemyActions). */

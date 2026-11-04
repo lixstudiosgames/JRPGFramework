@@ -83,6 +83,7 @@ void FJRPGBattleResolver::Begin(const TArray<FJRPGCombatant>& InCombatants, int3
 {
 	State = FJRPGBattleState();
 	Events.Reset();
+	Timelines.Reset();
 	LoggedFallbacks.Reset();
 	EmptyRounds = 0;
 	bActionStartedThisRound = false;
@@ -485,6 +486,7 @@ void FJRPGBattleResolver::StartAction(int32 Slot)
 	Action.Command = Command;
 	Action.Chain = Chain;
 	Action.Timeline = Timeline;
+	Timelines.Add(Timeline);   // a cópia da apresentação: o índice é o ActionIndex
 	Action.Elapsed = 0;
 	Action.ComboDamage.Init(0, State.Combatants.Num());
 
@@ -1342,6 +1344,10 @@ void FJRPGBattleResolver::CutRestOfAction()
 	Timeline.Hits.SetNum(FMath::Min(Action.NextHit, Timeline.Hits.Num()));
 	Timeline.Marks.SetNum(FMath::Min(Action.NextMark, Timeline.Marks.Num()));
 	Timeline.TotalFrames = FMath::Min(Timeline.TotalFrames, Action.Elapsed + Defaults.KillTailFrames);
+	if (Timelines.IsValidIndex(Timeline.ActionIndex))
+	{
+		Timelines[Timeline.ActionIndex] = Timeline;
+	}
 }
 
 bool FJRPGBattleResolver::RunConditions(FJRPGCombatant& Of, bool bTurnStart)

@@ -677,6 +677,7 @@ void AJRPGBattleArena::AssembleBattle(const FJRPGBattleSetup& Setup, const TArra
 			Warn(FString::Printf(TEXT("%s sem modelo de batalha (%s) — só a cápsula"), *C.Key.ToString(), *Why));
 		}
 		Pawn->InitCombatant(C, Visual, Seat.Transform);
+		Pawn->SetArena(this);   // a arena limita onde ele anda na ação (a apresentação da Fase 5)
 		BattlePawns.Add(Pawn);
 	}
 

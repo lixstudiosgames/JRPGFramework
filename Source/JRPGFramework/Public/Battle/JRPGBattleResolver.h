@@ -165,6 +165,12 @@ public:
 	/** A timeline da ação em curso; nulo se não há. */
 	const FJRPGActionTimeline* GetActiveTimeline() const { return State.Action.bActive ? &State.Action.Timeline : nullptr; }
 
+	/**
+	 * A timeline de uma ação da luta (o ActionIndex dos eventos), mesmo depois de ela acabar: a apresentação toca os
+	 * clips por ela, e um evento pode chegar quando a ação já andou. Nula se o índice não existe.
+	 */
+	const FJRPGActionTimeline* FindTimeline(int32 ActionIndex) const { return Timelines.IsValidIndex(ActionIndex) ? &Timelines[ActionIndex] : nullptr; }
+
 	/** As recompensas só são pagas uma vez: a primeira chamada devolve true e marca, as outras false. */
 	bool ClaimRewards();
 
@@ -224,6 +230,8 @@ private:
 
 	FJRPGBattleState State;
 	TArray<FJRPGBattleEvent> Events;
+	/** As timelines de todas as ações da luta, pelo ActionIndex (o índice é o contador, sem buracos). */
+	TArray<FJRPGActionTimeline> Timelines;
 	TSet<FString> LoggedFallbacks;
 	int32 EmptyRounds = 0;
 	bool bActionStartedThisRound = false;

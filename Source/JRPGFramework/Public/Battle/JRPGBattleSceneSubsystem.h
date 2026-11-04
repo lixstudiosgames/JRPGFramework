@@ -21,8 +21,14 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnJRPGBattleSceneAssembled, AJRPGB
  * preta, dispara OnFieldHidden (os inimigos do Field somem e voltam para casa) e manda a arena
  * montar a luta. Fim: escurece, a arena desmonta, OnFieldShown, a tela abre.
  *
+ * Na luta (Fase 5) é também a ponte dos EVENTOS para os pawns: o ActionStart manda o pawn de quem age tocar a timeline
+ * lógica (BeginAction), cada quadro lógico anda a reprodução (UpdatePlayback), e os fatos resolvidos (dano, miss,
+ * bloqueio, queda, AP, Art) viram a reação do alvo e o texto em cima da cabeça. A luta fica segurada (HoldLogic)
+ * enquanto a cena entra.
+ *
  * Console (PIE): JRPG.Battle.Start <EnemyKey> [Quantos] [Level] e
- * JRPG.Battle.End [victory|defeat|escape|abort]. Guia: Docs/Guides/BATTLE_STAGE.md.
+ * JRPG.Battle.End [victory|defeat|escape|abort] (Docs/Guides/BATTLE_STAGE.md); para jogar sem HUD (o HUD é da Fase 7):
+ * JRPG.Battle.Attack [inimigo], JRPG.Battle.Arts <botões> [inimigo] e JRPG.Battle.Auto (Docs/Guides/BATTLE.md).
  */
 UCLASS()
 class JRPGFRAMEWORK_API UJRPGBattleSceneSubsystem : public UWorldSubsystem
@@ -72,6 +78,18 @@ private:
 
 	UFUNCTION()
 	void HandleBattleEnded(EJRPGBattleResult Result);
+
+	/** Um fato da resolução: o pawn certo toca a reação e mostra o texto. */
+	UFUNCTION()
+	void HandleBattleEvent(const FJRPGBattleEvent& Event);
+
+	/** Quem digita / age mudou: avisa na tela de quem é o comando. */
+	UFUNCTION()
+	void HandleSlotChanged(int32 Slot, EJRPGBattleStage Stage);
+
+	/** Um quadro lógico andou: os pawns tocam em compasso. */
+	UFUNCTION()
+	void HandleLogicFrame(int32 Frame);
 
 	/** Tela preta no começo: esconde o Field e monta. */
 	void EnterBattleScene();

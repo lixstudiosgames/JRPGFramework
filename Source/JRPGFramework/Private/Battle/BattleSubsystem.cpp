@@ -688,6 +688,7 @@ void UBattleSubsystem::StepFrame()
 	}
 	Resolver.StepFrame();
 	FlushEvents();
+	OnLogicFrame.Broadcast(Resolver.GetState().Frame);
 	// Decidida a luta, espera a queda e a pose tocarem antes de fechar
 	if (bInBattle && Resolver.IsFinished() && ++FramesSinceFinish >= FinishDelayFrames)
 	{

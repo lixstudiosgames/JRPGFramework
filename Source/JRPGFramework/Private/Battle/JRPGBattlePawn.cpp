@@ -1,11 +1,56 @@
 #include "Battle/JRPGBattlePawn.h"
+#include "Arts/JRPGArtSequence.h"
+#include "Battle/JRPGBattleArena.h"
+#include "Core/CoreSubsystem.h"
 #include "Field/JRPGFieldEnemyAnimInstance.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Animation/AnimSequence.h"
+#include "DrawDebugHelpers.h"
+#include "Engine/DataTable.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
+
+namespace
+{
+	// Os papéis dos clips de reação e de pose (os nomes dos clips do herói; no monstro são as tags 0 / 1 / 2 / 3 / 4 / 0x0B)
+	const FName RoleIdle(TEXT("Idle"));
+	const FName RoleWalk(TEXT("Walk"));
+	const FName RoleFlinch1(TEXT("Flinch1"));
+	const FName RoleFlinch2(TEXT("Flinch2"));
+	const FName RoleKnockdown(TEXT("Knockdown"));
+	const FName RoleBlock(TEXT("Block"));
+	const FName RoleDying(TEXT("Dying"));
+
+	int32 TagForRole(FName Role)
+	{
+		if (Role == RoleIdle)      { return 0; }
+		if (Role == RoleWalk)      { return 1; }
+		if (Role == RoleFlinch1)   { return 2; }
+		if (Role == RoleFlinch2)   { return 3; }
+		if (Role == RoleKnockdown) { return 4; }
+		if (Role == RoleBlock)     { return 0x0B; }
+		return -1;
+	}
+
+	FColor EventColor(EJRPGBattleEventType Type)
+	{
+		switch (Type)
+		{
+		case EJRPGBattleEventType::Damage:        return FColor(255, 235, 200);
+		case EJRPGBattleEventType::Miss:          return FColor(190, 190, 190);
+		case EJRPGBattleEventType::Block:         return FColor(120, 220, 255);
+		case EJRPGBattleEventType::Death:         return FColor(255, 140, 60);
+		case EJRPGBattleEventType::APChanged:     return FColor(140, 255, 140);
+		case EJRPGBattleEventType::ArtRecognized: return FColor(255, 230, 90);
+		case EJRPGBattleEventType::ArtLearned:    return FColor(255, 170, 255);
+		default:                                  return FColor::White;
+		}
+	}
+}
 
 AJRPGBattlePawn::AJRPGBattlePawn()
 {
@@ -53,6 +98,31 @@ void AJRPGBattlePawn::InitCombatant(const FJRPGCombatant& InCombatant, const FJR
 	SetActorLocationAndRotation(FeetTransform.GetLocation() + FVector(0.0f, 0.0f, Half), FeetTransform.GetRotation());
 
 	BuildPieces(Visual);
+
+	// Na luta: a apresentação do monstro lê as ações dele (os clips de golpe e de reação) e o conjunto de clips
+	EnemyActions.Reset();
+	EnemyAnims = FJRPGMonsterAnimSet();
+	bDown = false;
+	bActionActive = false;
+	Phase = EJRPGActionPhase::Idle;
+	if (InCombatant.Type == EJRPGCombatantType::Enemy)
+	{
+		if (const UDataTable* Actions = UCoreSubsystem::ResolveDataTable(TEXT("DT_EnemyActions")))
+		{
+			Actions->ForeachRow<FJRPGEnemyActionData>(TEXT("BattlePawn"), [&](const FName&, const FJRPGEnemyActionData& Row)
+			{
+				if (Row.Enemy == InCombatant.Key)
+				{
+					EnemyActions.Add(Row);
+				}
+			});
+		}
+		FJRPGEnemyData EnemyRow;
+		if (UJRPGEncounterLibrary::GetEnemyData(InCombatant.Key, EnemyRow))
+		{
+			EnemyAnims = EnemyRow.Anims;
+		}
+	}
 
 	IdleClip = Visual.IdleAnim.LoadSynchronous();
 	bUsesAnimClass = Visual.AnimClass != nullptr;
@@ -148,4 +218,281 @@ void AJRPGBattlePawn::PlayClip(UAnimSequence* Clip, bool bLoop, float PlayRate)
 void AJRPGBattlePawn::PlayIdle()
 {
 	PlayClip(IdleClip, true);
+}
+
+// =================================================================================================
+// A luta: a apresentação em compasso com a linha do tempo lógica
+// =================================================================================================
+
+void AJRPGBattlePawn::SetPhase(EJRPGActionPhase NewPhase)
+{
+	if (Phase != NewPhase)
+	{
+		Phase = NewPhase;
+		OnActionPhaseChanged(NewPhase);
+	}
+}
+
+const FJRPGEnemyActionData* AJRPGBattlePawn::FindEnemyAction(int32 ActionIndex) const
+{
+	return EnemyActions.FindByPredicate([ActionIndex](const FJRPGEnemyActionData& Row) { return Row.ActionIndex == ActionIndex; });
+}
+
+const FJRPGEnemyActionData* AJRPGBattlePawn::FindEnemyActionByTag(int32 Tag) const
+{
+	return EnemyActions.FindByPredicate([Tag](const FJRPGEnemyActionData& Row) { return Row.Tag == Tag; });
+}
+
+UAnimSequence* AJRPGBattlePawn::FindRoleClip(FName Role, float& OutPlayRate) const
+{
+	OutPlayRate = 1.0f;
+	if (Combatant.Type == EJRPGCombatantType::Enemy)
+	{
+		// O clip da linha do DT_EnemyActions com a tag do papel, tocado no rate dele (a escala 8: 15 x rate quadros/s)
+		const int32 Tag = TagForRole(Role);
+		if (const FJRPGEnemyActionData* Row = Tag >= 0 ? FindEnemyActionByTag(Tag) : nullptr)
+		{
+			if (UAnimSequence* Clip = Row->Anim.LoadSynchronous())
+			{
+				OutPlayRate = static_cast<float>(FMath::Max(Row->Rate, 1));
+				return Clip;
+			}
+		}
+		// Sem a tabela de ações: o conjunto de clips do DT_Enemies (rate 2, o de quase todo clip do original)
+		const TSoftObjectPtr<UAnimSequence>* Soft = nullptr;
+		if (Role == RoleIdle)           { Soft = &EnemyAnims.Idle; }
+		else if (Role == RoleWalk)      { Soft = &EnemyAnims.Walk; }
+		else if (Role == RoleFlinch1)   { Soft = &EnemyAnims.Flinch1; }
+		else if (Role == RoleFlinch2)   { Soft = &EnemyAnims.Flinch2; }
+		else if (Role == RoleKnockdown) { Soft = &EnemyAnims.Knockdown; }
+		else if (Role == RoleBlock)     { Soft = &EnemyAnims.Block; }
+		if (Soft && !Soft->IsNull())
+		{
+			OutPlayRate = 2.0f;
+			return Soft->LoadSynchronous();
+		}
+		return nullptr;
+	}
+
+	// O herói: AS_<Nome>_Battle_<Papel>, com o RateScale já na velocidade do jogo (escala 8 = 2 x o clip)
+	UAnimSequence* Clip = UJRPGArtSequenceLibrary::LoadHeroClip(Combatant.Key, Role.ToString());
+	if (Clip && Clip->RateScale > KINDA_SMALL_NUMBER)
+	{
+		OutPlayRate = 2.0f / Clip->RateScale;
+	}
+	return Clip;
+}
+
+void AJRPGBattlePawn::PlayReaction(FName Role, bool bHold)
+{
+	float Rate = 1.0f;
+	UAnimSequence* Clip = FindRoleClip(Role, Rate);
+	if (!Clip && Role == RoleDying)
+	{
+		Clip = FindRoleClip(RoleKnockdown, Rate);   // o herói sem o clip de morrer cai pelo de derrubar
+	}
+	if (!Clip)
+	{
+		return;
+	}
+	GetWorldTimerManager().ClearTimer(ReactionTimer);
+	PlayClip(Clip, false, Rate);
+	if (!bHold)
+	{
+		const float Speed = FMath::Max(Rate * FMath::Max(Clip->RateScale, KINDA_SMALL_NUMBER), KINDA_SMALL_NUMBER);
+		GetWorldTimerManager().SetTimer(ReactionTimer, this, &AJRPGBattlePawn::ReturnToIdle, FMath::Max(Clip->GetPlayLength() / Speed, 0.1f), false);
+	}
+}
+
+void AJRPGBattlePawn::ReturnToIdle()
+{
+	if (!bDown && !bActionActive)
+	{
+		PlayIdle();
+	}
+}
+
+FVector AJRPGBattlePawn::ClampToArena(const FVector& From, const FVector& To) const
+{
+	// A arena limita todo mundo (o alvo é a parede, a arena a outra): um passo que sairia da área não acontece. Só se
+	// a posição de partida está dentro, para uma área mal desenhada não congelar o pawn
+	const AJRPGBattleArena* Bounds = Arena.Get();
+	if (Bounds && Bounds->bUseArea && Bounds->ContainsPoint(From) && !Bounds->ContainsPoint(To))
+	{
+		return From;
+	}
+	return To;
+}
+
+void AJRPGBattlePawn::BeginAction(const FJRPGActionTimeline& Timeline, const AJRPGBattlePawn* Target)
+{
+	Action = Timeline;
+	bActionActive = true;
+	PlayedStep = -1;
+	StrikesPlayed = 0;
+	TargetPawn = Target;
+	GetWorldTimerManager().ClearTimer(ReactionTimer);
+
+	ApproachFrom = GetActorLocation();
+	ApproachTo = ApproachFrom;
+	if (Target)
+	{
+		const FVector TargetLocation = Target->GetActorLocation();
+		const FVector Flat = FVector(TargetLocation.X - ApproachFrom.X, TargetLocation.Y - ApproachFrom.Y, 0.0).GetSafeNormal();
+		if (!Flat.IsNearlyZero())
+		{
+			SetActorRotation(Flat.Rotation());
+			// O alvo é a parede: anda até o alcance dele e para; mais perto que isso, não anda
+			if (FVector::Dist2D(TargetLocation, ApproachFrom) > ReachDistance)
+			{
+				FVector Stop = TargetLocation - Flat * ReachDistance;
+				Stop.Z = ApproachFrom.Z;
+				ApproachTo = ClampToArena(ApproachFrom, Stop);
+			}
+		}
+	}
+
+	if (Timeline.LeadFrames > 0 && !ApproachTo.Equals(ApproachFrom, 1.0))
+	{
+		SetPhase(EJRPGActionPhase::Advance);
+		float Rate = 1.0f;
+		if (UAnimSequence* Walk = FindRoleClip(RoleWalk, Rate))
+		{
+			PlayClip(Walk, true, Rate);
+		}
+	}
+	else
+	{
+		SetPhase(EJRPGActionPhase::Windup);
+	}
+}
+
+void AJRPGBattlePawn::PlayStep(const FJRPGActionStep& Step)
+{
+	UAnimSequence* Clip = nullptr;
+	float Rate = 1.0f;
+	if (Combatant.Type == EJRPGCombatantType::Enemy)
+	{
+		// O clip do golpe é o da linha da ação (a escala do passo sobre a velocidade normal 8)
+		const FJRPGEnemyActionData* Row = FindEnemyAction(Step.EntryIndex);
+		if (Row && !Row->Anim.IsNull())
+		{
+			Clip = Row->Anim.LoadSynchronous();
+			Rate = static_cast<float>(FMath::Max(Row->Rate, 1)) * Step.GameSpeed / 8.0f;
+		}
+		else if (EnemyAnims.Attacks.Num() > 0)
+		{
+			Clip = EnemyAnims.Attacks[0].LoadSynchronous();   // o golpe padrão: o primeiro ataque do conjunto
+			Rate = 2.0f;
+		}
+	}
+	else
+	{
+		if (Step.Kind == EJRPGActionStepKind::Art && !Step.ArtKey.IsNone())
+		{
+			if (const FJRPGArtData* ArtRow = UJRPGArtSequenceLibrary::FindArt(Step.ArtKey))
+			{
+				Clip = ArtRow->Anim.LoadSynchronous();
+			}
+		}
+		else
+		{
+			Clip = UJRPGArtSequenceLibrary::LoadHeroClip(Combatant.Key, Step.ClipName.ToString());
+		}
+		// O RateScale do clip já traz a velocidade; o play rate leva à escala do passo (UJRPGArtSequenceLibrary::StepPlayRate)
+		if (Clip && Clip->RateScale > KINDA_SMALL_NUMBER)
+		{
+			Rate = Step.GameSpeed / (4.0f * Clip->RateScale);
+		}
+	}
+	if (Clip)
+	{
+		PlayClip(Clip, false, Rate);
+	}
+}
+
+void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
+{
+	if (!bActionActive)
+	{
+		return;
+	}
+	const int32 Elapsed = LogicFrame - Action.StartFrame;
+
+	// A aproximação: da posição de saída até o alcance do alvo, nos LeadFrames
+	if (Action.LeadFrames > 0 && Elapsed < Action.LeadFrames)
+	{
+		const float Alpha = FMath::Clamp(static_cast<float>(Elapsed) / static_cast<float>(Action.LeadFrames), 0.0f, 1.0f);
+		SetActorLocation(FMath::Lerp(ApproachFrom, ApproachTo, Alpha));
+	}
+	else if (!GetActorLocation().Equals(ApproachTo, 1.0))
+	{
+		SetActorLocation(ApproachTo);
+	}
+
+	// Entra no passo que começou (um por vez: um quadro lento recupera o atraso passo a passo)
+	while (PlayedStep + 1 < Action.Steps.Num() && Elapsed >= Action.Steps[PlayedStep + 1].StartFrame)
+	{
+		++PlayedStep;
+		const FJRPGActionStep& Step = Action.Steps[PlayedStep];
+		PlayStep(Step);
+		switch (Step.Kind)
+		{
+		case EJRPGActionStepKind::ArtStarter:
+		case EJRPGActionStepKind::SpecialStarter:
+			SetPhase(EJRPGActionPhase::Windup);
+			break;
+		default:
+			SetPhase(StrikesPlayed == 0 ? EJRPGActionPhase::Strike : EJRPGActionPhase::Chain);
+			++StrikesPlayed;
+			break;
+		}
+	}
+
+	if (Elapsed >= Action.TotalFrames)
+	{
+		// A ação acabou: fica onde está (sem voltar ao lugar) e volta ao idle
+		bActionActive = false;
+		SetPhase(EJRPGActionPhase::Done);
+		if (!bDown)
+		{
+			PlayIdle();
+		}
+		SetPhase(EJRPGActionPhase::Idle);
+	}
+	else if (PlayedStep >= 0 && PlayedStep == Action.Steps.Num() - 1 && Elapsed >= Action.Steps[PlayedStep].EndFrame)
+	{
+		SetPhase(EJRPGActionPhase::Recovery);
+	}
+}
+
+void AJRPGBattlePawn::ShowEvent(const FJRPGBattleEvent& Event, const FString& Text, bool bAsTarget)
+{
+	if (bAsTarget && !bDown)
+	{
+		switch (Event.Type)
+		{
+		case EJRPGBattleEventType::Damage:
+			PlayReaction((Event.Flags & FJRPGBattleEventFlag::Knockdown) ? RoleKnockdown
+				: (Event.Flags & FJRPGBattleEventFlag::LowHit) ? RoleFlinch2 : RoleFlinch1, false);
+			break;
+		case EJRPGBattleEventType::Block:
+			PlayReaction(RoleBlock, false);
+			break;
+		case EJRPGBattleEventType::Death:
+			bDown = true;
+			bActionActive = false;
+			PlayReaction(Combatant.Type == EJRPGCombatantType::Enemy ? RoleKnockdown : RoleDying, true);
+			break;
+		default:
+			break;
+		}
+	}
+
+	if (bShowEventText && !Text.IsEmpty() && GetWorld())
+	{
+		const float Height = Capsule ? Capsule->GetScaledCapsuleHalfHeight() + 40.0f : 140.0f;
+		DrawDebugString(GetWorld(), GetActorLocation() + FVector(0.0, 0.0, Height), Text, nullptr, EventColor(Event.Type), EventTextSeconds, true, 1.4f);
+	}
+	OnBattleEventShown(Event, Text);
 }
