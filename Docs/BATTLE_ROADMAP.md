@@ -1071,34 +1071,35 @@ same path without a fight: a gauge of its own, commit, recognition, queue.
 When AP moves, which the inversion makes a real decision (the original paid AP per Art at
 recognition time, `+0x170`). **Decided 2026-11-04** (open question 6):
 
-- **Loose regular Arts count, before or after the special.** Every regular Art entered on its
-  own in the chain — in front of a Hyper / Super / Miracle or behind it — adds its `APGain` to
-  the turn's budget.
-- **The regular Arts inside a Super's command do not.** The Arts the Super's buttons are made of
-  (Somersault, Cyclone, Somersault in Tri-Somersault's `↑↓↑↑↑↓↑`) are the Super: they add no AP,
-  neither toward it nor after it.
-
-So the turn's budget is: the AP the hero has when the turn starts + the `APGain` of every loose
-regular Art in the chain. The specials' `APCost`s have to fit in it.
+- **Each special is checked on its own, in order**, against the AP the hero has **at that point
+  of the chain**: the AP at the start of the turn, plus what the regular Arts before it added,
+  minus what the specials before it spent. Nothing after it counts — an Art that comes later
+  cannot pay for a special that comes earlier.
+- **Loose regular Arts add AP wherever they are**, in front of a special or behind it; behind,
+  they only help what comes after them.
+- **The regular Arts inside a Super's command add nothing while the Super fires.** The Arts its
+  buttons are made of (Somersault, Cyclone, Somersault in Tri-Somersault's `↑↓↑↑↑↓↑`) are the
+  Super. If the Super does not fit, it is downgraded to those Arts, and they add AP like any
+  loose Art.
 
 | Moment | What happens |
 |---|---|
-| **Commit** (the chain is recognized) | The specials are **checked** against the budget above. If they do not all fit, the **last** special is downgraded to its buttons (plain swings / the regular Arts inside it, which become loose Arts and add to the budget) and the check runs again, until what is left fits. Nothing is debited or credited yet |
-| **Each Art, when its action reaches it** | A loose regular Art **credits** `APGain` at its first hit (an Art cut short by the enemy's death still credits); a special **debits** `APCost` when it starts; the Arts inside a Super move nothing. The HUD shows the running value |
-| **End of the action** | The meter settles to the net of what was reached, clamped to `0..100` — a Super paid by Arts after it never leaves the meter below zero for long, and the cap applies to the net, not step by step |
-| **The action is cancelled** (the hero dies, the fight ends) | Only what was reached counts; the net is clamped at `0` (a special that ran on the credit of Arts that never came costs no more than the hero had) |
+| **Commit** (the chain is recognized) | The chain is walked **left to right** with a running AP (start: the hero's AP). A loose regular Art adds its `APGain` (capped at 100); a special that fits the running AP is kept and subtracts its `APCost`; one that does not fit is downgraded to its buttons (plain swings / the regular Arts inside it, which add as loose Arts) and the walk goes on. Nothing is debited or credited yet |
+| **Each Art, when its action reaches it** | The meter moves the same way, step by step: a loose regular Art **credits** `APGain` at its first hit (an Art cut short by the enemy's death still credits); a kept special **debits** `APCost` when it starts; the Arts inside a fired Super move nothing. The meter never goes below 0 — the commit already made sure every special fits where it is |
+| **The action is cancelled** (the hero dies, the fight ends) | What was not reached is neither credited nor debited |
 
-Example: Vahn has 50 AP and Tri-Somersault costs 60.
+Examples:
 
-| Input | Budget | Result |
+| Hero's AP | Input | Result |
 |---|---|---|
-| `↑↓↑↑↑↓↑` alone | 50 (its three Arts are the Super's) | 50 < 60: downgraded to the three Arts, which then credit as loose Arts |
-| A loose regular Art worth 12, then `↑↓↑↑↑↓↑` | 50 + 12 = 62 | The Super fires; AP ends at 2 |
-| `↑↓↑↑↑↓↑`, then a loose regular Art worth 12 | 50 + 12 = 62 | The Super fires too; AP ends at 2 |
+| 50 | `↑↓↑↑↑↓↑` (Tri-Somersault, 60) | 50 < 60: downgraded; Somersault, Cyclone, Somersault play and add AP |
+| 50 | A loose Art (+12), then `↑↓↑↑↑↓↑` | 62 ≥ 60 when the Super's turn comes: it fires; AP ends at 2 |
+| 50 | `↑↓↑↑↑↓↑`, then a loose Art (+12) | 50 < 60 when the Super's turn comes: downgraded, its three Arts add AP; then the loose Art adds 12 |
+| 15 | Tornado Flame (30), then a loose Art (+15) | 15 < 30 when Tornado Flame comes: downgraded to its buttons; the Art after it does not pay for it |
 
-Hyper / Super / Miracle appear **unavailable** (greyed out) when the budget does not cover
-`APCost` — the feedback has to be visible before the player builds the sequence. The list
-updates as the chain is typed (a special lights up once the loose Arts pay for it).
+Hyper / Super / Miracle appear **unavailable** (greyed out) when the running AP at that point
+does not cover `APCost` — the feedback has to be visible before the player builds the sequence.
+The list updates as the chain is typed (a special lights up once the Arts before it pay for it).
 
 ### Making new Arts — the base
 
@@ -1140,7 +1141,7 @@ create. What Phase 6 adds so that stays true once the Arts are *played*, not onl
   commands (a `ChainKnown` Super the player could fire without knowing them). Errors stop the
   test; warnings are listed.
 - **Recognition preview in the Art tester**: an `Input` field (buttons, as typed) shows what the
-  rules recognize — the Arts, the Super, what is inside it, the AP budget and the downgrades —
+  rules recognize — the Arts, the Super, what is inside it, the running AP at each step and the downgrades —
   and plays it. A new Art is made in LegaiaStudio / the CSV and tried there without a fight.
 
 The `Unlock` and `SpeedScale` columns, the validator and the tester's `Input` are Phase 6 work;
@@ -1153,9 +1154,8 @@ it; an unknown Regular is learned once and survives a save / load; an unknown Hy
 teach nothing, and `LearnArt` (the book / NPC path) teaches it, with `HasLearnedArt` flipping to
 true; Tri-Somersault entered while Cyclone is unknown learns Cyclone and plays the three Arts
 without the Super, and the same input on the next turn fires the Super; each Super's `Command` matches
-the one recomputed from its `Sequence`; the AP check at commit follows the Tri-Somersault table
-above (alone: downgraded; a loose Art in front or behind: fires) and never counts the Arts inside
-a Super; a new Super added as one CSV row (Power Punch + two more Power Punches, its own
+the one recomputed from its `Sequence`; the AP check at commit gives exactly the four examples
+above (a loose Art in front pays for the Super, one behind does not, the Tornado Flame case); a new Super added as one CSV row (Power Punch + two more Power Punches, its own
 `Command`) is recognized, plays in the tester and passes the validator, with no code change; the
 validator flags a duplicated `Command` and a `Sequence` step that does not exist.
 
@@ -1421,9 +1421,10 @@ network-related.
    how the window is telegraphed (a flash, a sound, the clip itself), and whether the party's
    Arts can be parried in PvP. The window comes from the attack clip's hit frame, so the enemy
    clips' hit notifies have to be right. Its phase is not set yet (6 or 7).
-6. ~~AP in a chain~~ — settled 2026-11-04: loose regular Arts in the chain, in front of or
-   behind a Hyper / Super, add to the turn's budget; the regular Arts inside a Super's command add
-   nothing (Phase 6 › The input window). Credit at a regular Art's first hit and debit at a
+6. ~~AP in a chain~~ — settled 2026-11-04: each special is checked on its own, in order, against
+   the AP at that point of the chain (the Arts before it count, the ones after do not); loose
+   regular Arts add AP wherever they are; the Arts inside a fired Super add nothing (Phase 6 ›
+   The input window). Credit at a regular Art's first hit and debit at a
    special's start stay as written; tune them in play if needed.
 7. ~~Learning Arts by performing them~~ — settled 2026-11-04, the original's rules: Regulars on
    use (and they play as the Art), Hypers only taught (books, NPCs, triggers), a Super only over
