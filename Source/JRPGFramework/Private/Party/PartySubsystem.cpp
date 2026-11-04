@@ -324,11 +324,6 @@ void UPartySubsystem::RebuildActiveOrder()
 
 int32 UPartySubsystem::AwardBattleXP(int32 EnemyXPSum)
 {
-	if (EnemyXPSum <= 0)
-	{
-		return 0;
-	}
-
 	// Só quem está lutando E vivo entra na conta.
 	TArray<FName> Vivos;
 	for (const FName& Key : ActiveOrder)
@@ -339,8 +334,28 @@ int32 UPartySubsystem::AwardBattleXP(int32 EnemyXPSum)
 			Vivos.Add(Key);
 		}
 	}
+	return DistributeBattleXP(EnemyXPSum, Vivos);
+}
 
-	if (Vivos.Num() == 0)
+int32 UPartySubsystem::AwardBattleXPToParticipants(int32 EnemyXPSum, const TArray<FName>& Participants)
+{
+	// Quem LUTOU e está vivo: a luta pode ter usado uma party que não é a formação ativa (a Muscle Dome passa a dela),
+	// então a formação não decide quem recebe
+	TArray<FName> Vivos;
+	for (const FName& Key : Participants)
+	{
+		const FJRPGPartyMember* M = Roster.Find(Key);
+		if (M && M->bRecruited && !M->IsDead() && !Vivos.Contains(Key))
+		{
+			Vivos.Add(Key);
+		}
+	}
+	return DistributeBattleXP(EnemyXPSum, Vivos);
+}
+
+int32 UPartySubsystem::DistributeBattleXP(int32 EnemyXPSum, const TArray<FName>& Vivos)
+{
+	if (EnemyXPSum <= 0 || Vivos.Num() == 0)
 	{
 		return 0;
 	}

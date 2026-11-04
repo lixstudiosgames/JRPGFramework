@@ -142,6 +142,13 @@ void UJRPGBattleSceneSubsystem::HandleBattleStarted(const FJRPGBattleSetup& Setu
 	ChooseArena(Setup);
 	Phase = EPhase::Entering;
 
+	// A luta só anda com a cena montada e a tela aberta: a resolução espera (os comandos entram, nada toca) para
+	// que nenhum golpe aconteça com a tela preta e sem pawn para mostrá-lo
+	if (UBattleSubsystem* Battle = GetBattleSubsystem(GetWorld()))
+	{
+		Battle->HoldLogic(true);
+	}
+
 	// Tudo para na hora do toque: o jogador e a party aqui, os inimigos do Field no OnBattleStarted.
 	// Somem só com a tela toda preta
 	if (AJRPGBattleArena* Current = Arena.Get())
@@ -217,6 +224,12 @@ void UJRPGBattleSceneSubsystem::EnterBattleScene()
 
 	AJRPGBattleArena* Current = Arena.Get();
 	OnSceneAssembled.Broadcast(Current, Current ? Current->GetBattlePawns() : TArray<AJRPGBattlePawn*>());
+
+	// A cena está de pé: o relógio da luta pode andar
+	if (UBattleSubsystem* Battle = GetBattleSubsystem(GetWorld()))
+	{
+		Battle->HoldLogic(false);
+	}
 }
 
 void UJRPGBattleSceneSubsystem::LeaveBattleScene()
