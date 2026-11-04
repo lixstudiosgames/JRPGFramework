@@ -304,7 +304,7 @@ JRPGFramework/
 | System | State | Highlights |
 |---|---|---|
 | **Core** | ✅ complete | Gold with `OnGoldChanged`, tick-free playtime, map/position for saves, `bIsNewGame` |
-| **Progression** | ✅ complete | XP curve with a per-character correction, stat growth for all 4 roster members (3 from the disc + Terra hand-designed), Normal/Hard/Juggernaut difficulty. Runtime state lives in Party |
+| **Progression** | ✅ complete | XP curve with a per-character correction, stat growth for all 4 roster members (3 from the disc + Terra hand-designed), Easy (Japanese rules) / Normal / Hard / Juggernaut difficulty. Runtime state lives in Party |
 | **Inventory** | ✅ complete | `DT_Items` (225), stacking up to 99, item use routed to other subsystems |
 | **World State** | ✅ complete | Event flags, chests, Revival Trees, `bIsInField`; reset for New Game and atomic load |
 | **Save/Load** | ✅ complete | 15 slots, automatic gather/restore, map change + teleport, save versioning |

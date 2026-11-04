@@ -201,8 +201,8 @@ public:
 	void SetUICursorVisible(bool bVisible);
 
 	/**
-	 * Aplica a dificuldade escolhida na tela de opções. O índice vem da lista
-	 * do JS e casa com a ordem de EJRPGDifficulty.
+	 * Aplica a dificuldade escolhida na tela de opções. Recebe o VALOR de
+	 * EJRPGDifficulty (o JS traduz a posição da lista, que mostra Easy primeiro).
 	 */
 	void SetDifficultyFromUI(int32 DifficultyIndex);
 

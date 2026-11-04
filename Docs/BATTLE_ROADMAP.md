@@ -911,7 +911,7 @@ And the failures, each an automation test where it can be one (no map):
 | A clip is missing | The default frames; the fight goes on, a log line says which |
 | The fight ends during a transition (fade, a second `EndBattle`) | Ends once; rewards once |
 | `Aborted` | The party exactly as before the fight; no item consumed, no reward |
-| Japan rules | `rules.set 1`: the same fight installs the raw stats and pays the full EXP |
+| Easy (Japan rules) | `diff.set 3`: the same fight installs the raw stats and pays the full EXP |
 
 ---
 
@@ -1069,17 +1069,20 @@ So the framework keeps the record as data and the rules as code:
 
 - **`DT_Enemies` is the raw record** (generator, 2026-11-04; rule 53 in
   [ARCHITECTURE.md](ARCHITECTURE.md)).
-- **`EJRPGRuleset { USA, Japan }`** in `UCoreSubsystem` (`GetRuleset` / `SetRuleset`, default
-  `USA`, the executable the RE measures). A separate axis from the difficulty: the difficulty
-  multiplies on top of what the version gave, so Normal + Japan is the Japanese game.
+- **`EJRPGRuleset { USA, Japan }`, picked by the difficulty** (decided 2026-11-04):
+  `FDifficultyScaling::Ruleset`, read with `UCoreSubsystem::GetRuleset`. A new difficulty,
+  **Easy, is the Japanese original** (rules `Japan`, every multiplier 1.0); **Normal is the
+  American original** (`USA`, 1.0); Hard and Juggernaut are `USA` with their multipliers on top.
+  Easy is the last value of `EJRPGDifficulty` (rule 28), so "harder than" goes through
+  `JRPGDifficulty::Rank` (Terra's `MinDifficulty` through `GrowthRank`, where Easy counts as
+  Normal). The player picks it on the Options screen, listed Easy → Juggernaut.
 - **`UJRPGBattleRules`** does the arithmetic (`InstallEnemyStats`, `VictoryEXPPool`,
   `VictoryEXPShare`, `VictoryGold`), integer and truncating; `AwardBattleXP` already uses it.
   Checked against the RE's captures in [Guides/ENEMIES.md](Guides/ENEMIES.md#version-rules-usa--japan).
 
-Still open: where the player picks it (the Options screen next to the difficulty, or New Game
-only) and whether it goes into the save — like the difficulty, it is runtime only today. Other
-regional differences the RE documents (the Seru-magic debuff lockout on bosses is a product of
-the USA boost alone) follow from the same switch when Phase 8 gets there.
+Like the difficulty, it is not in the save yet. Other regional differences the RE documents (the
+Seru-magic debuff lockout on bosses is a product of the USA boost alone) follow from the same
+switch when Phase 8 gets there.
 
 ---
 
@@ -1268,7 +1271,9 @@ this section is the list of what changes.
 7. **Learning Arts by performing them** (Phase 6 › `UArtsSubsystem`): which of the original's
    gates stay (the per-hero innate cap, the learn flag, the 1/512 roll), and whether an unknown
    Art still plays as that Art the first time (the original's) or only as swings.
-8. **The version switch** (Version rules): Options or New Game only, and saved or not.
+8. ~~The version switch~~ — settled 2026-11-04: the difficulty picks it (Easy = Japan,
+   Normal = USA; Version rules). Whether the difficulty goes into the save is a separate,
+   older question.
 
 ---
 

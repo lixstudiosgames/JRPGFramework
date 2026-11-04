@@ -395,7 +395,7 @@ void UWebUISubsystem::OpenOptions()
 	SetStateInternal(EJRPGUIState::OptionsOpen);
 
 	// Sincroniza a dificuldade mostrada com a do CoreSubsystem antes de a tela
-	// aparecer (a lista do JS casa com a ordem de EJRPGDifficulty).
+	// aparecer. Vai o VALOR do enum; o JS acha a posição dele na lista da tela.
 	if (const UCoreSubsystem* Core = GetGameInstance()->GetSubsystem<UCoreSubsystem>())
 	{
 		DispatchJS(FString::Printf(TEXT("JRPGOptions.setDifficulty(%d);"),
@@ -553,7 +553,7 @@ void UWebUISubsystem::SetDifficultyFromUI(int32 DifficultyIndex)
 		return;
 	}
 
-	// O índice vem da lista da tela de opções e casa com a ordem do enum.
+	// Chega o VALOR do enum (o JS traduz a posição da lista da tela, que mostra Easy primeiro).
 	const UEnum* EnumPtr = StaticEnum<EJRPGDifficulty>();
 	if (!EnumPtr || DifficultyIndex < 0 || DifficultyIndex >= EnumPtr->NumEnums() - 1)
 	{
@@ -792,19 +792,14 @@ void UWebUISubsystem::RunDevCommand(const FString& Command)
 	// --------------------------------------------------------- progressao
 	else if (Verb == TEXT("diff.set") && Core)
 	{
-		const int32 Idx = FMath::Clamp(DevArgInt(Args, 0, 0), 0, 2);
+		// O número é o VALOR do enum (0 Normal, 1 Hard, 2 Juggernaut, 3 Easy), não a ordem na tela.
+		const int32 Idx = FMath::Clamp(DevArgInt(Args, 0, 0), 0, StaticEnum<EJRPGDifficulty>()->NumEnums() - 2);
 		Core->SetDifficulty(static_cast<EJRPGDifficulty>(Idx));
 		const FDifficultyScaling Scaling = Core->GetDifficultyScaling();
-		Out = FString::Printf(TEXT("dificuldade = %s — HP x%.2f ATK x%.2f DEF x%.2f"),
+		Out = FString::Printf(TEXT("dificuldade = %s — HP x%.2f ATK x%.2f DEF x%.2f | regras %s"),
 			*UEnum::GetDisplayValueAsText(Core->GetDifficulty()).ToString(),
-			Scaling.EnemyHP, Scaling.EnemyATK, Scaling.EnemyDEF);
-	}
-	else if (Verb == TEXT("rules.set") && Core)
-	{
-		const int32 Idx = FMath::Clamp(DevArgInt(Args, 0, 0), 0, 1);
-		Core->SetRuleset(static_cast<EJRPGRuleset>(Idx));
-		Out = FString::Printf(TEXT("regras da luta = %s"),
-			*UEnum::GetDisplayValueAsText(Core->GetRuleset()).ToString());
+			Scaling.EnemyHP, Scaling.EnemyATK, Scaling.EnemyDEF,
+			*UEnum::GetDisplayValueAsText(Scaling.Ruleset).ToString());
 	}
 	else if (Verb == TEXT("prog.stat") && Core)
 	{

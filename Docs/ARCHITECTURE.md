@@ -149,7 +149,10 @@ problem someone already paid for.
 27. Stat growth **does not land on `MaxValue`** at L99, and that is correct — see
     [`Reference/PROGRESSION.md`](Reference/PROGRESSION.md).
 28. New `EJRPGDifficulty` values ALWAYS go at the end of the enum (serialized in BP and in the
-    save).
+    save). So the value is not the order of difficulty — Easy is the last value: compare with
+    `JRPGDifficulty::Rank` (the growth gate with `GrowthRank`, where Easy counts as Normal, so a
+    `DT_StatGrowth` imported before Easy existed still lets the heroes grow), and the UI lists
+    them in its own order (`enumValues` in the options screen) and sends the value.
 29. Difficulty does not touch Vahn's, Noa's or Gala's stats — only enemies and rewards. The
     **only** exception is `FStatGrowthRow`'s `MinDifficulty`, which unlocks growth for someone
     who does not level up in the original (Terra). Any further exception must go through that
@@ -255,8 +258,9 @@ Each of these cost a round trip with Gimard. The full walkthrough is
 53. **`DT_Enemies` holds the raw disc record; what a version does with it is code.** The
     record is byte-identical on every disc; the USA executable boosts the stats when a fight
     loads and pays EXP × 3/4 and halves the Gold twice, the Japanese and European ones do
-    neither. Those rules live in `UJRPGBattleRules`, picked by `EJRPGRuleset`
-    (`UCoreSubsystem::GetRuleset`) — never pre-multiplied into a table, because a number with
+    neither. Those rules live in `UJRPGBattleRules`, picked by `EJRPGRuleset`, which comes from
+    the difficulty (`FDifficultyScaling::Ruleset`: Easy = Japan, the rest USA;
+    `UCoreSubsystem::GetRuleset`) — never pre-multiplied into a table, because a number with
     one version baked in cannot serve the other, nor be turned back into the record exactly
     (the shifts truncate per enemy). The table held the American scripted-fight numbers until
     2026-11-04, and `AwardBattleXP` would have cut the EXP by 3/4 a second time.
@@ -277,7 +281,7 @@ content across once and remain for reference.
 | `Data/DT_LevelCurve.csv` | 98 | `FLevelCurveRow` (reference — runtime uses the formula) |
 | `Data/DT_StatGrowth.csv` | 32 | `FStatGrowthRow` (3 from the disc + Terra, designed) |
 | `Data/DT_GrowthCurve.csv` | 98 | `FGrowthCurveRow` (extracted from the disc) |
-| `Data/DT_Difficulty.csv` | 3 | `FDifficultyScaling` |
+| `Data/DT_Difficulty.csv` | 4 | `FDifficultyScaling` (Easy = Japanese rules) |
 | `Data/DT_CameraPresets.csv` | 13 | `FCameraPresetRow` (import as `DT_Camera`) |
 | `Data/DT_Enemies.csv` | 179 | `FJRPGEnemyData` (the disc's monster archive, raw; names and keys from enemies.toml) |
 

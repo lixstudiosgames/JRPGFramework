@@ -111,7 +111,7 @@ TABLES = [
     {"id": "DT_Difficulty", "struct": "FDifficultyScaling", "label": "Difficulty", "icon": "shield",
      "title": "DisplayName", "subtitle": "Description", "badge": None, "badgeSuffix": "",
      "primary": ["DisplayName", "Description", "EnemyHP", "EnemyATK", "EnemyDEF",
-                 "XPReward", "GoldReward"]},
+                 "XPReward", "GoldReward", "Ruleset"]},
 
     {"id": "DT_StatGrowth", "struct": "FStatGrowthRow", "label": "Stat Growth", "icon": "growth",
      # RowName ja e "Vahn_HP": title=None deixa ele mesmo ser o titulo.

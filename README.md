@@ -62,7 +62,7 @@ weights each system by estimated effort. Hover any cell for details.
 | System | Highlights |
 |---|---|
 | **Core** | Gold with `OnGoldChanged`, tick-free playtime, map and position for saves, New Game, DataTable resolution with fallback |
-| **Progression** | XP curve and stat growth taken from the original disc and checked against it, plus Normal / Hard / Juggernaut difficulty ([details](Docs/Reference/PROGRESSION.md)) |
+| **Progression** | XP curve and stat growth taken from the original disc and checked against it, plus Easy (the Japanese original's rules) / Normal (the American original) / Hard / Juggernaut difficulty ([details](Docs/Reference/PROGRESSION.md)) |
 | **Save / Load** | 15 slots, automatic gather and restore, map change + teleport, save versioning |
 | **Inventory** | `DT_Items` (225 rows), stacks up to 99, item use routed to the right subsystem |
 | **World state** | Event flags, chests, Revival Trees, `bIsInField` (gates the SAVE tab) |

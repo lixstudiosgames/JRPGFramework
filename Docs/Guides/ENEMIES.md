@@ -72,8 +72,9 @@ Same names as `FCharacterData`. (A field named plain `INT` would clash with the 
 
 ### Version rules (USA / Japan)
 
-`EJRPGRuleset` (`UCoreSubsystem::GetRuleset` / `SetRuleset`, default `USA`) picks which
-executable's rules a fight follows; `UJRPGBattleRules` (`Public/Battle/JRPGBattleRules.h`) does
+`EJRPGRuleset` picks which executable's rules a fight follows, and **the difficulty picks it**
+(`FDifficultyScaling::Ruleset`, read with `UCoreSubsystem::GetRuleset`): **Easy = `Japan`**;
+Normal, Hard and Juggernaut = `USA`. `UJRPGBattleRules` (`Public/Battle/JRPGBattleRules.h`) does
 the arithmetic, integer and truncating like the PS1. Source: RE `docs/subsystems/battle.md`
 › "Battle-load stat boost" / "No boost on the PAL executables", and
 `docs/subsystems/battle-formulas.md` › "Victory spoils" / "Regional difference".
@@ -96,9 +97,10 @@ Checked against the RE's captures:
 | Gimard — 60 Gold | 15 Gold | 30 Gold |
 | Zeto — 8000 Gold / 9000 EXP, party of three | 2000 Gold + 2250 EXP each | 4000 Gold + 3000 EXP each |
 
-The difficulty's multipliers (`DT_Difficulty`) apply after the version: Normal + `Japan` is the
-Japanese game, Hard + `USA` the American one made harder. In the dev menu, `rules.set 0|1`
-switches it (`info` shows the current one).
+The difficulty's multipliers (`DT_Difficulty`) apply after the version's rules. Easy and Normal
+have them all at 1.0, so **Easy is the Japanese game and Normal the American one**; Hard and
+Juggernaut are the American rules made harder. In the dev menu, `diff.set 3` is Easy and
+`diff.set 0` Normal; `info` shows the rules in use.
 
 ---
 

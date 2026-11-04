@@ -28,7 +28,7 @@
 <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line class="hatch" x1="0" y1="0" x2="0" y2="6" stroke-width="1.5" stroke-opacity=".55"/></pattern></defs>
 <rect class="bg" width="900" height="446" rx="6"/>
 <text class="t1" x="16" y="34" font-size="24" font-weight="600">Status</text>
-<text class="t2" x="884" y="34" font-size="12" text-anchor="end">Legend of Legaia Remake · JRPGFramework · dev @ f9a4adc · 2026-10-31</text>
+<text class="t2" x="884" y="34" font-size="12" text-anchor="end">Legend of Legaia Remake · JRPGFramework · dev @ b6f5adf · 2026-11-04</text>
 <line class="rule" x1="16" y1="44" x2="884" y2="44" stroke-width="1"/>
 <rect class="badge-k" x="16" y="56" width="72.7" height="22" rx="3"/>
 <rect class="partial" x="85.7" y="56" width="48.8" height="22" rx="3"/>
@@ -45,9 +45,9 @@
 <rect class="ok" x="360.6" y="56" width="4" height="22"/>
 <text class="badge-t" x="332.7" y="71" font-size="12" text-anchor="middle">engine</text>
 <text class="badge-t" x="395.4" y="71" font-size="12" font-weight="600" text-anchor="middle">UE 5.8.1</text>
-<text class="t1" x="16" y="102" font-size="14">Blueprint API*: 339 shipped · 2 stubs · 15 planned</text>
+<text class="t1" x="16" y="102" font-size="14">Blueprint API*: 338 shipped · 2 stubs · 15 planned</text>
 <rect class="panel" x="16" y="112" width="424" height="270"/>
-<text class="t2" x="17.5" y="123.0" font-size="10">Core + progression <tspan class="t2" fill-opacity=".8">(39)</tspan></text>
+<text class="t2" x="17.5" y="123.0" font-size="10">Core + progression <tspan class="t2" fill-opacity=".8">(38)</tspan></text>
 <rect class="ok" x="17.5" y="126.0" width="9.4" height="9.4"><title>AddGold · CoreSubsystem.h</title></rect>
 <rect class="ok" x="27.8" y="126.0" width="9.4" height="9.4"><title>RemoveGold · CoreSubsystem.h</title></rect>
 <rect class="ok" x="38.1" y="126.0" width="9.4" height="9.4"><title>GetGold · CoreSubsystem.h</title></rect>
@@ -86,7 +86,6 @@
 <rect class="ok" x="172.0" y="136.3" width="9.4" height="9.4"><title>ScaleGoldReward · CoreSubsystem.h</title></rect>
 <rect class="ok" x="182.3" y="136.3" width="9.4" height="9.4"><title>SetDifficultyTable · CoreSubsystem.h</title></rect>
 <rect class="ok" x="192.6" y="136.3" width="9.4" height="9.4"><title>GetRuleset · CoreSubsystem.h</title></rect>
-<rect class="ok" x="202.9" y="136.3" width="9.4" height="9.4"><title>SetRuleset · CoreSubsystem.h</title></rect>
 <text class="t2" x="17.5" y="160.6" font-size="10">Party <tspan class="t2" fill-opacity=".8">(32)</tspan></text>
 <rect class="ok" x="17.5" y="163.6" width="9.4" height="9.4"><title>RecruitCharacter · PartySubsystem.h</title></rect>
 <rect class="ok" x="27.8" y="163.6" width="9.4" height="9.4"><title>IsRecruited · PartySubsystem.h</title></rect>
@@ -434,7 +433,7 @@
 <text class="badge-t" x="506.7" y="201.0" font-size="11" text-anchor="middle" pointer-events="none">Party</text>
 <rect class="ok" x="552.4" y="169.5" width="74.4" height="55.0"><title>Status: 5 equip slots, conditions, Ra-Seru 1..9, elemental affinity, effective stat</title></rect>
 <text class="badge-t" x="589.6" y="201.0" font-size="11" text-anchor="middle" pointer-events="none">Status</text>
-<rect class="ok" x="627.8" y="169.5" width="59.3" height="55.0"><title>Progression: XP curve, stat growth from the disc, Normal / Hard / Juggernaut</title></rect>
+<rect class="ok" x="627.8" y="169.5" width="59.3" height="55.0"><title>Progression: XP curve, stat growth from the disc, Easy / Normal / Hard / Juggernaut</title></rect>
 <text class="badge-t" x="657.4" y="200.1" font-size="8.5" text-anchor="middle" pointer-events="none">Progression</text>
 <rect class="ok" x="688.1" y="169.5" width="89.4" height="55.0"><title>Camera: 13 presets, 8 shakes, level cameras + zones, conversation, FrameGroup / Orbit</title></rect>
 <text class="badge-t" x="732.8" y="201.0" font-size="11" text-anchor="middle" pointer-events="none">Camera</text>

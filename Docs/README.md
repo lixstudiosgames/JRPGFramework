@@ -67,7 +67,7 @@ remain for reference.
 | [DT_LevelCurve.csv](Data/DT_LevelCurve.csv) | 98 | `FLevelCurveRow` |
 | [DT_StatGrowth.csv](Data/DT_StatGrowth.csv) | 32 | `FStatGrowthRow` |
 | [DT_GrowthCurve.csv](Data/DT_GrowthCurve.csv) | 98 | `FGrowthCurveRow` |
-| [DT_Difficulty.csv](Data/DT_Difficulty.csv) | 3 | `FDifficultyScaling` |
+| [DT_Difficulty.csv](Data/DT_Difficulty.csv) | 4 | `FDifficultyScaling` |
 | [DT_CameraPresets.csv](Data/DT_CameraPresets.csv) | 13 | `FCameraPresetRow` (import as `DT_Camera`) |
 | [DT_Enemies.csv](Data/DT_Enemies.csv) | 179 | `FJRPGEnemyData` |
 | [DT_EquipVisuals.csv](Data/DT_EquipVisuals.csv) | 146 | `FJRPGEquipVisualRow` |

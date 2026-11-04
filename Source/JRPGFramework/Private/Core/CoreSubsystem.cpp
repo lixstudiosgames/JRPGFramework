@@ -446,14 +446,9 @@ void UCoreSubsystem::SetDifficulty(EJRPGDifficulty NewDifficulty)
 	OnDifficultyChanged.Broadcast(Difficulty);
 }
 
-void UCoreSubsystem::SetRuleset(EJRPGRuleset NewRuleset)
+EJRPGRuleset UCoreSubsystem::GetRuleset() const
 {
-	if (Ruleset == NewRuleset)
-	{
-		return;
-	}
-	Ruleset = NewRuleset;
-	UE_LOG(LogTemp, Log, TEXT("CoreSubsystem: regras da luta -> %s."), *UEnum::GetValueAsString(Ruleset));
+	return GetDifficultyScaling().Ruleset;
 }
 
 FDifficultyScaling UCoreSubsystem::GetDifficultyScaling() const
@@ -476,9 +471,18 @@ FDifficultyScaling UCoreSubsystem::GetDifficultyScaling() const
 		}
 	}
 
+	// Uma tabela importada antes da coluna Ruleset / da linha Easy também cai aqui no Easy, e
+	// as linhas antigas leem Ruleset = USA (o default do struct) — que é o certo para elas.
 	FDifficultyScaling Out;
 	switch (Difficulty)
 	{
+	case EJRPGDifficulty::Easy:
+		// Easy = o original japonês: multiplicadores em 1.0 e as regras da versão Japan.
+		Out.DisplayName = NSLOCTEXT("JRPG", "DiffEasy", "Easy");
+		Out.Description = NSLOCTEXT("JRPG", "DiffEasyDesc", "The Japanese original: no American enemy boost, full EXP and more Gold.");
+		Out.Ruleset = EJRPGRuleset::Japan;
+		break;
+
 	case EJRPGDifficulty::Hard:
 		Out.DisplayName = NSLOCTEXT("JRPG", "DiffHard", "Hard");
 		Out.Description = NSLOCTEXT("JRPG", "DiffHardDesc", "Inimigos aguentam bem mais e batem mais forte.");
@@ -501,7 +505,7 @@ FDifficultyScaling UCoreSubsystem::GetDifficultyScaling() const
 
 	case EJRPGDifficulty::Normal:
 	default:
-		// Normal = jogo original: todos os multiplicadores em 1.0 (defaults).
+		// Normal = jogo original americano: multiplicadores em 1.0, regras USA (defaults).
 		Out.DisplayName = NSLOCTEXT("JRPG", "DiffNormal", "Normal");
 		Out.Description = NSLOCTEXT("JRPG", "DiffNormalDesc", "O balanceamento do jogo original.");
 		break;
@@ -601,8 +605,10 @@ int32 UCoreSubsystem::GetStatGainCore(FName Character, FName Stat, int32 FromLev
 	}
 
 	// Gate de dificuldade: abaixo do mínimo o atributo não cresce. É como a
-	// Terra fica no Normal — parada no GrowthStart, igual ao original.
-	if (static_cast<uint8>(Difficulty) < static_cast<uint8>(Growth->MinDifficulty))
+	// Terra fica no Easy e no Normal — parada no GrowthStart, igual ao original.
+	// Pela posição na escala, não pelo valor do enum (Easy é o último valor); Easy conta
+	// como Normal aqui (JRPGDifficulty::GrowthRank).
+	if (JRPGDifficulty::GrowthRank(Difficulty) < JRPGDifficulty::GrowthRank(Growth->MinDifficulty))
 	{
 		return 0;
 	}
@@ -662,7 +668,7 @@ bool UCoreSubsystem::DoesCharacterGrow(FName Character) const
 		if (const FStatGrowthRow* Growth =
 				StatGrowthTable->FindRow<FStatGrowthRow>(RowName, TEXT("DoesCharacterGrow"), false))
 		{
-			if (static_cast<uint8>(Difficulty) >= static_cast<uint8>(Growth->MinDifficulty))
+			if (JRPGDifficulty::GrowthRank(Difficulty) >= JRPGDifficulty::GrowthRank(Growth->MinDifficulty))
 			{
 				return true;
 			}

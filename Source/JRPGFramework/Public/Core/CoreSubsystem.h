@@ -328,8 +328,9 @@ public:
 
 	/**
 	 * Multiplicadores da dificuldade atual. Vêm de DifficultyTable quando ela
-	 * está atribuída; senão dos defaults embutidos (Normal 1.0 / Hard 1.5 /
-	 * Juggernaut 2.5), para o sistema funcionar sem depender de asset.
+	 * está atribuída (e tem a linha); senão dos defaults embutidos, os mesmos do
+	 * DT_Difficulty.csv (Easy e Normal 1.0, Hard 1.8 HP, Juggernaut 3.0 HP...), para
+	 * o sistema funcionar sem depender de asset.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Core|Difficulty")
 	FDifficultyScaling GetDifficultyScaling() const;
@@ -373,19 +374,13 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "JRPG|Core|Difficulty")
 	FOnDifficultyChangedSignature OnDifficultyChanged;
 
-	// ============================================================
-	// VERSÃO DAS REGRAS (USA / Japan)
-	// ============================================================
-
 	/**
-	 * De qual versão do original vêm as regras da luta: o boost dos stats dos inimigos e o
-	 * EXP/Gold do fim (UJRPGBattleRules). A dificuldade multiplica por cima. Default USA.
+	 * De qual versão do original vêm as regras da luta — o boost dos stats dos inimigos e o
+	 * EXP/Gold do fim (UJRPGBattleRules). Vem da dificuldade (FDifficultyScaling::Ruleset):
+	 * Easy = Japan; Normal, Hard e Juggernaut = USA. Os multiplicadores entram por cima.
 	 */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Core|Rules")
-	EJRPGRuleset GetRuleset() const { return Ruleset; }
-
-	UFUNCTION(BlueprintCallable, Category = "JRPG|Core|Rules")
-	void SetRuleset(EJRPGRuleset NewRuleset);
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Core|Difficulty")
+	EJRPGRuleset GetRuleset() const;
 
 	// --- Usado pelo USaveSubsystem ao aplicar um Load (não exposto a BP) ---
 	void RestoreFromSave(int32 InGold, double InPlaytimeSeconds, const FString& InMapDisplayName);
@@ -395,9 +390,6 @@ private:
 
 	/** Dificuldade atual da partida. Normal = jogo original. */
 	EJRPGDifficulty Difficulty = EJRPGDifficulty::Normal;
-
-	/** Versão das regras da luta. USA = o executável que o RE mede. */
-	EJRPGRuleset Ruleset = EJRPGRuleset::USA;
 
 	/** True desde o StartNewGame até um save ser carregado. */
 	bool bIsNewGame = false;

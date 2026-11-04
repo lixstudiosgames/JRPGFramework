@@ -118,5 +118,7 @@ does the `OpenLevel`) · `onshopbuy` / `onshopsell` ·
 `onmainmenuaction('newgame'|'continue'|'options'|'quit')` ·
 `onuistatechanged('<state>')` (internal UI transition, does not return input) ·
 `openurl(url)` (opens in the SYSTEM browser; http/https only) ·
-`onpartytoggle(key, activate)` · `onitemdiscard(id, qty)` · `onsetdifficulty` ·
+`onpartytoggle(key, activate)` · `onitemdiscard(id, qty)` · `onsetdifficulty(value)` (the
+`EJRPGDifficulty` **value** — 0 Normal, 1 Hard, 2 Juggernaut, 3 Easy — not the position on
+screen; `JRPGOptions.setDifficulty(value)` is the C++→JS side) ·
 `ondevcommand(line)`.

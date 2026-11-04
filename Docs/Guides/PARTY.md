@@ -82,7 +82,8 @@ per head = total / (how many are ALIVE in the formation), rounded up
 
 `EnemyXPSum` is the **raw** record's EXP. The × 3/4 is the American executable's cut — the
 Japanese and European ones pay the whole sum — so it comes from the version rules
-(`UCoreSubsystem::GetRuleset`, `UJRPGBattleRules::VictoryEXPPool`), not from the table. See
+(`UCoreSubsystem::GetRuleset`, which the difficulty picks — Easy is `Japan`, the rest `USA` —
+and `UJRPGBattleRules::VictoryEXPPool`), not from the table. See
 [ENEMIES.md › Version rules](ENEMIES.md#version-rules-usa--japan).
 
 Three consequences, all verified:
@@ -98,7 +99,7 @@ division.
 
 Real example (enemies summing 10000 raw):
 
-| Formation | Each receives (USA) | Each receives (Japan) |
+| Formation | Each receives (Normal — USA) | Each receives (Easy — Japan) |
 |---|---|---|
 | 3 alive | 2500 | 3334 |
 | 2 alive (one died) | 3750 | 5000 |
@@ -189,8 +190,8 @@ A script that exercises the whole design:
 5. `party.active Noa 0` → Noa is benched
 6. `party.xp 10000` → only Vahn gets paid, **7500**
 7. `party` → Noa is still at her previous level, untouched
-8. `rules.set 1`, then `party.xp 10000` → Vahn alone gets the whole **10000** (Japan pays
-   the full sum); `rules.set 0` goes back to USA
+8. `diff.set 3` (Easy, the Japanese rules), then `party.xp 10000` → Vahn alone gets the whole
+   **10000** (Japan pays the full sum); `diff.set 0` goes back to Normal
 
 ---
 
