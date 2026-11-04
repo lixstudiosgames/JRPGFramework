@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="446" viewBox="0 0 900 446" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" role="img" aria-labelledby="status-title">
-<title id="status-title">Status: sistemas 65.0%, roadmap de batalha 1/9</title>
+<title id="status-title">Status: sistemas 68.1%, roadmap de batalha 5/9</title>
 <style>
   .bg { fill: #ffffff; }
   .rule { stroke: #d0d7de; }
@@ -28,24 +28,24 @@
 <defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line class="hatch" x1="0" y1="0" x2="0" y2="6" stroke-width="1.5" stroke-opacity=".55"/></pattern></defs>
 <rect class="bg" width="900" height="446" rx="6"/>
 <text class="t1" x="16" y="34" font-size="24" font-weight="600">Status</text>
-<text class="t2" x="884" y="34" font-size="12" text-anchor="end">Legend of Legaia Remake · JRPGFramework · dev @ b6f5adf · 2026-11-04</text>
+<text class="t2" x="884" y="34" font-size="12" text-anchor="end">Legend of Legaia Remake · JRPGFramework · dev @ fef8942 · 2026-11-04</text>
 <line class="rule" x1="16" y1="44" x2="884" y2="44" stroke-width="1"/>
 <rect class="badge-k" x="16" y="56" width="79.6" height="22" rx="3"/>
 <rect class="partial" x="92.6" y="56" width="48.8" height="22" rx="3"/>
 <rect class="partial" x="92.6" y="56" width="4" height="22"/>
 <text class="badge-t" x="54.3" y="71" font-size="12" text-anchor="middle">sistemas*</text>
-<text class="txt-dark" x="117.0" y="71" font-size="12" font-weight="600" text-anchor="middle">65.0%</text>
+<text class="txt-dark" x="117.0" y="71" font-size="12" font-weight="600" text-anchor="middle">68.1%</text>
 <rect class="badge-k" x="153.44" y="56" width="142.3" height="22" rx="3"/>
 <rect class="pending" x="292.7" y="56" width="34.9" height="22" rx="3"/>
 <rect class="pending" x="292.7" y="56" width="4" height="22"/>
 <text class="badge-t" x="223.1" y="71" font-size="12" text-anchor="middle">roadmap de batalha</text>
-<text class="txt-pending" x="310.2" y="71" font-size="12" font-weight="600" text-anchor="middle">1/9</text>
+<text class="txt-pending" x="310.2" y="71" font-size="12" font-weight="600" text-anchor="middle">5/9</text>
 <rect class="badge-k" x="339.59999999999997" y="56" width="58.8" height="22" rx="3"/>
 <rect class="ok" x="395.4" y="56" width="69.7" height="22" rx="3"/>
 <rect class="ok" x="395.4" y="56" width="4" height="22"/>
 <text class="badge-t" x="367.5" y="71" font-size="12" text-anchor="middle">engine</text>
 <text class="badge-t" x="430.2" y="71" font-size="12" font-weight="600" text-anchor="middle">UE 5.8.1</text>
-<text class="t1" x="16" y="102" font-size="14">API Blueprint*: 338 prontas · 2 stubs · 15 planejadas</text>
+<text class="t1" x="16" y="102" font-size="14">API Blueprint*: 365 prontas · 1 stubs · 10 planejadas</text>
 <rect class="panel" x="16" y="112" width="424" height="270"/>
 <text class="t2" x="17.5" y="123.0" font-size="10">Core + progressão <tspan class="t2" fill-opacity=".8">(38)</tspan></text>
 <rect class="ok" x="17.5" y="126.0" width="9.4" height="9.4"><title>AddGold · CoreSubsystem.h</title></rect>
@@ -392,31 +392,52 @@
 <rect class="pending" x="332.5" y="310.4" width="9.4" height="9.4"><title>OnBattleArtsButton — planejada (Fase 7 · WebUI bridge)</title></rect>
 <rect class="pending" x="342.8" y="310.4" width="9.4" height="9.4"><title>OnBattleArtsCommit — planejada (Fase 7 · WebUI bridge)</title></rect>
 <rect class="pending" x="353.1" y="310.4" width="9.4" height="9.4"><title>OnBattleTargetChanged — planejada (Fase 7 · WebUI bridge)</title></rect>
-<text class="t2" x="229.5" y="334.7" font-size="10">Arts <tspan class="t2" fill-opacity=".8">(23)</tspan></text>
-<rect class="pending" x="229.5" y="337.7" width="9.4" height="9.4"><title>TeachArtToCharacter · ArtsSubsystem.h — stub — só registra TODO</title></rect>
-<rect class="ok" x="239.8" y="337.7" width="9.4" height="9.4"><title>AppendArtSteps · JRPGArtSequence.h</title></rect>
-<rect class="ok" x="250.1" y="337.7" width="9.4" height="9.4"><title>AppendButtonSwing · JRPGArtSequence.h</title></rect>
-<rect class="ok" x="260.4" y="337.7" width="9.4" height="9.4"><title>ApplyGameSpeeds · JRPGArtSequence.h</title></rect>
-<rect class="ok" x="270.7" y="337.7" width="9.4" height="9.4"><title>StepPlayRate · JRPGArtSequence.h</title></rect>
-<rect class="ok" x="281.0" y="337.7" width="9.4" height="9.4"><title>SwingClipName · JRPGArtSequence.h</title></rect>
-<rect class="ok" x="291.3" y="337.7" width="9.4" height="9.4"><title>LoadHeroClip · JRPGArtSequence.h</title></rect>
-<rect class="ok" x="301.6" y="337.7" width="9.4" height="9.4"><title>HeroArts · JRPGArtSequence.h</title></rect>
-<rect class="ok" x="311.9" y="337.7" width="9.4" height="9.4"><title>Play · JRPGArtTester.h</title></rect>
-<rect class="ok" x="322.2" y="337.7" width="9.4" height="9.4"><title>PlayCombo · JRPGArtTester.h</title></rect>
-<rect class="ok" x="332.5" y="337.7" width="9.4" height="9.4"><title>Stop · JRPGArtTester.h</title></rect>
-<rect class="ok" x="342.8" y="337.7" width="9.4" height="9.4"><title>PlayAll · JRPGArtTester.h</title></rect>
-<rect class="ok" x="353.1" y="337.7" width="9.4" height="9.4"><title>ResetPosition · JRPGArtTester.h</title></rect>
-<rect class="ok" x="363.4" y="337.7" width="9.4" height="9.4"><title>NextArt · JRPGArtTester.h</title></rect>
-<rect class="ok" x="373.7" y="337.7" width="9.4" height="9.4"><title>PreviousArt · JRPGArtTester.h</title></rect>
-<rect class="ok" x="384.0" y="337.7" width="9.4" height="9.4"><title>GetHeroOptions · JRPGArtTester.h</title></rect>
-<rect class="ok" x="394.3" y="337.7" width="9.4" height="9.4"><title>GetArtOptions · JRPGArtTester.h</title></rect>
-<rect class="ok" x="404.6" y="337.7" width="9.4" height="9.4"><title>GetComboOptions · JRPGArtTester.h</title></rect>
-<rect class="pending" x="414.9" y="337.7" width="9.4" height="9.4"><title>ButtonForPad — planejada (Fase 6)</title></rect>
-<rect class="pending" x="425.2" y="337.7" width="9.4" height="9.4"><title>RecognizeArtSequence — planejada (Fase 6)</title></rect>
-<rect class="pending" x="229.5" y="348.0" width="9.4" height="9.4"><title>GetKnownArts — planejada (Fase 6)</title></rect>
-<rect class="pending" x="239.8" y="348.0" width="9.4" height="9.4"><title>LearnArt — planejada (Fase 6)</title></rect>
-<rect class="pending" x="250.1" y="348.0" width="9.4" height="9.4"><title>CommitArtsChain — planejada (Fase 6)</title></rect>
-<text class="t1" x="462" y="102" font-size="14">Sistemas do plugin*: 65.0% (ponderado por esforço)</text>
+<text class="t2" x="229.5" y="334.7" font-size="10">Arts <tspan class="t2" fill-opacity=".8">(44)</tspan></text>
+<rect class="ok" x="229.5" y="337.7" width="9.4" height="9.4"><title>ButtonForPad · ArtsSubsystem.h</title></rect>
+<rect class="ok" x="239.8" y="337.7" width="9.4" height="9.4"><title>IsLeftHanded · ArtsSubsystem.h</title></rect>
+<rect class="ok" x="250.1" y="337.7" width="9.4" height="9.4"><title>GetArtDisplayName · ArtsSubsystem.h</title></rect>
+<rect class="ok" x="260.4" y="337.7" width="9.4" height="9.4"><title>GetKnownArts · ArtsSubsystem.h</title></rect>
+<rect class="ok" x="270.7" y="337.7" width="9.4" height="9.4"><title>HasLearnedArt · ArtsSubsystem.h</title></rect>
+<rect class="ok" x="281.0" y="337.7" width="9.4" height="9.4"><title>LearnArt · ArtsSubsystem.h</title></rect>
+<rect class="ok" x="291.3" y="337.7" width="9.4" height="9.4"><title>ForgetArt · ArtsSubsystem.h</title></rect>
+<rect class="ok" x="301.6" y="337.7" width="9.4" height="9.4"><title>TeachArtToCharacter · ArtsSubsystem.h</title></rect>
+<rect class="ok" x="311.9" y="337.7" width="9.4" height="9.4"><title>MakeContext · ArtsSubsystem.h</title></rect>
+<rect class="ok" x="322.2" y="337.7" width="9.4" height="9.4"><title>RecognizeArtSequence · ArtsSubsystem.h</title></rect>
+<rect class="ok" x="332.5" y="337.7" width="9.4" height="9.4"><title>PreviewArtsChain · ArtsSubsystem.h</title></rect>
+<rect class="ok" x="342.8" y="337.7" width="9.4" height="9.4"><title>GetSpecialsAvailability · ArtsSubsystem.h</title></rect>
+<rect class="ok" x="353.1" y="337.7" width="9.4" height="9.4"><title>CommitArtsChain · ArtsSubsystem.h</title></rect>
+<rect class="ok" x="363.4" y="337.7" width="9.4" height="9.4"><title>AppendArtSteps · JRPGArtSequence.h</title></rect>
+<rect class="ok" x="373.7" y="337.7" width="9.4" height="9.4"><title>AppendButtonSwing · JRPGArtSequence.h</title></rect>
+<rect class="ok" x="384.0" y="337.7" width="9.4" height="9.4"><title>ApplyGameSpeeds · JRPGArtSequence.h</title></rect>
+<rect class="ok" x="394.3" y="337.7" width="9.4" height="9.4"><title>StepPlayRate · JRPGArtSequence.h</title></rect>
+<rect class="ok" x="404.6" y="337.7" width="9.4" height="9.4"><title>SwingClipName · JRPGArtSequence.h</title></rect>
+<rect class="ok" x="414.9" y="337.7" width="9.4" height="9.4"><title>LoadHeroClip · JRPGArtSequence.h</title></rect>
+<rect class="ok" x="425.2" y="337.7" width="9.4" height="9.4"><title>HeroArts · JRPGArtSequence.h</title></rect>
+<rect class="ok" x="229.5" y="348.0" width="9.4" height="9.4"><title>ButtonForPad · JRPGArtsRules.h</title></rect>
+<rect class="ok" x="239.8" y="348.0" width="9.4" height="9.4"><title>EffectiveUnlock · JRPGArtsRules.h</title></rect>
+<rect class="ok" x="250.1" y="348.0" width="9.4" height="9.4"><title>EncodeArtBytes · JRPGArtsRules.h</title></rect>
+<rect class="ok" x="260.4" y="348.0" width="9.4" height="9.4"><title>DecodeArtBytes · JRPGArtsRules.h</title></rect>
+<rect class="ok" x="270.7" y="348.0" width="9.4" height="9.4"><title>OpenInputWindow · JRPGArtsRules.h</title></rect>
+<rect class="ok" x="281.0" y="348.0" width="9.4" height="9.4"><title>PushInputButton · JRPGArtsRules.h</title></rect>
+<rect class="ok" x="291.3" y="348.0" width="9.4" height="9.4"><title>PopInputButton · JRPGArtsRules.h</title></rect>
+<rect class="ok" x="301.6" y="348.0" width="9.4" height="9.4"><title>CanPushAnyButton · JRPGArtsRules.h</title></rect>
+<rect class="ok" x="311.9" y="348.0" width="9.4" height="9.4"><title>ParseButtons · JRPGArtsRules.h</title></rect>
+<rect class="ok" x="322.2" y="348.0" width="9.4" height="9.4"><title>ButtonName · JRPGArtsRules.h</title></rect>
+<rect class="ok" x="332.5" y="348.0" width="9.4" height="9.4"><title>DescribeChain · JRPGArtsRules.h</title></rect>
+<rect class="ok" x="342.8" y="348.0" width="9.4" height="9.4"><title>ValidateArts · JRPGArtsValidator.h</title></rect>
+<rect class="ok" x="353.1" y="348.0" width="9.4" height="9.4"><title>Play · JRPGArtTester.h</title></rect>
+<rect class="ok" x="363.4" y="348.0" width="9.4" height="9.4"><title>PlayCombo · JRPGArtTester.h</title></rect>
+<rect class="ok" x="373.7" y="348.0" width="9.4" height="9.4"><title>PlayInput · JRPGArtTester.h</title></rect>
+<rect class="ok" x="384.0" y="348.0" width="9.4" height="9.4"><title>ResetInputState · JRPGArtTester.h</title></rect>
+<rect class="ok" x="394.3" y="348.0" width="9.4" height="9.4"><title>Stop · JRPGArtTester.h</title></rect>
+<rect class="ok" x="404.6" y="348.0" width="9.4" height="9.4"><title>PlayAll · JRPGArtTester.h</title></rect>
+<rect class="ok" x="414.9" y="348.0" width="9.4" height="9.4"><title>ResetPosition · JRPGArtTester.h</title></rect>
+<rect class="ok" x="425.2" y="348.0" width="9.4" height="9.4"><title>NextArt · JRPGArtTester.h</title></rect>
+<rect class="ok" x="229.5" y="358.3" width="9.4" height="9.4"><title>PreviousArt · JRPGArtTester.h</title></rect>
+<rect class="ok" x="239.8" y="358.3" width="9.4" height="9.4"><title>GetHeroOptions · JRPGArtTester.h</title></rect>
+<rect class="ok" x="250.1" y="358.3" width="9.4" height="9.4"><title>GetArtOptions · JRPGArtTester.h</title></rect>
+<rect class="ok" x="260.4" y="358.3" width="9.4" height="9.4"><title>GetComboOptions · JRPGArtTester.h</title></rect>
+<text class="t1" x="462" y="102" font-size="14">Sistemas do plugin*: 68.1% (ponderado por esforço)</text>
 <rect class="ok" x="462.0" y="113.5" width="100.3" height="55.0"><title>Core: Gold, tempo de jogo, mapa atual, New Game, resolução de DataTables</title></rect>
 <text class="badge-t" x="512.1" y="145.0" font-size="11" text-anchor="middle" pointer-events="none">Core</text>
 <rect class="ok" x="563.3" y="113.5" width="83.4" height="55.0"><title>Save: 15 slots, coleta/restauração automática, troca de mapa + teleporte, versionamento</title></rect>
@@ -456,8 +477,9 @@
 <text class="txt-dark" x="861.7" y="253.8" font-size="10.5" text-anchor="middle" pointer-events="none">Opções</text>
 <rect class="pending" x="462.0" y="275.5" width="174.8" height="57.0"><title>Batalha: Stub — 71 linhas que registram TODO. Plano de 9 fases em Docs/BATTLE_ROADMAP.md</title></rect>
 <text class="txt-pending" x="549.4" y="308.0" font-size="11" text-anchor="middle" pointer-events="none">Batalha</text>
-<rect class="pending" x="637.8" y="275.5" width="69.3" height="57.0"><title>Arts: Stub — Arts direcionais e o novo AP (fase 6 do roadmap)</title></rect>
-<text class="txt-pending" x="672.5" y="308.0" font-size="11" text-anchor="middle" pointer-events="none">Arts</text>
+<rect class="partial" x="637.8" y="275.5" width="69.3" height="57.0"><title>Arts: Reconhecimento com a sobreposição do original, aprender + a lista no save, Supers, o novo AP, validador, Input no Art Tester — a parte dentro da luta fecha na fase 5</title></rect>
+<rect x="637.8" y="275.5" width="69.3" height="57.0" fill="url(#hatch)" pointer-events="none"/>
+<text class="txt-dark" x="672.5" y="308.0" font-size="11" text-anchor="middle" pointer-events="none">Arts</text>
 <rect class="partial" x="708.2" y="275.5" width="69.3" height="57.0"><title>Diálogo: Câmera de conversa e assinatura de OpenDialogue prontas; falta o runtime de diálogo</title></rect>
 <rect x="708.2" y="275.5" width="69.3" height="57.0" fill="url(#hatch)" pointer-events="none"/>
 <text class="txt-dark" x="742.8" y="308.0" font-size="11" text-anchor="middle" pointer-events="none">Diálogo</text>
@@ -466,24 +488,22 @@
 <rect class="partial" x="831.3" y="275.5" width="51.8" height="57.0"><title>L10n: FText em tudo + opção de idioma; sem troca de cultura nem pipeline de strings</title></rect>
 <rect x="831.3" y="275.5" width="51.8" height="57.0" fill="url(#hatch)" pointer-events="none"/>
 <text class="txt-dark" x="857.1" y="308.0" font-size="11" text-anchor="middle" pointer-events="none">L10n</text>
-<text class="t2" x="462" y="351.5" font-size="11">Roadmap de batalha: 1/9 fases</text>
+<text class="t2" x="462" y="351.5" font-size="11">Roadmap de batalha: 5/9 fases</text>
 <rect class="ok" x="462.0" y="357.5" width="45.9" height="24.5"><title>Fase 0 — Extrair assets do disco</title></rect>
 <text class="badge-t" x="484.9" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">0</text>
-<rect class="partial" x="508.9" y="357.5" width="45.9" height="24.5"><title>Fase 1 — Dados de batalha (TOML → CSV → DataTable)</title></rect>
-<rect x="508.9" y="357.5" width="45.9" height="24.5" fill="url(#hatch)" pointer-events="none"/>
-<text class="txt-dark" x="531.8" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">1</text>
-<rect class="partial" x="555.8" y="357.5" width="45.9" height="24.5"><title>Fase 2 — Assets 3D do PS1 (GLB → Blender → FBX → SkeletalMesh)</title></rect>
-<rect x="555.8" y="357.5" width="45.9" height="24.5" fill="url(#hatch)" pointer-events="none"/>
-<text class="txt-dark" x="578.7" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">2</text>
-<rect class="partial" x="602.7" y="357.5" width="45.9" height="24.5"><title>Fase 3 — Inimigos andando pelo mapa</title></rect>
-<rect x="602.7" y="357.5" width="45.9" height="24.5" fill="url(#hatch)" pointer-events="none"/>
-<text class="txt-dark" x="625.6" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">3</text>
-<rect class="pending" x="649.6" y="357.5" width="45.9" height="24.5"><title>Fase 4 — Palco da batalha</title></rect>
-<text class="txt-pending" x="672.5" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">4</text>
+<rect class="ok" x="508.9" y="357.5" width="45.9" height="24.5"><title>Fase 1 — Dados de batalha (TOML → CSV → DataTable)</title></rect>
+<text class="badge-t" x="531.8" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">1</text>
+<rect class="ok" x="555.8" y="357.5" width="45.9" height="24.5"><title>Fase 2 — Assets 3D do PS1 (GLB → Blender → FBX → SkeletalMesh)</title></rect>
+<text class="badge-t" x="578.7" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">2</text>
+<rect class="ok" x="602.7" y="357.5" width="45.9" height="24.5"><title>Fase 3 — Inimigos andando pelo mapa</title></rect>
+<text class="badge-t" x="625.6" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">3</text>
+<rect class="ok" x="649.6" y="357.5" width="45.9" height="24.5"><title>Fase 4 — Palco da batalha</title></rect>
+<text class="badge-t" x="672.5" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">4</text>
 <rect class="pending" x="696.4" y="357.5" width="45.9" height="24.5"><title>Fase 5 — Combate básico</title></rect>
 <text class="txt-pending" x="719.4" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">5</text>
-<rect class="pending" x="743.3" y="357.5" width="45.9" height="24.5"><title>Fase 6 — Arts direcionais + novo AP</title></rect>
-<text class="txt-pending" x="766.3" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">6</text>
+<rect class="partial" x="743.3" y="357.5" width="45.9" height="24.5"><title>Fase 6 — Arts direcionais + novo AP</title></rect>
+<rect x="743.3" y="357.5" width="45.9" height="24.5" fill="url(#hatch)" pointer-events="none"/>
+<text class="txt-dark" x="766.3" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">6</text>
 <rect class="pending" x="790.2" y="357.5" width="45.9" height="24.5"><title>Fase 7 — Apresentação (HUD, câmera, som)</title></rect>
 <text class="txt-pending" x="813.2" y="373.8" font-size="11" text-anchor="middle" pointer-events="none">7</text>
 <rect class="pending" x="837.1" y="357.5" width="45.9" height="24.5"><title>Fase 8 — Magia e Seru</title></rect>

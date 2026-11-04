@@ -95,7 +95,8 @@ TABLES = [
     {"id": "DT_Arts", "struct": "FJRPGArtData", "label": "Arts", "icon": "art",
      "title": "DisplayName", "subtitle": "Character", "badge": "Kind", "badgeSuffix": "",
      # Linha nova = Art nova (o gerador não apaga). Sequence monta as combinadas.
-     "primary": ["DisplayName", "Character", "Kind", "Command", "APGain", "APCost", "Anim",
+     # Ao salvar, os achados trazem o validador das Arts (Extras/arts_rules.py).
+     "primary": ["DisplayName", "Character", "Kind", "Command", "APGain", "APCost", "Unlock", "Anim",
                  "HitPower", "HitTarget", "Sequence"]},
 
     {"id": "DT_Bosses", "struct": "FJRPGBossData", "label": "Bosses", "icon": "enemy",
@@ -138,6 +139,7 @@ REFERENCES = {
     ("DT_Enemies", "StealItem"): "DT_Items",
     ("DT_Bosses", "Enemies"): "DT_Enemies",
     ("DT_Bosses", "RewardItem"): "DT_Items",
+    ("DT_Items", "TeachesArt"): "DT_Arts",
 }
 
 # TOMLs do LegaiaRE que ainda não viraram DataTable (mostrados como pendentes)
@@ -450,6 +452,16 @@ def validate():
                     findings.append({"level": "error", "table": table_id, "row": r[0].strip(),
                                      "field": field,
                                      "message": "'%s' não existe em %s" % (key, ref_table)})
+
+    # As regras das Arts (Extras/arts_rules.py: o validador do C++ sem o que precisa de asset)
+    arts = read_csv_table("DT_Arts")
+    if arts:
+        if EXTRAS_DIR not in sys.path:
+            sys.path.insert(0, EXTRAS_DIR)
+        import arts_rules
+        for level, row, message in arts_rules.validate(arts_rules.from_table(arts["columns"][1:], arts["rows"])):
+            findings.append({"level": level, "table": "DT_Arts", "row": row, "field": "-",
+                             "message": message})
 
     for t in TABLES:
         data = read_csv_table(t["id"])

@@ -31,10 +31,15 @@ alternativo (o alto passa por cima de inimigo baixo, o baixo por baixo de voador
 AP (a inversão do remake, ver BATTLE_ROADMAP.md › Phase 6): Regular -> APGain = ap / 2; Hyper,
 Super, Miracle -> APCost = ap. CommandCost = número de botões.
 
+Command: o do TOML, menos onde o disco o corrige (COMMAND_FIXES: o Hyper Elbow do Vahn). Unlock e
+SpeedScale nascem ByKind / 0 (a regra do original) e são do designer.
+
 Regenerar NÃO apaga trabalho manual: linhas que o gerador não cria (Arts novas) ficam como
 estão; nas linhas geradas, o balanceamento (APGain, APCost, CommandCost, Anim, HitPower,
-HitTarget, Sequence) já editado é mantido — --reset refaz tudo do original. O CSV anterior vai
-para Docs/Data/_backup/.
+HitTarget, Sequence, Unlock, SpeedScale) já editado é mantido — --reset refaz tudo do original.
+O CSV anterior vai para Docs/Data/_backup/.
+
+No fim roda o validador do Extras/arts_rules.py (o mesmo do C++, sem os assets) e lista o que achar.
 """
 
 import argparse
@@ -43,6 +48,7 @@ import re
 import struct
 import sys
 
+import arts_rules
 import legaia_toml as lt
 from ps1_party_sounds import ART_NAMES, CHARACTERS, PLAYER_FILES, camel, lzs
 
@@ -54,9 +60,17 @@ for _stream in (sys.stdout, sys.stderr):
 
 TABLE = "DT_Arts"
 COLUMNS = ["Key", "Character", "DisplayName", "Kind", "Command", "OriginalAP", "APGain", "APCost",
-           "CommandCost", "Anim", "HitPower", "HitTarget", "Sequence", "ActionConstant"]
+           "CommandCost", "Anim", "HitPower", "HitTarget", "Sequence", "ActionConstant", "Unlock",
+           "SpeedScale"]
 # Balanceamento: editado à mão, mantido numa regeneração (menos com --reset)
-TUNED_COLUMNS = ["APGain", "APCost", "CommandCost", "Anim", "HitPower", "HitTarget", "Sequence"]
+TUNED_COLUMNS = ["APGain", "APCost", "CommandCost", "Anim", "HitPower", "HitTarget", "Sequence", "Unlock",
+                 "SpeedScale"]
+
+# O botão que o TOML (de walkthrough) erra e o disco corrige: a string de glifos do menu de Arts
+# (SCUS DAT_80075EC4 +8) diz que o Hyper Elbow do Vahn é ← → ←, não Arms / Ra-Seru / High (RE
+# docs/formats/art-data.md › "Command-glyph string"). Sem isso o Fire Tackle (← → ← ← ↓ → ↑) não
+# tokeniza no Hyper Elbow, Power Punch, Charging Scorch do original.
+COMMAND_FIXES = {("Vahn", "Hyper Elbow"): ["Arms", "Ra-Seru", "Arms"]}
 
 KINDS = {"regular": "Regular", "hyper": "Hyper", "super": "Super", "miracle": "Miracle"}
 BUTTONS = {"Arms": "Arms", "Ra-Seru": "RaSeru", "High": "High", "Low": "Low"}
@@ -174,12 +188,12 @@ def build(arts, banks):
     for a in arts:
         char, kind = a["character"], KINDS[a["kind"]]
         key = "%s_%s" % (char.lower(), snake(a["name"]))
-        command = [BUTTONS[b] for b in a["command"]]
+        command = [BUTTONS[b] for b in COMMAND_FIXES.get((char, a["name"]), a["command"])]
         row = {"---": key, "Key": key, "Character": char, "DisplayName": a["name"], "Kind": kind,
                "Command": lt.ue_array(command), "OriginalAP": a["ap"],
                "APGain": a["ap"] // 2 if kind == "Regular" else 0, "APCost": 0 if kind == "Regular" else a["ap"],
                "CommandCost": len(command), "Anim": "", "HitPower": "()", "HitTarget": "()",
-               "Sequence": "()", "ActionConstant": 0}
+               "Sequence": "()", "ActionConstant": 0, "Unlock": "ByKind", "SpeedScale": 0}
         if kind != "Super":                       # a Super não tem registro próprio: é a receita
             const = PLAYED_RECORD.get((char, a["name"]), a["action_constant"])
             own_record(row, char, const)
@@ -200,7 +214,7 @@ def build(arts, banks):
                 key, name = key + "_finisher", name + " (finisher)"
             part = {"---": key, "Key": key, "Character": char, "DisplayName": name, "Kind": "Part",
                     "Command": "()", "OriginalAP": 0, "APGain": 0, "APCost": 0, "CommandCost": 0,
-                    "Sequence": "()"}
+                    "Sequence": "()", "Unlock": "ByKind", "SpeedScale": 0}
             own_record(part, char, const)
             parts[(char, const)] = part
         return parts[(char, const)]["---"]
@@ -243,7 +257,9 @@ def main():
         old = old_rows.get(r["---"])
         if old and not args.reset:
             for c in TUNED_COLUMNS:
-                if old.get(c, "") not in ("", "()") or not banks and c in ("HitPower", "HitTarget"):
+                if c not in old:
+                    continue                  # coluna nova: o CSV antigo não tem o que manter
+                if old[c] not in ("", "()") or not banks and c in ("HitPower", "HitTarget"):
                     kept += old[c] != str(r[c])
                     r[c] = old[c]
     # Linhas que o gerador não cria são Arts novas e ficam. Menos uma Part com registro do disco: é
@@ -254,6 +270,9 @@ def main():
             continue
         old = old_rows[k]
         stale = old.get("Kind") == "Part" and old.get("ActionConstant", "0") not in ("", "0")
+        # Colunas que a Art nova ainda não tinha: o default (uma célula vazia de enum não importa)
+        old["Unlock"] = old.get("Unlock") or "ByKind"
+        old["SpeedScale"] = old.get("SpeedScale") or "0"
         (dropped if stale else custom).append(old)
     rows += custom
     for old in dropped:
@@ -266,6 +285,13 @@ def main():
           % (len(rows), ", ".join("%d %s" % (n, k) for k, n in kinds.items()), kept, len(custom)))
     for n in notes:
         print("[arts] " + n)
+    # As regras do UJRPGArtsValidator (as que não precisam de asset): Command repetido ou inalcançável,
+    # Sequence quebrada, AP, e cada Super do disco tokenizando na cadeia do original
+    issues = arts_rules.validate(arts_rules.from_dicts(rows))
+    for level, key, msg in issues:
+        print("[arts] %s %s: %s" % ("ERRO " if level == "error" else "aviso", key, msg))
+    if not issues:
+        print("[arts] validador: nenhum problema")
     if args.dry_run:
         print("[arts] --dry-run: nada escrito.")
         return

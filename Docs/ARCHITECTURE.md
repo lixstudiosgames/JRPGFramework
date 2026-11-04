@@ -46,7 +46,8 @@ GI_Main (BP, inherits UJRPGGameInstance)
  │                            stats, HP/MP/AP. Owns the RECORD
  ├── UStatusSubsystem      ← equipment, conditions, Ra-Seru, affinity, EFFECTIVE stats.
  │                            Owns the RULES — writes into the Party's record
- ├── UArtsSubsystem    🟡  ← stub
+ ├── UArtsSubsystem        ← the Arts each hero knows (writes LearnedArts in the Party record);
+ │                            preview / commit out of battle. The rules: UJRPGArtsRules
  └── UBattleSubsystem  🟡  ← TryStartEncounter (the field enemies' door into a fight); battle itself still a stub
 ```
 
@@ -205,7 +206,9 @@ problem someone already paid for.
     diverge.
 41. **Only `UStatusSubsystem` writes `Equipment`, `Conditions` and `SeruLevel`.** The fields
     live in Party because there is a single save, but the rule belongs to Status. Writing them
-    directly bypasses `CanEquip` validation and the delegate the UI listens to.
+    directly bypasses `CanEquip` validation and the delegate the UI listens to. The same goes for
+    `LearnedArts` and **`UArtsSubsystem::LearnArt`** (it refuses another hero's Art or a `Part`,
+    and fires `OnArtLearned` once).
 42. **Every Status write calls `NotifyMemberChanged()`.** That is what fires `OnPartyChanged`;
     without it the UI does not redraw and the player sees a stale value.
 43. **The stat cap is always the LAST step of the calculation.** Adding the percentage after
@@ -264,6 +267,17 @@ Each of these cost a round trip with Gimard. The full walkthrough is
     one version baked in cannot serve the other, nor be turned back into the record exactly
     (the shifts truncate per enemy). The table held the American scripted-fight numbers until
     2026-11-04, and `AwardBattleXP` would have cut the EXP by 3/4 a second time.
+
+### Arts
+
+54. **Arts are recognised from `DT_Arts.Command` alone, with the original's overlapping
+    tokenizer — never a consuming longest match, never a table in C++.** A matched Art turns only
+    its last button into the starter, so one button can belong to two Arts (Tri-Somersault's seven
+    buttons are Somersault, Cyclone, Somersault). A Super's own Arts are what its `Command`
+    tokenizes to, not its `Sequence` (the replacement drops the last Art for the finisher).
+    `UJRPGArtsValidator` / `Extras/arts_rules.py` check every disc Super against the original's
+    chain — that is how Hyper Elbow's walkthrough command (Arms, Ra-Seru, High; the disc says
+    `← → ←`) was caught. A new Art is a row; if it needs code, the base is wrong.
 
 ---
 

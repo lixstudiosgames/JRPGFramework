@@ -135,6 +135,112 @@ void AJRPGArtTester::OnConstruction(const FTransform& Transform)
 		PlayIdle(false);
 		UpdateLabel();
 	}
+	// O que as regras fazem do Input, enquanto se digita
+	UpdateRecognition();
+}
+
+// --- Input -----------------------------------------------------------------------------------
+
+bool AJRPGArtTester::ReadInput(TArray<EJRPGArtButton>& OutButtons, int32& OutDropped) const
+{
+	OutDropped = 0;
+	TArray<EJRPGArtButton> Typed;
+	if (!UJRPGArtsRules::ParseButtons(Input, IsLeftHanded(), Typed))
+	{
+		OutButtons.Reset();
+		return false;
+	}
+	// A janela de entrada, como na luta: cada botão gasta o custo dele do gauge
+	FJRPGArtsInputWindow Window = UJRPGArtsRules::OpenInputWindow(Hero, InputGauge, UJRPGArtsRules::DefaultButtonCost);
+	for (const EJRPGArtButton Button : Typed)
+	{
+		if (!UJRPGArtsRules::PushInputButton(Window, Button))
+		{
+			++OutDropped;
+		}
+	}
+	OutButtons = Window.Buttons;
+	return true;
+}
+
+FJRPGArtChain AJRPGArtTester::BuildInputChain(const TArray<EJRPGArtButton>& Buttons) const
+{
+	FJRPGArtsContext Context;
+	Context.Character = Hero;
+	Context.KnownArts = bKnowAllArts ? UJRPGArtSequenceLibrary::HeroArts(Hero, false) : KnownArts;
+	Context.AP = InputAP;
+	Context.bHasRaSeru = bHasRaSeru;
+	// O commit da luta reconhece de novo a partir dos bytes: o tester faz o mesmo caminho
+	TArray<EJRPGArtButton> FromBytes;
+	UJRPGArtsRules::DecodeArtBytes(UJRPGArtsRules::EncodeArtBytes(Buttons), FromBytes);
+	FRandomStream Rng(1);
+	return UJRPGArtsRules::BuildChain(UCoreSubsystem::ResolveDataTable(TEXT("DT_Arts")), Context, FromBytes, Rng);
+}
+
+void AJRPGArtTester::UpdateRecognition()
+{
+	Recognition.Reset();
+	if (Input.TrimStartAndEnd().IsEmpty())
+	{
+		return;
+	}
+	TArray<EJRPGArtButton> Buttons;
+	int32 Dropped = 0;
+	if (!ReadInput(Buttons, Dropped))
+	{
+		Recognition.Add(TEXT("Input: a word is not a button (Arms, Ra-Seru, High, Low, or ← → ↑ ↓)"));
+		return;
+	}
+	const FJRPGArtChain Chain = BuildInputChain(Buttons);
+	UJRPGArtsRules::DescribeChain(Chain).ParseIntoArrayLines(Recognition);
+	if (Dropped > 0)
+	{
+		Recognition.Add(FString::Printf(TEXT("  (%d button(s) did not fit the gauge)"), Dropped));
+	}
+}
+
+void AJRPGArtTester::PlayInput()
+{
+	TArray<EJRPGArtButton> Buttons;
+	int32 Dropped = 0;
+	if (!ReadInput(Buttons, Dropped) || Buttons.IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ArtTester: Input vazio ou com palavra que não é botão: \"%s\""), *Input);
+		Stop();
+		return;
+	}
+	const FJRPGArtChain Chain = BuildInputChain(Buttons);
+	UE_LOG(LogTemp, Log, TEXT("ArtTester: %s, Input \"%s\":\n%s"), *Hero.ToString(), *Input, *UJRPGArtsRules::DescribeChain(Chain));
+	Recognition.Reset();
+	UJRPGArtsRules::DescribeChain(Chain).ParseIntoArrayLines(Recognition);
+
+	// O turno seguinte começa com o que este deixou: as Arts aprendidas e o AP do fim
+	if (bLearnOnPlay && !bKnowAllArts)
+	{
+		for (const FName& Key : Chain.NewlyLearned)
+		{
+			KnownArts.AddUnique(Key);
+		}
+	}
+	if (bCarryAP)
+	{
+		InputAP = Chain.APEnd;
+	}
+
+	Queue.Reset();
+	bComboMode = false;
+	bInputMode = true;
+	ApplyHeroMesh();
+	Steps.Reset();
+	UJRPGArtsRules::AppendChainSteps(Chain, IsLeftHanded(), Steps);
+	StartSteps(FString::Printf(TEXT("Input: %s"), *Input.TrimStartAndEnd()));
+}
+
+void AJRPGArtTester::ResetInputState()
+{
+	KnownArts.Reset();
+	InputAP = 0;
+	UpdateRecognition();
 }
 
 // --- Tocar -----------------------------------------------------------------------------------
@@ -153,6 +259,7 @@ void AJRPGArtTester::Play()
 {
 	Queue.Reset();
 	bComboMode = false;
+	bInputMode = false;
 	StartArt(Art);
 }
 
@@ -160,6 +267,7 @@ void AJRPGArtTester::PlayCombo()
 {
 	Queue.Reset();
 	bComboMode = true;
+	bInputMode = false;
 	ApplyHeroMesh();
 	Steps.Reset();
 	for (const FName& Entry : Combo)
@@ -189,6 +297,7 @@ void AJRPGArtTester::PlayAll()
 	Queue = UJRPGArtSequenceLibrary::HeroArts(Hero, false);
 	QueueIndex = 0;
 	bComboMode = false;
+	bInputMode = false;
 	if (!Queue.IsEmpty())
 	{
 		Art = Queue[0];
@@ -389,6 +498,10 @@ void AJRPGArtTester::Tick(float DeltaSeconds)
 				if (bComboMode)
 				{
 					PlayCombo();
+				}
+				else if (bInputMode)
+				{
+					PlayInput();
 				}
 				else
 				{

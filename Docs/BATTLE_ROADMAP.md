@@ -3,9 +3,11 @@
 **JRPGFramework — Legend of Legaia Remake**
 Approved 2026-09-13. Phases 0 to 4 are done (2026-10-30): the battle data (`DT_Enemies`,
 `DT_Arts`, `DT_Bosses`), every monster and the party's battle clips in Unreal, enemies roaming the
-map and a fight assembled over it. Next is Phase 6, the Arts, and then Phase 5, combat itself
-(order swapped 2026-11-04: [Phases](#phases)). The combat core keeps the door open to PvP /
-online / co-op ([decided 2026-11-04](#pvp-online-and-co-op--door-open-decided-2026-11-04)).
+map and a fight assembled over it. Phase 6, the Arts, is done without a fight (2026-11-04:
+recognition, learning, the Supers, the new AP, the validator, the Art Tester's `Input`); next is
+Phase 5, combat itself, which closes Phase 6's in-fight part (order swapped 2026-11-04:
+[Phases](#phases)). The combat core keeps the door open to PvP / online / co-op
+([decided 2026-11-04](#pvp-online-and-co-op--door-open-decided-2026-11-04)).
 
 This is the largest unimplemented system left in the plugin, and the only one with stub
 files already in place. (Dialogue, Cutscene and Localization are also unwritten - see
@@ -26,10 +28,10 @@ The fight is **assembled but not fought** (2026-11-04):
 | The data: enemies (raw disc record), Arts, bosses | Phase 1 — `DT_Enemies`, `DT_Arts`, `DT_Bosses` |
 | What each version does with an enemy's record: stat boost, victory EXP and Gold | `UJRPGBattleRules` + `EJRPGRuleset` ([Version rules](#version-rules--usa-or-japan)) |
 | A turn's clip queue from `DT_Arts` | `UJRPGArtSequenceLibrary` (the Art tester plays it) |
+| The Arts: buttons → the turn (recognition with the original's overlap, Supers, the new AP), learning and the learned list in the save, the validator | Phase 6 — `UJRPGArtsRules`, `UArtsSubsystem`, `UJRPGArtsValidator`, the Art Tester's `Input` ([Guides/ARTS.md › 4](Guides/ARTS.md#4-recognition-learning-and-ap)) |
 
-Still stubs: `ApplyBattleItemEffect` (the inventory routes item use into it; the call arrives and
-does nothing), `UArtsSubsystem` (only `TeachArtToCharacter`, a `UE_LOG("TODO")`). No turns,
-no damage, no rewards yet — that is Phase 5.
+Still a stub: `ApplyBattleItemEffect` (the inventory routes item use into it; the call arrives and
+does nothing). No turns, no damage, no rewards yet — that is Phase 5.
 
 ---
 
@@ -97,8 +99,8 @@ Each phase ends in something you can run and watch work.
 | **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **Done** (2026-10-30) — all 179 monster models with sounds and notifies, the party's battle clips (real names, game speed, sounds), equipment pieces |
 | **3** | Enemies roaming the map (zone, roaming, trigger) | **Done** (2026-10-27) — `AJRPGFieldEnemy`, `AJRPGEncounterZone` (sphere/box/spline), tested in the editor |
 | **4** | Battle stage (spawn, formation, camera) | **Done** (2026-10-27) — `AJRPGBattleArena` assembles the fight, `UJRPGBattleSceneSubsystem`, `BeginBattle`/`EndBattle`, `AJRPGBattlePawn`, `AJRPGBattleWaves` + JSON/Studio; tested in the editor and on the Muscle Dome map. Party-size scaling moved to Phase 8 |
-| **5** | Basic combat (turns, damage, death, victory) | Not started — after Phase 6 |
-| **6** | Directional Arts + the new AP | **Next** (before Phase 5) |
+| **5** | Basic combat (turns, damage, death, victory) | **Next** — also closes Phase 6's in-fight part |
+| **6** | Directional Arts + the new AP | **Done without a fight** (2026-11-04) — recognition, learning, Supers, AP, validator, tester `Input`, automation tests. In a fight: Phase 5 |
 | **7** | Remaining commands (item, escape, guard, drop / steal) and presentation (HUD, attack camera, sound) | Not started |
 | **8** | Magic and Seru | Not started |
 
@@ -111,9 +113,9 @@ Phase 0 (extraction)
                                   ▼
                          Phase 4 (battle stage)
                                   ▼
-                         Phase 6 (Arts + new AP)       ← next
+                         Phase 6 (Arts + new AP)       ← done without a fight
                                   ▼
-                         Phase 5 (basic combat)
+                         Phase 5 (basic combat)        ← next
                                   ▼
                          Phase 7 (commands + presentation)
                                   ▼
@@ -983,6 +985,30 @@ AP rules are written and tested on their own, and the chain plays in the Art tes
 fight (the window inside a turn, damage, AP on the combatant) closes in Phase 5. The acceptance
 below is split that way.
 
+**Written 2026-11-04** — usage in [Guides/ARTS.md › 4](Guides/ARTS.md#4-recognition-learning-and-ap).
+The rules are `UJRPGArtsRules` (pure functions: buttons + a snapshot of the hero → `FJRPGArtChain`),
+`UArtsSubsystem` takes the snapshot from the roster and writes the learned list,
+`UJRPGArtsValidator` checks `DT_Arts`, the Art Tester has `Input`, and `JRPG.Arts.*` are the
+automation tests. What the work settled that the sketch below did not say:
+
+- **The disc corrects one Command.** Vahn's Hyper Elbow is `← → ←` (Arms, Ra-Seru, **Arms**) in
+  the game's arts-name table, not the walkthrough's Arms, Ra-Seru, High that `arts.toml` copied (RE
+  `docs/formats/art-data.md` › "Command-glyph string"). With the walkthrough's buttons Fire
+  Tackle's input does not tokenize to its original chain — the validator found it. The generator
+  applies the fix; the acceptance below reads `Arms, Ra-Seru, Arms`.
+- **A Hyper takes its whole span** (the original's special arm writes `0x1A` at the *start* of the
+  match and the clips over it), and a `ByKind` Hyper also needs the Ra-Seru — the same marker
+  (`ctx[+0x25F]`) gates the Hypers and the Miracle in the original.
+- **Where a Super plays.** At its first Art's starter: the buttons before it are that Art's
+  swings (the original's "find" starts there). A Miracle replaces its whole span. Supers and
+  Miracles are matched on their `Command` anywhere in the chain (the original only matches the
+  tail of the queue — that would make "a loose Art behind the Super" impossible).
+- **The gauge charges per button**, as the original does (pool = AGL, 30 a button, more for the
+  weapon hand off its class; RE `arts-command-gauge.md`) — not the per-Art `CommandCost`, which
+  stays a balance reference.
+- **The hit marker** is `UJRPGAnimNotify_Hit`; the validator checks its count. Placing it on the
+  party's Art clips is content for Phase 5.
+
 ### Two meters, not one
 
 | Meter | Scope | Role |
@@ -996,16 +1022,23 @@ player builds AP by performing Arts and burns it on the big ones.
 ### `UArtsSubsystem`
 
 ```cpp
-static EJRPGArtButton ButtonForPad(FName Character, EPadButton Pad);
+static EJRPGArtButton ButtonForPad(FName Character, EJRPGPadButton Pad);
 // Noa is left-handed: her Arms is the right button (resolved here, never stored)
 
 // The Arts the buttons perform, overlapping as in the original; the unknown ones it meets
 // come back flagged, and LearnArt adds them
 TArray<FJRPGRecognizedArt> RecognizeArtSequence(FName Character, const TArray<EJRPGArtButton>& Input) const;
+FJRPGArtChain PreviewArtsChain(FName Character, const TArray<EJRPGArtButton>& Input) const;   // the whole turn, nothing saved
+FJRPGArtChain CommitArtsChain(FName Character, const TArray<uint8>& ArtBytes, bool& bValid);  // re-recognised from the bytes; learns
+TArray<FJRPGArtAvailability> GetSpecialsAvailability(FName Character, const TArray<EJRPGArtButton>& TypedSoFar) const;
 TArray<FName> GetKnownArts(FName Character) const;
 bool HasLearnedArt(FName Character, FName ArtKey) const;   // BlueprintPure: dialogue / triggers branch on it
 bool LearnArt(FName Character, FName ArtKey);              // true = newly learned (on use, NPC, trigger, book)
 void TeachArtToCharacter(const FString& CharacterName, FName ArtKey);   // preserved; calls LearnArt
+
+// The rules themselves, what the fight calls with its own Rng (UJRPGArtsRules)
+static FJRPGArtChain BuildChain(const UDataTable* Arts, const FJRPGArtsContext& Context,
+                                const TArray<EJRPGArtButton>& Buttons, FRandomStream& Rng);
 ```
 
 ### How each kind of Art is unlocked (decided 2026-11-04)
@@ -1063,8 +1096,9 @@ find patterns of `crates/art/src/super_art.rs`; the RE derives the input the sam
 
 ### The input window
 
-Choosing Arts opens the window, and the window is **local**: each button debits `CommandCost`
-from `CommandGauge` and pushes a byte, with no round trip to the rules. `CommitArtsChain` closes
+Choosing Arts opens the window, and the window is **local**: each button debits its cost from
+`CommandGauge` (the original's per-button price, 30 for most) and pushes a byte, with no round
+trip to the rules. `CommitArtsChain` closes
 it and sends the whole chain as **one** command (`FJRPGBattleCommand` with `ArtBytes`, through
 `SubmitCommand`); the rules recognize it again from the bytes (never trust the payload) and turn
 it into the turn's queue (`UJRPGArtSequenceLibrary`). Before Phase 5, the Art tester plays the
@@ -1155,7 +1189,7 @@ The `Unlock` and `SpeedScale` columns, the validator and the tester's `Input` ar
 the rest of the list is a rule for how Phase 6 is written.
 
 **Acceptance, in Phase 6** (Art tester + automation tests, no fight): enter `Arms, Ra-Seru,
-High` as Vahn → "Hyper Elbow" is recognized and the right animation plays; Noa's mirrored input
+Arms` as Vahn (the disc's Hyper Elbow, `← → ←`) → "Hyper Elbow" is recognized and the right animation plays; Noa's mirrored input
 gives her Arts; the overlap case (Tri-Somersault from its seven buttons) recognizes every Art in
 it; an unknown Regular is learned once and survives a save / load; an unknown Hyper's buttons
 teach nothing, and `LearnArt` (the book / NPC path) teaches it, with `HasLearnedArt` flipping to
@@ -1166,6 +1200,8 @@ fire while Slash Kick (its last Art, absent from its `Sequence`) is unknown; eac
 above (a loose Art in front pays for the Super, one behind does not, the Tornado Flame case); a new Super added as one CSV row (Power Punch + two more Power Punches, its own
 `Command`) is recognized, plays in the tester and passes the validator, with no code change; the
 validator flags a duplicated `Command` and a `Sequence` step that does not exist.
+*Each item is a `JRPG.Arts.*` automation test (2026-11-04; run in the editor after the build); the
+animations are checked by eye with the Art Tester's `Input`.*
 
 **Acceptance, closed in Phase 5** (in a fight): damage uses the Art's power per hit and AP
 **rises**; fill AP and fire a Super Art → AP **drops** and damage is much larger; with
@@ -1446,16 +1482,18 @@ network-related.
 
 ## Next concrete step
 
-**Phase 6 (next):** `UArtsSubsystem` — `ButtonForPad` (Noa mirrored), recognition with the
-original's overlap, learn-on-use and the learned list in the save, the AP check at commit — as
-pure functions with automation tests, then the input window and the chain in the Art tester.
-All of it reads only `DT_Arts`, so a new Art is a row ([Making new Arts](#making-new-arts--the-base)):
-the `Unlock` / `SpeedScale` columns, the Arts validator and the tester's `Input` preview.
-How each kind of Art is unlocked and how AP moves in a chain are settled (open questions 6 and 7).
+**Phase 6 — done without a fight (2026-11-04):** `UJRPGArtsRules` (recognition with the
+original's overlap, learn-on-use, Supers, the AP walk), `UArtsSubsystem` (the learned list in the
+save, `LearnArt` / `HasLearnedArt`, commit from the bytes), `UJRPGArtsValidator` (+ Data
+Validation + `Extras/arts_rules.py`), the `Unlock` / `SpeedScale` columns and the Art Tester's
+`Input`. Run `JRPG.Arts.*` after the build.
 
-**Phase 5 (after 6), door open** ([decided 2026-11-04](#pvp-online-and-co-op--door-open-decided-2026-11-04)):
+**Phase 5 (next), door open** ([decided 2026-11-04](#pvp-online-and-co-op--door-open-decided-2026-11-04)):
 first the contracts (5.0 — the round, the logic timeline and its fallback, items,
 end of the fight, who gets the EXP), then basic combat on the Muscle Dome — combatant stats
 through the version rules, the original's turn order, the integer damage kernel, the action
-state machine, a dumb enemy AI, victory / defeat. In parallel, the party's battle clips
-(attack, hit, KO) that it needs.
+state machine, a dumb enemy AI, victory / defeat. With it, Phase 6's in-fight part: the input
+window inside a turn (`CommandGauge` from AGL, the weapon hand's cost), `BuildChain` on the
+combatant's snapshot and the fight's `Rng`, damage per hit from each step's `HitPower`, and AP
+moving as the action reaches each Art. In parallel, the party's battle clips (attack, hit, KO) and
+the `UJRPGAnimNotify_Hit` markers on the Art clips that it needs.
