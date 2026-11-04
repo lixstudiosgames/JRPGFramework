@@ -1002,9 +1002,38 @@ static EJRPGArtButton ButtonForPad(FName Character, EPadButton Pad);
 // come back flagged, and LearnArt adds them
 TArray<FJRPGRecognizedArt> RecognizeArtSequence(FName Character, const TArray<EJRPGArtButton>& Input) const;
 TArray<FName> GetKnownArts(FName Character) const;
-bool LearnArt(FName Character, FName ArtKey);                           // true = newly learned
-void TeachArtToCharacter(const FString& CharacterName, FName ArtKey);   // preserved (Art books)
+bool HasLearnedArt(FName Character, FName ArtKey) const;   // BlueprintPure: dialogue / triggers branch on it
+bool LearnArt(FName Character, FName ArtKey);              // true = newly learned (on use, NPC, trigger, book)
+void TeachArtToCharacter(const FString& CharacterName, FName ArtKey);   // preserved; calls LearnArt
 ```
+
+### How each kind of Art is unlocked (decided 2026-11-04)
+
+The original's rules (RE `docs/subsystems/battle-action-queue.md` › `FUN_801EFBFC`,
+`docs/formats/art-data.md` › "Super Arts", `docs/subsystems/inventory.md` › "The Hyper-Art
+books"), kept as they are:
+
+| Kind | Unlocked by | In the original |
+|---|---|---|
+| **Regular** | Performing it: an unknown Art whose buttons the player enters is learned on that use (and plays as that Art, with the "learned" banner once). Or taught at any moment | `FUN_801EFBFC` inserts any id above the per-hero innate cap when the learn gate is open (otherwise a 1/512 roll) |
+| **Hyper** | **Only** taught: the Hyper-Art books, or any NPC / trigger. Entering its buttons without knowing it does nothing special (plain swings / the regular Arts inside it) | The Hyper ids sit under the innate cap, so learn-on-use never takes them; the books (`0x8F..0x97`, Fire / Wind / Thunder Book I–III, one line per hero) insert them |
+| **Super** | Not learned: it fires when **every Art in its chain is already known** before the turn. If the input unlocks one of them, that one is learned and plays, but the Super **does not complete** that turn; the next turn it does | The Super find/replace runs on the finished queue and needs every Art in it to be non-NEW: a newly learned Art is staged as `0x1A`, not `0x19`, so the find pattern does not match |
+| **Miracle** | Gated by the Ra-Seru, not by a learned list | `ctx[+0x25F + slot]` is raised from the hero's Ra-Seru equipment byte at battle load |
+
+So the flow on commit: recognize (overlap rule) → each recognized Art is checked against the
+learned list *as it was when the turn started* → Regulars not known are learned now (and count
+as new for the rest of this turn) → a Super is applied only over Arts that were known before the
+turn → specials checked against AP (open question 6).
+
+- **Teaching at any moment.** `LearnArt` is BlueprintCallable and works out of battle: an NPC,
+  a trigger, a cutscene or a book teaches an Art that the player never discovered. It returns
+  whether the Art is new, so the caller can show the notice once.
+- **`HasLearnedArt`** is the check for dialogue and triggers ("teach Vahn Hyper Elbow" only when
+  he does not have it; another line when he does).
+- **The 1/512 roll.** The original's learn gate (`actor[+0x266]`) has no known meaning and reads
+  open, so performing an unknown Regular always teaches it. The roll stays as a tunable
+  (`LearnOnUseChance`, default 100%) in case a stricter mode wants it, drawn from the fight's
+  `Rng`.
 
 Recognition follows the original's tokenizer (`FUN_801EED1C`; RE `crates/art/src/tokenize.rs`,
 `docs/subsystems/battle-action-queue.md` › "Normalize arrows into art constants"), **not** a
@@ -1019,12 +1048,11 @@ consuming longest-match:
   no `Directions` column — Noa's mirroring is resolved when the button is read). An Art the
   hero did not know is **learned by performing it** — the original's learn-on-use
   (`FUN_801EFBFC`: it inserts the Art in the hero's learned list and stages it with `0x1A`
-  instead of `0x19`, so the "learned" banner shows once). The original gates it (a per-hero cap
-  on the innate Arts and a learn flag, plus a 1/512 roll); which of those the remake keeps is
-  open question 7.
+  instead of `0x19`, so the "learned" banner shows once). Only Regular Arts are learned this way
+  ([How each kind of Art is unlocked](#how-each-kind-of-art-is-unlocked-decided-2026-11-04)).
 - **The learned list is saved.** It is per hero and goes into the save (a `TArray<FName>` of
   `DT_Arts` keys in `FJRPGPartyMember`, written by `UArtsSubsystem` only; `SaveVersion` goes up).
-  `TeachArtToCharacter` (the Art books) adds to the same list.
+  `LearnArt` / `TeachArtToCharacter` (books, NPCs, triggers) add to the same list.
 - A button that starts no Art is a plain swing (the connector).
 
 Validation for the generator: recompute each Super's whole input from its `Sequence` with the
@@ -1061,7 +1089,10 @@ Arts before it pay for it).
 **Acceptance, in Phase 6** (Art tester + automation tests, no fight): enter `Arms, Ra-Seru,
 High` as Vahn → "Hyper Elbow" is recognized and the right animation plays; Noa's mirrored input
 gives her Arts; the overlap case (Tri-Somersault from its seven buttons) recognizes every Art in
-it; an unknown Art is learned once and survives a save / load; each Super's `Command` matches
+it; an unknown Regular is learned once and survives a save / load; an unknown Hyper's buttons
+teach nothing, and `LearnArt` (the book / NPC path) teaches it, with `HasLearnedArt` flipping to
+true; Tri-Somersault entered while Cyclone is unknown learns Cyclone and plays the three Arts
+without the Super, and the same input on the next turn fires the Super; each Super's `Command` matches
 the one recomputed from its `Sequence`; the AP check at commit downgrades a special that does not
 fit and lets one paid by the regular Arts before it through (if open question 6 keeps that).
 
@@ -1330,9 +1361,10 @@ network-related.
 6. **AP in a chain** (Phase 6 › The input window, proposed): can AP gained by the regular Arts
    early in a chain pay for a special at its end (the proposal says yes); when exactly a regular
    Art credits (its first hit, its end) and a special debits (its start).
-7. **Learning Arts by performing them** (Phase 6 › `UArtsSubsystem`): which of the original's
-   gates stay (the per-hero innate cap, the learn flag, the 1/512 roll), and whether an unknown
-   Art still plays as that Art the first time (the original's) or only as swings.
+7. ~~Learning Arts by performing them~~ — settled 2026-11-04, the original's rules: Regulars on
+   use (and they play as the Art), Hypers only taught (books, NPCs, triggers), a Super only over
+   Arts known before the turn, Miracle by the Ra-Seru; `HasLearnedArt` for dialogue
+   ([How each kind of Art is unlocked](#how-each-kind-of-art-is-unlocked-decided-2026-11-04)).
 8. ~~The version switch~~ — settled 2026-11-04: the difficulty picks it (Easy = Japan,
    Normal = USA; Version rules). Whether the difficulty goes into the save is a separate,
    older question.
@@ -1344,7 +1376,8 @@ network-related.
 **Phase 6 (next):** `UArtsSubsystem` — `ButtonForPad` (Noa mirrored), recognition with the
 original's overlap, learn-on-use and the learned list in the save, the AP check at commit — as
 pure functions with automation tests, then the input window and the chain in the Art tester.
-Open questions 6 (AP in a chain) and 7 (learning Arts) are to settle with the user at the start.
+Open question 6 (AP in a chain) is to settle with the user at the start; how each kind of Art
+is unlocked is settled.
 
 **Phase 5 (after 6), door open** ([decided 2026-11-04](#pvp-online-and-co-op--door-open-decided-2026-11-04)):
 first the contracts (5.0 — the round, the logic timeline and its fallback, items,
