@@ -430,9 +430,6 @@ void UPartySubsystem::ApplyLevelUp(FJRPGPartyMember& Member)
 		Campo = FMath::Min(Campo + Ganho, Core->GetStatCap(FName(Stat)));
 	};
 
-	const int32 HPAntes = Member.MaxHP;
-	const int32 MPAntes = Member.MaxMP;
-
 	Sobe(TEXT("HP"), Member.MaxHP);
 	Sobe(TEXT("MP"), Member.MaxMP);
 	Sobe(TEXT("AGL"), Member.AGL);
@@ -442,10 +439,10 @@ void UPartySubsystem::ApplyLevelUp(FJRPGPartyMember& Member)
 	Sobe(TEXT("SPD"), Member.SPD);
 	Sobe(TEXT("INT"), Member.INT);
 
-	// Subir de level NÃO cura no original: só o que o máximo cresceu é somado
-	// ao atual, então quem estava ferido continua ferido.
-	Member.HP = FMath::Min(Member.HP + (Member.MaxHP - HPAntes), Member.MaxHP);
-	Member.MP = FMath::Min(Member.MP + (Member.MaxMP - MPAntes), Member.MaxMP);
+	// Subir de level NÃO cura no original, nem o que o máximo cresceu: o máximo sobe e o atual fica onde a luta o deixou
+	// (RE level-up.md, captura da Noa L2 -> L3: 164/182 HP vira 164/221, 16/16 MP vira 16/21).
+	Member.HP = FMath::Min(Member.HP, Member.MaxHP);
+	Member.MP = FMath::Min(Member.MP, Member.MaxMP);
 
 	UE_LOG(LogTemp, Log, TEXT("PartySubsystem: %s subiu para LV%d (HP %d, ATK %d)."),
 		*Member.Key.ToString(), Member.Level, Member.MaxHP, Member.ATK);
@@ -655,6 +652,17 @@ void UPartySubsystem::RestoreMP(FName Character, int32 Amount)
 		return;
 	}
 	M->MP = FMath::Min(M->MaxMP, M->MP + Amount);
+	OnPartyChanged.Broadcast();
+}
+
+void UPartySubsystem::SpendMP(FName Character, int32 Amount)
+{
+	FJRPGPartyMember* M = Roster.Find(Character);
+	if (!M || Amount <= 0)
+	{
+		return;
+	}
+	M->MP = FMath::Max(0, M->MP - Amount);
 	OnPartyChanged.Broadcast();
 }
 

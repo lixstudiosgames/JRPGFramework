@@ -150,7 +150,20 @@ public:
 	 * Começa a ação desta timeline: vira para o alvo, anda até o alcance dele (LeadFrames) e depois toca o clip de
 	 * cada passo no quadro lógico em que ele começa. Quem chama é o UJRPGBattleSceneSubsystem, no ActionStart.
 	 */
-	void BeginAction(const FJRPGActionTimeline& Timeline, const AJRPGBattlePawn* Target);
+	void BeginAction(const FJRPGActionTimeline& Timeline, AJRPGBattlePawn* Target);
+
+	/**
+	 * Quantos quadros a caminhada da ação que acabou de começar passa dos LeadFrames das regras (0 se cabe neles). O pawn anda em
+	 * velocidade constante (WalkSpeedUnits), então um alvo longe leva mais que os LeadFrames: a cena segura o resolvedor esse tanto
+	 * (UBattleSubsystem::StallResolver) e os passos da ação já vêm deslocados aqui.
+	 */
+	int32 GetApproachStallFrames() const { return ApproachStallFrames; }
+
+	/** Quantos quadros lógicos a caminhada da ação que começou leva (0 se não anda): o termo de distância das regras. */
+	int32 GetApproachFrames() const { return ApproachFrames; }
+
+	/** A ação em curso começou com uma caminhada até o alvo (ainda não fechada). */
+	bool IsWalkingApproach() const { return bActionActive && !bApproachSettled; }
 
 	/** O quadro lógico atual da luta: anda a aproximação, entra no passo que começou, fecha a ação. */
 	void UpdatePlayback(int32 LogicFrame);
@@ -202,6 +215,50 @@ public:
 	/** Onde ele vai parar: o fim do deslize em curso (recuo, acompanhar o alvo), senão onde está. */
 	FVector GetSettledLocation() const { return bSliding ? SlideTo : GetActorLocation(); }
 
+	// --- A formação (a cena move todo mundo, como o original) ----------------------------------
+
+	/**
+	 * Translada o pawn por Delta (no plano do chão) junto com tudo que ele guarda em posição de mundo (a caminhada, o deslize):
+	 * o recentrar da formação e o empurrão da separação se somam ao que ele já estiver fazendo.
+	 */
+	void TranslateBy(const FVector& Delta);
+
+	/**
+	 * Move só o destino da caminhada (o lugar de bater, calculado a partir do alvo). Quando a formação é comprimida, cada um anda
+	 * um tanto: o destino tem de andar o que o ALVO andou, não o que o atacante andou (TranslateBy já somou o do atacante).
+	 */
+	void TranslateApproachGoal(const FVector& Delta);
+
+	/** O alvo da ação em curso (nulo fora de ação). */
+	AJRPGBattlePawn* GetActionTarget() const { return bActionActive ? TargetPawn.Get() : nullptr; }
+
+	/**
+	 * As regras ficaram paradas Frames quadros (PvP: à espera da aproximação): os passos da ação andam o mesmo tanto, para o golpe
+	 * não tocar antes de o resolvedor resolver. A caminhada não muda (ela tem o relógio dela).
+	 */
+	void DelayAction(int32 Frames);
+
+	/** Sai da linha do ataque (o make-way do original): desliza Offset em Frames quadros lógicos, limitado pela arena. */
+	void StepAside(const FVector& Offset, int32 LogicFrame, int32 Frames);
+
+	/**
+	 * Empurrado por quem chegou para bater (o arrival shove do original): anda Offset de uma vez, no plano, limitado pela arena.
+	 * Quem está na ação dele não é empurrado.
+	 */
+	void ShoveBy(const FVector& Offset);
+
+	/** Está em pé na luta (vivo, à vista): entra na separação, no make-way e no recentrar. */
+	bool IsStanding() const;
+
+	/** O raio da separação do original, em cm: herói 0x280 unidades (a Terra 0x400), monstro classe de tamanho << 5. */
+	float SeparationRadiusCm() const;
+
+	/** A classe de tamanho deste combatente (a padrão se o monstro não a traz); 0 num herói. */
+	int32 GetSizeClass() const;
+
+	/** cm por unidade do PS1 (UnitsToCm). */
+	float GetUnitsToCm() const { return UnitsToCm; }
+
 	/** A fase da ação em curso: mora no pawn, em compasso com a timeline lógica. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle")
 	EJRPGActionPhase GetPhase() const { return Phase; }
@@ -242,6 +299,33 @@ public:
 	/** Menos que isto a andar, em cm, e ele nem anda (vai direto para o lugar): nada de passo no lugar. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Reach", meta = (ClampMin = "0.0"))
 	float MinWalkDistance = 40.0f;
+
+	/**
+	 * A velocidade da caminhada do monstro, em unidades do PS1 por quadro lógico (vsync). O original anda em velocidade constante
+	 * até a lei de alcance dizer "ao alcance"; os heróis têm a do disco (Vahn 42, Noa 44, Gala 28, Terra 48, a velocidade do clip de
+	 * andar), a dos monstros não foi exportada (+0x0C da entrada de andar): este é um valor médio, ajustável.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Reach", meta = (ClampMin = "1.0"))
+	float EnemyWalkSpeedUnits = 36.0f;
+
+	/**
+	 * O passo do fim do clip (+0x0E no original): o clip de reação (e o de golpe) termina com o corpo deslocado da pose do idle. Na
+	 * volta ao idle, esse deslocamento vira posição do ator, e o idle entra sem mistura: o corpo fica onde o clip o deixou, em vez de
+	 * deslizar de volta no crossfade.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Knockback")
+	bool bApplyEndStep = true;
+
+	/**
+	 * O arrival shove do original: quando a caminhada até o alvo fecha, o alvo é empurrado até a borda do alcance, para os dois
+	 * não ficarem colados (a margem de parada e o que o alvo andou durante a caminhada).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Reach")
+	bool bApplyArrivalShove = true;
+
+	/** Abaixo disto, em cm, o deslocamento do fim do clip é ignorado (o idle entra com a mistura normal). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Knockback", meta = (ClampMin = "0.0"))
+	float EndStepMinDistance = 3.0f;
 
 	/** Quadros lógicos que o atacante leva para fechar a distância de novo no começo de cada passo (o reach snap do original é de um quadro). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Reach", meta = (ClampMin = "1"))
@@ -285,9 +369,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Sound")
 	TObjectPtr<USoundBase> MissSound;
 
-	/** Quantos quadros lógicos o idle espera pelo fim real do último clip da ação quando a ação (os dados) acaba antes dele. */
+	/**
+	 * Quantos quadros lógicos o idle espera pelo fim real do último clip da ação quando a ação (os dados) acaba antes dele. O
+	 * original nunca corta o último clip (o estado 0x20 espera ele voltar ao idle); o teto só protege de um clip errado e longo.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Idle", meta = (ClampMin = "0"))
-	int32 MaxIdleHandoffWait = 30;
+	int32 MaxIdleHandoffWait = 600;
 
 	/**
 	 * O fade de derrota do monstro (lanes 0x100 -> 0 em ~32 vsyncs): o nome do parâmetro escalar do material, de 1 (inteiro) a 0
@@ -350,7 +437,23 @@ private:
 	void AdvanceReaction(int32 LogicFrame);
 	/** O quadro lógico do fim do clip chegou: o papel seguinte, ou o fim da cadeia. */
 	void OnReactionEnded(int32 LogicFrame);
-	void ReturnToIdle();
+	/** Volta ao idle com o passo do fim do clip; bAfterAction: o atacante no fim da ação (o passo vai só até a borda do alcance). */
+	void ReturnToIdle(bool bAfterAction);
+
+	/** PlayClip com o tempo de mistura dado (0 = corte seco). */
+	void PlayClipBlended(UAnimSequence* Clip, bool bLoop, float PlayRate, float BlendTime);
+
+	/**
+	 * Entra no idle aplicando o passo do fim do clip (bApplyEndStep): o deslocamento do corpo em relação à pose do idle vira posição
+	 * do ator (limitada pela arena) e o idle entra sem mistura. Sem a pose do idle medida ainda, é o PlayIdle de sempre.
+	 */
+	void SettleIntoIdle(const AJRPGBattlePawn* KeepReachOf = nullptr);
+
+	/** O centro das posições dos bones (menos a raiz) na pose atual, no espaço do componente. */
+	FVector PoseCentroid() const;
+
+	/** A velocidade da caminhada em cm por quadro lógico (a do disco nos heróis, EnemyWalkSpeedUnits nos monstros). */
+	float WalkSpeedCm() const;
 
 	/** O fade e o afundar do monstro derrotado, depois do knockdown. */
 	void BeginDeathFade(int32 LogicFrame);
@@ -368,6 +471,13 @@ private:
 	/** Desliza até To em Frames quadros lógicos, a partir do quadro dado (o recuo do defensor, o acompanhar do atacante). */
 	void StartSlide(const FVector& To, int32 LogicFrame, int32 Frames);
 	void UpdateSlide(int32 LogicFrame);
+
+	/**
+	 * O arrival shove do original (estado 0x16, 0x801E33EC..0x801E3490): fechada a caminhada, o alvo é empurrado ao longo da
+	 * direção do atacante até a borda do alcance (o laço roda enquanto a lei de alcance diz "dentro"). Só depois de uma caminhada:
+	 * quem já começa ao alcance pula o estado 0x16 (e o empurrão) direto para 0x1E.
+	 */
+	void ArrivalShove();
 
 	/** O alcance, em cm, entre este pawn e o alvo, pela lei de alcance do original (ou o ReachDistance fixo). */
 	float ReachFor(const AJRPGBattlePawn* Target) const;
@@ -401,7 +511,7 @@ private:
 	bool bUsesAnimClass = false;
 
 	TWeakObjectPtr<AJRPGBattleArena> Arena;
-	TWeakObjectPtr<const AJRPGBattlePawn> TargetPawn;
+	TWeakObjectPtr<AJRPGBattlePawn> TargetPawn;
 
 	/** As ações do monstro (DT_EnemyActions) e o conjunto de clips dele (DT_Enemies), lidos no InitCombatant. */
 	TArray<FJRPGEnemyActionData> EnemyActions;
@@ -417,8 +527,21 @@ private:
 
 	FVector ApproachFrom = FVector::ZeroVector;
 	FVector ApproachTo = FVector::ZeroVector;
-	/** A aproximação (os LeadFrames) já foi fechada no lugar final. */
+	/** A aproximação já foi fechada no lugar final. */
 	bool bApproachSettled = true;
+	/** A caminhada da ação: o quadro em que começa (o StartFrame original da ação), quantos quadros leva na velocidade constante e
+	 *  quanto passa dos LeadFrames (os passos da ação são deslocados disso). */
+	int32 ApproachStartFrame = 0;
+	int32 ApproachFrames = 0;
+	int32 ApproachStallFrames = 0;
+
+	/** A pose do idle medida (o centro dos bones, espaço do componente): a referência do passo do fim do clip. */
+	FVector NeutralCentroid = FVector::ZeroVector;
+	bool bHasNeutralCentroid = false;
+	/** O idle toca desde este quadro lógico (INDEX_NONE = outro clip toca). */
+	int32 IdleSinceFrame = INDEX_NONE;
+	/** Quadros lógicos vistos com o idle tocando (a pose só é medida depois de a mistura de entrada acabar). */
+	int32 IdleFramesSeen = 0;
 	bool bDown = false;
 
 	/** O último quadro lógico que o pawn viu (UpdatePlayback / BeginAction): a hora dos sons de clip e do log. */

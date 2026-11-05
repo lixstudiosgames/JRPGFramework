@@ -231,9 +231,10 @@ namespace JRPGBattleUITests
 		TestEqual(TEXT("do primeiro herói volta à Start"), AsInt(Menu.GetScreen()), AsInt(EScreen::Start));
 		Menu.Press(EKey::Left);
 
-		// Refaz: Vahn Attack (Arms) na Frog A; Noa (canhota: o Arms é a DIREITA) Arms + Ra-Seru; Gala Low, na Frog B
+		// Refaz: Vahn Attack (Arms) na Frog A; Noa (canhota: o Arms é a DIREITA) Arms + Ra-Seru; Gala Low, na Frog B.
+		// O Vahn já mandou um Arms nesta luta: a janela de entrada abre com ele digitado (repetir é só confirmar)
 		Menu.Press(EKey::Left);
-		Menu.Press(EKey::Left);
+		TestTrue(TEXT("a janela abre com a última cadeia do Vahn"), Menu.GetButtons() == TArray<EJRPGArtButton>({ Ar }));
 		Menu.Press(EKey::Confirm);
 		Menu.Press(EKey::Confirm);
 		TestEqual(TEXT("Noa"), Menu.GetPlan().CurrentSlot(), 1);

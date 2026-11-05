@@ -64,7 +64,11 @@ window.JRPGDev = (function () {
         member: 'dev-member',
         plevel: 'dev-plevel',
         pstat:  'dev-pstat',
-        pval:   'dev-pval'
+        pval:   'dev-pval',
+        enemy:  'dev-enemy',
+        ecount: 'dev-ecount',
+        elevel: 'dev-elevel',
+        efilter: 'dev-efilter'
     };
 
     function fill(tpl) {

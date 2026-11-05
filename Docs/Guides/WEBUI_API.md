@@ -32,7 +32,7 @@ confirms, **B/Circle** closes, **LB/RB** switch tabs (options screen; **Q/E** on
 
 The mapping happens in C++ (`SUltralightBrowser::OnKeyDown`) and reaches JS as a semantic
 action:
-`handleUIInput('up'|'down'|'left'|'right'|'confirm'|'cancel'|'tab_prev'|'tab_next')` —
+`handleUIInput('up'|'down'|'left'|'right'|'confirm'|'cancel'|'tab_prev'|'tab_next'|'list')` (`list` = Triangle / Y) —
 the keyboard uses the same path. Opening the menu with Start is the game's Input Action
 calling `OpenMenu()`.
 
@@ -94,9 +94,19 @@ when the round plays. The flow, the rules and the C++ side are in
   targets: {list:[{name}], cursor} | null,                              // Target ("Frog A", "Frog B")
   tactics: {rows:[{name, pick}], options:[…], row, confirmRow, confirm} | null,
   summary: [{who, what, target}],          // the Final screen: "Vahn | Attack | Frog A"
-  autobattle: {on, pending}                // pending: the Start screen is counting down to the auto round
+  autobattle: {on, pending},               // pending: the Start screen is counting down to the auto round
+  artlist: [{name, ap, cost, dirs:['left'|'up'|'right'|'down', …]}] | null
+                                           // Command / Attack screens: the hero's known Arts for the Triangle panel,
+                                           // already sorted (Hyper, Miracle, Super, Regular; more AP first); cost = the
+                                           // Art takes AP (shown "-N"), else it gives AP (shown "N"); dirs already follow
+                                           // the hero's hand
 }
 ```
+
+The Arts panel (`#bt-artlist`) is screen-only state: Triangle (`handleUIInput('list')`, keyboard **E**) opens and
+closes it, L1 / R1 (`tab_prev` / `tab_next`, keyboard **Q / R** or PageUp / PageDown) change the page, five Arts per
+page; the d-pad keeps typing while it is open. None of it reaches C++. The Attack screen also opens with the hero's
+last chain of this fight already typed (`FJRPGBattleMenu::PrefillButtons`, cut to what fits this round's gauge).
 
 `dpad.*.enabled` false = drawn dimmed with an **X over the button** and not selectable. The game rules
 (what fits in the gauge, which direction is which button for a left-handed hero, who can be targeted,

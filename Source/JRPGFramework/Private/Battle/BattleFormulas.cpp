@@ -195,8 +195,10 @@ int32 UBattleFormulas::ScalePercent(int64 Value, int32 Percent)
 
 bool UBattleFormulas::RollBlock(const FJRPGBlockInput& Input, FJRPGRand15 Draw)
 {
-	int64 A = Positive(static_cast<int64>(Input.AttackerSPD) + static_cast<int64>(Input.AttackerATK) * 4 / 5);
-	int64 D = Positive(static_cast<int64>(Input.DefenderSPD) + static_cast<int64>(Input.DefenderATK) * 4 / 5);
+	// Os termos da aproximação somam antes do máximo (block.rs: spd + atk*4/5 + ramp): de lado ou de costas o atacante passa
+	// muito à frente e o block quase não sai; a caminhada longa dá ao defensor um pouco
+	int64 A = Positive(static_cast<int64>(Input.AttackerSPD) + static_cast<int64>(Input.AttackerATK) * 4 / 5 + Positive(Input.AttackRamp));
+	int64 D = Positive(static_cast<int64>(Input.DefenderSPD) + static_cast<int64>(Input.DefenderATK) * 4 / 5 + Positive(Input.GuardRamp));
 	if (A < D)
 	{
 		A = D;
@@ -233,11 +235,13 @@ FJRPGMeleeResult UBattleFormulas::ResolveMelee(const FJRPGMeleeInput& Input, FJR
 	const int64 Juggle = Positive(Input.Juggle);
 	const int32 Elem = Input.ElementPercent;
 
-	// 1 - o ataque: (atk + rand % (atk/8 + 1)) * Power >> 4, o HP do atacante, o juggle. O ângulo é 0.
+	// 1 - o ataque: (atk + rand % (atk/8 + 1)) * Power >> 4, o HP do atacante, o juggle, o ângulo
 	const int64 AttackRoll = Rnd(static_cast<int32>(FMath::Min<int64>(Atk, MAX_int32)), Draw);
 	int64 Offense = (AttackRoll * Power) >> 4;
 	Offense += Positive(Input.AttackerHP) >> 8;
 	Offense += (Juggle * Atk) >> 6;
+	// O termo de ângulo (physical.rs: (attack_ramp * atk) >> 16): de costas, até atk/32 a mais
+	Offense += (Positive(Input.AttackRamp) * Atk) >> 16;
 
 	// 2 - a Art x13/10 e o elemento; o elemento sempre, então a Art o leva duas vezes
 	if (Input.bArt)
@@ -247,9 +251,11 @@ FJRPGMeleeResult UBattleFormulas::ResolveMelee(const FJRPGMeleeInput& Input, FJR
 	}
 	Offense = Offense * Elem / 100;
 
-	// 3 - a defesa: def + rand % (def/8 + 1); a distância é 0; o Spirit x3
+	// 3 - a defesa: def + rand % (def/8 + 1), a distância, o Spirit x3
 	const int64 Def = Positive(Input.DefenderDefense);
 	int64 Defense = Rnd(static_cast<int32>(FMath::Min<int64>(Def, MAX_int32)), Draw);
+	// O termo de distância (physical.rs: (def * guard_ramp) >> 10), antes do x3 do Spirit
+	Defense += (Def * Positive(Input.GuardRamp)) >> 10;
 	if (Input.bDefenderGuarding)
 	{
 		Defense *= 3;

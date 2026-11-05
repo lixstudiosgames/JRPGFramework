@@ -136,6 +136,42 @@ public:
 	EJRPGArenaFormation Formation = EJRPGArenaFormation::Original;
 
 	/**
+	 * O recentrar da formação do original (FUN_801EFE44 no começo de cada ação, FUN_801DB318 no começo da rodada): todo mundo
+	 * é transladado para o alvo do golpe (ou o centro de todos, numa ação sem golpe e no começo da rodada) ficar no centro da
+	 * arena, e uma formação mais larga que FormationSpanLimitUnits num eixo é comprimida. É o que impede a luta de ir parar
+	 * na borda (o chefe empurrado até o fim da arena, com a party amontoada em cima dele). A cena avisa as câmeras
+	 * (UJRPGBattleSceneSubsystem::OnFormationShifted) para andarem junto, como o foco da câmera do original.
+	 * Desligado por padrão enquanto a câmera da luta é fixa (o salto aparece); ligar quando as câmeras de ação seguirem o evento.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation")
+	bool bRecentreFormation = false;
+
+	/**
+	 * 0 = de uma vez, como o original (a câmera anda junto no mesmo quadro e ninguém vê; com a câmera fixa o salto aparece).
+	 * > 0 = desliza nesses quadros lógicos (para uma arena com câmera fixa que não segue o OnFormationShifted).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (ClampMin = "0", EditCondition = "bRecentreFormation"))
+	int32 RecentreFrames = 0;
+
+	/** A maior largura da formação num eixo, em unidades do PS1 (0x800 no original); mais que isso é comprimido. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (ClampMin = "0.0", EditCondition = "bRecentreFormation"))
+	float FormationSpanLimitUnits = 2048.0f;
+
+	/** O make-way do original: quem está em volta sai da linha do atacante que anda até o alvo (classe de tamanho * 8 unidades). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation")
+	bool bMakeWay = true;
+
+	/**
+	 * A separação do original (FUN_80051078 a cada quadro): dois combatentes mais perto que (r1 + r2) / 6 se afastam
+	 * SeparationStepUnits por par por quadro (o raio: herói 0x280, Terra 0x400, monstro classe << 5 unidades).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation")
+	bool bSeparation = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (ClampMin = "0.0", EditCondition = "bSeparation"))
+	float SeparationStepUnits = 4.0f;
+
+	/**
 	 * Original: a família alternada das linhas de inimigos (3 e 4 inimigos mudam; 1 e 2 são
 	 * iguais). No jogo é a das lutas sem fuga / emboscadas (DAT_8007BD60 bit 7).
 	 */

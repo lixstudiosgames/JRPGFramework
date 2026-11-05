@@ -5587,6 +5587,105 @@ html.kbd-mode #screen-dev * {
     color: var(--gold-light);
     font-variant-numeric: tabular-nums;
 }
+
+/* --------------------------------------------------------- lista de consulta das Arts (o painel do Triângulo) */
+#bt-artlist {
+    position: absolute;
+    left: 50px;
+    top: 124px;
+    display: none;
+}
+
+#bt-artlist.active {
+    display: block;
+}
+
+/* Fechada: só a aba que diz como abrir */
+.bt-al-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 22px;
+    background: linear-gradient(180deg, #34389a 0%, #1b1e75 100%);
+    border: 3px solid var(--border-gold);
+    border-radius: 10px;
+    font-size: 26px;
+    font-weight: 600;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+    cursor: pointer;
+}
+
+.bt-al-tab:hover {
+    border-color: var(--gold-bright);
+}
+
+/* Aberta: o painel azul com cinco Arts por página */
+.bt-al-panel {
+    width: 640px;
+    padding: 14px 22px 12px;
+    background: linear-gradient(180deg, #2a2f9a 0%, #161a6e 100%);
+    border: 4px solid #c9a35a;
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+}
+
+.bt-al-row {
+    padding: 8px 0 10px;
+    border-bottom: 1px solid rgba(201, 163, 90, 0.25);
+}
+
+.bt-al-row:last-of-type {
+    border-bottom: none;
+}
+
+.bt-al-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.bt-al-name {
+    font-size: 34px;
+    font-weight: 600;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+}
+
+.bt-al-ap {
+    font-size: 34px;
+    font-weight: 700;
+    color: #f0a040;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+    font-variant-numeric: tabular-nums;
+}
+
+.bt-al-ap.cost {
+    color: #ff7a6a;
+}
+
+.bt-al-dirs {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 30px;
+    color: #9fb0ff;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+}
+
+.bt-al-foot {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    font-size: 22px;
+    color: var(--gold-light);
+}
+
+.bt-al-empty {
+    padding: 16px 0;
+    font-size: 26px;
+    opacity: 0.8;
+}
     </style>
 </head>
 <body>
@@ -6264,6 +6363,7 @@ html.kbd-mode #screen-dev * {
             <button class="dev-tab" data-tab="3">Mundo &amp; Save</button>
             <button class="dev-tab" data-tab="4">Party</button>
             <button class="dev-tab" data-tab="5">Telas</button>
+            <button class="dev-tab" data-tab="6">Battle</button>
         </div>
 
         <div id="dev-main">
@@ -6513,6 +6613,51 @@ html.kbd-mode #screen-dev * {
                 </div>
             </div>
 
+            <!-- ---------- 6: BATTLE ---------- -->
+            <div class="dev-panel" data-panel="6">
+                <div class="dev-row">
+                    <label>Inimigos</label>
+                    <input id="dev-enemy" type="text" value="gimard" placeholder="key do DT_Enemies, ou v&aacute;rias: gimard,vera,vera">
+                    <label>Qtd</label>
+                    <input id="dev-ecount" type="number" value="1" min="1" max="8">
+                    <label>Level</label>
+                    <input id="dev-elevel" type="number" value="1" min="1" max="99">
+                    <button class="dev-btn" data-tpl="battle.start {enemy} {ecount} {elevel}">Come&ccedil;ar luta</button>
+                </div>
+                <div class="dev-row">
+                    <span class="dev-note">Uma key repete &quot;Qtd&quot; vezes; v&aacute;rias keys separadas por v&iacute;rgula entram uma de cada. A luta come&ccedil;a onde o jogador est&aacute; e fecha o dev menu.</span>
+                </div>
+                <div class="dev-row">
+                    <label>R&aacute;pidas</label>
+                    <button class="dev-btn" data-cmd="battle.start gimard 1 1">Gimard</button>
+                    <button class="dev-btn" data-cmd="battle.start gimard 3 1">3 Gimard</button>
+                    <button class="dev-btn" data-cmd="battle.start vera 2 1">2 Vera (voa)</button>
+                    <button class="dev-btn" data-cmd="battle.start evil_fly 1 1">Evil Fly (voa)</button>
+                    <button class="dev-btn" data-cmd="battle.start gimard,vera,evil_fly 1 1">Misto</button>
+                </div>
+                <div class="dev-row">
+                    <label>Procurar</label>
+                    <input id="dev-efilter" type="text" placeholder="parte do nome (vazio = todos)">
+                    <button class="dev-btn" data-tpl="battle.enemies {efilter}">Listar keys</button>
+                </div>
+                <div class="dev-row">
+                    <label>Encerrar</label>
+                    <button class="dev-btn" data-cmd="battle.end victory">Vit&oacute;ria</button>
+                    <button class="dev-btn" data-cmd="battle.end defeat">Derrota</button>
+                    <button class="dev-btn" data-cmd="battle.end escape">Fuga</button>
+                    <button class="dev-btn" data-cmd="battle.end abort">Abortar</button>
+                    <span class="dev-note">A vit&oacute;ria daqui paga EXP e Gold de todos os inimigos, vivos tamb&eacute;m.</span>
+                </div>
+                <div class="dev-row">
+                    <label>Arts</label>
+                    <button class="dev-btn" data-cmd="arts.learnall all">Liberar todas</button>
+                    <button class="dev-btn" data-cmd="arts.learnall Vahn">S&oacute; Vahn</button>
+                    <button class="dev-btn" data-cmd="arts.learnall Noa">S&oacute; Noa</button>
+                    <button class="dev-btn" data-cmd="arts.learnall Gala">S&oacute; Gala</button>
+                    <span class="dev-note">Todas as Arts do DT_Arts (menos as Parts) de quem est&aacute; no roster.</span>
+                </div>
+            </div>
+
         </div>
 
         <!-- Console ao LADO, não embaixo: empilhado ele comia a altura toda e
@@ -6569,6 +6714,10 @@ html.kbd-mode #screen-dev * {
         <div id="bt-final">
             <div id="bt-final-rows"></div>
         </div>
+
+        <!-- A lista de consulta das Arts (o painel do Triângulo do original): abre e fecha com Triângulo / E, L1 / R1 (Q / R)
+             trocam a página. Só desenha o que a view traz (view.artlist); o direcional continua digitando com ela aberta. -->
+        <div id="bt-artlist"></div>
 
         <div id="bt-refusal"></div>
         <div id="bt-art"></div>
@@ -11305,7 +11454,11 @@ window.JRPGDev = (function () {
         member: 'dev-member',
         plevel: 'dev-plevel',
         pstat:  'dev-pstat',
-        pval:   'dev-pval'
+        pval:   'dev-pval',
+        enemy:  'dev-enemy',
+        ecount: 'dev-ecount',
+        elevel: 'dev-elevel',
+        efilter: 'dev-efilter'
     };
 
     function fill(tpl) {
@@ -11692,6 +11845,12 @@ window.JRPGBattle = (function () {
     let isOpen = false;
     let view = null;
 
+    // A lista de consulta das Arts: aberta ou não, e a página (cinco por página, como o painel do original). Estado só de tela:
+    // os dados (as Arts, o AP, as setas pela mão do herói) chegam prontos em view.artlist
+    const ARTS_PER_PAGE = 5;
+    let listOpen = false;
+    let listPage = 0;
+
     function esc(text) {
         return String(text === undefined || text === null ? '' : text)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -11851,6 +12010,64 @@ window.JRPGBattle = (function () {
             `<span class="bt-final-what">${esc(s.what)}</span><span class="bt-final-target">${esc(s.target)}</span></div>`).join('');
     }
 
+    const ARROWS = { left: '&#9664;', up: '&#9650;', right: '&#9654;', down: '&#9660;' };
+
+    function drawArtList(v) {
+        const box = el('bt-artlist');
+        if (!box) return;
+        const list = v && v.artlist;
+        if (!list) {
+            box.innerHTML = '';
+            box.classList.remove('active');
+            return;
+        }
+        box.classList.add('active');
+        if (!listOpen) {
+            box.innerHTML = '<div class="bt-al-tab"><span class="key-badge">&#9651; / E</span> Arts</div>';
+        } else {
+            const pages = Math.max(1, Math.ceil(list.length / ARTS_PER_PAGE));
+            listPage = Math.max(0, Math.min(listPage, pages - 1));
+            const rows = list.slice(listPage * ARTS_PER_PAGE, (listPage + 1) * ARTS_PER_PAGE).map(a => {
+                // O original: a Art que tira AP leva o "-"; a que dá fica só com o número
+                const ap = a.cost ? `-${a.ap}` : `${a.ap}`;
+                const dirs = (a.dirs || []).map(d => `<span>${ARROWS[d] || '?'}</span>`).join('');
+                return `<div class="bt-al-row">
+                    <div class="bt-al-line"><span class="bt-al-name">${esc(a.name)}</span>
+                        <span class="bt-al-ap${a.cost ? ' cost' : ''}">${ap}</span></div>
+                    <div class="bt-al-dirs">${dirs}</div>
+                </div>`;
+            }).join('');
+            box.innerHTML = `<div class="bt-al-panel">
+                ${rows || '<div class="bt-al-empty">No Arts learned yet.</div>'}
+                <div class="bt-al-foot">
+                    <span><span class="key-badge">L1 / Q</span> <span class="key-badge">R1 / R</span> Page ${listPage + 1}/${pages}</span>
+                    <span><span class="key-badge">&#9651; / E</span> Close</span>
+                </div>
+            </div>`;
+        }
+        const clickable = box.querySelector('.bt-al-tab, .bt-al-foot');
+        if (clickable) {
+            clickable.onmouseenter = () => { if (window.InputMode) InputMode.useMouse(); };
+            clickable.onclick = () => toggleArtList();
+        }
+    }
+
+    function toggleArtList() {
+        if (!view || !view.artlist) return;
+        listOpen = !listOpen;
+        listPage = 0;
+        drawArtList(view);
+        if (typeof kickUIRepaint === 'function') kickUIRepaint();
+    }
+
+    function pageArtList(delta) {
+        if (!listOpen || !view || !view.artlist) return;
+        const pages = Math.max(1, Math.ceil(view.artlist.length / ARTS_PER_PAGE));
+        listPage = (listPage + delta + pages) % pages;
+        drawArtList(view);
+        if (typeof kickUIRepaint === 'function') kickUIRepaint();
+    }
+
     function drawRefusal(v) {
         const box = el('bt-refusal');
         if (!box) return;
@@ -11873,6 +12090,7 @@ window.JRPGBattle = (function () {
         drawTargets(v);
         drawTactics(v);
         drawFinal(v);
+        drawArtList(v);
         drawRefusal(v);
 
         // O d-pad é a peça isolada (95_battle_dpad.js): a posição (centro ou à direita) é do CSS, pela tela
@@ -11943,6 +12161,10 @@ window.JRPGBattle = (function () {
                 case 'up': case 'down': case 'left': case 'right': case 'confirm': case 'cancel':
                     send(action);
                     break;
+                // A lista de consulta das Arts é só tela: abrir, fechar e paginar não falam com o C++
+                case 'list':     toggleArtList(); break;
+                case 'tab_prev': pageArtList(-1); break;
+                case 'tab_next': pageArtList(1);  break;
                 default:
                     break;
             }
@@ -11952,8 +12174,10 @@ window.JRPGBattle = (function () {
             hideSection();
             isOpen = false;
             view = null;
-            ['bt-crumbs', 'bt-auto', 'bt-art', 'bt-party', 'bt-targets-list', 'bt-tactics-rows', 'bt-final-rows', 'bt-refusal'
-            ].forEach(id => { const n = el(id); if (n) n.innerHTML = ''; });
+            listOpen = false;
+            listPage = 0;
+            ['bt-crumbs', 'bt-auto', 'bt-art', 'bt-party', 'bt-targets-list', 'bt-tactics-rows', 'bt-final-rows', 'bt-refusal',
+             'bt-artlist'].forEach(id => { const n = el(id); if (n) n.innerHTML = ''; });
             if (window.JRPGBattleDpad) JRPGBattleDpad.clear(el('bt-dpad'));
         },
 
@@ -11971,18 +12195,27 @@ window.JRPGBattle = (function () {
             const b = (label, enabled, cost) => ({ label, enabled, cost: cost === undefined ? -1 : cost });
             const base = {
                 round: 1, sfx: '', crumbs: [], party, focus: -1, refusal: '', art: null, targets: null, tactics: null,
-                summary: [], autobattle: { on: false, pending: false },
+                summary: [], autobattle: { on: false, pending: false }, artlist: null,
                 dpad: pad(null, null, null, null)
             };
+            const sampleArts = [
+                { name: 'Tornado Flame', ap: 30, cost: true, dirs: ['right', 'right', 'left'] },
+                { name: "Vahn's Craze", ap: 100, cost: true, dirs: ['right', 'down', 'left', 'up', 'left', 'down', 'right'] },
+                { name: 'Slash Kick', ap: 12, cost: false, dirs: ['down', 'up', 'right'] },
+                { name: 'Hyper Elbow', ap: 9, cost: false, dirs: ['left', 'right', 'left'] },
+                { name: 'Somersault', ap: 8, cost: false, dirs: ['up', 'down', 'up'] },
+                { name: 'Power Punch', ap: 6, cost: false, dirs: ['left', 'left', 'up'] }
+            ];
             const screens = {
                 start: { screen: 'start', dpad: pad(b('Begin', true), b('Tactics', true), b('Escape', true), null) },
                 escape: { screen: 'escape', crumbs: ['Escape'], dpad: pad(b('Confirm', true), null, b('Cancel', true), null) },
                 command: {
-                    screen: 'command', crumbs: ['Begin', 'Vahn'], focus: 0,
+                    screen: 'command', crumbs: ['Begin', 'Vahn'], focus: 0, artlist: sampleArts,
                     dpad: pad(b('Attack', true), b('Item', false), b('Meta', false), b('Spirit', false))
                 },
                 attack: {
                     screen: 'attack', crumbs: ['Begin', 'Vahn', 'Attack'], focus: 0, refusal: 'Not enough gauge for that button.',
+                    artlist: sampleArts,
                     dpad: pad(b('Arms', true, 30), b('High', true, 54), b('Ra-Seru', true, 42), b('Low', false, 54)),
                     art: { chips: [{ label: 'Ra-Seru', cost: 42 }, { label: 'Ra-Seru', cost: 42 }], gauge: 160, left: 76, slots: 5, slotsLeft: 2 }
                 },
@@ -12025,6 +12258,10 @@ window.JRPGBattle = (function () {
             case 'ArrowRight': case 'd': case 'D': handleUIInput('right');   event.preventDefault(); break;
             case 'Enter': case ' ':                handleUIInput('confirm'); event.preventDefault(); break;
             case 'Escape': case 'Backspace':       handleUIInput('cancel');  event.preventDefault(); break;
+            // A lista de Arts: E abre / fecha (o Triângulo do controle), Q / R (ou PageUp / PageDown) trocam a página (L1 / R1)
+            case 'e': case 'E':                    handleUIInput('list');     event.preventDefault(); break;
+            case 'q': case 'Q': case 'PageUp':     handleUIInput('tab_prev'); event.preventDefault(); break;
+            case 'r': case 'R': case 'PageDown':   handleUIInput('tab_next'); event.preventDefault(); break;
             default: break;
         }
     });

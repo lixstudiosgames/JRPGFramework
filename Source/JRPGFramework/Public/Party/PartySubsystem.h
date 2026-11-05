@@ -234,6 +234,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Party|Vitals")
 	void RestoreMP(FName Character, int32 Amount);
 
+	/** Tira MP (o gasto numa luta, gravado na volta); nunca abaixo de 0. */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Party|Vitals")
+	void SpendMP(FName Character, int32 Amount);
+
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Party|Vitals")
 	void SetAP(FName Character, int32 NewAP);
 

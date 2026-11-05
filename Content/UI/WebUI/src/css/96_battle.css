@@ -512,3 +512,102 @@
     color: var(--gold-light);
     font-variant-numeric: tabular-nums;
 }
+
+/* --------------------------------------------------------- lista de consulta das Arts (o painel do Triângulo) */
+#bt-artlist {
+    position: absolute;
+    left: 50px;
+    top: 124px;
+    display: none;
+}
+
+#bt-artlist.active {
+    display: block;
+}
+
+/* Fechada: só a aba que diz como abrir */
+.bt-al-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 22px;
+    background: linear-gradient(180deg, #34389a 0%, #1b1e75 100%);
+    border: 3px solid var(--border-gold);
+    border-radius: 10px;
+    font-size: 26px;
+    font-weight: 600;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+    cursor: pointer;
+}
+
+.bt-al-tab:hover {
+    border-color: var(--gold-bright);
+}
+
+/* Aberta: o painel azul com cinco Arts por página */
+.bt-al-panel {
+    width: 640px;
+    padding: 14px 22px 12px;
+    background: linear-gradient(180deg, #2a2f9a 0%, #161a6e 100%);
+    border: 4px solid #c9a35a;
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+}
+
+.bt-al-row {
+    padding: 8px 0 10px;
+    border-bottom: 1px solid rgba(201, 163, 90, 0.25);
+}
+
+.bt-al-row:last-of-type {
+    border-bottom: none;
+}
+
+.bt-al-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.bt-al-name {
+    font-size: 34px;
+    font-weight: 600;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+}
+
+.bt-al-ap {
+    font-size: 34px;
+    font-weight: 700;
+    color: #f0a040;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+    font-variant-numeric: tabular-nums;
+}
+
+.bt-al-ap.cost {
+    color: #ff7a6a;
+}
+
+.bt-al-dirs {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 30px;
+    color: #9fb0ff;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+}
+
+.bt-al-foot {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 10px;
+    font-size: 22px;
+    color: var(--gold-light);
+}
+
+.bt-al-empty {
+    padding: 16px 0;
+    font-size: 26px;
+    opacity: 0.8;
+}

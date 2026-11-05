@@ -571,6 +571,55 @@ bool FJRPGBattleResolver::SubmitInput(const FJRPGBattleInput& Input, FString* Ou
 	return true;
 }
 
+bool FJRPGBattleResolver::SubmitApproach(const FJRPGApproachInput& Approach, FString* OutWhy)
+{
+	auto Refuse = [OutWhy](const FString& Why)
+	{
+		if (OutWhy)
+		{
+			*OutWhy = Why;
+		}
+		return false;
+	};
+	if (State.Stage != EJRPGBattleStage::Execution || !State.Action.bActive)
+	{
+		return Refuse(TEXT("nenhuma ação em curso"));
+	}
+	if (Approach.ActionIndex != State.Action.Timeline.ActionIndex)
+	{
+		return Refuse(FString::Printf(TEXT("a aproximação é da ação %d, a em curso é a %d"), Approach.ActionIndex, State.Action.Timeline.ActionIndex));
+	}
+	if (State.Action.bApproachReceived || State.Action.bApproachSpent)
+	{
+		return Refuse(TEXT("a ação já recebeu (ou já gastou) a aproximação dela"));
+	}
+	FJRPGApproachInput Clamped = Approach;
+	Clamped.AttackRamp = FMath::Clamp(Approach.AttackRamp, 0, 0x800);
+	Clamped.GuardRamp = FMath::Clamp(Approach.GuardRamp, 0, 0x7FFF);
+	State.Action.bApproachReceived = true;
+	State.Action.AttackRamp = Clamped.AttackRamp;
+	State.Action.GuardRamp = Clamped.GuardRamp;
+	State.Approaches.Add(Clamped);
+	return true;
+}
+
+bool FJRPGBattleResolver::IsWaitingForApproach() const
+{
+	const FJRPGActiveAction& Action = State.Action;
+	if (!bRequireApproach || State.bFinished || State.Stage != EJRPGBattleStage::Execution || !Action.bActive
+		|| Action.bApproachReceived || Action.bApproachSpent || Action.NextHit != 0 || Action.Timeline.Hits.IsEmpty())
+	{
+		return false;
+	}
+	// Segura antes do primeiro passo (o pawn ainda não começou o golpe) ou do primeiro golpe, o que vier antes
+	int32 Due = Action.Timeline.Hits[0].Frame;
+	if (!Action.Timeline.Steps.IsEmpty())
+	{
+		Due = FMath::Min(Due, Action.Timeline.Steps[0].StartFrame);
+	}
+	return Action.Elapsed + 1 >= Due;
+}
+
 // =================================================================================================
 // Começar e acabar uma ação
 // =================================================================================================
@@ -1358,7 +1407,12 @@ void FJRPGBattleResolver::ProcessDue()
 		const TArray<FJRPGActionMark>& Marks = Action.Timeline.Marks;
 		const TArray<FJRPGActionHit>& Hits = Action.Timeline.Hits;
 		const bool bMark = Marks.IsValidIndex(Action.NextMark) && Marks[Action.NextMark].Frame <= Action.Elapsed;
-		const bool bHit = Hits.IsValidIndex(Action.NextHit) && Hits[Action.NextHit].Frame <= Action.Elapsed;
+		bool bHit = Hits.IsValidIndex(Action.NextHit) && Hits[Action.NextHit].Frame <= Action.Elapsed;
+		// PvP: o primeiro golpe espera a aproximação da autoridade (as marcas seguem; o quadro não anda até ela chegar)
+		if (bHit && bRequireApproach && Action.NextHit == 0 && !Action.bApproachReceived && !Action.bApproachSpent)
+		{
+			bHit = false;
+		}
 		if (!bMark && !bHit)
 		{
 			return;
@@ -1474,6 +1528,12 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 		BlockInput.PowerByte = Hit.PowerByte;
 		BlockInput.bDefenderSpirit = Defender.bGuarding;
 		BlockInput.bAttackerArt = Hit.Source == EJRPGHitSource::Art;
+		// Os termos da aproximação: só o primeiro golpe que passa pelo núcleo os gasta (0x801EC888 no block, 0x801EE3C4 no acerto)
+		if (!State.Action.bApproachSpent)
+		{
+			BlockInput.AttackRamp = State.Action.AttackRamp;
+			BlockInput.GuardRamp = State.Action.GuardRamp;
+		}
 		bool bBlocked = UBattleFormulas::RollBlock(BlockInput, [this]() { return Rand15(); });
 		// Dentro da janela da reação o sorteio é sobrescrito: quem está no block segue bloqueando, quem está num
 		// flinch não bloqueia (é o que deixa a combo acertar)
@@ -1487,6 +1547,7 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 		}
 		if (bBlocked)
 		{
+			State.Action.bApproachSpent = true;
 			Defender.JuggleCounter = 1;
 			Defender.bReactionIsBlock = true;
 			Defender.ReactionUntilFrame = State.Frame + ReactionFrames(Defender.BlockClip, Speed);
@@ -1507,6 +1568,12 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 	Melee.bArt = Hit.Source == EJRPGHitSource::Art;
 	Melee.ElementPercent = UBattleFormulas::ElementPercent(Attacker.Element, Defender.Element);
 	Melee.bDefenderGuarding = Defender.bGuarding;
+	if (!State.Action.bApproachSpent)
+	{
+		Melee.AttackRamp = State.Action.AttackRamp;
+		Melee.GuardRamp = State.Action.GuardRamp;
+		State.Action.bApproachSpent = true;
+	}
 	const int32 Damage = UBattleFormulas::ResolveMelee(Melee, [this]() { return Rand15(); }).Damage;
 
 	// O HP nunca passa de 0 e o excesso se perde (o original soma o combo e escreve max(HP - total, 0)); o total do combo

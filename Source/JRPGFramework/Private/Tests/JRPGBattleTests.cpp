@@ -388,6 +388,50 @@ bool FJRPGBattleBlockTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// Os termos da aproximação do original (ctx[+0x6D2] / ctx[+0x6D4]; block.rs e physical.rs do RE)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattleApproachTermsTest, "JRPG.Battle.ApproachTerms", JRPG_BATTLE_TEST_FLAGS)
+bool FJRPGBattleApproachTermsTest::RunTest(const FString& Parameters)
+{
+	FJRPGBlockInput In;
+	In.AttackerSPD = 50;
+	In.AttackerATK = 100;   // 130
+	In.DefenderSPD = 40;
+	In.DefenderATK = 50;    // 80
+	In.PowerByte = 0x0C;
+
+	// De frente o mesmo sorteio do JRPG.Battle.Block bloqueia (130 < 80 + 79)...
+	FSequenceDraw FaceOn({ 0, 79 });
+	TestTrue(TEXT("de frente bloqueia"), UBattleFormulas::RollBlock(In, [&FaceOn]() { return FaceOn(); }));
+	// ...uns 10 graus fora (0x71 = 113) somam ao atacante: 243 contra 159, não bloqueia
+	FJRPGBlockInput Angled = In;
+	Angled.AttackRamp = 113;
+	FSequenceDraw AngledDraw({ 0, 79 });
+	TestFalse(TEXT("de lado não bloqueia"), UBattleFormulas::RollBlock(Angled, [&AngledDraw]() { return AngledDraw(); }));
+
+	// A caminhada longa soma ao defensor: sem ela 130 contra 80 + 579 % 80 = 99 acerta; com 500, 580 contra 580 + 579 bloqueia
+	FSequenceDraw NoWalk({ 0, 579 });
+	TestFalse(TEXT("sem a caminhada acerta"), UBattleFormulas::RollBlock(In, [&NoWalk]() { return NoWalk(); }));
+	FJRPGBlockInput Walked = In;
+	Walked.GuardRamp = 500;
+	FSequenceDraw WalkDraw({ 0, 579 });
+	TestTrue(TEXT("com a caminhada bloqueia"), UBattleFormulas::RollBlock(Walked, [&WalkDraw]() { return WalkDraw(); }));
+
+	// No dano: (0x800 * 320) >> 16 = 10 a mais no ataque; (100 * 64) >> 10 = 6 a mais na defesa (mesmos sorteios)
+	FJRPGMeleeInput Melee;
+	Melee.BaseOffense = 320;
+	Melee.DefenderDefense = 100;
+	FSequenceDraw PlainDraw({ 0, 0, 0, 0 });
+	const FJRPGMeleeResult Plain = UBattleFormulas::ResolveMelee(Melee, [&PlainDraw]() { return PlainDraw(); });
+	FJRPGMeleeInput Ramped = Melee;
+	Ramped.AttackRamp = 0x800;
+	Ramped.GuardRamp = 64;
+	FSequenceDraw RampedDraw({ 0, 0, 0, 0 });
+	const FJRPGMeleeResult WithRamps = UBattleFormulas::ResolveMelee(Ramped, [&RampedDraw]() { return RampedDraw(); });
+	TestEqual(TEXT("o ângulo soma atk/32 de costas"), WithRamps.Offense - Plain.Offense, 10);
+	TestEqual(TEXT("a caminhada soma def*ramp/1024"), WithRamps.Defense - Plain.Defense, 6);
+	return true;
+}
+
 // --- Iniciativa e a fila da IA ---------------------------------------------------------------
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattleInitiativeTest, "JRPG.Battle.Initiative", JRPG_BATTLE_TEST_FLAGS)

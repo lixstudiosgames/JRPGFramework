@@ -93,6 +93,18 @@ enum class EJRPGBattleMenuRequest : uint8
 	AutoOff
 };
 
+/** Uma Art da lista de consulta da tela de comando (o painel do Triângulo), já na ordem de exibição. */
+struct JRPGFRAMEWORK_API FJRPGBattleMenuArt
+{
+	FString Name;
+	EJRPGArtKind Kind = EJRPGArtKind::Regular;
+	/** O AP que ela dá (Regular, APGain) ou tira (Hyper / Super / Miracle, APCost, bCost). */
+	int32 AP = 0;
+	bool bCost = false;
+	/** Os botões do comando dela (a view os mostra como setas, pela mão do herói). */
+	TArray<EJRPGArtButton> Buttons;
+};
+
 /** Um herói como o menu o vê: a foto da rodada, só dados. */
 struct JRPGFRAMEWORK_API FJRPGBattleMenuHero
 {
@@ -118,6 +130,11 @@ struct JRPGFRAMEWORK_API FJRPGBattleMenuHero
 	bool bNeedsCommand = false;
 	/** Os botões das Arts Regulares que ele conhece (a Aggressive escolhe entre elas). */
 	TArray<TArray<EJRPGArtButton>> KnownArtCommands;
+	/**
+	 * Todas as Arts que ele conhece, para a lista de consulta: as Hyper no topo, depois a Miracle, as Super e as Regulares; em
+	 * cada grupo, a de mais AP primeiro (o painel do original).
+	 */
+	TArray<FJRPGBattleMenuArt> ArtList;
 
 	/** O custo de um botão; 30 quando a lista não diz (o 0x1E do original). */
 	int32 CostOf(EJRPGArtButton Button) const;
@@ -321,6 +338,12 @@ private:
 
 	void EnterTactics();
 
+	/**
+	 * Abre a janela de entrada do herói com os botões da última cadeia que ele mandou nesta luta (o que couber no gauge e nos 16
+	 * botões desta rodada): repetir a Art é só confirmar. O Cancel tira um botão de cada vez, como sempre.
+	 */
+	void PrefillButtons(const FJRPGBattleMenuHero& Hero);
+
 	/** O herói que está sendo comandado (o do cursor do buffer); nulo se já passou do último. */
 	const FJRPGBattleMenuHero* FocusHero() const;
 
@@ -341,6 +364,8 @@ private:
 
 	/** O que vale a luta inteira. */
 	TMap<FName, EJRPGBattleTactic> Tactics;
+	/** A última cadeia de botões que cada herói mandou (preenche a janela de entrada na vez seguinte). */
+	TMap<FName, TArray<EJRPGArtButton>> LastButtons;
 	bool bAuto = false;
 	bool bAutoPending = false;
 };

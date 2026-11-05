@@ -535,6 +535,8 @@ public:
 			// localmente no JS (as duas rotas caem no mesmo handleUIInput).
 			else if (Key == EKeys::Gamepad_LeftShoulder)                                        UIAction = TEXT("tab_prev");
 			else if (Key == EKeys::Gamepad_RightShoulder)                                       UIAction = TEXT("tab_next");
+			// Triângulo / Y = a lista de consulta (na luta, as Arts conhecidas; o teclado usa o E, tratado no JS da tela)
+			else if (Key == EKeys::Gamepad_FaceButton_Top)                                      UIAction = TEXT("list");
 
 			if (UIAction)
 			{

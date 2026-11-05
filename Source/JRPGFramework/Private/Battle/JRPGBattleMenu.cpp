@@ -374,6 +374,7 @@ FJRPGBattleCommand JRPGBattleTactics::ChooseCommand(EJRPGBattleTactic Tactic, co
 void FJRPGBattleMenu::ResetFight()
 {
 	Tactics.Reset();
+	LastButtons.Reset();
 	bAuto = false;
 	bAutoPending = false;
 	Ctx = FJRPGBattleMenuContext();
@@ -611,8 +612,8 @@ FJRPGBattleMenuResult FJRPGBattleMenu::PressCommand(EJRPGBattleMenuKey Key)
 			{
 				return Refused();
 			}
-			Buttons.Reset();
-			GaugeLeft = Hero->Gauge;
+			// A janela abre com a última cadeia dele (o que couber): repetir a Art é só confirmar
+			PrefillButtons(*Hero);
 			Refusal.Reset();
 			Screen = EJRPGBattleMenuScreen::Attack;
 			return Changed(TEXT("Select"));
@@ -640,6 +641,31 @@ FJRPGBattleMenuResult FJRPGBattleMenu::PressCommand(EJRPGBattleMenuKey Key)
 }
 
 // --- Attack (a janela de entrada) --------------------------------------------------------------
+
+void FJRPGBattleMenu::PrefillButtons(const FJRPGBattleMenuHero& Hero)
+{
+	Buttons.Reset();
+	GaugeLeft = Hero.Gauge;
+	const TArray<EJRPGArtButton>* Last = LastButtons.Find(Hero.Key);
+	if (!Last)
+	{
+		return;
+	}
+	// As mesmas regras da digitação (PressAttack): os 16 botões e o gauge desta rodada; o que não cabe fica de fora
+	for (const EJRPGArtButton Button : *Last)
+	{
+		const int32 Cost = Hero.CostOf(Button);
+		if (Buttons.Num() >= UJRPGArtsRules::MaxChainButtons || (Hero.Gauge > 0 && Cost > GaugeLeft))
+		{
+			break;
+		}
+		Buttons.Add(Button);
+		if (Hero.Gauge > 0)
+		{
+			GaugeLeft -= Cost;
+		}
+	}
+}
 
 FJRPGBattleMenuResult FJRPGBattleMenu::PressAttack(EJRPGBattleMenuKey Key)
 {
@@ -766,6 +792,8 @@ FJRPGBattleMenuResult FJRPGBattleMenu::ConfirmTarget()
 		Refusal = TEXT("That command did not fit.");
 		return Refused();
 	}
+	// A cadeia que valeu fica guardada: a próxima janela de entrada dele já abre com ela
+	LastButtons.Add(Hero->Key, Buttons);
 	Buttons.Reset();
 	GaugeLeft = 0;
 	Refusal.Reset();
@@ -938,6 +966,36 @@ FString FJRPGBattleMenu::BuildViewJS(const FString& Sfx) const
 	else
 	{
 		Out += TEXT("art:null,");
+	}
+
+	// A lista de consulta das Arts (o painel do Triângulo), na tela de comando e na janela de entrada: o nome, o AP que dá ou
+	// tira, e o comando como setas pela mão do herói (o Arms da Noa, canhota, é a direita)
+	if (Focus && (Screen == EJRPGBattleMenuScreen::Command || Screen == EJRPGBattleMenuScreen::Attack))
+	{
+		auto DirFor = [Focus](EJRPGArtButton Button) -> const TCHAR*
+		{
+			if (UJRPGArtsRules::ButtonForPad(Focus->bLeftHanded, EJRPGPadButton::Left) == Button)  { return TEXT("left"); }
+			if (UJRPGArtsRules::ButtonForPad(Focus->bLeftHanded, EJRPGPadButton::Right) == Button) { return TEXT("right"); }
+			if (UJRPGArtsRules::ButtonForPad(Focus->bLeftHanded, EJRPGPadButton::Up) == Button)    { return TEXT("up"); }
+			return TEXT("down");
+		};
+		Out += TEXT("artlist:[");
+		for (int32 i = 0; i < Focus->ArtList.Num(); ++i)
+		{
+			const FJRPGBattleMenuArt& Art = Focus->ArtList[i];
+			FString Dirs;
+			for (int32 k = 0; k < Art.Buttons.Num(); ++k)
+			{
+				Dirs += FString::Printf(TEXT("%s%s"), k > 0 ? TEXT(",") : TEXT(""), *Lit(DirFor(Art.Buttons[k])));
+			}
+			Out += FString::Printf(TEXT("%s{name:%s,ap:%d,cost:%s,dirs:[%s]}"), i > 0 ? TEXT(",") : TEXT(""), *Lit(Art.Name), Art.AP,
+				Bool(Art.bCost), *Dirs);
+		}
+		Out += TEXT("],");
+	}
+	else
+	{
+		Out += TEXT("artlist:null,");
 	}
 
 	// Os alvos (só os vivos), com o cursor

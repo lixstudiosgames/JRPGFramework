@@ -60,6 +60,16 @@ namespace
 		return 0.0f;   // a Noa
 	}
 
+	// A velocidade do clip de andar do herói no disco (record[0], entrada 1, +0x0C), em unidades do PS1 por vsync; 0 = não é herói
+	float HeroWalkSpeedUnits(FName Hero)
+	{
+		if (Hero == FName(TEXT("Vahn")))  { return 42.0f; }
+		if (Hero == FName(TEXT("Noa")))   { return 44.0f; }
+		if (Hero == FName(TEXT("Gala")))  { return 28.0f; }
+		if (Hero == FName(TEXT("Terra"))) { return 48.0f; }
+		return 0.0f;
+	}
+
 	FColor EventColor(EJRPGBattleEventType Type)
 	{
 		switch (Type)
@@ -146,6 +156,10 @@ void AJRPGBattlePawn::InitCombatant(const FJRPGCombatant& InCombatant, const FJR
 	HeldSounds.Reset();
 	bSoundContextActive = false;
 	SoundContextEndFrame = INDEX_NONE;
+	// A pose do idle é medida de novo (o modelo pode ser outro)
+	bHasNeutralCentroid = false;
+	IdleSinceFrame = INDEX_NONE;
+	ApproachStallFrames = 0;
 	SetActorHiddenInGame(false);
 	if (InCombatant.Type == EJRPGCombatantType::Enemy)
 	{
@@ -240,9 +254,28 @@ void AJRPGBattlePawn::BuildPieces(const FJRPGBattleVisual& Visual)
 
 void AJRPGBattlePawn::PlayClip(UAnimSequence* Clip, bool bLoop, float PlayRate)
 {
+	// O clip de uma vez só entra sem mistura (corte seco); o loop mistura por AnimBlendTime
+	PlayClipBlended(Clip, bLoop, PlayRate, bLoop ? AnimBlendTime : 0.0f);
+}
+
+void AJRPGBattlePawn::PlayClipBlended(UAnimSequence* Clip, bool bLoop, float PlayRate, float BlendTime)
+{
 	if (!Clip || bUsesAnimClass)
 	{
 		return;
+	}
+	// O idle passa a contar daqui (a pose dele é medida depois de a mistura acabar); outro clip para a contagem
+	if (Clip == IdleClip)
+	{
+		if (IdleSinceFrame == INDEX_NONE)
+		{
+			IdleSinceFrame = LastLogicFrame;
+			IdleFramesSeen = 0;
+		}
+	}
+	else
+	{
+		IdleSinceFrame = INDEX_NONE;
 	}
 	// Tudo toca na MESMA instância do crossfade (UJRPGFieldEnemyAnimInstance), em loop (idle, andar) ou de uma vez só (golpe,
 	// reação). Antes o clip de uma vez só ia por Mesh->PlayAnimation, que troca a malha para o modo single node e destrói a
@@ -262,8 +295,7 @@ void AJRPGBattlePawn::PlayClip(UAnimSequence* Clip, bool bLoop, float PlayRate)
 	}
 	if (Anim)
 	{
-		// O clip de uma vez só entra sem mistura (corte seco, como antes); o loop mistura por AnimBlendTime
-		Anim->PlayClip(Clip, PlayRate, bLoop ? AnimBlendTime : 0.0f, bLoop);
+		Anim->PlayClip(Clip, PlayRate, BlendTime, bLoop);
 		return;
 	}
 	// Sem instância (a malha ainda sem asset): o último recurso é o single node
@@ -410,7 +442,7 @@ void AJRPGBattlePawn::OnReactionEnded(int32 LogicFrame)
 	switch (ReactionLastEnd)
 	{
 	case EReactionEnd::Idle:
-		ReturnToIdle();
+		ReturnToIdle(false);
 		break;
 	case EReactionEnd::Hold:
 		// O monstro derrotado: o corpo segura o último quadro do knockdown e, daí, desbota e afunda
@@ -424,12 +456,189 @@ void AJRPGBattlePawn::OnReactionEnded(int32 LogicFrame)
 	}
 }
 
-void AJRPGBattlePawn::ReturnToIdle()
+void AJRPGBattlePawn::ReturnToIdle(bool bAfterAction)
 {
-	if (!bDown && !bActionActive)
+	if (bDown || bActionActive)
+	{
+		return;
+	}
+	// O passo do fim do clip vira posição nos dois casos. bAfterAction: é o atacante no fim da ação dele, e o avanço do clip (o
+	// Slash Kick) só vale até a borda do alcance do alvo (no original a velocidade de raiz positiva só anda enquanto o alvo está
+	// FORA do alcance); uma reação (flinch, block, queda, levantar) fica inteira onde o clip a deixou
+	SettleIntoIdle(bAfterAction ? TargetPawn.Get() : nullptr);
+}
+
+FVector AJRPGBattlePawn::PoseCentroid() const
+{
+	// Os modelos do PS1 são peças rígidas, cada uma num bone que se move inteiro (a raiz fica parada): o centro das peças é onde o
+	// corpo está em relação ao ator
+	const TArray<FTransform>& Pose = Mesh->GetComponentSpaceTransforms();
+	if (Pose.Num() < 2)
+	{
+		return FVector::ZeroVector;
+	}
+	FVector Sum = FVector::ZeroVector;
+	for (int32 Index = 1; Index < Pose.Num(); ++Index)
+	{
+		Sum += Pose[Index].GetLocation();
+	}
+	return Sum / static_cast<double>(Pose.Num() - 1);
+}
+
+void AJRPGBattlePawn::SettleIntoIdle(const AJRPGBattlePawn* KeepReachOf)
+{
+	if (!IdleClip || IdleSinceFrame != INDEX_NONE)
 	{
 		PlayIdle();
+		return;
 	}
+	FVector Shift = FVector::ZeroVector;
+	if (bApplyEndStep && bHasNeutralCentroid)
+	{
+		// O deslocamento do corpo (o último quadro do clip que acabou) em relação à pose do idle, no plano do chão
+		Shift = Mesh->GetComponentTransform().TransformVector(PoseCentroid() - NeutralCentroid);
+		Shift.Z = 0.0;
+	}
+	const FVector From = GetSettledLocation();
+	FVector To = From + Shift;
+	// O atacante não avança para dentro do alvo: no original a velocidade de raiz positiva só anda enquanto o alvo está FORA do
+	// alcance. O avanço do clip vira posição só até a borda do alcance (ou até onde ele já estava, se já estava mais perto)
+	if (KeepReachOf && KeepReachOf != this)
+	{
+		const FVector Foe = KeepReachOf->GetSettledLocation();
+		const double MinGap = FMath::Min(static_cast<double>(ReachFor(KeepReachOf) + StopMargin), FVector::Dist2D(From, Foe));
+		if (FVector::Dist2D(To, Foe) < MinGap)
+		{
+			FVector Away = FVector(To.X - Foe.X, To.Y - Foe.Y, 0.0).GetSafeNormal();
+			if (Away.IsNearlyZero())
+			{
+				Away = FVector(From.X - Foe.X, From.Y - Foe.Y, 0.0).GetSafeNormal();
+			}
+			To = FVector(Foe.X, Foe.Y, To.Z) + Away * MinGap;
+		}
+	}
+	To = ClampToArena(From, To);
+	if (FVector::Dist2D(To, From) < EndStepMinDistance)
+	{
+		PlayIdle();
+		return;
+	}
+	// O passo do fim do clip vira posição DURANTE a mistura para o idle: o clip que sai está deslocado e o ator ainda não andou; o
+	// idle não está deslocado e o ator já andou tudo; no meio os dois se compensam (a mistura e o deslize são lineares). O corpo fica
+	// onde o clip o deixou e a pose troca suave, sem corte seco nem piscada
+	const int32 BlendFrames = FMath::Max(FMath::CeilToInt(AnimBlendTime * static_cast<float>(UBattleFormulas::StepsPerSecond)), 1);
+	bSliding = false;
+	StartSlide(To, LastLogicFrame, BlendFrames);
+	PlayIdle();
+}
+
+void AJRPGBattlePawn::TranslateBy(const FVector& Delta)
+{
+	const FVector Flat(Delta.X, Delta.Y, 0.0);
+	if (Flat.IsNearlyZero())
+	{
+		return;
+	}
+	SetActorLocation(GetActorLocation() + Flat);
+	ApproachFrom += Flat;
+	ApproachTo += Flat;
+	SlideFrom += Flat;
+	SlideTo += Flat;
+}
+
+void AJRPGBattlePawn::TranslateApproachGoal(const FVector& Delta)
+{
+	ApproachTo += FVector(Delta.X, Delta.Y, 0.0);
+}
+
+void AJRPGBattlePawn::DelayAction(int32 Frames)
+{
+	if (bActionActive && Frames > 0)
+	{
+		Action.StartFrame += Frames;
+	}
+}
+
+void AJRPGBattlePawn::StepAside(const FVector& Offset, int32 LogicFrame, int32 Frames)
+{
+	// Quem está na ação dele (o atacante) não é mexido por fora
+	if (bActionActive || !IsStanding())
+	{
+		return;
+	}
+	const FVector From = GetSettledLocation();
+	const FVector To = ClampToArena(From, From + FVector(Offset.X, Offset.Y, 0.0));
+	if (!To.Equals(From, 1.0))
+	{
+		StartSlide(To, LogicFrame, Frames);
+	}
+}
+
+void AJRPGBattlePawn::ShoveBy(const FVector& Offset)
+{
+	if (bActionActive || !IsStanding())
+	{
+		return;
+	}
+	const FVector From = GetActorLocation();
+	const FVector To = ClampToArena(From, From + FVector(Offset.X, Offset.Y, 0.0));
+	TranslateBy(To - From);
+}
+
+void AJRPGBattlePawn::ArrivalShove()
+{
+	AJRPGBattlePawn* Foe = TargetPawn.Get();
+	if (!bApplyArrivalShove || !Foe || Foe == this)
+	{
+		return;
+	}
+	const FVector Here = GetActorLocation();
+	const FVector There = Foe->GetActorLocation();
+	const FVector Facing = FVector(There.X - Here.X, There.Y - Here.Y, 0.0);
+	const double Gap = Facing.Size2D();
+	// A borda do alcance: o limiar da lei (o ReachFor já tira a margem de parada, que o original anda para dentro)
+	const double Edge = ReachFor(Foe) + StopMargin;
+	if (Gap >= Edge || Gap <= KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
+	Foe->ShoveBy(Facing / Gap * (Edge - Gap));
+}
+
+bool AJRPGBattlePawn::IsStanding() const
+{
+	return !bDown && !bDeathFadeQueued && !bDeathFading && !IsHidden();
+}
+
+int32 AJRPGBattlePawn::GetSizeClass() const
+{
+	if (Combatant.Type != EJRPGCombatantType::Enemy)
+	{
+		return 0;
+	}
+	return Combatant.SizeClass > 0 ? Combatant.SizeClass : DefaultSizeClass;
+}
+
+float AJRPGBattlePawn::SeparationRadiusCm() const
+{
+	// FUN_80050BB8 lê o raio que o stager do assento escreveu: 0x280 num herói, 0x400 na Terra, classe << 5 num monstro
+	float Units = 640.0f;
+	if (Combatant.Type == EJRPGCombatantType::Enemy)
+	{
+		Units = static_cast<float>(GetSizeClass() << 5);
+	}
+	else if (Combatant.Key == FName(TEXT("Terra")))
+	{
+		Units = 1024.0f;
+	}
+	return Units * UnitsToCm;
+}
+
+float AJRPGBattlePawn::WalkSpeedCm() const
+{
+	const float HeroUnits = Combatant.Type == EJRPGCombatantType::Enemy ? 0.0f : HeroWalkSpeedUnits(Combatant.Key);
+	const float Units = HeroUnits > 0.0f ? HeroUnits : EnemyWalkSpeedUnits;
+	return FMath::Max(Units * UnitsToCm, 1.0f);
 }
 
 void AJRPGBattlePawn::BeginDeathFade(int32 LogicFrame)
@@ -620,7 +829,7 @@ FVector AJRPGBattlePawn::ClampToArena(const FVector& From, const FVector& To) co
 	return To;
 }
 
-void AJRPGBattlePawn::BeginAction(const FJRPGActionTimeline& Timeline, const AJRPGBattlePawn* Target)
+void AJRPGBattlePawn::BeginAction(const FJRPGActionTimeline& Timeline, AJRPGBattlePawn* Target)
 {
 	Action = Timeline;
 	bActionActive = true;
@@ -656,9 +865,18 @@ void AJRPGBattlePawn::BeginAction(const FJRPGActionTimeline& Timeline, const AJR
 	}
 
 	// Anda só se há o que andar: o alvo já ao alcance (ou quase) não toca o clip de andar, que ficaria andando no lugar
-	const bool bWalks = Timeline.LeadFrames > 0 && FVector::Dist2D(ApproachTo, ApproachFrom) > MinWalkDistance;
+	const float WalkDistance = FVector::Dist2D(ApproachTo, ApproachFrom);
+	const bool bWalks = Timeline.LeadFrames > 0 && WalkDistance > MinWalkDistance;
+	ApproachStartFrame = Timeline.StartFrame;
+	ApproachFrames = 0;
+	ApproachStallFrames = 0;
 	if (bWalks)
 	{
+		// Velocidade constante, como o original (anda até estar ao alcance): longe leva mais que os LeadFrames das regras, e a
+		// diferença desloca os passos da ação (a cena segura o resolvedor o mesmo tanto); perto chega antes e espera no idle
+		ApproachFrames = FMath::Max(FMath::CeilToInt(WalkDistance / WalkSpeedCm()), 1);
+		ApproachStallFrames = FMath::Max(ApproachFrames - Timeline.LeadFrames, 0);
+		Action.StartFrame += ApproachStallFrames;
 		bApproachSettled = false;
 		SetPhase(EJRPGActionPhase::Advance);
 		float Rate = 1.0f;
@@ -738,6 +956,13 @@ void AJRPGBattlePawn::PlayStep(const FJRPGActionStep& Step)
 void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 {
 	LastLogicFrame = LogicFrame;
+	// A pose do idle, medida uma vez quando ele já toca sozinho (a mistura de entrada acabou): a referência do passo do fim do clip
+	if (!bHasNeutralCentroid && IdleSinceFrame != INDEX_NONE && !bActionActive
+		&& ++IdleFramesSeen > FMath::CeilToInt(AnimBlendTime * static_cast<float>(UBattleFormulas::StepsPerSecond)) + 4)
+	{
+		NeutralCentroid = PoseCentroid();
+		bHasNeutralCentroid = !NeutralCentroid.IsZero();
+	}
 	// O recuo de quem apanhou e o acompanhar do atacante andam em quadros lógicos, ação ou não
 	UpdateSlide(LogicFrame);
 	// A reação em curso anda em quadros lógicos (a pausa e os soluços do quadro valem para ela como para o resolvedor); um quadro
@@ -758,7 +983,7 @@ void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 	if (IdleHandoffFrame != INDEX_NONE && LogicFrame >= IdleHandoffFrame)
 	{
 		IdleHandoffFrame = INDEX_NONE;
-		ReturnToIdle();
+		ReturnToIdle(true);
 	}
 	if (!bActionActive)
 	{
@@ -766,11 +991,12 @@ void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 	}
 	const int32 Elapsed = LogicFrame - Action.StartFrame;
 
-	// A aproximação: da posição de saída até o alcance do alvo, nos LeadFrames; fechada a aproximação, só os deslizes
-	// (acompanhar o alvo que recuou) mexem nele
-	if (Action.LeadFrames > 0 && Elapsed < Action.LeadFrames)
+	// A aproximação: da posição de saída até o alcance do alvo, em velocidade constante (ApproachFrames); fechada a aproximação,
+	// só os deslizes (acompanhar o alvo que recuou) mexem nele
+	const int32 WalkElapsed = LogicFrame - ApproachStartFrame;
+	if (!bApproachSettled && WalkElapsed < ApproachFrames)
 	{
-		const float Alpha = FMath::Clamp(static_cast<float>(Elapsed) / static_cast<float>(Action.LeadFrames), 0.0f, 1.0f);
+		const float Alpha = FMath::Clamp(static_cast<float>(WalkElapsed) / static_cast<float>(ApproachFrames), 0.0f, 1.0f);
 		SetActorLocation(FMath::Lerp(ApproachFrom, ApproachTo, Alpha));
 	}
 	else if (!bApproachSettled)
@@ -779,6 +1005,14 @@ void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 		if (!bSliding && !GetActorLocation().Equals(ApproachTo, 1.0))
 		{
 			SetActorLocation(ApproachTo);
+		}
+		// Chegou: o alvo é empurrado para a borda do alcance (não ficam colados)
+		ArrivalShove();
+		// Chegou antes do primeiro golpe (o alvo estava perto): espera parado, sem o clip de andar no lugar
+		if (PlayedStep < 0 && Action.Steps.Num() > 0 && Elapsed < Action.Steps[0].StartFrame)
+		{
+			PlayIdle();
+			SetPhase(EJRPGActionPhase::Windup);
 		}
 	}
 
@@ -844,7 +1078,7 @@ void AJRPGBattlePawn::FinishAction(int32 LogicFrame)
 	if (bIdleNow && !bDown)
 	{
 		IdleHandoffFrame = INDEX_NONE;
-		PlayIdle();
+		SettleIntoIdle(TargetPawn.Get());
 	}
 
 	// O contexto de som sobrevive ao fim da ação enquanto o último clip ainda dispara notifies: até o último golpe do passo mais a

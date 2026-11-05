@@ -32,6 +32,12 @@ window.JRPGBattle = (function () {
     let isOpen = false;
     let view = null;
 
+    // A lista de consulta das Arts: aberta ou não, e a página (cinco por página, como o painel do original). Estado só de tela:
+    // os dados (as Arts, o AP, as setas pela mão do herói) chegam prontos em view.artlist
+    const ARTS_PER_PAGE = 5;
+    let listOpen = false;
+    let listPage = 0;
+
     function esc(text) {
         return String(text === undefined || text === null ? '' : text)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -191,6 +197,64 @@ window.JRPGBattle = (function () {
             `<span class="bt-final-what">${esc(s.what)}</span><span class="bt-final-target">${esc(s.target)}</span></div>`).join('');
     }
 
+    const ARROWS = { left: '&#9664;', up: '&#9650;', right: '&#9654;', down: '&#9660;' };
+
+    function drawArtList(v) {
+        const box = el('bt-artlist');
+        if (!box) return;
+        const list = v && v.artlist;
+        if (!list) {
+            box.innerHTML = '';
+            box.classList.remove('active');
+            return;
+        }
+        box.classList.add('active');
+        if (!listOpen) {
+            box.innerHTML = '<div class="bt-al-tab"><span class="key-badge">&#9651; / E</span> Arts</div>';
+        } else {
+            const pages = Math.max(1, Math.ceil(list.length / ARTS_PER_PAGE));
+            listPage = Math.max(0, Math.min(listPage, pages - 1));
+            const rows = list.slice(listPage * ARTS_PER_PAGE, (listPage + 1) * ARTS_PER_PAGE).map(a => {
+                // O original: a Art que tira AP leva o "-"; a que dá fica só com o número
+                const ap = a.cost ? `-${a.ap}` : `${a.ap}`;
+                const dirs = (a.dirs || []).map(d => `<span>${ARROWS[d] || '?'}</span>`).join('');
+                return `<div class="bt-al-row">
+                    <div class="bt-al-line"><span class="bt-al-name">${esc(a.name)}</span>
+                        <span class="bt-al-ap${a.cost ? ' cost' : ''}">${ap}</span></div>
+                    <div class="bt-al-dirs">${dirs}</div>
+                </div>`;
+            }).join('');
+            box.innerHTML = `<div class="bt-al-panel">
+                ${rows || '<div class="bt-al-empty">No Arts learned yet.</div>'}
+                <div class="bt-al-foot">
+                    <span><span class="key-badge">L1 / Q</span> <span class="key-badge">R1 / R</span> Page ${listPage + 1}/${pages}</span>
+                    <span><span class="key-badge">&#9651; / E</span> Close</span>
+                </div>
+            </div>`;
+        }
+        const clickable = box.querySelector('.bt-al-tab, .bt-al-foot');
+        if (clickable) {
+            clickable.onmouseenter = () => { if (window.InputMode) InputMode.useMouse(); };
+            clickable.onclick = () => toggleArtList();
+        }
+    }
+
+    function toggleArtList() {
+        if (!view || !view.artlist) return;
+        listOpen = !listOpen;
+        listPage = 0;
+        drawArtList(view);
+        if (typeof kickUIRepaint === 'function') kickUIRepaint();
+    }
+
+    function pageArtList(delta) {
+        if (!listOpen || !view || !view.artlist) return;
+        const pages = Math.max(1, Math.ceil(view.artlist.length / ARTS_PER_PAGE));
+        listPage = (listPage + delta + pages) % pages;
+        drawArtList(view);
+        if (typeof kickUIRepaint === 'function') kickUIRepaint();
+    }
+
     function drawRefusal(v) {
         const box = el('bt-refusal');
         if (!box) return;
@@ -213,6 +277,7 @@ window.JRPGBattle = (function () {
         drawTargets(v);
         drawTactics(v);
         drawFinal(v);
+        drawArtList(v);
         drawRefusal(v);
 
         // O d-pad é a peça isolada (95_battle_dpad.js): a posição (centro ou à direita) é do CSS, pela tela
@@ -283,6 +348,10 @@ window.JRPGBattle = (function () {
                 case 'up': case 'down': case 'left': case 'right': case 'confirm': case 'cancel':
                     send(action);
                     break;
+                // A lista de consulta das Arts é só tela: abrir, fechar e paginar não falam com o C++
+                case 'list':     toggleArtList(); break;
+                case 'tab_prev': pageArtList(-1); break;
+                case 'tab_next': pageArtList(1);  break;
                 default:
                     break;
             }
@@ -292,8 +361,10 @@ window.JRPGBattle = (function () {
             hideSection();
             isOpen = false;
             view = null;
-            ['bt-crumbs', 'bt-auto', 'bt-art', 'bt-party', 'bt-targets-list', 'bt-tactics-rows', 'bt-final-rows', 'bt-refusal'
-            ].forEach(id => { const n = el(id); if (n) n.innerHTML = ''; });
+            listOpen = false;
+            listPage = 0;
+            ['bt-crumbs', 'bt-auto', 'bt-art', 'bt-party', 'bt-targets-list', 'bt-tactics-rows', 'bt-final-rows', 'bt-refusal',
+             'bt-artlist'].forEach(id => { const n = el(id); if (n) n.innerHTML = ''; });
             if (window.JRPGBattleDpad) JRPGBattleDpad.clear(el('bt-dpad'));
         },
 
@@ -311,18 +382,27 @@ window.JRPGBattle = (function () {
             const b = (label, enabled, cost) => ({ label, enabled, cost: cost === undefined ? -1 : cost });
             const base = {
                 round: 1, sfx: '', crumbs: [], party, focus: -1, refusal: '', art: null, targets: null, tactics: null,
-                summary: [], autobattle: { on: false, pending: false },
+                summary: [], autobattle: { on: false, pending: false }, artlist: null,
                 dpad: pad(null, null, null, null)
             };
+            const sampleArts = [
+                { name: 'Tornado Flame', ap: 30, cost: true, dirs: ['right', 'right', 'left'] },
+                { name: "Vahn's Craze", ap: 100, cost: true, dirs: ['right', 'down', 'left', 'up', 'left', 'down', 'right'] },
+                { name: 'Slash Kick', ap: 12, cost: false, dirs: ['down', 'up', 'right'] },
+                { name: 'Hyper Elbow', ap: 9, cost: false, dirs: ['left', 'right', 'left'] },
+                { name: 'Somersault', ap: 8, cost: false, dirs: ['up', 'down', 'up'] },
+                { name: 'Power Punch', ap: 6, cost: false, dirs: ['left', 'left', 'up'] }
+            ];
             const screens = {
                 start: { screen: 'start', dpad: pad(b('Begin', true), b('Tactics', true), b('Escape', true), null) },
                 escape: { screen: 'escape', crumbs: ['Escape'], dpad: pad(b('Confirm', true), null, b('Cancel', true), null) },
                 command: {
-                    screen: 'command', crumbs: ['Begin', 'Vahn'], focus: 0,
+                    screen: 'command', crumbs: ['Begin', 'Vahn'], focus: 0, artlist: sampleArts,
                     dpad: pad(b('Attack', true), b('Item', false), b('Meta', false), b('Spirit', false))
                 },
                 attack: {
                     screen: 'attack', crumbs: ['Begin', 'Vahn', 'Attack'], focus: 0, refusal: 'Not enough gauge for that button.',
+                    artlist: sampleArts,
                     dpad: pad(b('Arms', true, 30), b('High', true, 54), b('Ra-Seru', true, 42), b('Low', false, 54)),
                     art: { chips: [{ label: 'Ra-Seru', cost: 42 }, { label: 'Ra-Seru', cost: 42 }], gauge: 160, left: 76, slots: 5, slotsLeft: 2 }
                 },
@@ -365,6 +445,10 @@ window.JRPGBattle = (function () {
             case 'ArrowRight': case 'd': case 'D': handleUIInput('right');   event.preventDefault(); break;
             case 'Enter': case ' ':                handleUIInput('confirm'); event.preventDefault(); break;
             case 'Escape': case 'Backspace':       handleUIInput('cancel');  event.preventDefault(); break;
+            // A lista de Arts: E abre / fecha (o Triângulo do controle), Q / R (ou PageUp / PageDown) trocam a página (L1 / R1)
+            case 'e': case 'E':                    handleUIInput('list');     event.preventDefault(); break;
+            case 'q': case 'Q': case 'PageUp':     handleUIInput('tab_prev'); event.preventDefault(); break;
+            case 'r': case 'R': case 'PageDown':   handleUIInput('tab_next'); event.preventDefault(); break;
             default: break;
         }
     });

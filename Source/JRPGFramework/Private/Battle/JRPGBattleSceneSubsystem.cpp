@@ -428,9 +428,27 @@ void UJRPGBattleSceneSubsystem::HandleBattleEvent(const FJRPGBattleEvent& Event)
 		{
 			if (const FJRPGActionTimeline* Timeline = Battle->FindTimeline(Event.ActionIndex))
 			{
-				Actor->BeginAction(ToPresentationTimeline(*Battle, *Timeline), PawnOf(Event.TargetSlot));
+				AJRPGBattlePawn* Target = PawnOf(Event.TargetSlot);
+				// O recentrar do original no começo da ação: o alvo de um golpe vai para o centro da arena (a ação sem golpe
+				// centra todos). Desliza com tudo o que vier depois (a caminhada parte de onde estão e anda junto)
+				const bool bMelee = Timeline->Steps.ContainsByPredicate([](const FJRPGActionStep& Step) { return Step.Kind != EJRPGActionStepKind::SpecialStarter; });
+				PlanFormationShift(bMelee && Target != Actor ? Target : nullptr, Event.Frame);
+				Actor->BeginAction(ToPresentationTimeline(*Battle, *Timeline), Target);
+				// A caminhada em velocidade constante que passa dos LeadFrames: as regras esperam o atacante chegar
+				Battle->StallResolver(Actor->GetApproachStallFrames());
+				// A geometria da aproximação vira entrada das regras (o original a gasta no primeiro golpe, no block e no dano)
+				SubmitApproachFor(*Battle, *Actor, Target, *Timeline);
+				// Quem está em volta sai da linha do atacante que vai andar
+				if (Actor->IsWalkingApproach())
+				{
+					MakeWay(Actor, Target, Event.Frame);
+				}
 			}
 		}
+		break;
+	case EJRPGBattleEventType::RoundStart:
+		// O começo da rodada do original (FUN_801DB318): comprime e centra a formação inteira
+		PlanFormationShift(nullptr, Event.Frame);
 		break;
 	case EJRPGBattleEventType::ActionEnd:
 		// O fim da ação, inclusive a cortada (o último inimigo caiu no meio da combo): a cópia que o pawn tem pode ser mais
@@ -594,6 +612,10 @@ void UJRPGBattleSceneSubsystem::HandleLogicFrame(int32 Frame)
 		return;
 	}
 	const UBattleSubsystem* Battle = GetBattleSubsystem(GetWorld());
+	// A formação anda antes dos pawns: o que eles guardam em posição (a caminhada, o deslize) já vem transladado
+	StepFormation(Frame);
+	// As regras ficaram paradas à espera da aproximação (PvP): a ação do pawn espera junto, para o golpe não tocar antes do dano
+	const bool bRulesHeld = Battle && Battle->WasHeldForApproach();
 	for (AJRPGBattlePawn* Pawn : Current->GetBattlePawns())
 	{
 		if (IsValid(Pawn))
@@ -607,6 +629,10 @@ void UJRPGBattleSceneSubsystem::HandleLogicFrame(int32 Frame)
 				{
 					Pawn->SyncActionTimeline(*Live);
 				}
+			}
+			if (bRulesHeld)
+			{
+				Pawn->DelayAction(1);
 			}
 			Pawn->UpdatePlayback(Frame);
 		}
@@ -641,7 +667,11 @@ void UJRPGBattleSceneSubsystem::EnterBattleScene()
 			{
 				if (AJRPGBattlePawn* Actor = Current->GetPawnForSlot(Active->SlotIndex))
 				{
-					Actor->BeginAction(ToPresentationTimeline(*Battle, *Active), Current->GetPawnForSlot(Running.TargetSlot));
+					AJRPGBattlePawn* RunningTarget = Current->GetPawnForSlot(Running.TargetSlot);
+					Actor->BeginAction(ToPresentationTimeline(*Battle, *Active), RunningTarget);
+					Battle->StallResolver(Actor->GetApproachStallFrames());
+					// A ação perdeu o ActionStart: a aproximação dela também sai daqui (senão, no PvP, a luta para no primeiro golpe)
+					SubmitApproachFor(*Battle, *Actor, RunningTarget, *Active);
 				}
 			}
 		}
@@ -723,4 +753,266 @@ void UJRPGBattleSceneSubsystem::Fade(bool bToBlack)
 		CameraManager->StartCameraFade(bToBlack ? 0.0f : 1.0f, bToBlack ? 1.0f : 0.0f, TransitionTime,
 			TransitionColor, false, bToBlack);
 	}
+}
+
+// =================================================================================================
+// A formação: o recentrar, o make-way e a separação do original (só apresentação; as regras não têm geometria)
+// =================================================================================================
+
+void UJRPGBattleSceneSubsystem::PlanFormationShift(const AJRPGBattlePawn* Focus, int32 Frame)
+{
+	AJRPGBattleArena* Current = Arena.Get();
+	if (!Current || !Current->bRecentreFormation)
+	{
+		return;
+	}
+	// Um recentrar pela metade termina agora: o novo parte de onde todos estariam
+	if (FormationShiftDone < 1.0f)
+	{
+		ApplyFormationShift(1.0f - FormationShiftDone);
+	}
+	FormationShift.Reset();
+	FormationShiftDone = 1.0f;
+
+	// As posições no espaço da arena (os assentos são relativos a ela; o centro dela é a origem do palco do original)
+	const FTransform ArenaTransform = Current->GetActorTransform();
+	TArray<AJRPGBattlePawn*> Pawns;
+	TArray<FVector> Local;
+	for (AJRPGBattlePawn* Pawn : Current->GetBattlePawns())
+	{
+		if (IsValid(Pawn) && Pawn->IsStanding())
+		{
+			Pawns.Add(Pawn);
+			Local.Add(ArenaTransform.InverseTransformPosition(Pawn->GetSettledLocation()));
+		}
+	}
+	if (Pawns.Num() == 0)
+	{
+		return;
+	}
+	const float UnitsToCm = Pawns[0]->GetUnitsToCm();
+	const double Limit = Current->FormationSpanLimitUnits * UnitsToCm;
+
+	// 1. Comprime o eixo mais largo que o limite (FUN_801DB318: coord * 0x800 / largura)
+	for (int32 Axis = 0; Axis < 2; ++Axis)
+	{
+		double Min = TNumericLimits<double>::Max();
+		double Max = TNumericLimits<double>::Lowest();
+		for (const FVector& P : Local)
+		{
+			Min = FMath::Min(Min, P[Axis]);
+			Max = FMath::Max(Max, P[Axis]);
+		}
+		const double Span = Max - Min;
+		if (Limit > 0.0 && Span > Limit)
+		{
+			for (FVector& P : Local)
+			{
+				P[Axis] *= Limit / Span;
+			}
+		}
+	}
+
+	// 2. O centro: o alvo do golpe (a caixa só dele), senão o meio da caixa de todos
+	FVector Center = FVector::ZeroVector;
+	const int32 FocusIndex = Focus ? Pawns.IndexOfByKey(Focus) : INDEX_NONE;
+	if (FocusIndex != INDEX_NONE)
+	{
+		Center = Local[FocusIndex];
+	}
+	else
+	{
+		for (int32 Axis = 0; Axis < 2; ++Axis)
+		{
+			double Min = TNumericLimits<double>::Max();
+			double Max = TNumericLimits<double>::Lowest();
+			for (const FVector& P : Local)
+			{
+				Min = FMath::Min(Min, P[Axis]);
+				Max = FMath::Max(Max, P[Axis]);
+			}
+			Center[Axis] = (Min + Max) * 0.5;
+		}
+	}
+	Center.Z = 0.0;
+
+	// 3. O que cada um anda, em mundo
+	bool bAnyMove = false;
+	for (int32 i = 0; i < Pawns.Num(); ++i)
+	{
+		const FVector Before = Pawns[i]->GetSettledLocation();
+		FVector After = ArenaTransform.TransformPosition(Local[i] - Center);
+		FVector Delta = After - Before;
+		Delta.Z = 0.0;
+		if (Delta.Size2D() > 1.0)
+		{
+			bAnyMove = true;
+		}
+		FormationShift.Add(Pawns[i], Delta);
+	}
+	if (!bAnyMove)
+	{
+		FormationShift.Reset();
+		return;
+	}
+	// O quanto o centro da formação andou, em mundo: o que a câmera de ação soma no foco dela (o "focus pair" do original)
+	FVector Translation = ArenaTransform.TransformVector(-Center);
+	Translation.Z = 0.0;
+
+	if (Current->RecentreFrames <= 0)
+	{
+		// Como o original: de uma vez, neste quadro (a câmera que segue o OnFormationShifted anda junto e ninguém vê)
+		ApplyFormationShift(1.0f);
+		FormationShift.Reset();
+		OnFormationShifted.Broadcast(Translation, 0);
+		return;
+	}
+	FormationShiftStart = Frame;
+	FormationShiftFrames = Current->RecentreFrames;
+	FormationShiftDone = 0.0f;
+	OnFormationShifted.Broadcast(Translation, FormationShiftFrames);
+}
+
+void UJRPGBattleSceneSubsystem::MakeWay(const AJRPGBattlePawn* Attacker, const AJRPGBattlePawn* Target, int32 Frame)
+{
+	AJRPGBattleArena* Current = Arena.Get();
+	if (!Current || !Current->bMakeWay || !Attacker || !Target)
+	{
+		return;
+	}
+	const FVector From = Attacker->GetActorLocation();
+	const FVector Heading = FVector(Target->GetSettledLocation() - From).GetSafeNormal2D();
+	if (Heading.IsNearlyZero())
+	{
+		return;
+	}
+	// A classe do monstro da luta corpo a corpo: a do alvo para um herói, a do próprio atacante para um monstro
+	const int32 SizeClass = FMath::Max(Attacker->GetSizeClass() > 0 ? Attacker->GetSizeClass() : Target->GetSizeClass(), 1);
+	const float Distance = static_cast<float>(SizeClass) * 8.0f * Attacker->GetUnitsToCm();
+	// A contagem do original drena a classe pelo passo do quadro: dura uns "classe" vsyncs
+	const int32 Frames = FMath::Max(SizeClass, 8);
+	const FVector Left(-Heading.Y, Heading.X, 0.0);
+	for (AJRPGBattlePawn* Pawn : Current->GetBattlePawns())
+	{
+		if (!IsValid(Pawn) || Pawn == Attacker || Pawn == Target || !Pawn->IsStanding())
+		{
+			continue;
+		}
+		// Cada um sai para o lado da linha em que já está (meia volta de um lado, h + 0x400; do outro, h - 0x400)
+		const FVector ToPawn = Pawn->GetSettledLocation() - From;
+		const float Side = FVector::DotProduct(ToPawn, Left) >= 0.0 ? 1.0f : -1.0f;
+		Pawn->StepAside(Left * Side * Distance, Frame, Frames);
+	}
+}
+
+void UJRPGBattleSceneSubsystem::StepFormation(int32 Frame)
+{
+	AJRPGBattleArena* Current = Arena.Get();
+	if (!Current)
+	{
+		return;
+	}
+	// O deslize do recentrar: cada quadro anda a fração que falta até o alpha deste quadro
+	if (FormationShiftDone < 1.0f)
+	{
+		const float Alpha = FMath::Clamp(static_cast<float>(Frame - FormationShiftStart) / static_cast<float>(FormationShiftFrames), 0.0f, 1.0f);
+		const float Step = Alpha - FormationShiftDone;
+		if (Step > 0.0f)
+		{
+			ApplyFormationShift(Step);
+			FormationShiftDone = Alpha;
+		}
+		if (FormationShiftDone >= 1.0f)
+		{
+			FormationShift.Reset();
+		}
+	}
+
+	// A separação: todo par de quem está em pé, mais perto que (r1 + r2) / 6, se afasta (o original roda os pares nas duas
+	// ordens, então cada um anda o passo duas vezes)
+	if (!Current->bSeparation || Current->SeparationStepUnits <= 0.0f)
+	{
+		return;
+	}
+	TArray<AJRPGBattlePawn*> Standing;
+	for (AJRPGBattlePawn* Pawn : Current->GetBattlePawns())
+	{
+		if (IsValid(Pawn) && Pawn->IsStanding())
+		{
+			Standing.Add(Pawn);
+		}
+	}
+	for (int32 i = 0; i < Standing.Num(); ++i)
+	{
+		for (int32 j = i + 1; j < Standing.Num(); ++j)
+		{
+			AJRPGBattlePawn* A = Standing[i];
+			AJRPGBattlePawn* B = Standing[j];
+			const FVector Gap = FVector(B->GetActorLocation() - A->GetActorLocation()) * FVector(1.0, 1.0, 0.0);
+			const double Threshold = (A->SeparationRadiusCm() + B->SeparationRadiusCm()) / 6.0;
+			const double Dist = Gap.Size2D();
+			if (Dist >= Threshold)
+			{
+				continue;
+			}
+			// Em cima um do outro: separa por um eixo qualquer, fixo
+			const FVector Dir = Dist > KINDA_SMALL_NUMBER ? Gap / Dist : FVector(1.0, 0.0, 0.0);
+			const FVector Push = Dir * (2.0 * Current->SeparationStepUnits * A->GetUnitsToCm());
+			const FVector NewA = A->GetActorLocation() - Push;
+			const FVector NewB = B->GetActorLocation() + Push;
+			// Ninguém é empurrado para fora da arena (só vale para quem está dentro dela, como o ClampToArena)
+			if (!Current->bUseArea || !Current->ContainsPoint(A->GetActorLocation()) || Current->ContainsPoint(NewA))
+			{
+				A->TranslateBy(-Push);
+			}
+			if (!Current->bUseArea || !Current->ContainsPoint(B->GetActorLocation()) || Current->ContainsPoint(NewB))
+			{
+				B->TranslateBy(Push);
+			}
+		}
+	}
+}
+
+void UJRPGBattleSceneSubsystem::ApplyFormationShift(float Fraction)
+{
+	for (const TPair<TWeakObjectPtr<AJRPGBattlePawn>, FVector>& Pair : FormationShift)
+	{
+		AJRPGBattlePawn* Pawn = Pair.Key.Get();
+		if (!Pawn)
+		{
+			continue;
+		}
+		Pawn->TranslateBy(Pair.Value * Fraction);
+		// O destino da caminhada é relativo ao alvo: anda o que o alvo andou (com a compressão, cada um anda um tanto)
+		if (Pawn->IsWalkingApproach())
+		{
+			AJRPGBattlePawn* Goal = Pawn->GetActionTarget();
+			const FVector* GoalShift = Goal ? FormationShift.Find(TWeakObjectPtr<AJRPGBattlePawn>(Goal)) : nullptr;
+			const FVector TargetDelta = GoalShift ? *GoalShift : FVector::ZeroVector;
+			Pawn->TranslateApproachGoal((TargetDelta - Pair.Value) * Fraction);
+		}
+	}
+}
+
+void UJRPGBattleSceneSubsystem::SubmitApproachFor(UBattleSubsystem& Battle, const AJRPGBattlePawn& Actor, const AJRPGBattlePawn* Target,
+	const FJRPGActionTimeline& Timeline)
+{
+	if (!Battle.bApproachAuthority || !Target || Target == &Actor)
+	{
+		return;
+	}
+	// Só ação de golpe (a magia e o item não passam pelo núcleo do golpe)
+	const bool bMelee = Timeline.Steps.ContainsByPredicate([](const FJRPGActionStep& Step) { return Step.Kind != EJRPGActionStepKind::SpecialStarter; });
+	if (!bMelee)
+	{
+		return;
+	}
+	// O ângulo entre as frentes, dobrado como o 0x801E3068..0x801E30C8 do original: 0 de frente .. 0x800 de costas (0x1000 a volta)
+	auto ToUnits = [](double Yaw)
+	{
+		return FMath::RoundToInt32(FRotator::NormalizeAxis(Yaw) / 360.0 * 4096.0) & 0xFFF;
+	};
+	const int32 Diff = (ToUnits(Actor.GetActorRotation().Yaw) - ToUnits(Target->GetActorRotation().Yaw)) & 0xFFF;
+	const int32 Folded = Diff < 0x800 ? 0x1000 - Diff : Diff;
+	Battle.SubmitApproach(Timeline.ActionIndex, Folded - 0x800, Actor.GetApproachFrames());
 }

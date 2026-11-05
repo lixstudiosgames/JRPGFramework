@@ -11,6 +11,7 @@ class UBattleSubsystem;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnJRPGBattleSceneEvent);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnJRPGBattleSceneAssembled, AJRPGBattleArena*, Arena, const TArray<AJRPGBattlePawn*>&, Pawns);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnJRPGFormationShifted, FVector, Translation, int32, Frames);
 
 /**
  * UJRPGBattleSceneSubsystem
@@ -51,6 +52,15 @@ public:
 	/** Tela preta no fim da luta: a cena foi desmontada e o Field volta a aparecer. */
 	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle Scene")
 	FOnJRPGBattleSceneEvent OnFieldShown;
+
+	/**
+	 * A formação foi recentrada (AJRPGBattleArena::bRecentreFormation): Translation é quanto o centro dela andou, em mundo
+	 * (o alvo do golpe até o centro da arena); Frames 0 = de uma vez (como o original), > 0 = deslizando nesses quadros lógicos.
+	 * É o gancho das câmeras de ação: o original soma o mesmo deslocamento no foco da câmera no mesmo quadro ("focus pair"),
+	 * e por isso o reposicionamento não se vê. Uma câmera que segue isto fica parada em relação aos combatentes.
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle Scene")
+	FOnJRPGFormationShifted OnFormationShifted;
 
 	/** A arena da luta atual (pode ser a provisória); nula fora de luta. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Scene")
@@ -111,6 +121,31 @@ private:
 	/** Um quadro lógico andou (o relógio de apresentação, UBattleSubsystem::GetPresentationFrame): os pawns tocam em compasso. */
 	UFUNCTION()
 	void HandleLogicFrame(int32 Frame);
+
+	/**
+	 * Planeja o recentrar da formação (ver AJRPGBattleArena::bRecentreFormation): Focus no centro da arena, ou o centro de todos
+	 * quando nulo; comprime o que passa do limite. Desliza a partir do quadro Frame; um recentrar pela metade termina na hora.
+	 */
+	void PlanFormationShift(const AJRPGBattlePawn* Focus, int32 Frame);
+	/** Anda o deslize do recentrar e a separação, um quadro (antes dos pawns tocarem o quadro deles). */
+	void StepFormation(int32 Frame);
+	/**
+	 * Mede a aproximação da ação que Actor começou (o ângulo entre as frentes e os quadros da caminhada) e a manda às regras, se
+	 * esta máquina é a autoridade (UBattleSubsystem::bApproachAuthority). Só para ação de golpe com alvo.
+	 */
+	static void SubmitApproachFor(UBattleSubsystem& Battle, const AJRPGBattlePawn& Actor, const AJRPGBattlePawn* Target,
+		const FJRPGActionTimeline& Timeline);
+	/** Anda o recentrar em curso pela fração dada (0..1) do total de cada um; o destino de quem caminha anda com o alvo dele. */
+	void ApplyFormationShift(float Fraction);
+
+	/** O make-way: os outros saem da linha entre Attacker e Target. */
+	void MakeWay(const AJRPGBattlePawn* Attacker, const AJRPGBattlePawn* Target, int32 Frame);
+
+	/** O recentrar em curso: quanto cada pawn anda no total, de que quadro, em quantos, e quanto já andou (0..1). */
+	TMap<TWeakObjectPtr<AJRPGBattlePawn>, FVector> FormationShift;
+	int32 FormationShiftStart = 0;
+	int32 FormationShiftFrames = 1;
+	float FormationShiftDone = 1.0f;
 
 	/** Tela preta no começo: esconde o Field e monta. */
 	void EnterBattleScene();

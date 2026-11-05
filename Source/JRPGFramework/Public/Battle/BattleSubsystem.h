@@ -194,6 +194,40 @@ public:
 	void HoldLogic(bool bHold);
 
 	/**
+	 * Para o resolvedor por Frames quadros enquanto o relógio de apresentação segue (os pawns animam). A cena usa para a caminhada
+	 * em velocidade constante: um alvo longe leva mais que os LeadFrames das regras, e os golpes esperam o atacante chegar. As
+	 * regras não mudam (o resolvedor só anda mais tarde), então a luta continua determinística; soma com uma parada em curso.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Battle")
+	void StallResolver(int32 Frames);
+
+	/**
+	 * A aproximação da ação em curso, medida pela cena: o termo de ângulo (o quanto o alvo não está de frente, 0..0x800) e o de
+	 * distância (os quadros que o atacante andou) do original, gastos pelo primeiro golpe da ação no block e no dano. Entra nas
+	 * regras como entrada (FJRPGBattleResolver::SubmitApproach, limitada e gravada com a luta), não como leitura de posição.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Battle")
+	bool SubmitApproach(int32 ActionIndex, int32 AttackRamp, int32 GuardRamp);
+
+	/**
+	 * PvP: segura o resolvedor antes do primeiro golpe de uma ação até a aproximação dela chegar (a autoridade mede e manda; as
+	 * duas máquinas aplicam a mesma). No jogo local a cena a entrega no mesmo quadro do ActionStart, então desligado não muda nada.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	bool bWaitForApproachInput = false;
+
+	/**
+	 * Esta máquina mede a aproximação e a manda (a cena chama SubmitApproach no ActionStart). No PvP só a autoridade mede; a
+	 * outra recebe a medida pela rede e a aplica com SubmitApproach, e a cena dela não manda a sua (seria aceita no lugar da
+	 * da autoridade e as duas lutas divergiriam).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	bool bApproachAuthority = true;
+
+	/** O último passo segurou o resolvedor à espera da aproximação: a cena atrasa a ação do pawn o mesmo tanto. */
+	bool WasHeldForApproach() const { return bHeldForApproach; }
+
+	/**
 	 * O combatente de um inimigo a partir do DT_Enemies, pelas regras da versão (InstallEnemyStats) e a dificuldade
 	 * (Core pode ser nulo: sem dificuldade). Actions são as linhas do DT_EnemyActions dele (qualquer ordem). Estática
 	 * e sem subsistema, para os testes montarem a mesma foto que a luta.
@@ -359,6 +393,10 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UDataTable> ArtsTable;
 
+	/** O DT_ArtHits (o quadro de cada golpe das Arts, do disco), preso pelo mesmo motivo; nulo sem a tabela. */
+	UPROPERTY(Transient)
+	TObjectPtr<UDataTable> ArtHitsTable;
+
 	double Accumulator = 0.0;
 	int32 FlushedEvents = 0;
 	int32 LastNotifiedSlot = -2;
@@ -369,4 +407,8 @@ private:
 	/** O relógio de apresentação (GetPresentationFrame) e a diferença dele para o State.Frame das regras. */
 	int32 PresentationFrame = 0;
 	int32 PresentationOffset = 0;
+	/** Quadros que o resolvedor ainda fica parado (StallResolver). */
+	int32 ResolverStallFrames = 0;
+	/** O último StepFrame segurou o resolvedor à espera da aproximação (bWaitForApproachInput). */
+	bool bHeldForApproach = false;
 };

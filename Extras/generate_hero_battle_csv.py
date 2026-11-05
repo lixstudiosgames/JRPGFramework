@@ -9,6 +9,7 @@ generate_hero_battle_csv.py — gera as tabelas pequenas que a luta lê do disco
                                                                     byte(s) de poder, quadro(s) de golpe, rate e custo
   Docs/Data/DT_HeroReactions.csv (Row Struct: FJRPGHeroReactionData) quanto duram as reações de cada herói (flinch, block,
                                                                     knockdown, levantar, a queda), em quadros lógicos
+  Docs/Data/DT_ArtHits.csv      (Row Struct: FJRPGArtHitData)       o quadro do clip de cada golpe das Arts (e o rate)
 
     python Extras/generate_hero_battle_csv.py --extracted <LegaiaRE/extracted> --tool <asset.exe> [--lzs-tool <lzs-decode.exe>] [--dry-run]
 
@@ -38,6 +39,11 @@ O DT_HeroReactions lê a `record[0]` de cada arquivo de batalha (PROT 0863 Vahn,
 traz o rate em `+0x78` e, em `+0xAC`, `[u8 partes][u8 quadros]` do clip. A duração em quadros lógicos (vsyncs, a escala 8) é
 `ceil(4 * quadros / rate)` (Docs/Reference/BATTLE_TIMING.md, seção 1). As entradas: 2 / 3 flinch, 4 knockdown, 5 levantar, 7 morrer,
 8 o caído (repete para sempre), 0x0B block. Uma entrada de stream vazio (a Terra não tem a 7 e a 8) sai 0: a luta usa o padrão.
+
+O DT_ArtHits lê o bloco das Arts da mesma record[0]: o ponteiro em `+0x58` mais 4 é o registro da constante 0x10, e cada
+constante tem 0xD0 bytes (docs/formats/art-data.md). O registro é uma entrada de clip com 0x24 bytes na frente: o combo em
+`+0x00`, os bytes de poder em `+0x24`, os quadros de golpe em `+0x34` (um por byte de poder; os cues de impacto 0x4C de `+0x78`
+caem nos mesmos quadros) e o rate em `+0x9C`. Uma linha por Art do DT_Arts com ActionConstant; a Miracle (0x1B) não tem clip ali.
 
 Fontes (do disco do usuário, lidas com as ferramentas do RE; nada além dos CSVs entra no repositório — regra 48):
   - `asset item-tables <SCUS_942.54> --equipment-only`
@@ -85,6 +91,12 @@ REACTION_PACKS = {"Vahn": "0863", "Noa": "0864", "Gala": "0865", "Terra": "0866"
 # A tag de cada entrada de reação da record[0] e a coluna do DT_HeroReactions
 REACTION_ENTRIES = (("FlinchHighFrames", 2), ("FlinchLowFrames", 3), ("BlockFrames", 0x0B), ("KnockdownFrames", 4),
                     ("GetUpFrames", 5), ("DyingFrames", 7), ("DownLoopFrames", 8))
+
+ART_HITS_TABLE = "DT_ArtHits"
+# O bloco das Arts na record[0]: o ponteiro em +0x58 aponta 4 bytes antes do primeiro registro (o da constante 0x10)
+ART_BLOCK_POINTER = 0x58
+ART_BLOCK_SKIP = 4
+ART_RECORD_SIZE = 0xD0
 
 ITEM_RE = re.compile(r"^0x(?P<id>[0-9A-Fa-f]{2})\s+(?P<name>.+?)\s+equip\s+atk=(?P<atk>\d+)\s")
 TIER_RE = re.compile(r"^Ra-Seru (?P<seru>Meta|Terra|Ozma) \$(?P<tier>\d+)$")
@@ -177,8 +189,8 @@ def hero_swings(tool, extracted, character, workdir, equipment):
     return out
 
 
-def reaction_lengths(lzs_tool, extracted, character, workdir):
-    """{coluna: quadros lógicos} das entradas de reação da record[0] do arquivo de batalha do herói (0 = stream vazio)."""
+def decode_record0(lzs_tool, extracted, character, workdir):
+    """Os bytes da record[0] (LZS em +0x10, +0x0C bytes decodificados) do arquivo de batalha do herói."""
     matches = glob.glob(os.path.join(extracted, "PROT", REACTION_PACKS[character] + "_*.BIN"))
     if not matches:
         sys.exit("Não achei PROT/%s_*.BIN em %s" % (REACTION_PACKS[character], extracted))
@@ -187,7 +199,46 @@ def reaction_lengths(lzs_tool, extracted, character, workdir):
     out = os.path.join(workdir, character + "_record0.bin")
     run(lzs_tool, "raw", matches[0], "--skip", "16", "--size", str(budget), "-o", out)
     with open(out, "rb") as f:
-        data = f.read()
+        return f.read()
+
+
+def art_hits(data, character, arts, report):
+    """As linhas do DT_ArtHits de um herói: o registro de cada Art com constante (bloco em [+0x58] + 4, 0xD0 por constante
+    a partir de 0x10) traz os bytes de poder em +0x24, os quadros de golpe em +0x34 e o rate em +0x9C."""
+    base = struct.unpack_from("<I", data, ART_BLOCK_POINTER)[0] + ART_BLOCK_SKIP
+    rows = []
+    for key, row in arts:
+        if row.get("Character") != character:
+            continue
+        constant = int(row.get("ActionConstant") or 0)
+        if constant < 0x10:
+            continue   # Super Art (constante 0 no DT_Arts) e o que não tem registro próprio: fica no padrão
+        off = base + (constant - 0x10) * ART_RECORD_SIZE
+        if off + ART_RECORD_SIZE > len(data):
+            report["registro de Art fora da record[0]"].append("%s %s (0x%02X)" % (character, key, constant))
+            continue
+        powers = []
+        for b in data[off + 0x24:off + 0x28]:
+            if b == 0:
+                break
+            powers.append(b)
+        beats = list(data[off + 0x34:off + 0x34 + len(powers)])
+        rate = data[off + 0x9C]
+        expected = len(re.findall(r"-?\d+", row.get("HitPower", "")))
+        if not powers or 0 in beats or not rate:
+            report["registro de Art sem poder/quadro/rate"].append("%s %s (0x%02X)" % (character, key, constant))
+            continue
+        if expected and expected != len(beats):
+            report["Art com golpes diferentes do DT_Arts"].append("%s %s: disco %d, DT_Arts %d" % (
+                character, key, len(beats), expected))
+        rows.append({"---": key, "Character": character, "ActionConstant": constant,
+                     "HitBeats": lt.ue_array(beats), "Rate": rate})
+    return rows
+
+
+def reaction_lengths(lzs_tool, extracted, character, workdir):
+    """{coluna: quadros lógicos} das entradas de reação da record[0] do arquivo de batalha do herói (0 = stream vazio)."""
+    data = decode_record0(lzs_tool, extracted, character, workdir)
     offsets = struct.unpack_from("<12I", data, 0)
     lengths = {}
     for column, tag in REACTION_ENTRIES:
@@ -312,6 +363,21 @@ def main():
             reaction_rows.append(row)
     reaction_columns = ["Character"] + [column for column, _tag in REACTION_ENTRIES]
 
+    # --- DT_ArtHits ---------------------------------------------------------------------------------
+    arts, arts_order = lt.read_rows("DT_Arts")
+    arts_list = [(key, arts[key]) for key in arts_order]
+    report.update({"registro de Art fora da record[0]": [], "registro de Art sem poder/quadro/rate": [],
+                   "Art com golpes diferentes do DT_Arts": []})
+    art_rows = []
+    with tempfile.TemporaryDirectory(prefix="legaia_arts_") as workdir:
+        for character in ("Vahn", "Noa", "Gala"):
+            art_rows += art_hits(decode_record0(lzs_tool, args.extracted, character, workdir), character, arts_list, report)
+    art_columns = ["Character", "ActionConstant", "HitBeats", "Rate"]
+
+    print("[hero-battle] DT_ArtHits: %d Arts" % len(art_rows))
+    for r in art_rows:
+        print("            %-28s 0x%02X quadros %-14s rate %d" % (r["---"], r["ActionConstant"], r["HitBeats"], r["Rate"]))
+
     print("[hero-battle] DT_HeroReactions: %d heróis" % len(reaction_rows))
     for r in reaction_rows:
         print("            %-8s %s" % (r["---"], "  ".join("%s %d" % (c[:-6], r[c]) for c in reaction_columns[1:])))
@@ -336,7 +402,8 @@ def main():
                                  (COSTS_TABLE, ["Character", "Item", "ArmsCost"], cost_rows),
                                  (SWINGS_TABLE, ["Character", "Item", "Button", "PowerBytes", "HitBeats", "Rate", "Cost"],
                                   swing_rows),
-                                 (REACTIONS_TABLE, reaction_columns, reaction_rows)):
+                                 (REACTIONS_TABLE, reaction_columns, reaction_rows),
+                                 (ART_HITS_TABLE, art_columns, art_rows)):
         if same_as_csv(table, columns, rows):
             print("[hero-battle] %s: sem mudança, não reescrita." % table)
             continue

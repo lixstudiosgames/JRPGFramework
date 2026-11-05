@@ -323,7 +323,42 @@ FJRPGBattleMenuContext UJRPGBattleUISubsystem::BuildContext(const UBattleSubsyst
 			{
 				Hero.KnownArtCommands.Add(Art->Command);
 			}
+			// A lista de consulta (o painel do Triângulo): toda Art que se digita (as Parts não)
+			if (Art && Art->Kind != EJRPGArtKind::Part && !Art->Command.IsEmpty())
+			{
+				FJRPGBattleMenuArt& Entry = Hero.ArtList.AddDefaulted_GetRef();
+				Entry.Name = Art->DisplayName.IsEmpty() ? ArtKey.ToString() : Art->DisplayName.ToString();
+				Entry.Kind = Art->Kind;
+				Entry.bCost = Art->Kind != EJRPGArtKind::Regular;
+				Entry.AP = Entry.bCost ? Art->APCost : Art->APGain;
+				Entry.Buttons = Art->Command;
+			}
 		}
+		// A ordem do painel: as Hyper no topo, depois a Miracle, as Super e as Regulares; em cada grupo, mais AP primeiro
+		auto GroupOf = [](EJRPGArtKind Kind)
+		{
+			switch (Kind)
+			{
+			case EJRPGArtKind::Hyper:   return 0;
+			case EJRPGArtKind::Miracle: return 1;
+			case EJRPGArtKind::Super:   return 2;
+			default:                    return 3;
+			}
+		};
+		Hero.ArtList.StableSort([&GroupOf](const FJRPGBattleMenuArt& A, const FJRPGBattleMenuArt& B)
+		{
+			const int32 GA = GroupOf(A.Kind);
+			const int32 GB = GroupOf(B.Kind);
+			if (GA != GB)
+			{
+				return GA < GB;
+			}
+			if (A.AP != B.AP)
+			{
+				return A.AP > B.AP;
+			}
+			return A.Name < B.Name;
+		});
 		Ctx.Heroes.Add(Hero);
 	}
 

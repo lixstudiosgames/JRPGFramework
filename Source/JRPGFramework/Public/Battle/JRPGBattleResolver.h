@@ -179,6 +179,13 @@ public:
 	 */
 	TFunction<int32()> RandOverride;
 
+	/**
+	 * PvP: o primeiro golpe de uma ação só resolve depois que a aproximação dela chegou (SubmitApproach). Enquanto não chega,
+	 * ProcessDue não resolve golpe nenhum da ação (nem um no quadro 0, que sairia dentro do StartAction antes de a cena ver o
+	 * ActionStart) e o UBattleSubsystem não anda o quadro (IsWaitingForApproach). As duas máquinas usam a mesma flag.
+	 */
+	bool bRequireApproach = false;
+
 	/** Começa a luta com estes combatentes (a foto). Reinicia o estado e os eventos e abre a rodada 1. */
 	void Begin(const TArray<FJRPGCombatant>& InCombatants, int32 InSeed, bool bInScriptedFight, int32 InFormationAdvantage);
 
@@ -196,6 +203,20 @@ public:
 	 * roadmap — o contrato (carimbo, um input por golpe, o de fora da janela é ignorado) é o que fica pronto.
 	 */
 	bool SubmitInput(const FJRPGBattleInput& Input, FString* OutWhy = nullptr);
+
+	/**
+	 * A aproximação da ação em curso, medida pela cena (o ângulo e a caminhada do original; FJRPGApproachInput). Confere que a
+	 * ação é a ativa e que ainda não recebeu nem gastou a dela, e LIMITA os valores (AttackRamp 0..0x800, GuardRamp 0..0x7FFF):
+	 * nunca confia no payload (regra 22). Guardada em State.Approaches. Sem ela os termos são 0.
+	 */
+	bool SubmitApproach(const FJRPGApproachInput& Approach, FString* OutWhy = nullptr);
+
+	/**
+	 * A ação em curso ainda não recebeu a aproximação e o próximo quadro resolveria o primeiro golpe dela. O UBattleSubsystem
+	 * pode segurar o resolvedor aqui (bWaitForApproachInput, o PvP) sem andar o State.Frame: as duas máquinas ficam no mesmo
+	 * quadro das regras até a medida da autoridade chegar.
+	 */
+	bool IsWaitingForApproach() const;
 
 	/** Um quadro lógico. Não faz nada fora da execução (a rodada de comandos espera quem pensa). */
 	void StepFrame();

@@ -620,6 +620,31 @@ struct JRPGFRAMEWORK_API FJRPGBattleInput
 	int32 Frame = 0;
 };
 
+/**
+ * FJRPGApproachInput
+ * A geometria da aproximação de uma ação, medida pela cena e entregue às regras como ENTRADA (as regras não leem posições):
+ * o termo de ângulo e o de distância do original, que o primeiro golpe da ação gasta no block e no dano
+ * (FJRPGBlockInput / FJRPGMeleeInput::AttackRamp / GuardRamp). Só inteiros: viaja com os comandos e a semente (PvP: quem é a
+ * autoridade mede e manda; as duas máquinas aplicam os mesmos números) e fica no FJRPGBattleState::Approaches para o replay.
+ */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGApproachInput
+{
+	GENERATED_BODY()
+
+	/** A ação (FJRPGActionTimeline::ActionIndex) a que a medida pertence. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	int32 ActionIndex = -1;
+
+	/** O quanto o alvo NÃO está de frente para o atacante: 0 de frente .. 0x800 de costas (unidades de ângulo do PS1, 0x1000 a volta). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	int32 AttackRamp = 0;
+
+	/** Os vsyncs (quadros lógicos) que o atacante andou até o alvo; 0 se não andou. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	int32 GuardRamp = 0;
+};
+
 /** Um fato da luta, na ordem em que a resolução o produz. A apresentação o mostra quando o clip chega. */
 USTRUCT(BlueprintType)
 struct JRPGFRAMEWORK_API FJRPGBattleEvent
@@ -867,6 +892,19 @@ struct JRPGFRAMEWORK_API FJRPGActiveAction
 	/** Quantos golpes acertaram cada slot nesta ação (o HIT do original; o bloqueado e o que erra não contam). */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	TArray<int32> ComboHits;
+
+	/** A aproximação desta ação (SubmitApproach): recebida, e já gasta pelo primeiro golpe que passou pelo núcleo (block ou acerto). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bApproachReceived = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bApproachSpent = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 AttackRamp = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 GuardRamp = 0;
 };
 
 /**
@@ -940,6 +978,10 @@ struct JRPGFRAMEWORK_API FJRPGBattleState
 	/** Os inputs aceitos durante a execução (o parry), carimbados. */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	TArray<FJRPGBattleInput> Inputs;
+
+	/** As aproximações aceitas (SubmitApproach), já limitadas: com a semente e os comandos, refazem a luta. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<FJRPGApproachInput> Approaches;
 
 	/** Quem está agindo (Execution) ou digitando (Commands); -1 entre uma e outra. */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")

@@ -570,7 +570,17 @@ bool UBattleSubsystem::BeginBattle(const FJRPGBattleSetup& Setup)
 	// fazem parte do SETUP DA PARTIDA — hoje cada máquina lê os dela; no PvP têm de viajar com a semente
 	// (Docs/BATTLE_ROADMAP.md, "door open").
 	Resolver.Defaults = TimelineDefaults;
-	Resolver.ClipTiming = [](FName Hero, const FJRPGClipQuery& Query, FJRPGClipTiming& OutTiming) -> bool
+	// PvP: o primeiro golpe de cada ação espera a aproximação (as duas máquinas com a mesma flag)
+	Resolver.bRequireApproach = bWaitForApproachInput;
+	// Os quadros de golpe das Arts, do disco: os clips das Arts não têm UJRPGAnimNotify_Hit, e sem eles os golpes caíam no
+	// espaçamento padrão, fora do clip (a reação do alvo vinha atrasada)
+	ArtHitsTable = UCoreSubsystem::ResolveDataTable(TEXT("DT_ArtHits"));
+	if (!ArtHitsTable)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("BattleSubsystem: DT_ArtHits não encontrada — os golpes das Arts sem marcadores no clip usam o espaçamento padrão"));
+	}
+	const UDataTable* ArtHits = ArtHitsTable;
+	Resolver.ClipTiming = [ArtHits](FName Hero, const FJRPGClipQuery& Query, FJRPGClipTiming& OutTiming) -> bool
 	{
 		UAnimSequence* Clip = nullptr;
 		if (Query.Kind == EJRPGActionStepKind::Art)
@@ -598,6 +608,21 @@ bool UBattleSubsystem::BeginBattle(const FJRPGBattleSetup& Setup)
 				OutTiming.HitFrames.Add(SecondsToSteps(Time, ClipRate, Query.GameSpeed));
 			}
 		}
+		else if (Query.Kind == EJRPGActionStepKind::Art && ArtHits)
+		{
+			// Sem marcadores no clip: os quadros de golpe do registro da Art no disco, na conta do golpe simples
+			const FJRPGArtHitData* Row = ArtHits->FindRow<FJRPGArtHitData>(Query.ArtKey, TEXT("ArtHits"), false);
+			if (Row && Row->HitBeats.Num() == Query.ExpectedHits && Query.ExpectedHits > 0)
+			{
+				for (const int32 Beat : Row->HitBeats)
+				{
+					const int32 Frame = UBattleFormulas::ClipFramesToSteps(FMath::Max(Beat - 1, 0), Query.GameSpeed, FMath::Max(Row->Rate, 1));
+					OutTiming.HitFrames.Add(Frame);
+					// O clip nunca acaba antes do último golpe dele
+					OutTiming.Frames = FMath::Max(OutTiming.Frames, Frame + 1);
+				}
+			}
+		}
 		const float Cut = UJRPGAnimNotify_ChainCut::FindCutTime(Clip);
 		if (Cut >= 0.0f)
 		{
@@ -613,6 +638,7 @@ bool UBattleSubsystem::BeginBattle(const FJRPGBattleSetup& Setup)
 	FramesSinceFinish = 0;
 	PresentationFrame = 0;
 	PresentationOffset = 0;
+	ResolverStallFrames = 0;
 	LastNotifiedSlot = -2;
 	LastNotifiedStage = EJRPGBattleStage::None;
 	LastEncounterTime = FPlatformTime::Seconds();
@@ -671,11 +697,14 @@ void UBattleSubsystem::EndBattleForDebug(EJRPGBattleResult Result, bool bPayEver
 
 void UBattleSubsystem::WriteBack(EJRPGBattleResult Result)
 {
-	// Derrota e Aborted não escrevem nada: o roster fica como estava antes da luta
-	if (Result != EJRPGBattleResult::Victory && Result != EJRPGBattleResult::Escaped)
+	// Aborted não escreve nada. Vitória, fuga e derrota gravam o HP e o MP da luta na ficha, com quem caiu levantando com 1 de HP
+	// (RE battle_exit_party_reset; na derrota o piso vale para todos no quadro do fade, e é por isso que uma derrota roteirizada
+	// volta ao campo de pé). A derrota grava SÓ o HP e o MP (o AP e as Arts aprendidas na luta não ficam)
+	if (Result == EJRPGBattleResult::Aborted)
 	{
 		return;
 	}
+	const bool bKeepsProgress = Result == EJRPGBattleResult::Victory || Result == EJRPGBattleResult::Escaped;
 	UGameInstance* GI = GetGameInstance();
 	UPartySubsystem* Party = GI ? GI->GetSubsystem<UPartySubsystem>() : nullptr;
 	UArtsSubsystem* Arts = GI ? GI->GetSubsystem<UArtsSubsystem>() : nullptr;
@@ -691,8 +720,8 @@ void UBattleSubsystem::WriteBack(EJRPGBattleResult Result)
 		{
 			continue;
 		}
-		// Quem caiu levanta com 1 de HP na fuga (o original); na vitória fica como está
-		const int32 HP = (Result == EJRPGBattleResult::Escaped && C.HP <= 0) ? 1 : C.HP;
+		// Quem caiu levanta com 1 de HP em toda saída (o original não deixa ninguém em 0 depois da luta, e não cura nada)
+		const int32 HP = FMath::Max(C.HP, 1);
 		if (HP > Member.HP)
 		{
 			if (Member.HP <= 0)
@@ -708,9 +737,18 @@ void UBattleSubsystem::WriteBack(EJRPGBattleResult Result)
 		{
 			Party->ApplyDamage(C.Key, Member.HP - HP);
 		}
+		// O MP da luta, para cima ou para baixo (antes o gasto não voltava para a ficha)
 		if (C.MP > Member.MP)
 		{
 			Party->RestoreMP(C.Key, C.MP - Member.MP);
+		}
+		else if (C.MP < Member.MP)
+		{
+			Party->SpendMP(C.Key, Member.MP - C.MP);
+		}
+		if (!bKeepsProgress)
+		{
+			continue;
 		}
 		Party->SetAP(C.Key, C.AP);
 
@@ -784,6 +822,33 @@ void UBattleSubsystem::PayRewards()
 // =================================================================================================
 // A luta andando
 // =================================================================================================
+
+bool UBattleSubsystem::SubmitApproach(int32 ActionIndex, int32 AttackRamp, int32 GuardRamp)
+{
+	if (!bInBattle)
+	{
+		return false;
+	}
+	FJRPGApproachInput Approach;
+	Approach.ActionIndex = ActionIndex;
+	Approach.AttackRamp = AttackRamp;
+	Approach.GuardRamp = GuardRamp;
+	FString Why;
+	if (!Resolver.SubmitApproach(Approach, &Why))
+	{
+		UE_LOG(LogTemp, Verbose, TEXT("BattleSubsystem: aproximação recusada — %s"), *Why);
+		return false;
+	}
+	return true;
+}
+
+void UBattleSubsystem::StallResolver(int32 Frames)
+{
+	if (bInBattle && Frames > 0)
+	{
+		ResolverStallFrames += Frames;
+	}
+}
 
 void UBattleSubsystem::HoldLogic(bool bHold)
 {
@@ -877,7 +942,22 @@ void UBattleSubsystem::StepFrame()
 	// Execution: na digitação dos comandos e no hold da vitória / derrota o State.Frame fica parado e a diferença (o offset) cresce,
 	// para os eventos e as timelines das regras caírem no mesmo relógio que os pawns recebem
 	++PresentationFrame;
-	Resolver.StepFrame();
+	bHeldForApproach = false;
+	// A caminhada do atacante passa dos LeadFrames (StallResolver): as regras esperam, a apresentação segue
+	if (ResolverStallFrames > 0)
+	{
+		--ResolverStallFrames;
+	}
+	else if (Resolver.IsWaitingForApproach())
+	{
+		// PvP: o primeiro golpe espera a aproximação da autoridade (as regras não andam; a apresentação segue e a cena atrasa
+		// a ação do pawn o mesmo tanto)
+		bHeldForApproach = true;
+	}
+	else
+	{
+		Resolver.StepFrame();
+	}
 	PresentationOffset = PresentationFrame - Resolver.GetState().Frame;
 	FlushEvents();
 	// Decidida a luta (depois da reação do alvo e da faixa Done), o relógio das regras para, mas a apresentação segue (hold da vitória / derrota)

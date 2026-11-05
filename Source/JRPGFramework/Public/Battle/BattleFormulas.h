@@ -40,6 +40,15 @@ struct JRPGFRAMEWORK_API FJRPGMeleeInput
 
 	/** O alvo está no Spirit: a defesa x3. */
 	bool bDefenderGuarding = false;
+
+	/**
+	 * Os termos da aproximação do original (ctx[+0x6D2] / ctx[+0x6D4]), só no PRIMEIRO golpe da ação que passa pelo núcleo
+	 * (FJRPGBattleResolver os zera depois): AttackRamp = o quanto o defensor NÃO está de frente para o atacante, 0 (de frente)
+	 * a 0x800 (de costas), em unidades de ângulo do PS1; GuardRamp = os vsyncs que o atacante andou até o alvo. Vêm da cena
+	 * como entrada da ação (FJRPGBattleResolver::SubmitApproach); sem ela, 0.
+	 */
+	int32 AttackRamp = 0;
+	int32 GuardRamp = 0;
 };
 
 /** O que o núcleo do dano devolveu: o ataque, a defesa e a diferença. */
@@ -69,6 +78,15 @@ struct JRPGFRAMEWORK_API FJRPGBlockInput
 
 	/** O golpe do atacante é de uma Art: o lado dele x3/2. */
 	bool bAttackerArt = false;
+
+	/**
+	 * Os termos da aproximação do original (ctx[+0x6D2] / ctx[+0x6D4]), só no PRIMEIRO golpe da ação que passa pelo núcleo
+	 * (FJRPGBattleResolver os zera depois): AttackRamp = o quanto o defensor NÃO está de frente para o atacante, 0 (de frente)
+	 * a 0x800 (de costas), em unidades de ângulo do PS1; GuardRamp = os vsyncs que o atacante andou até o alvo. Vêm da cena
+	 * como entrada da ação (FJRPGBattleResolver::SubmitApproach); sem ela, 0.
+	 */
+	int32 AttackRamp = 0;
+	int32 GuardRamp = 0;
 };
 
 /**
@@ -83,8 +101,8 @@ struct JRPGFRAMEWORK_API FJRPGBlockInput
  * saem na ordem do original (ataque, defesa; o remendo e o piso só quando disparam); copiar a sequência
  * exata de rand() dele não é objetivo (ela era compartilhada com a apresentação).
  *
- * Fora das regras do original, por decisão (Deliberate departures): o termo de ângulo e o de distância do
- * ataque e da defesa são 0 (posições não alimentam as regras).
+ * O termo de ângulo e o de distância do ataque e da defesa (AttackRamp / GuardRamp) entram como no original, mas como
+ * ENTRADA da ação (inteiros que a cena mede e manda, gravados com a luta): as regras não leem posições.
  */
 UCLASS()
 class JRPGFRAMEWORK_API UBattleFormulas : public UBlueprintFunctionLibrary

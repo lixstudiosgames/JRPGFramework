@@ -143,3 +143,36 @@ struct JRPGFRAMEWORK_API FJRPGHeroReactionData : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction", meta = (ClampMin = "0"))
 	int32 DownLoopFrames = 40;
 };
+
+/**
+ * FJRPGArtHitData
+ * Em que quadro do clip cai cada golpe de uma Art (linha da DataTable DT_ArtHits, gerada por Extras/generate_hero_battle_csv.py
+ * do registro da Art no arquivo de batalha do herói: a record[0], o bloco das Arts em [+0x58] + 4, um registro de 0xD0 bytes por
+ * constante de ação). O row name é a key da Art no DT_Arts.
+ *
+ * O registro da Art é uma entrada de clip como a do golpe simples, com 0x24 bytes na frente: os bytes de poder em +0x24 (a entrada
+ * +0x00), os quadros de golpe em +0x34 (a entrada +0x10, um por byte de poder) e o rate em +0x9C (a entrada +0x78). O golpe B cai
+ * no quadro lógico ClipFramesToSteps(B - 1, velocidade, Rate), a mesma conta do golpe simples (FJRPGHeroSwingData).
+ * Os UJRPGAnimNotify_Hit do clip, se houver, valem mais que esta tabela; sem os dois, a Art espaça os golpes pelo padrão.
+ */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGArtHitData : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	/** O herói dono da Art. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Hits")
+	FName Character;
+
+	/** A constante de ação da Art (o índice do registro no arquivo de batalha). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Hits", meta = (ClampMin = "0"))
+	int32 ActionConstant = 0;
+
+	/** O quadro do clip (o "beat" do disco, a partir de 1) de cada golpe, na ordem. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Hits")
+	TArray<int32> HitBeats;
+
+	/** O rate do clip (1..4). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Hits", meta = (ClampMin = "1"))
+	int32 Rate = 2;
+};
