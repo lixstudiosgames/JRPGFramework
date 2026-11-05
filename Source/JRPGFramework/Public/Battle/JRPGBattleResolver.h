@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Battle/BattleTypes.h"
+#include "Battle/BattleFormulas.h"
 #include "JRPGBattleResolver.generated.h"
 
 class UDataTable;
@@ -22,9 +23,13 @@ struct JRPGFRAMEWORK_API FJRPGTimelineDefaults
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline")
 	int32 LeadFrames = 30;
 
-	/** Do último passo até a ação acabar: a recuperação. */
+	/**
+	 * Do último passo até a ação acabar. 0 = a ação acaba quando o último clip chega ao fim natural dele: o original não tem
+	 * cauda (o estado 0x20 espera o clip acabar e depois a reação do alvo, e só então a faixa Done; Docs/Reference/BATTLE_TIMING.md,
+	 * seção 2). A pausa de depois é DoneBandFrames, não isto.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline")
-	int32 TailFrames = 24;
+	int32 TailFrames = 0;
 
 	/** Um golpe simples (SwingL..U): o tamanho do clip, o quadro do golpe e o corte (onde o próximo passo entra). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline")
@@ -58,6 +63,56 @@ struct JRPGFRAMEWORK_API FJRPGTimelineDefaults
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline")
 	int32 EnemySwingHitFrame = 30;
+
+	/**
+	 * A pausa de depois da ação (a faixa Done, estados 0x50 / 0x51): conta a partir de o clip do atacante e a reação do alvo
+	 * acabarem, e a vitória / derrota só é testada depois dela. 60 vsyncs (150 com o aviso de level-up, que a luta ainda não tem).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline", meta = (ClampMin = "0"))
+	int32 DoneBandFrames = 60;
+
+	/** Os passos da máquina de estados entre o teste de fim de ação e a próxima ação (0x5A -> 0x0A -> 0x0C -> 0x14): uns 6 vsyncs. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline", meta = (ClampMin = "0"))
+	int32 PassGapFrames = 6;
+
+	/**
+	 * A duração das reações quando o combatente não traz a dele (FJRPGCombatant::Reactions em 0): o herói usa o Vahn (os números
+	 * do disco), o monstro a mediana dos 179 do DT_EnemyActions (flinch tag 2: 54, tag 3: 46, block 46, knockdown 60, levantar 60).
+	 * Na velocidade normal do jogo (escala 8).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline|Reactions", meta = (ClampMin = "1"))
+	int32 HeroFlinchFrames = 32;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline|Reactions", meta = (ClampMin = "1"))
+	int32 HeroBlockFrames = 32;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline|Reactions", meta = (ClampMin = "1"))
+	int32 HeroKnockdownFrames = 32;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline|Reactions", meta = (ClampMin = "1"))
+	int32 HeroGetUpFrames = 50;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline|Reactions", meta = (ClampMin = "1"))
+	int32 HeroDyingFrames = 40;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline|Reactions", meta = (ClampMin = "1"))
+	int32 EnemyFlinchHighFrames = 54;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline|Reactions", meta = (ClampMin = "1"))
+	int32 EnemyFlinchLowFrames = 46;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline|Reactions", meta = (ClampMin = "1"))
+	int32 EnemyBlockFrames = 46;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline|Reactions", meta = (ClampMin = "1"))
+	int32 EnemyKnockdownFrames = 60;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline|Reactions", meta = (ClampMin = "1"))
+	int32 EnemyGetUpFrames = 60;
+
+	/** O fade de derrota do monstro (lanes 0x100 -> 0, 8 por passo): uns 32 vsyncs, o knockdown vem antes. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline|Reactions", meta = (ClampMin = "1"))
+	int32 EnemyDeathFadeFrames = 32;
 };
 
 /** O que o resolvedor pergunta sobre o clip de um passo da party. */
@@ -198,6 +253,11 @@ private:
 	bool PickNext();
 	void StartAction(int32 Slot);
 	void EndAction(bool bCancelled);
+	/**
+	 * Agenda o teste de vitória / derrota e a próxima ação para depois da reação de quem caiu (ReactionHoldUntilFrame) e da faixa
+	 * Done: o mesmo ritmo depois de uma ação (EndAction) e depois de uma morte no começo do turno (StartAction).
+	 */
+	void ScheduleFinishCheck();
 	bool CheckFinish();
 	void Finish(EJRPGBattleResult Result);
 	bool NeedsAnyCommand(int32* OutSlot) const;
@@ -221,14 +281,16 @@ private:
 	void ResolveHit(int32 HitIndex);
 	void ApplyMark(const FJRPGActionMark& Mark);
 	bool RunConditions(FJRPGCombatant& Of, bool bTurnStart);
-	void KillCombatant(FJRPGCombatant& Of, int32 KilledBy);
+	/** GameSpeed: a escala em vigor quando ele cai (a espera pela queda anda nela). */
+	void KillCombatant(FJRPGCombatant& Of, int32 KilledBy, int32 GameSpeed = UBattleFormulas::NormalGameSpeed);
 	/** Nenhum golpe depois deste conecta com o alvo: é o que escreve o total do combo (e decide o knockdown e a queda). */
 	bool IsLastConnectingHit(int32 HitIndex, bool bHeroAttacker, const FJRPGCombatant& Defender) const;
 
 	// --- Ajudas ---
 	bool IsLivingFoe(const FJRPGCombatant& Of, int32 Slot) const;
 	bool HasCondition(const FJRPGCombatant& Of, FName Condition) const;
-	void Emit(EJRPGBattleEventType Type, int32 Slot, int32 Target, int32 Value, int32 HitIndex = -1, int32 Flags = 0, FName ArtKey = NAME_None, int32 Count = 0);
+	void Emit(EJRPGBattleEventType Type, int32 Slot, int32 Target, int32 Value, int32 HitIndex = -1, int32 Flags = 0, FName ArtKey = NAME_None, int32 Count = 0,
+		int32 GameSpeed = UBattleFormulas::NormalGameSpeed);
 	/** Um sorteio de 15 bits do Rng da luta. */
 	int32 Rand15();
 

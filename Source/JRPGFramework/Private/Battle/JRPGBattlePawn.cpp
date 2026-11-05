@@ -1,5 +1,6 @@
 #include "Battle/JRPGBattlePawn.h"
 #include "Arts/JRPGArtSequence.h"
+#include "Battle/BattleFormulas.h"
 #include "Battle/JRPGBattleArena.h"
 #include "Core/CoreSubsystem.h"
 #include "Field/JRPGFieldEnemyAnimInstance.h"
@@ -12,7 +13,8 @@
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
-#include "TimerManager.h"
+#include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 
 namespace
 {
@@ -97,6 +99,12 @@ AJRPGBattlePawn::AJRPGBattlePawn()
 	Mesh->SetRelativeRotation(FRotator(0.0f, MeshYawOffset, 0.0f));
 }
 
+// Definido aqui (não inline no header): atribuir ao TWeakObjectPtr exige o tipo completo da arena
+void AJRPGBattlePawn::SetArena(AJRPGBattleArena* InArena)
+{
+	Arena = InArena;
+}
+
 void AJRPGBattlePawn::InitCombatant(const FJRPGCombatant& InCombatant, const FJRPGBattleVisual& Visual, const FTransform& FeetTransform)
 {
 	Combatant = InCombatant;
@@ -128,6 +136,17 @@ void AJRPGBattlePawn::InitCombatant(const FJRPGCombatant& InCombatant, const FJR
 	bDown = false;
 	bActionActive = false;
 	Phase = EJRPGActionPhase::Idle;
+	ReactionQueue.Reset();
+	ReactionEndFrame = INDEX_NONE;
+	IdleHandoffFrame = INDEX_NONE;
+	StepClipEndFrame = INDEX_NONE;
+	bDeathFadeQueued = false;
+	bDeathFading = false;
+	HitResults.Reset();
+	HeldSounds.Reset();
+	bSoundContextActive = false;
+	SoundContextEndFrame = INDEX_NONE;
+	SetActorHiddenInGame(false);
 	if (InCombatant.Type == EJRPGCombatantType::Enemy)
 	{
 		if (const UDataTable* Actions = UCoreSubsystem::ResolveDataTable(TEXT("DT_EnemyActions")))
@@ -225,24 +244,29 @@ void AJRPGBattlePawn::PlayClip(UAnimSequence* Clip, bool bLoop, float PlayRate)
 	{
 		return;
 	}
-	// O crossfade nativo só toca em loop; clip de uma vez só vai direto, sem mistura
-	if (bLoop)
+	// Tudo toca na MESMA instância do crossfade (UJRPGFieldEnemyAnimInstance), em loop (idle, andar) ou de uma vez só (golpe,
+	// reação). Antes o clip de uma vez só ia por Mesh->PlayAnimation, que troca a malha para o modo single node e destrói a
+	// instância; voltar dali para o idle dependia de reconstruí-la no meio da luta, e a Noa ficava parada num quadro depois de
+	// uma Art (bug 18). Sem trocar de modo não há o que reconstruir
+	UJRPGFieldEnemyAnimInstance* Anim = Cast<UJRPGFieldEnemyAnimInstance>(Mesh->GetAnimInstance());
+	if (!Anim)
 	{
-		UJRPGFieldEnemyAnimInstance* Anim = Cast<UJRPGFieldEnemyAnimInstance>(Mesh->GetAnimInstance());
+		// A malha saiu do modo Anim Blueprint (não deveria): volta a ele com a instância do crossfade
+		Mesh->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+		Anim = Cast<UJRPGFieldEnemyAnimInstance>(Mesh->GetAnimInstance());
 		if (!Anim)
 		{
-			// Um clip de uma vez (PlayAnimation) passou a Mesh para o modo single node, e o idle em loop que vinha depois
-			// (o fim de uma Art da Noa) ficava num quadro parado. Volta para a instância do crossfade, a mesma do começo da
-			// luta, que repete o clip pela própria engine
 			Mesh->SetAnimInstanceClass(UJRPGFieldEnemyAnimInstance::StaticClass());
 			Anim = Cast<UJRPGFieldEnemyAnimInstance>(Mesh->GetAnimInstance());
 		}
-		if (Anim)
-		{
-			Anim->PlayClip(Clip, PlayRate, AnimBlendTime);
-			return;
-		}
 	}
+	if (Anim)
+	{
+		// O clip de uma vez só entra sem mistura (corte seco, como antes); o loop mistura por AnimBlendTime
+		Anim->PlayClip(Clip, PlayRate, bLoop ? AnimBlendTime : 0.0f, bLoop);
+		return;
+	}
+	// Sem instância (a malha ainda sem asset): o último recurso é o single node
 	Mesh->PlayAnimation(Clip, bLoop);
 	Mesh->SetPlayRate(PlayRate);
 }
@@ -316,56 +340,88 @@ UAnimSequence* AJRPGBattlePawn::FindRoleClip(FName ClipRole, float& OutPlayRate)
 	return Clip;
 }
 
-void AJRPGBattlePawn::PlayReaction(FName ClipRole, bool bHold, FName FollowRole, bool bHoldFollow)
+void AJRPGBattlePawn::StartReaction(const TArray<FReactionStep>& Steps, int32 LogicFrame, int32 GameSpeed)
 {
-	float Rate = 1.0f;
-	UAnimSequence* Clip = FindRoleClip(ClipRole, Rate);
-	if (!Clip && ClipRole == RoleDying)
+	ReactionQueue = Steps;
+	ReactionGameSpeed = FMath::Max(GameSpeed, 1);
+	ReactionEndFrame = INDEX_NONE;
+	ReactionLastEnd = EReactionEnd::Idle;
+	// Uma reação nova toma o lugar do idle que a ação anterior deixou pendente
+	IdleHandoffFrame = INDEX_NONE;
+	AdvanceReaction(LogicFrame);
+}
+
+void AJRPGBattlePawn::AdvanceReaction(int32 LogicFrame)
+{
+	while (!ReactionQueue.IsEmpty())
 	{
-		Clip = FindRoleClip(RoleKnockdown, Rate);   // o herói sem o clip de morrer cai pelo de derrubar
-	}
-	if (!Clip)
-	{
-		// Sem o clip deste papel a cadeia segue direto para o próximo (quem não tem o Knockdown ainda levanta)
-		if (!FollowRole.IsNone())
+		const FReactionStep Step = ReactionQueue[0];
+		ReactionQueue.RemoveAt(0);
+		const bool bLast = ReactionQueue.IsEmpty();
+
+		float Rate = 1.0f;
+		UAnimSequence* Clip = FindRoleClip(Step.Role, Rate);
+		if (!Clip)
 		{
-			PlayReaction(FollowRole, bHoldFollow);
+			// Sem o clip deste papel a cadeia segue direto para o próximo (quem não tem o GetUp volta ao idle depois do Knockdown)
+			if (bLast)
+			{
+				ReactionLastEnd = Step.End;
+				ReactionEndFrame = INDEX_NONE;
+				OnReactionEnded(LogicFrame);
+			}
+			continue;
 		}
-		else if (!bHold)
+		ReactionLastEnd = Step.End;
+		// A reação toca na velocidade em que o golpe foi tomado (uma Art deixa o jogo a 4 ou a 2)
+		Rate *= static_cast<float>(ReactionGameSpeed) / static_cast<float>(UBattleFormulas::NormalGameSpeed);
+		if (bLast && Step.End == EReactionEnd::Loop)
 		{
-			// Fim da cadeia sem clip (ex.: o GetUp que falta depois do Knockdown): volta ao idle, senão fica no último quadro
-			ReturnToIdle();
+			// O herói caído repete o clip dele para sempre (a entrada 8 do original re-comita a si mesma a cada fim natural)
+			PlayClip(Clip, true, Rate);
+			ReactionEndFrame = INDEX_NONE;
+			return;
 		}
-		return;
-	}
-	GetWorldTimerManager().ClearTimer(ReactionTimer);
-	PlayClip(Clip, false, Rate);
-	PendingFollowRole = FollowRole;
-	bPendingFollowHold = bHoldFollow;
-	// Sem nada depois e para segurar: fica no último quadro. Senão o timer acorda no fim do clip (o seguinte da cadeia, ou o idle)
-	if (!bHold || !FollowRole.IsNone())
-	{
+		PlayClip(Clip, false, Rate);
 		const float Speed = FMath::Max(Rate * FMath::Max(Clip->RateScale, KINDA_SMALL_NUMBER), KINDA_SMALL_NUMBER);
-		GetWorldTimerManager().SetTimer(ReactionTimer, this, &AJRPGBattlePawn::OnReactionEnded, FMath::Max(Clip->GetPlayLength() / Speed, 0.1f), false);
+		const int32 Frames = FMath::Max(FMath::CeilToInt(Clip->GetPlayLength() / Speed * static_cast<float>(UBattleFormulas::StepsPerSecond)), 1);
+		ReactionEndFrame = LogicFrame + Frames;
+		return;
 	}
 }
 
-void AJRPGBattlePawn::OnReactionEnded()
+void AJRPGBattlePawn::OnReactionEnded(int32 LogicFrame)
 {
+	ReactionEndFrame = INDEX_NONE;
+	if (!ReactionQueue.IsEmpty())
+	{
+		if (bActionActive)
+		{
+			ReactionQueue.Reset();   // ele já está na ação dele: a reação não toca por cima
+			return;
+		}
+		AdvanceReaction(LogicFrame);
+		return;
+	}
 	if (bActionActive)
 	{
-		PendingFollowRole = NAME_None;   // ele já está na ação dele: a reação não toca por cima
 		return;
 	}
-	if (!PendingFollowRole.IsNone())
+	switch (ReactionLastEnd)
 	{
-		const FName Next = PendingFollowRole;
-		const bool bHoldNext = bPendingFollowHold;
-		PendingFollowRole = NAME_None;
-		PlayReaction(Next, bHoldNext);
-		return;
+	case EReactionEnd::Idle:
+		ReturnToIdle();
+		break;
+	case EReactionEnd::Hold:
+		// O monstro derrotado: o corpo segura o último quadro do knockdown e, daí, desbota e afunda
+		if (bDeathFadeQueued)
+		{
+			BeginDeathFade(LogicFrame);
+		}
+		break;
+	case EReactionEnd::Loop:
+		break;
 	}
-	ReturnToIdle();
 }
 
 void AJRPGBattlePawn::ReturnToIdle()
@@ -373,6 +429,51 @@ void AJRPGBattlePawn::ReturnToIdle()
 	if (!bDown && !bActionActive)
 	{
 		PlayIdle();
+	}
+}
+
+void AJRPGBattlePawn::BeginDeathFade(int32 LogicFrame)
+{
+	bDeathFadeQueued = false;
+	bDeathFading = true;
+	DeathFadeStartFrame = LogicFrame;
+	DeathFadeBaseZ = GetActorLocation().Z;
+}
+
+void AJRPGBattlePawn::UpdateDeathFade(int32 LogicFrame)
+{
+	if (!bDeathFading)
+	{
+		return;
+	}
+	// O fade do original leva as lanes de cor de 0x100 a 0 (8 por passo, uns 32 vsyncs) com o corpo desenhado aditivo, e ele afunda
+	// (classe de tamanho * passo) >> 2 unidades por passo até sumir por baixo do chão
+	const int32 Total = FMath::Max(DeathFadeFrames, 1);
+	const int32 Elapsed = FMath::Clamp(LogicFrame - DeathFadeStartFrame, 0, Total);
+	const float Alpha = static_cast<float>(Elapsed) / static_cast<float>(Total);
+	if (bDeathSink)
+	{
+		const int32 SizeClass = Combatant.SizeClass > 0 ? Combatant.SizeClass : DefaultSizeClass;
+		FVector Here = GetActorLocation();
+		Here.Z = DeathFadeBaseZ - static_cast<float>(SizeClass) * 0.25f * UnitsToCm * static_cast<float>(Elapsed);
+		SetActorLocation(Here);
+	}
+	if (!DeathFadeParameter.IsNone())
+	{
+		Mesh->SetScalarParameterValueOnMaterials(DeathFadeParameter, 1.0f - Alpha);
+		for (USkeletalMeshComponent* Piece : PieceComponents)
+		{
+			if (Piece)
+			{
+				Piece->SetScalarParameterValueOnMaterials(DeathFadeParameter, 1.0f - Alpha);
+			}
+		}
+	}
+	if (Elapsed >= Total)
+	{
+		// O corpo saiu de cena (o terceiro teste de espera do estado 0x20 do original: o nó deixou de ser desenhado)
+		bDeathFading = false;
+		SetActorHiddenInGame(true);
 	}
 }
 
@@ -526,8 +627,17 @@ void AJRPGBattlePawn::BeginAction(const FJRPGActionTimeline& Timeline, const AJR
 	PlayedStep = -1;
 	StrikesPlayed = 0;
 	TargetPawn = Target;
-	GetWorldTimerManager().ClearTimer(ReactionTimer);
-	PendingFollowRole = NAME_None;
+	LastLogicFrame = Timeline.StartFrame;
+	// Uma reação, um idle pendente ou os sons da ação anterior não passam para esta
+	ReactionQueue.Reset();
+	ReactionEndFrame = INDEX_NONE;
+	IdleHandoffFrame = INDEX_NONE;
+	StepClipEndFrame = INDEX_NONE;
+	HitResults.Reset();
+	HeldSounds.Reset();
+	// O contexto de som da ação anterior (a cauda dela) acaba aqui: o desta nasce
+	bSoundContextActive = true;
+	SoundContextEndFrame = INDEX_NONE;
 	// Um recuo ou um deslize de antes acaba aqui: a ação parte de onde ele está
 	bSliding = false;
 
@@ -611,13 +721,45 @@ void AJRPGBattlePawn::PlayStep(const FJRPGActionStep& Step)
 	if (Clip)
 	{
 		PlayClip(Clip, false, Rate);
+		// Onde o clip de fato acaba, em quadros lógicos (o comprimento do asset no play rate dele): a ação compara com o fim dela
+		// quando passa ao idle (FinishAction) e o log diz quando os dois não batem
+		const float Speed = FMath::Max(Rate * FMath::Max(Clip->RateScale, KINDA_SMALL_NUMBER), KINDA_SMALL_NUMBER);
+		const int32 ClipFrames = FMath::Max(FMath::CeilToInt(Clip->GetPlayLength() / Speed * static_cast<float>(UBattleFormulas::StepsPerSecond)), 1);
+		StepClipName = Clip->GetFName();
+		StepClipEndFrame = Action.StartFrame + Step.StartFrame + ClipFrames;
+	}
+	else
+	{
+		StepClipName = NAME_None;
+		StepClipEndFrame = INDEX_NONE;
 	}
 }
 
 void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 {
+	LastLogicFrame = LogicFrame;
 	// O recuo de quem apanhou e o acompanhar do atacante andam em quadros lógicos, ação ou não
 	UpdateSlide(LogicFrame);
+	// A reação em curso anda em quadros lógicos (a pausa e os soluços do quadro valem para ela como para o resolvedor); um quadro
+	// atrasado recupera a cadeia passo a passo
+	while (ReactionEndFrame != INDEX_NONE && LogicFrame >= ReactionEndFrame)
+	{
+		OnReactionEnded(ReactionEndFrame);
+	}
+	UpdateDeathFade(LogicFrame);
+	UpdateHeldSounds(LogicFrame);
+	// A cauda da ação que acabou passou (o idle entrou, o crossfade acabou e o último golpe ficou para trás): o som não é mais dela
+	if (bSoundContextActive && !bActionActive && SoundContextEndFrame != INDEX_NONE && LogicFrame > SoundContextEndFrame)
+	{
+		bSoundContextActive = false;
+		HitResults.Reset();
+	}
+	// O idle que esperava o fim real do último clip da ação
+	if (IdleHandoffFrame != INDEX_NONE && LogicFrame >= IdleHandoffFrame)
+	{
+		IdleHandoffFrame = INDEX_NONE;
+		ReturnToIdle();
+	}
 	if (!bActionActive)
 	{
 		return;
@@ -663,7 +805,7 @@ void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 
 	if (Elapsed >= Action.TotalFrames)
 	{
-		FinishAction();
+		FinishAction(LogicFrame);
 	}
 	else if (PlayedStep >= 0 && PlayedStep == Action.Steps.Num() - 1 && Elapsed >= Action.Steps[PlayedStep].EndFrame)
 	{
@@ -671,15 +813,53 @@ void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 	}
 }
 
-void AJRPGBattlePawn::FinishAction()
+void AJRPGBattlePawn::FinishAction(int32 LogicFrame)
 {
-	// A ação acabou: fica onde está (sem voltar ao lugar) e volta ao idle
+	// A ação acabou: fica onde está (sem voltar ao lugar) e passa ao idle
 	bActionActive = false;
 	SetPhase(EJRPGActionPhase::Done);
-	if (!bDown)
+	// Os sons que ainda esperavam o resultado de um golpe nunca o receberam (o golpe não foi resolvido): descartados
+	HeldSounds.Reset();
+
+	bool bIdleNow = true;
+	if (!bDown && StepClipEndFrame != INDEX_NONE)
 	{
+		// O original nunca corta o último clip: a ação só acaba depois dele (o estado 0x20 espera o clip voltar ao idle). Se o fim da
+		// ação (os dados) e o fim real do clip (o asset) não batem, o log diz por quanto: era assim que o idle forçado cortava o
+		// clip, ou deixava o último quadro parado
+		const int32 Remaining = StepClipEndFrame - LogicFrame;
+		if (FMath::Abs(Remaining) > 2)
+		{
+			UE_LOG(LogTemp, Log, TEXT("BattlePawn %s: a ação %d acabou no quadro %d, mas o clip %s %s por %d quadro(s) (fim real no quadro %d)%s"),
+				*Combatant.Key.ToString(), Action.ActionIndex, LogicFrame, *StepClipName.ToString(),
+				Remaining > 0 ? TEXT("ainda tocaria") : TEXT("já tinha acabado e segurava o último quadro"), FMath::Abs(Remaining), StepClipEndFrame,
+				Remaining > 0 && Remaining <= MaxIdleHandoffWait ? TEXT("; o idle espera o clip acabar") : (Remaining > 0 ? TEXT("; o idle corta o clip") : TEXT("")));
+		}
+		if (Remaining > 2 && Remaining <= MaxIdleHandoffWait)
+		{
+			bIdleNow = false;
+			IdleHandoffFrame = StepClipEndFrame;
+		}
+	}
+	if (bIdleNow && !bDown)
+	{
+		IdleHandoffFrame = INDEX_NONE;
 		PlayIdle();
 	}
+
+	// O contexto de som sobrevive ao fim da ação enquanto o último clip ainda dispara notifies: até o último golpe do passo mais a
+	// janela depois dele, até o idle entrar (a espera do idle) e mais o crossfade em que o clip que sai segue tocando
+	int32 TailEnd = LogicFrame;
+	for (const FJRPGActionHit& Hit : Action.Hits)
+	{
+		if (Hit.StepIndex == PlayedStep)
+		{
+			TailEnd = FMath::Max(TailEnd, Action.StartFrame + Hit.Frame + FMath::Max(HitSoundLagFrames, 1));
+		}
+	}
+	const int32 IdleStartFrame = IdleHandoffFrame != INDEX_NONE ? IdleHandoffFrame : LogicFrame;
+	const int32 CrossfadeFrames = FMath::CeilToInt(AnimBlendTime * static_cast<float>(UBattleFormulas::StepsPerSecond));
+	SoundContextEndFrame = FMath::Max(TailEnd, IdleStartFrame + CrossfadeFrames);
 	SetPhase(EJRPGActionPhase::Idle);
 }
 
@@ -690,16 +870,20 @@ void AJRPGBattlePawn::SyncActionTimeline(const FJRPGActionTimeline& Current)
 	{
 		return;
 	}
-	// A cópia do ActionStart ficou velha: o resolvedor cortou o resto (nenhum passo novo começa depois do corte)
+	// A cópia do ActionStart ficou velha: o resolvedor cortou o resto (nenhum passo novo começa depois do corte). O StartFrame fica
+	// o da cópia do pawn: está no relógio de apresentação, o da timeline das regras não
+	const int32 PresentationStart = Action.StartFrame;
 	Action = Current;
+	Action.StartFrame = PresentationStart;
 	PlayedStep = FMath::Min(PlayedStep, Action.Steps.Num() - 1);
 }
 
-void AJRPGBattlePawn::EndAction()
+void AJRPGBattlePawn::EndAction(int32 LogicFrame)
 {
+	LastLogicFrame = FMath::Max(LastLogicFrame, LogicFrame);
 	if (bActionActive)
 	{
-		FinishAction();
+		FinishAction(LogicFrame);
 	}
 }
 
@@ -713,26 +897,35 @@ void AJRPGBattlePawn::ShowEvent(const FJRPGBattleEvent& Event, const FString& Te
 			if (Event.Flags & FJRPGBattleEventFlag::Knockdown)
 			{
 				// Cai e levanta (o golpe que mata troca isto pela queda no Death, que vem no mesmo quadro): Knockdown -> GetUp -> Idle
-				PlayReaction(RoleKnockdown, false, RoleGetUp, false);
+				StartReaction({ { RoleKnockdown, EReactionEnd::Idle }, { RoleGetUp, EReactionEnd::Idle } }, Event.Frame, Event.GameSpeed);
 			}
 			else
 			{
-				PlayReaction((Event.Flags & FJRPGBattleEventFlag::LowHit) ? RoleFlinch2 : RoleFlinch1, false);
+				StartReaction({ { (Event.Flags & FJRPGBattleEventFlag::LowHit) ? RoleFlinch2 : RoleFlinch1, EReactionEnd::Idle } }, Event.Frame, Event.GameSpeed);
 			}
 			break;
 		case EJRPGBattleEventType::Block:
-			PlayReaction(RoleBlock, false);
+			StartReaction({ { RoleBlock, EReactionEnd::Idle } }, Event.Frame, Event.GameSpeed);
 			break;
 		case EJRPGBattleEventType::Death:
 			bDown = true;
 			bActionActive = false;
+			HeldSounds.Reset();
+			bSoundContextActive = false;
+			HitResults.Reset();
 			if (Combatant.Type == EJRPGCombatantType::Enemy)
 			{
-				PlayReaction(RoleKnockdown, true);   // o monstro caído segura o último quadro do knockdown
+				// O monstro cai, segura o último quadro do knockdown e então desbota e afunda (Event.Value é o fade, em quadros)
+				bDeathFadeQueued = true;
+				DeathFadeFrames = FMath::Max(Event.Value, 1);
+				StartReaction({ { RoleKnockdown, EReactionEnd::Hold } }, Event.Frame, Event.GameSpeed);
 			}
 			else
 			{
-				PlayReaction(RoleDying, false, RoleDown, true);   // o herói cai (Dying) e fica no clip do caído (Down)
+				// O herói cai (Knockdown), morre (Dying, a entrada 7) e fica no clip do caído (Down, a entrada 8) REPETINDO: no
+				// original o caído continua animando, não segura um quadro (bug 17)
+				StartReaction({ { RoleKnockdown, EReactionEnd::Idle }, { RoleDying, EReactionEnd::Hold }, { RoleDown, EReactionEnd::Loop } },
+					Event.Frame, Event.GameSpeed);
 			}
 			break;
 		default:
@@ -747,4 +940,145 @@ void AJRPGBattlePawn::ShowEvent(const FJRPGBattleEvent& Event, const FString& Te
 		DrawDebugString(GetWorld(), GetActorLocation() + FVector(0.0, 0.0, Height), Text, nullptr, EventColor(Event.Type), EventTextSeconds, true, 1.4f);
 	}
 	OnBattleEventShown(Event, Text);
+}
+
+// =================================================================================================
+// Os sons de clip: o do impacto só toca se o golpe conectou
+// =================================================================================================
+
+void AJRPGBattlePawn::PlayNotifySound(USkeletalMeshComponent* MeshComp, USoundBase* Sound, float VolumeMultiplier, float PitchMultiplier, bool bFollow, FName AttachName)
+{
+	// O mesmo que o UAnimNotify_PlaySound::Notify da engine faz (o som preso à malha ou ao bone, ou solto no ponto dela), para o
+	// som que o pawn segurou tocar igual ao que tocaria sem a regra
+	if (!Sound || !MeshComp)
+	{
+		return;
+	}
+	if (!Sound->IsOneShot())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("BattlePawn: o som %s de um clip não é um one-shot — não toca (vazaria uma instância por notify)"), *GetNameSafe(Sound));
+		return;
+	}
+	// Como no UE 5.8: só prende ao bone / à malha com bFollow ligado; sem ele o AttachName é ignorado e o som toca solto no ponto
+	if (bFollow)
+	{
+		UGameplayStatics::SpawnSoundAttached(Sound, MeshComp, AttachName, FVector(ForceInit), EAttachLocation::SnapToTarget, false, VolumeMultiplier, PitchMultiplier);
+	}
+	else
+	{
+		UGameplayStatics::PlaySoundAtLocation(MeshComp->GetWorld(), Sound, MeshComp->GetComponentLocation(), VolumeMultiplier, PitchMultiplier);
+	}
+}
+
+void AJRPGBattlePawn::NoteHitResult(const FJRPGBattleEvent& Event)
+{
+	if (Event.Type != EJRPGBattleEventType::Damage && Event.Type != EJRPGBattleEventType::Block && Event.Type != EJRPGBattleEventType::Miss)
+	{
+		return;
+	}
+	// O evento é de uma ação que este pawn não tem (a cena montou no meio, ou veio outra depois): nada espera por ele. A ação que
+	// já fechou ainda vale enquanto a cauda do clip dela toca (bSoundContextActive)
+	if (!bSoundContextActive || Event.ActionIndex != Action.ActionIndex)
+	{
+		return;
+	}
+	HitResults.Add(Event.HitIndex, Event.Type);
+	for (int32 i = HeldSounds.Num() - 1; i >= 0; --i)
+	{
+		if (HeldSounds[i].HitIndex == Event.HitIndex)
+		{
+			const FJRPGBattleSoundSpec Spec = HeldSounds[i].Spec;
+			HeldSounds.RemoveAt(i);
+			ResolveSound(Spec, Event.Type);
+		}
+	}
+}
+
+void AJRPGBattlePawn::ResolveSound(const FJRPGBattleSoundSpec& Spec, EJRPGBattleEventType Result) const
+{
+	if (Result == EJRPGBattleEventType::Miss)
+	{
+		// O golpe errou (a altura do alvo): o impacto não toca; o som de quem erra, se houver (o do clip, senão o do pawn)
+		USoundBase* Whiff = Spec.MissSound ? Spec.MissSound.Get() : MissSound.Get();
+		PlayNotifySound(Mesh, Whiff, Spec.VolumeMultiplier, Spec.PitchMultiplier, Spec.bFollow, Spec.AttachName);
+		return;
+	}
+	PlayNotifySound(Mesh, Spec.HitSound, Spec.VolumeMultiplier, Spec.PitchMultiplier, Spec.bFollow, Spec.AttachName);
+}
+
+int32 AJRPGBattlePawn::FindHitForSound(const FJRPGBattleSoundSpec& Spec) const
+{
+	// Só a ação em curso (ou a cauda dela) tem golpes, e só os do passo que toca agora (o som é do clip que toca)
+	if (!bSoundContextActive || PlayedStep < 0)
+	{
+		return INDEX_NONE;
+	}
+	const int32 Elapsed = LastLogicFrame - Action.StartFrame;
+	int32 Best = INDEX_NONE;
+	int32 BestDistance = MAX_int32;
+	for (int32 i = 0; i < Action.Hits.Num(); ++i)
+	{
+		if (Action.Hits[i].StepIndex != PlayedStep)
+		{
+			continue;
+		}
+		// Positivo = o som vem depois do quadro do golpe. O PlaySound da engine só é "o impacto" dentro da janela assimétrica dele
+		// (um assobio pouco antes do golpe, o impacto uns quadros depois); o UJRPGAnimNotify_HitSound é sempre o do golpe mais próximo
+		const int32 Delta = Elapsed - Action.Hits[i].Frame;
+		if (!Spec.bExplicitHitSound && (Delta < -HitSoundLeadFrames || Delta > HitSoundLagFrames))
+		{
+			continue;
+		}
+		const int32 Distance = FMath::Abs(Delta);
+		if (Distance < BestDistance)
+		{
+			Best = i;
+			BestDistance = Distance;
+		}
+	}
+	return Best;
+}
+
+void AJRPGBattlePawn::HandleClipSound(const FJRPGBattleSoundSpec& Spec)
+{
+	if (!Spec.HitSound && !Spec.MissSound)
+	{
+		return;
+	}
+	const bool bWindowOn = HitSoundLeadFrames > 0 || HitSoundLagFrames > 0;
+	const int32 HitIndex = (bWindowOn || Spec.bExplicitHitSound) ? FindHitForSound(Spec) : INDEX_NONE;
+	if (HitIndex == INDEX_NONE)
+	{
+		// Não é o som de nenhum golpe (a voz, o passo, uma reação, o idle): toca como o notify manda
+		PlayNotifySound(Mesh, Spec.HitSound, Spec.VolumeMultiplier, Spec.PitchMultiplier, Spec.bFollow, Spec.AttachName);
+		return;
+	}
+	if (const EJRPGBattleEventType* Result = HitResults.Find(HitIndex))
+	{
+		// O resultado do golpe já saiu (o notify chegou depois da lógica): decide na hora
+		ResolveSound(Spec, *Result);
+		return;
+	}
+	if (!bActionActive)
+	{
+		// A ação já fechou e este golpe nunca foi resolvido (o alvo já tinha caído): nada mais vai confirmar o impacto
+		return;
+	}
+	// O notify chegou antes da lógica resolver o golpe: espera o resultado dele (NoteHitResult), até a janela depois do quadro dele
+	FJRPGHeldBattleSound& Held = HeldSounds.AddDefaulted_GetRef();
+	Held.Spec = Spec;
+	Held.HitIndex = HitIndex;
+	Held.ExpireFrame = Action.StartFrame + Action.Hits[HitIndex].Frame + FMath::Max(HitSoundLagFrames, 1);
+}
+
+void AJRPGBattlePawn::UpdateHeldSounds(int32 LogicFrame)
+{
+	// Um golpe que a lógica nunca resolveu (o alvo já tinha caído, a ação foi cortada) não confirma o impacto: o som é descartado
+	for (int32 i = HeldSounds.Num() - 1; i >= 0; --i)
+	{
+		if (LogicFrame > HeldSounds[i].ExpireFrame)
+		{
+			HeldSounds.RemoveAt(i);
+		}
+	}
 }

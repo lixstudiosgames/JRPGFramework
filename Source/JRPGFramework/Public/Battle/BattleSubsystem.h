@@ -26,7 +26,11 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGBattleEnded, EJRPGBattleResul
 /** A resolução produziu um fato (dano, miss, bloqueio, queda...), na ordem em que acontece. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGBattleEvent, const FJRPGBattleEvent&, Event);
 
-/** Um quadro lógico (1/60 s) andou: a apresentação toca os clips em compasso com ele. */
+/**
+ * Um quadro lógico (1/60 s) andou: a apresentação toca os clips em compasso com ele. Frame é o RELÓGIO DE APRESENTAÇÃO
+ * (UBattleSubsystem::GetPresentationFrame): sobe de 1 em 1 a cada passo, monotônico, sem pular, inclusive nos passos em que o
+ * resolvedor não anda (a digitação dos comandos, o hold da vitória / derrota). Não é o State.Frame das regras.
+ */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGLogicFrame, int32, Frame);
 
 /** Quem digita (Commands) ou age (Execution) mudou; Slot -1 = ninguém. */
@@ -152,6 +156,21 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle")
 	int32 GetActiveSlot() const { return Resolver.GetActiveSlot(); }
 
+	/**
+	 * O relógio de apresentação: um contador monotônico que anda 1 por passo lógico (1/60 s) sempre que o jogo não está pausado
+	 * nem em HoldLogic, mesmo quando o resolvedor não anda (Commands, vitória / derrota decididas). Os pawns tocam reações, o fade de
+	 * morte, o idle e os sons por ele. É também o valor de OnLogicFrame. As regras seguem pelo State.Frame, que só anda na
+	 * Execution; a diferença entre os dois é GetPresentationOffset.
+	 */
+	int32 GetPresentationFrame() const { return PresentationFrame; }
+
+	/**
+	 * Quantos quadros de apresentação passaram sem o resolvedor andar (PresentationFrame - State.Frame). Soma-se a um quadro das
+	 * regras (State.Frame, FJRPGActionTimeline::StartFrame) para pô-lo no relógio de apresentação. O OnBattleEvent já entrega o
+	 * Event.Frame somado; o GetEventLog() e as timelines vêm com o quadro cru das regras.
+	 */
+	int32 GetPresentationOffset() const { return PresentationOffset; }
+
 	/** Todos os eventos da luta, na ordem em que a resolução os produziu. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle")
 	const TArray<FJRPGBattleEvent>& GetEventLog() const { return Resolver.GetEvents(); }
@@ -246,9 +265,22 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
 	TMap<FName, int32> HeroReactionBeats;
 
-	/** Quadros lógicos entre a luta decidida (último inimigo caído) e o EndBattle: a queda e a pose tocam. */
+	/**
+	 * Quadros lógicos entre a luta decidida (a vitória é testada só depois da reação do alvo e da faixa Done de 60 vsyncs, no
+	 * fim da última ação) e o EndBattle. O original segura a tela de resultados com a pose de vitória por 0x100 = 256 vsyncs
+	 * (o gp+0xA54 conta até 0x100; os ~80 de antes são espera do CD, que não existe aqui). A pose de vitória do líder ainda não
+	 * é tocada: os pawns ficam no idle. O fade de saída do cenário vem depois disto (UJRPGBattleSceneSubsystem).
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle", meta = (ClampMin = "0"))
-	int32 FinishDelayFrames = 90;
+	int32 VictoryHoldFrames = 256;
+
+	/**
+	 * O mesmo na derrota: o original cai na última fase do mesmo sequenciador e gasta os 0x100 mais o fade de uns 66 vsyncs, uns
+	 * 322 do sinal à saída (inferido, não capturado). Os 322 são a sequência de limpeza do original, já com o fade de saída dela; o
+	 * fade do nosso cenário (UJRPGBattleSceneSubsystem) vem depois deste hold, à parte.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle", meta = (ClampMin = "0"))
+	int32 DefeatHoldFrames = 322;
 
 	/** O passo do relógio lógico: 1/60 s. Não mude em jogo: os quadros de golpe são contados nele. */
 	static constexpr double LogicStep = 1.0 / 60.0;
@@ -265,7 +297,10 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle")
 	FOnJRPGBattleEnded OnBattleEnded;
 
-	/** Cada fato da resolução, na ordem (a UI monta o texto; a apresentação mostra quando o clip chega). */
+	/**
+	 * Cada fato da resolução, na ordem (a UI monta o texto; a apresentação mostra quando o clip chega). O Event.Frame aqui já está no
+	 * relógio de apresentação (quadro das regras + GetPresentationOffset), o mesmo do OnLogicFrame; o GetEventLog() traz o cru.
+	 */
 	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle")
 	FOnJRPGBattleEvent OnBattleEvent;
 
@@ -277,7 +312,10 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle")
 	FOnJRPGCommandRefused OnCommandRefused;
 
-	/** Cada quadro lógico, depois dos eventos dele: a apresentação anda os clips por este contador. */
+	/**
+	 * Cada quadro lógico, depois dos eventos dele: a apresentação anda os clips por este contador (o relógio de apresentação, não
+	 * o State.Frame; ver GetPresentationFrame). Não anda com o jogo pausado nem com HoldLogic.
+	 */
 	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle")
 	FOnJRPGLogicFrame OnLogicFrame;
 
@@ -285,6 +323,9 @@ private:
 	/** A foto dos combatentes (heróis pelo Party / Status / Inventory, inimigos pelo DT_Enemies e DT_EnemyActions). */
 	bool BuildSnapshot(const FJRPGBattleSetup& Setup, TArray<FJRPGCombatant>& OutCombatants) const;
 	FJRPGCombatant MakeHeroCombatant(FName Key, int32 SideIndex) const;
+
+	/** Quantos quadros a luta decidida segura antes do EndBattle: o hold da vitória / da derrota; Fuga e Aborted fecham na hora. */
+	int32 FinishHoldFor(EJRPGBattleResult Result) const;
 
 	/** Escreve a luta no roster (Vitória e Fuga) e paga a recompensa (Vitória). */
 	void WriteBack(EJRPGBattleResult Result);
@@ -322,5 +363,10 @@ private:
 	int32 FlushedEvents = 0;
 	int32 LastNotifiedSlot = -2;
 	EJRPGBattleStage LastNotifiedStage = EJRPGBattleStage::None;
+	/** Passos desde a luta decidida: conta só o hold da vitória / derrota (FinishHoldFor). */
 	int32 FramesSinceFinish = 0;
+
+	/** O relógio de apresentação (GetPresentationFrame) e a diferença dele para o State.Frame das regras. */
+	int32 PresentationFrame = 0;
+	int32 PresentationOffset = 0;
 };

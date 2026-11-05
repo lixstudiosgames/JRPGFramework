@@ -249,6 +249,12 @@ namespace
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&EndBattleCommand));
 }
 
+// Definido aqui (não inline no header): o Get() do TWeakObjectPtr converte para a arena, que pede o tipo completo
+AJRPGBattleArena* UJRPGBattleSceneSubsystem::GetArena() const
+{
+	return Arena.Get();
+}
+
 bool UJRPGBattleSceneSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
 {
 	return WorldType == EWorldType::Game || WorldType == EWorldType::PIE;
@@ -422,7 +428,7 @@ void UJRPGBattleSceneSubsystem::HandleBattleEvent(const FJRPGBattleEvent& Event)
 		{
 			if (const FJRPGActionTimeline* Timeline = Battle->FindTimeline(Event.ActionIndex))
 			{
-				Actor->BeginAction(*Timeline, PawnOf(Event.TargetSlot));
+				Actor->BeginAction(ToPresentationTimeline(*Battle, *Timeline), PawnOf(Event.TargetSlot));
 			}
 		}
 		break;
@@ -431,10 +437,15 @@ void UJRPGBattleSceneSubsystem::HandleBattleEvent(const FJRPGBattleEvent& Event)
 		// longa que a que valeu, então ele fecha agora em vez de esperar o TotalFrames dela
 		if (AJRPGBattlePawn* Actor = PawnOf(Event.SlotIndex))
 		{
-			Actor->EndAction();
+			Actor->EndAction(Event.Frame);
 		}
 		break;
 	case EJRPGBattleEventType::Damage:
+		// O resultado do golpe vai a quem bateu: o som de impacto que esperava por ele toca (ou não, no Miss)
+		if (AJRPGBattlePawn* Striker = PawnOf(Event.SlotIndex))
+		{
+			Striker->NoteHitResult(Event);
+		}
 		if (AJRPGBattlePawn* Target = PawnOf(Event.TargetSlot))
 		{
 			Target->ShowEvent(Event, (Event.Flags & FJRPGBattleEventFlag::ArtHit) ? FString::Printf(TEXT("%d!"), Event.Value) : FString::FromInt(Event.Value), true);
@@ -459,12 +470,20 @@ void UJRPGBattleSceneSubsystem::HandleBattleEvent(const FJRPGBattleEvent& Event)
 		}
 		break;
 	case EJRPGBattleEventType::Miss:
+		if (AJRPGBattlePawn* Striker = PawnOf(Event.SlotIndex))
+		{
+			Striker->NoteHitResult(Event);
+		}
 		if (AJRPGBattlePawn* Target = PawnOf(Event.TargetSlot))
 		{
 			Target->ShowEvent(Event, TEXT("Miss"), true);
 		}
 		break;
 	case EJRPGBattleEventType::Block:
+		if (AJRPGBattlePawn* Striker = PawnOf(Event.SlotIndex))
+		{
+			Striker->NoteHitResult(Event);
+		}
 		if (AJRPGBattlePawn* Target = PawnOf(Event.TargetSlot))
 		{
 			Target->ShowEvent(Event, TEXT("Block"), true);
@@ -556,8 +575,19 @@ void UJRPGBattleSceneSubsystem::HandleCommandRefused(int32 Slot, const FString& 
 	}
 }
 
+FJRPGActionTimeline UJRPGBattleSceneSubsystem::ToPresentationTimeline(const UBattleSubsystem& Battle, const FJRPGActionTimeline& Timeline)
+{
+	// A timeline vem com o StartFrame das regras (o State.Frame, que só anda na Execution); os pawns andam pelo relógio de
+	// apresentação (OnLogicFrame, que também anda na digitação dos comandos). Os frames dos passos e dos golpes são relativos
+	FJRPGActionTimeline Shifted = Timeline;
+	Shifted.StartFrame += Battle.GetPresentationOffset();
+	return Shifted;
+}
+
 void UJRPGBattleSceneSubsystem::HandleLogicFrame(int32 Frame)
 {
+	// Frame é o relógio de apresentação (UBattleSubsystem::GetPresentationFrame): monotônico, de 1 em 1, no mesmo relógio que o
+	// Event.Frame dos eventos e as timelines de ToPresentationTimeline
 	AJRPGBattleArena* Current = Arena.Get();
 	if (Phase != EPhase::Assembled || !Current)
 	{
@@ -611,7 +641,7 @@ void UJRPGBattleSceneSubsystem::EnterBattleScene()
 			{
 				if (AJRPGBattlePawn* Actor = Current->GetPawnForSlot(Active->SlotIndex))
 				{
-					Actor->BeginAction(*Active, Current->GetPawnForSlot(Running.TargetSlot));
+					Actor->BeginAction(ToPresentationTimeline(*Battle, *Active), Current->GetPawnForSlot(Running.TargetSlot));
 				}
 			}
 		}

@@ -96,3 +96,50 @@ struct JRPGFRAMEWORK_API FJRPGHeroSwingData : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Swing")
 	int32 Cost = 30;
 };
+
+/**
+ * FJRPGHeroReactionData
+ * Quanto duram as reações de um herói, em quadros lógicos (vsyncs) na velocidade normal do jogo (linha da DataTable
+ * DT_HeroReactions, gerada por Extras/generate_hero_battle_csv.py do arquivo de batalha de cada herói: as entradas de
+ * reação da record[0], PROT 0863..0866). O row name é o herói ("Vahn"). Cada número é o tamanho do clip do disco, 4 * N / R.
+ *
+ * É o que a luta espera depois de um golpe antes de a próxima ação começar (o estado 0x20 do original só solta quando o alvo
+ * volta ao idle; Docs/Reference/BATTLE_TIMING.md, seções 3 e 10), então vem do dado e não do clip que o pawn toca. Sem a tabela,
+ * ou sem a linha do herói, a luta usa os números do Vahn (FJRPGTimelineDefaults::Hero*Frames). O que está em 0 (a Terra não tem
+ * as entradas 7 e 8) cai no padrão do mesmo jeito.
+ */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGHeroReactionData : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	/** Igual ao row name (a key na DT_Characters). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction")
+	FName Character;
+
+	/** O flinch de golpe alto (entrada 2) e de golpe baixo (entrada 3). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction", meta = (ClampMin = "0"))
+	int32 FlinchHighFrames = 32;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction", meta = (ClampMin = "0"))
+	int32 FlinchLowFrames = 32;
+
+	/** O block (entrada 0x0B). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction", meta = (ClampMin = "0"))
+	int32 BlockFrames = 32;
+
+	/** O knockdown (entrada 4) e o levantar (entrada 5). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction", meta = (ClampMin = "0"))
+	int32 KnockdownFrames = 32;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction", meta = (ClampMin = "0"))
+	int32 GetUpFrames = 50;
+
+	/** A entrada 7, depois do knockdown de quem morre; a luta segue quando ele chega na 8. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction", meta = (ClampMin = "0"))
+	int32 DyingFrames = 40;
+
+	/** A entrada 8, o caído: repete para sempre (um ciclo; só informativo, a luta não espera por ele). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction", meta = (ClampMin = "0"))
+	int32 DownLoopFrames = 40;
+};

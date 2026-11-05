@@ -928,7 +928,9 @@ bool FJRPGBattleRetargetTest::RunTest(const FString& Parameters)
 		FFight Fight;
 		// Os monstros são rápidos e batem forte; o herói 0 (HP 1) cai no primeiro golpe que o sortear
 		Fight.Begin({ Hero(0, TEXT("Vahn"), 1, 100, 1), Hero(1, TEXT("Noa"), 100000, 100, 1), Foe(2, TEXT("a"), 100000, 5000, 1000), Foe(3, TEXT("b"), 100000, 5000, 500) }, Seed, false, 0);
-		PlayToTheEnd(Fight, 4000);
+		// Cada ação gasta uns 66..200 quadros (a reação do alvo, a faixa Done, o passo até a próxima): o teto tem folga para a luta
+		// chegar ao fim em qualquer semente, senão "o herói 0 caiu" dependeria dela
+		PlayToTheEnd(Fight, 12000);
 		TSet<int32> Dead;
 		int32 ActionsAfterAFall = 0;
 		for (const FJRPGBattleEvent& Event : Fight.GetEvents())
@@ -1436,7 +1438,8 @@ bool FJRPGBattleFallbackTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("marcada como quadros padrão"), Timeline->bUsedDefaults);
 	const FJRPGTimelineDefaults& D = Fight.Defaults;
 	TestEqual(TEXT("o golpe cai no quadro do padrão"), Timeline->Hits.Num() == 1 ? Timeline->Hits[0].Frame : -1, D.LeadFrames + D.SwingHitFrame);
-	TestEqual(TEXT("a ação dura o padrão"), Timeline->TotalFrames, D.LeadFrames + D.SwingFrames + D.TailFrames);
+	TestEqual(TEXT("a ação dura o padrão (sem cauda: o original acaba no fim do último clip)"), Timeline->TotalFrames, D.LeadFrames + D.SwingFrames + D.TailFrames);
+	TestEqual(TEXT("a cauda padrão é 0"), D.TailFrames, 0);
 	PlayUntilActionEnds(Fight, 0);
 	const FJRPGBattleEvent* Hit = FirstEvent(Fight, EJRPGBattleEventType::Damage, 0);
 	if (TestNotNull(TEXT("o golpe resolveu"), Hit))
@@ -2026,6 +2029,279 @@ bool FJRPGBattleDeterminismTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("sementes diferentes dão lutas diferentes"), Differing > 6);
 	Arts->RemoveFromRoot();
+	return true;
+}
+
+// --- O ritmo do original: o clip do atacante, a reação do alvo, a faixa Done e só então o teste de fim ----------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattlePostActionHoldTest, "JRPG.Battle.PostActionHold", JRPG_BATTLE_TEST_FLAGS)
+bool FJRPGBattlePostActionHoldTest::RunTest(const FString& Parameters)
+{
+	// Sem clips: os quadros padrão do herói (30 de aproximação + 48 de golpe, o golpe no quadro 42) e nenhuma cauda
+	FJRPGTimelineDefaults D;
+	TestEqual(TEXT("o original não tem cauda: a ação acaba no fim do último clip"), D.TailFrames, 0);
+	const int32 HitFrame = D.LeadFrames + D.SwingHitFrame;
+	const int32 ActionEnd = D.LeadFrames + D.SwingFrames;
+
+	// Um flinch que dura mais que o resto do golpe: a próxima ação espera por ele, depois os 60 da faixa Done e os ~6 passos
+	{
+		FFight Fight;
+		Fight.bLogFallbacks = false;
+		Fight.RandOverride = []() { return 0; };
+		FJRPGCombatant Dummy = Foe(1, TEXT("dummy"), 1000000, 10, 1, 28);   // o pool paga um golpe só
+		Dummy.Reactions.FlinchHighFrames = 100;
+		Fight.Begin({ Hero(0, TEXT("Vahn"), 100000, 100, 100), Dummy }, 1, false, 0);
+		Fight.SubmitCommand(Attack(0, 1));
+		for (int32 Frames = 0; Frames < 2000 && CountEvents(Fight, EJRPGBattleEventType::ActionStart, 1) == 0; ++Frames)
+		{
+			Fight.StepFrame();
+		}
+		const FJRPGBattleEvent* End = FirstEvent(Fight, EJRPGBattleEventType::ActionEnd, 0);
+		const FJRPGBattleEvent* Hit = FirstEvent(Fight, EJRPGBattleEventType::Damage, 0);
+		const FJRPGBattleEvent* Next = FirstEvent(Fight, EJRPGBattleEventType::ActionStart, 1);
+		if (TestNotNull(TEXT("o golpe"), Hit) && TestNotNull(TEXT("o fim da ação"), End) && TestNotNull(TEXT("a ação seguinte"), Next))
+		{
+			TestEqual(TEXT("o golpe cai no quadro dele"), Hit->Frame, HitFrame);
+			TestEqual(TEXT("a ação acaba no fim do clip, sem cauda"), End->Frame, ActionEnd);
+			TestEqual(TEXT("o evento traz a escala em vigor"), Hit->GameSpeed, UBattleFormulas::NormalGameSpeed);
+			// Reação até HitFrame + 100 (> ActionEnd), + Done 60 + passos 6
+			TestEqual(TEXT("a próxima ação espera a reação, a faixa Done e os passos"), Next->Frame, HitFrame + 100 + D.DoneBandFrames + D.PassGapFrames);
+		}
+	}
+
+	// Com a reação mais curta que o golpe, vale só o fim do clip + 60 + 6: nenhuma ação começa antes disso
+	{
+		FFight Fight;
+		Fight.bLogFallbacks = false;
+		Fight.RandOverride = []() { return 0; };
+		FJRPGCombatant Dummy = Foe(1, TEXT("dummy"), 1000000, 10, 1, 28);
+		Dummy.Reactions.FlinchHighFrames = 10;
+		Fight.Begin({ Hero(0, TEXT("Vahn"), 100000, 100, 100), Dummy }, 1, false, 0);
+		Fight.SubmitCommand(Attack(0, 1));
+		for (int32 Frames = 0; Frames < 2000 && CountEvents(Fight, EJRPGBattleEventType::ActionStart, 1) == 0; ++Frames)
+		{
+			Fight.StepFrame();
+		}
+		const FJRPGBattleEvent* Next = FirstEvent(Fight, EJRPGBattleEventType::ActionStart, 1);
+		if (TestNotNull(TEXT("a ação seguinte"), Next))
+		{
+			TestEqual(TEXT("o clip do atacante, a faixa Done e os passos"), Next->Frame, ActionEnd + D.DoneBandFrames + D.PassGapFrames);
+		}
+	}
+
+	// Cai e levanta: a próxima ação espera o knockdown E o levantar
+	{
+		auto Play = [&](int32 MaxHP, int32& OutDamage, int32& OutFlags, int32& OutNextFrame)
+		{
+			FFight Fight;
+			Fight.bLogFallbacks = false;
+			Fight.RandOverride = []() { return 0; };
+			FJRPGCombatant Dummy = Foe(1, TEXT("dummy"), MaxHP, 10, 1, 28);
+			Dummy.bHasGetUp = true;
+			Dummy.Reactions.KnockdownFrames = 70;
+			Dummy.Reactions.GetUpFrames = 90;
+			Fight.Begin({ Hero(0, TEXT("Vahn"), 100000, 500, 100), Dummy }, 1, false, 0);
+			Fight.SubmitCommand(Attack(0, 1));
+			for (int32 Frames = 0; Frames < 2000 && CountEvents(Fight, EJRPGBattleEventType::ActionStart, 1) == 0; ++Frames)
+			{
+				Fight.StepFrame();
+			}
+			const FJRPGBattleEvent* Hit = FirstEvent(Fight, EJRPGBattleEventType::Damage, 0);
+			OutDamage = Hit ? Hit->Value : 0;
+			OutFlags = Hit ? Hit->Flags : 0;
+			const FJRPGBattleEvent* Next = FirstEvent(Fight, EJRPGBattleEventType::ActionStart, 1);
+			OutNextFrame = Next ? Next->Frame : -1;
+		};
+		int32 Damage = 0;
+		int32 Flags = 0;
+		int32 NextFrame = 0;
+		Play(100000000, Damage, Flags, NextFrame);   // só para medir o dano
+		TestTrue(TEXT("com HP enorme só flinch"), (Flags & FJRPGBattleEventFlag::Knockdown) == 0 && Damage > 0);
+		int32 Ignored = 0;
+		Play(Damage * 2, Ignored, Flags, NextFrame);   // o golpe passa de ¼ do HP máximo e o alvo sobrevive
+		TestTrue(TEXT("o golpe derruba"), (Flags & FJRPGBattleEventFlag::Knockdown) != 0);
+		TestEqual(TEXT("a próxima ação espera o knockdown e o levantar"), NextFrame, HitFrame + 70 + 90 + D.DoneBandFrames + D.PassGapFrames);
+	}
+
+	// A vitória só é testada depois da queda do monstro (o knockdown e o fade) e da faixa Done, nunca no meio da ação
+	{
+		FFight Fight;
+		Fight.bLogFallbacks = false;
+		Fight.RandOverride = []() { return 0; };
+		Fight.Begin({ Hero(0, TEXT("Vahn"), 100000, 500, 100), Foe(1, TEXT("dummy"), 1, 10, 1, 28) }, 1, false, 0);
+		Fight.SubmitCommand(Attack(0, 1));
+		bool bFinishedAtActionEnd = true;
+		for (int32 Frames = 0; Frames < 2000 && !Fight.IsFinished(); ++Frames)
+		{
+			Fight.StepFrame();
+			if (bFinishedAtActionEnd && CountEvents(Fight, EJRPGBattleEventType::ActionEnd, 0) == 1)
+			{
+				bFinishedAtActionEnd = Fight.IsFinished();
+				break;
+			}
+		}
+		TestFalse(TEXT("no fim da ação a luta ainda não foi decidida"), bFinishedAtActionEnd);
+		for (int32 Frames = 0; Frames < 2000 && !Fight.IsFinished(); ++Frames)
+		{
+			Fight.StepFrame();
+		}
+		TestTrue(TEXT("a luta acabou"), Fight.IsFinished());
+		TestEqual(TEXT("Vitória"), (int32)Fight.GetResult(), (int32)EJRPGBattleResult::Victory);
+		const FJRPGBattleEvent* Death = FirstEvent(Fight, EJRPGBattleEventType::Death, 1);
+		if (TestNotNull(TEXT("a queda"), Death))
+		{
+			TestEqual(TEXT("o Death traz o fade do monstro"), Death->Value, D.EnemyDeathFadeFrames);
+			const int32 FallDone = Death->Frame + D.EnemyKnockdownFrames + D.EnemyDeathFadeFrames;
+			TestEqual(TEXT("a vitória: depois da queda inteira e dos 60 da faixa Done"), Fight.GetState().Frame, FMath::Max(ActionEnd, FallDone) + D.DoneBandFrames);
+		}
+	}
+
+	// O herói que morre: o knockdown e o Dying (a entrada 7) são esperados; o Death não traz fade (o caído repete)
+	{
+		FFight Fight;
+		Fight.bLogFallbacks = false;
+		Fight.RandOverride = []() { return 0; };
+		FJRPGCombatant Brute = Foe(1, TEXT("brute"), 100000, 5000, 1000, 28);   // age primeiro e bate uma vez
+		Fight.Begin({ Hero(0, TEXT("Vahn"), 1, 100, 1), Brute }, 1, false, 0);
+		Fight.SubmitCommand(Attack(0, 1));
+		for (int32 Frames = 0; Frames < 2000 && !Fight.IsFinished(); ++Frames)
+		{
+			Fight.StepFrame();
+		}
+		TestTrue(TEXT("a luta acabou"), Fight.IsFinished());
+		TestEqual(TEXT("Derrota"), (int32)Fight.GetResult(), (int32)EJRPGBattleResult::Defeat);
+		const FJRPGBattleEvent* Death = FirstEvent(Fight, EJRPGBattleEventType::Death, 0);
+		const FJRPGBattleEvent* End = FirstEvent(Fight, EJRPGBattleEventType::ActionEnd, 1);
+		if (TestNotNull(TEXT("a queda do herói"), Death) && TestNotNull(TEXT("o fim da ação do monstro"), End))
+		{
+			TestEqual(TEXT("sem fade no herói"), Death->Value, 0);
+			const int32 FallDone = Death->Frame + D.HeroKnockdownFrames + D.HeroDyingFrames;
+			TestEqual(TEXT("a derrota: depois do Knockdown + Dying e da faixa Done"), Fight.GetState().Frame, FMath::Max(End->Frame, FallDone) + D.DoneBandFrames);
+		}
+	}
+
+	// A condição do começo do turno que mata: a queda tem o mesmo ritmo do fim de uma ação (a luta não é decidida no quadro da
+	// morte, nem o próximo agente entra nele)
+	{
+		FFight Fight;
+		Fight.bLogFallbacks = false;
+		Fight.RandOverride = []() { return 0; };
+		FJRPGCombatant Poisoned = Hero(0, TEXT("Vahn"), 100000, 500, 100);
+		FJRPGBattleCondition Poison;
+		Poison.Name = TEXT("Poison");
+		Poison.bActsAtTurnStart = true;
+		Poison.DamagePerTurn = 100000;   // mata no começo do turno do herói
+		Poisoned.Conditions.Add(Poison);
+		Fight.Begin({ Poisoned, Foe(1, TEXT("dummy"), 100000, 10, 1, 28) }, 1, false, 0);
+		Fight.SubmitCommand(Attack(0, 1));
+		for (int32 Frames = 0; Frames < 3000 && !Fight.IsFinished(); ++Frames)
+		{
+			Fight.StepFrame();
+		}
+		TestTrue(TEXT("a luta acabou"), Fight.IsFinished());
+		TestEqual(TEXT("Derrota"), (int32)Fight.GetResult(), (int32)EJRPGBattleResult::Defeat);
+		TestEqual(TEXT("o herói envenenado nunca agiu"), CountEvents(Fight, EJRPGBattleEventType::ActionStart, 0), 0);
+		const FJRPGBattleEvent* Death = FirstEvent(Fight, EJRPGBattleEventType::Death, 0);
+		if (TestNotNull(TEXT("a queda por condição"), Death))
+		{
+			const int32 FallDone = Death->Frame + D.HeroKnockdownFrames + D.HeroDyingFrames;
+			TestEqual(TEXT("a derrota espera o Knockdown + Dying e a faixa Done, como depois de uma ação"), Fight.GetState().Frame, FMath::Max(Death->Frame, FallDone) + D.DoneBandFrames);
+			for (const FJRPGBattleEvent& Event : Fight.GetEvents())
+			{
+				if (Event.Type == EJRPGBattleEventType::ActionStart && Event.SlotIndex == 1)
+				{
+					TestTrue(TEXT("o monstro não entra no quadro da morte"), Event.Frame < Death->Frame);
+				}
+			}
+		}
+	}
+
+	// Numa Art tudo anda a 4: o alvo toma o golpe nessa escala e a espera pela reação dele dobra (o fim da Art devolve o 8)
+	{
+		UDataTable* Arts = TestArts();
+		Arts->AddToRoot();
+		FFight Fight;
+		Fight.bLogFallbacks = false;
+		Fight.RandOverride = []() { return 0; };
+		Fight.ArtsTable = Arts;
+		FJRPGCombatant Vahn = Hero(0, TEXT("Vahn"), 100000, 100, 100);
+		Vahn.KnownArts = { TEXT("test_somersault") };
+		Fight.Begin({ Vahn, Foe(1, TEXT("dummy"), 1000000, 10, 1, 28) }, 1, false, 0);
+		Fight.SubmitCommand(ArtsCommand(0, 1, { Hi, Lo, Hi }));
+		PlayUntilActionEnds(Fight, 0);
+		const FJRPGBattleEvent* LastArtHit = nullptr;
+		for (const FJRPGBattleEvent& Event : Fight.GetEvents())
+		{
+			if (Event.Type == EJRPGBattleEventType::Damage && (Event.Flags & FJRPGBattleEventFlag::ArtHit))
+			{
+				LastArtHit = &Event;
+			}
+		}
+		if (TestNotNull(TEXT("o golpe da Art"), LastArtHit))
+		{
+			TestEqual(TEXT("a escala de uma Art"), LastArtHit->GameSpeed, 4);
+			const int32 Normal = (LastArtHit->Flags & FJRPGBattleEventFlag::LowHit) ? D.EnemyFlinchLowFrames : D.EnemyFlinchHighFrames;
+			TestEqual(TEXT("a espera pelo flinch conta na escala do golpe"), Fight.GetCombatants()[1].ReactionHoldUntilFrame - LastArtHit->Frame, Normal * 2);
+		}
+		Arts->RemoveFromRoot();
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattleHeroCutTest, "JRPG.Battle.HeroCut", JRPG_BATTLE_TEST_FLAGS)
+bool FJRPGBattleHeroCutTest::RunTest(const FString& Parameters)
+{
+	// O golpe seguinte de uma cadeia do herói entra no quadro B + 3 do primeiro beat do golpe atual (o gate +0x76 é 0 em todo golpe
+	// padrão): Arms com beat 7 a rate 2 corta aos 20 quadros lógicos, um chute com beat 5 aos 16; o último golpe toca até o fim
+	FFight Fight;
+	Fight.bLogFallbacks = false;
+	Fight.RandOverride = []() { return 0; };
+	FJRPGCombatant Vahn = Hero(0, TEXT("Vahn"), 100000, 100, 100);
+	Vahn.SwingProfiles.SetNum(4);
+	Vahn.SwingProfiles[static_cast<int32>(Ar)].PowerBytes = { 0x18 };
+	Vahn.SwingProfiles[static_cast<int32>(Ar)].Beats = { 7 };
+	Vahn.SwingProfiles[static_cast<int32>(Ar)].Rate = 2;
+	Vahn.SwingProfiles[static_cast<int32>(Lo)].PowerBytes = { 0x13 };
+	Vahn.SwingProfiles[static_cast<int32>(Lo)].Beats = { 5 };
+	Vahn.SwingProfiles[static_cast<int32>(Lo)].Rate = 2;
+	Fight.Begin({ Vahn, Foe(1, TEXT("dummy"), 1000000, 10, 1) }, 1, false, 0);
+	Fight.SubmitCommand(ArtsCommand(0, 1, { Ar, Lo, Ar }));
+	const FJRPGActionTimeline* Timeline = Fight.GetActiveTimeline();
+	if (!TestNotNull(TEXT("a ação começou"), Timeline) || !TestEqual(TEXT("três golpes"), Timeline->Steps.Num(), 3))
+	{
+		return false;
+	}
+	const FJRPGTimelineDefaults& D = Fight.Defaults;
+	TestEqual(TEXT("Arms: o corte no beat 7 + 3"), Timeline->Steps[0].EndFrame - Timeline->Steps[0].StartFrame, UBattleFormulas::ClipFramesToSteps(7 + 3, 8, 2));
+	TestEqual(TEXT("(20 quadros lógicos)"), Timeline->Steps[0].EndFrame - Timeline->Steps[0].StartFrame, 20);
+	TestEqual(TEXT("o chute entra aos 20"), Timeline->Steps[1].StartFrame, D.LeadFrames + 20);
+	TestEqual(TEXT("o chute: o corte no beat 5 + 3"), Timeline->Steps[1].EndFrame - Timeline->Steps[1].StartFrame, UBattleFormulas::ClipFramesToSteps(5 + 3, 8, 2));
+	TestEqual(TEXT("(16 quadros lógicos)"), Timeline->Steps[1].EndFrame - Timeline->Steps[1].StartFrame, 16);
+	TestEqual(TEXT("o último entra depois dos dois cortes"), Timeline->Steps[2].StartFrame, D.LeadFrames + 20 + 16);
+	TestEqual(TEXT("o último toca o clip inteiro"), Timeline->Steps[2].EndFrame - Timeline->Steps[2].StartFrame, D.SwingFrames);
+	TestEqual(TEXT("e a ação acaba aí, sem cauda"), Timeline->TotalFrames, Timeline->Steps[2].EndFrame);
+	// O golpe do primeiro passo cai antes do corte (o beat 7 a rate 2 é o quadro 12)
+	if (TestTrue(TEXT("os golpes"), Timeline->Hits.Num() == 3))
+	{
+		TestEqual(TEXT("o 1º golpe no quadro do beat"), Timeline->Hits[0].Frame, D.LeadFrames + UBattleFormulas::HitStepForBeat(7, 8, 2));
+		TestTrue(TEXT("antes do corte"), Timeline->Hits[0].Frame < Timeline->Steps[1].StartFrame);
+	}
+
+	// Sem o beat lido, o corte padrão da timeline
+	FFight Plain;
+	Plain.bLogFallbacks = false;
+	Plain.RandOverride = []() { return 0; };
+	Plain.Defaults.SwingCutFrame = 30;
+	Plain.Begin({ Hero(0, TEXT("Vahn"), 100000, 100, 100), Foe(1, TEXT("dummy"), 1000000, 10, 1) }, 1, false, 0);
+	Plain.SubmitCommand(ArtsCommand(0, 1, { Ar, Ar }));
+	if (const FJRPGActionTimeline* Default = Plain.GetActiveTimeline())
+	{
+		TestEqual(TEXT("sem beat: o corte padrão"), Default->Steps.Num() == 2 ? Default->Steps[0].EndFrame - Default->Steps[0].StartFrame : -1, 30);
+	}
+	else
+	{
+		AddError(TEXT("a ação sem perfil não começou"));
+	}
 	return true;
 }
 

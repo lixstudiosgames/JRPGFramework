@@ -88,6 +88,7 @@ is in [ENEMIES.md](ENEMIES.md)):
 | `DT_RaSeruTiers` | `FJRPGRaSeruTierData` | **New.** The Ra-Seru's ATK per tier. Without it the piece is 0 ATK (logged) |
 | `DT_WeaponCosts` | `FJRPGWeaponCostData` | **New.** The Arms button's cost per weapon. Without it every button costs 30 (logged) |
 | `DT_HeroSwings` | `FJRPGHeroSwingData` | **New.** Each hero's plain swing per button and equipped item: power byte(s), hit beat(s), rate, cost. Without it the plain swings use the default byte and `SwingHitFrame` (logged) |
+| `DT_HeroReactions` | `FJRPGHeroReactionData` | **New.** How long each hero's reactions last in logic frames (flinch, block, knockdown, get-up, dying), read from the battle files. The fight waits for them before the next action. Without it the heroes use Vahn's numbers (logged) |
 | `DT_Bosses` | `FJRPGBossData` | **New column** `bScriptedFight`. Re-import to get it |
 | `DT_Characters` | `FCharacterData` | Element (`RaSeruElement`) and handedness |
 
@@ -184,9 +185,19 @@ special starter) advances *S·R/32* clip frames per logic frame.
   during the combo (each hit only shows its damage over the target); at the end of the action the `ComboTotal` event gives "Hit N" over "Damage X", X being the
   damage of all the hits, the discarded excess included; a one-hit action shows only "Damage X". The next action clears it.
   The per-hit numbers over the target stay.
-- **The pawn's reactions** (presentation only, driven by the events): a flinch plays and returns to Idle; a knockdown plays
-  Knockdown then GetUp then Idle (a hero that falls plays Dying then holds Down; a monster holds the last frame of its
-  Knockdown). The defender **turns to face the attacker** on a hit and on a block and **slides back** a little
+- **After an action** (the original's pacing, `Reference/BATTLE_TIMING.md`): the attacker's last clip plays to its natural end
+  (`TailFrames` is 0), then the fight waits for the **target's reaction** (state `0x20`) - every hit records when its target is back
+  on Idle (`FJRPGCombatant::ReactionHoldUntilFrame`: flinch, block, knockdown + get-up, a dying hero's Knockdown + Dying, a monster's
+  knockdown + death fade; the lengths are data - `DT_EnemyActions` for monsters, `DT_HeroReactions` for heroes, the defaults in
+  `FJRPGTimelineDefaults` otherwise - measured at the game speed of the hit) - then the Done band (`DoneBandFrames`, 60), then
+  the **victory / defeat test** (never earlier, not at `ActionEnd`), then `PassGapFrames` (6) before the next actor starts. A fight
+  that was decided holds `VictoryHoldFrames` (256) / `DefeatHoldFrames` (322) before `EndBattle`; a kill by a condition at the start of a turn waits the same way. A hero swing is cut for the next
+  swing of the chain at the keyframe beat + 3 of its own record (Vahn arms 20 logic frames, kicks 16..20), not at a fixed 20.
+- **The pawn's reactions** (presentation only, driven by the events, timed in **logic frames** of the presentation clock, `UBattleSubsystem::GetPresentationFrame`, which keeps ticking while the
+  players type commands and during the victory / defeat hold, and stops with the pause - pause and hitches agree with the rules): a flinch plays and returns to Idle; a knockdown plays Knockdown then GetUp then Idle; a hero that falls plays Knockdown,
+  Dying and then **loops** Down (the original's downed hero keeps animating); a monster holds the last frame of its Knockdown, then
+  sinks and fades out (`DeathFadeParameter`, a scalar material parameter, is optional) and is hidden. Every clip - loop or
+  one-shot - plays on the same `UJRPGFieldEnemyAnimInstance`. The defender **turns to face the attacker** on a hit and on a block and **slides back** a little
   (`FlinchKnockback` / `KnockdownKnockback` / `BlockKnockback` on `AJRPGBattlePawn`, clamped by the arena); the attacker
   closes the distance again at the start of each step (the original's "reach snap"), so a combo stays in reach. Nobody walks
   back to a seat after the turn (RE: `battle-action.md`, "Where an action leaves its combatants").
@@ -255,8 +266,8 @@ buttons (never the payload) with `UJRPGArtsRules::BuildChain` over the hero's sn
 Nothing here has been built or run by the author. In the editor:
 
 1. **Re-import** `DT_Enemies` (new columns `TargetClass` and `SizeClass`), `DT_Bosses` (new `bScriptedFight`) and import the three
-   new tables `DT_EnemyActions`, `DT_RaSeruTiers`, `DT_WeaponCosts`, `DT_HeroSwings` (Row Structures `JRPGEnemyActionData`,
-   `JRPGRaSeruTierData`, `JRPGWeaponCostData`, `JRPGHeroSwingData`, at `/Game/Data/`). The importer may complain about the `Anim`
+   new tables `DT_EnemyActions`, `DT_RaSeruTiers`, `DT_WeaponCosts`, `DT_HeroSwings`, `DT_HeroReactions` (Row Structures
+   `JRPGEnemyActionData`, `JRPGRaSeruTierData`, `JRPGWeaponCostData`, `JRPGHeroSwingData`, `JRPGHeroReactionData`, at `/Game/Data/`). The importer may complain about the `Anim`
    paths of monsters not imported yet; those rows are still used for their frames.
 2. Run the automation tests: Session Frontend → Automation → filter `JRPG.Battle` (and `JRPG.Arts`).
    `JRPG.Battle.SuperInFight` needs `DT_Arts` imported. They run without a map.
@@ -279,14 +290,16 @@ no effect yet); level scaling of the enemy stats (no curve is defined: the row i
 For a UI (Phase 7) or Blueprint: `UBattleSubsystem::OnBattleEvent` (one `FJRPGBattleEvent` at a time:
 `RoundStart`, `ActionStart`, `Damage`, `Miss`, `Block`, `Death`, `APChanged`, `ArtRecognized`, `ArtLearned`,
 `ComboTotal`, `ActionEnd`, with the action and hit index and the logic frame), `OnSlotChanged` (whose command is being entered /
-who is acting), `OnLogicFrame`, `GetEventLog()`, `GetState()`. The UI builds the text; the events carry
+who is acting), `OnLogicFrame` (the presentation clock: +1 per logic step, monotonic; the `Event.Frame` of `OnBattleEvent` is on the same
+clock, while `GetEventLog()` and the timelines keep the rules' own frames, `GetPresentationOffset()` converts), `GetEventLog()`, `GetState()`. The UI builds the text; the events carry
 no `FText`. `FindTimeline(ActionIndex)` gives the frames of any action of the fight.
 
 ## 12. The tests
 
 `JRPG.Battle.*` (all without a map): `PowerBytes`, `Element`, `EquipmentFold`, `Melee`, `EvilFly`, `Block`, `Initiative`,
 `EnemyQueue`, `Time`, `Rand` — the formulas against the RE's numbers; `Round`, `CommandOwner`, `Retarget`, `AttackerDies`,
-`Ties`, `KernelWiring`, `Combo`, `Knockdown`, `TargetFalls`, `Fallback`, `BeatBeyondClip`, `ReactionClip`, `HoldExecution`, `ArtsInFight`, `SuperInFight`, `BlockInFight`, `EndOnce`, `VersionRules` — the
+`Ties`, `KernelWiring`, `Combo`, `Knockdown`, `TargetFalls`, `Fallback`, `BeatBeyondClip`, `ReactionClip`, `HoldExecution`, `ArtsInFight`, `SuperInFight`, `BlockInFight`, `EndOnce`, `VersionRules`, `PostActionHold` (the wait for the target's reaction, the Done band and the
+late win/wipe test), `HeroCut` (a hero swing is cut at beat + 3) — the
 state machine and the failure table of the roadmap; `Determinism` — the same seed, commands and inputs give exactly the
 same events.
 

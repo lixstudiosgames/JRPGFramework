@@ -82,7 +82,7 @@ Status key: **Fixed** / **Partly fixed** / **Open**.
      through the single-node path. `PlayClip` with `bLoop` now puts the `UJRPGFieldEnemyAnimInstance` back (`SetAnimInstanceClass`)
      when the current instance is not it, i.e. the same state the fight starts in, which loops by the engine's own tick records. If
      Noa still freezes, the next suspects are her Art clip asset (a last frame held by `RateScale`) and the leader-pose pieces.
-   - **Still happens (PIE, 2026-11-05).** Noa stays frozen after an Art. See 18.
+   - **Still happens (PIE, 2026-11-05).** Noa stays frozen after an Art. See 18 for the second attempt.
 10. **Walking in place.** The approach plays the walk clip even when the target is already within reach, so the pawn
     walks without moving. Skip the Advance phase and the walk clip when `ApproachTo == ApproachFrom`, and check the
     other cases too.
@@ -194,6 +194,12 @@ These are visual only. The logic is fine; the animation sequencing needs to be p
       itself at every natural end, so `Down` loops (Vahn 10 keyframes at rate 1 = a 40-frame cycle, Noa 60, Gala 28; entry 7 is
       Vahn 40, Noa 88, Gala 56 frames). See [`Reference/BATTLE_TIMING.md`](Reference/BATTLE_TIMING.md), section 4 and change list
       item 4.
+    - **Fixed (re-test).** A hero that dies now plays Knockdown -> Dying -> Down and `Down` **loops** (a looping `PlayClip` on the
+      crossfade instance), instead of holding its last frame; `bDown` still keeps it from ever returning to Idle. A missing `Dying`
+      or `Down` clip is skipped (it holds whatever played last). The monster still holds the last frame of its Knockdown, then fades
+      (see 19). Files: `JRPGBattlePawn.cpp/.h` (`ShowEvent`, `StartReaction`, `AdvanceReaction`). Content note
+      (ARCHITECTURE rule 52): the converter only closes the loop of `Idle,Walk,Move` (`ps1_glb_to_fbx.py --loop-clips`), so the
+      heroes' `_Down` clips, which now loop, may pop once per cycle; re-export them with `Down` added to `--loop-clips` if so.
 18. **Noa still freezes after an Art** (9 is not fixed).
     - After the action ends she stays on a still frame instead of looping Idle.
     - The `SetAnimInstanceClass` fallback in `PlayClip` did not help. Find the real cause: her Art clips, `EndAction`'s return to
@@ -202,6 +208,24 @@ These are visual only. The logic is fine; the animation sequencing needs to be p
       before the attacker's last clip reaches its natural end, idle is the staged id 0 and loops by re-committing, and the Art's
       slow-motion scale (4 / 2, a freeze for the special starter) is restored the pass the art clip ends. What to test is in
       [`Reference/BATTLE_TIMING.md`](Reference/BATTLE_TIMING.md), section 7 and change list item 9.
+    - **Partly fixed (re-test with Noa and an Art; the freeze was never reproduced, so the cause is a best reading of the code).**
+      What was wrong in our code, checked against the three hypotheses of the timing doc: (a) *the forced idle cut or outlived the
+      clip* - the pawn went idle at the data's `TotalFrames` whatever the clip was doing; (b) *a slowed rate left behind* - the
+      Art's slow play rate lived on the mesh (`SetPlayRate`); probably not the cause, since the idle call set the rate again, but
+      it is now only ever part of a clip request; (c) *idle not requested through the
+      crossfade instance* - every one-shot clip (swing, Art, reaction) went through `Mesh->PlayAnimation`, which swaps the mesh to
+      single-node mode and destroys the crossfade instance, and the way back (`SetAnimInstanceClass` in the middle of the fight)
+      rebuilt it, a path that the engine refuses (with a log warning only) if it is reached while the animation is updating.
+      What changed: **one-shot clips now play on the same `UJRPGFieldEnemyAnimInstance`** (new `bLoop` argument
+      of `PlayClip`: a clip that plays once and holds its last frame; asking for a one-shot again restarts it, so a flinch over a
+      flinch still restarts) - the mesh never leaves animation-blueprint mode, there is nothing to rebuild on the way back, and the
+      play rate is part of each request, so it cannot outlive its clip. The pawn's hand-off (`FinishAction`) now compares the
+      action's end with the real end of the last clip it played: if the clip still has up to `MaxIdleHandoffWait` (30) logic frames
+      to go, Idle waits for it (the original never cuts the last clip); otherwise it goes at once. **When the two disagree by more
+      than 2 frames the log says so**, e.g. `BattlePawn Noa: a ação 5 acabou no quadro 412, mas o clip ... ainda tocaria por 9
+      quadro(s)` / `... já tinha acabado e segurava o último quadro` - if Noa still freezes, that line (or its absence) tells which
+      asset or timeline is wrong. Files: `JRPGBattlePawn.cpp/.h` (`PlayClip`, `PlayStep`, `FinishAction`, `UpdatePlayback`),
+      `JRPGFieldEnemyAnimInstance.cpp/.h` (`PlayClip(..., bLoop)`, one-shot tick records, restart serial).
 19. **No time for the fall and the get-up before the next attack.** When a hero or an enemy is knocked down, the next combatant
     attacks right away. It should wait for the knockdown and the GetUp clip to play before the next action starts, like the
     original.
@@ -215,6 +239,71 @@ These are visual only. The logic is fine; the animation sequencing needs to be p
       Gala 94 vsyncs; monsters median 119 (84..240). Full numbers and the implementation plan (reaction lengths as data on the
       combatant, a post-action hold in the resolver, `TailFrames` to 0) in
       [`Reference/BATTLE_TIMING.md`](Reference/BATTLE_TIMING.md), sections 3 and 9.
+    - **Fixed (re-test; exact numbers need the `DT_HeroReactions` import).** The fight now follows the original's chronology:
+      approach -> swings (each hero swing cut at keyframe beat + 3 of its own record) -> the last clip plays to its natural end (no
+      `TailFrames`: it is 0) -> **wait for the target's reaction** -> the 60-vsync Done band -> the win/wipe test -> about 6 passes ->
+      the next actor. In detail:
+      - *Reaction lengths are data on the combatant* (`FJRPGCombatant::Reactions`, `FJRPGBattleReactionLengths`): monsters from
+        `DT_EnemyActions` (tags 2 / 3 / 4 / 5 / `0x0B`, `4 * FrameCount / Rate`), heroes from the new `DT_HeroReactions`. Missing
+        data falls back to `FJRPGTimelineDefaults` (hero = Vahn's numbers, monster = the disc medians).
+      - *The resolver holds* (`EndAction`, `StepFrame`, `Pump`): every hit records when its target's whole reaction ends
+        (`FJRPGCombatant::ReactionHoldUntilFrame`: flinch, block, knockdown + get-up, hero knockdown + Dying, monster knockdown + death
+        fade), at the speed in force when it hit (an Art at 4 doubles it; `FJRPGBattleEvent::GameSpeed`). `EndAction` emits `ActionEnd`
+        (the attacker is free) but only schedules `FinishCheckFrame = max(now, reactions) + DoneBandFrames (60)` and
+        `NextActionNotBefore = FinishCheckFrame + PassGapFrames (6)`; the victory / defeat test runs at the first, the next action
+        starts at the second. No win/wipe test mid-action or at `EndAction` any more (also bug 16's rule).
+      - *End of the fight*: `FinishDelayFrames` (90) is gone; `UBattleSubsystem::VictoryHoldFrames` (256, the results hold) and
+        `DefeatHoldFrames` (322) follow the original's sequencer (the 322 is the original's wipe sequence including its own fade-out). The
+        win pose of the leader is not played (pawns stay on Idle); our scene's fade-out comes on top of the hold, after it.
+      - *Presentation clock*: the pawns do not run on the resolver's `State.Frame` (it only advances in Execution, so reaction chains,
+        the death fade, the idle hand-off and the held sounds froze while the players typed commands). `UBattleSubsystem` keeps a
+        monotonic `GetPresentationFrame()`: +1 per logic step whenever the game is not paused (Commands stage and the victory / defeat
+        hold included), and `GetPresentationOffset()` = presentation frames that elapsed without the resolver advancing. It is the value
+        of `OnLogicFrame` (which no longer skips F-1 -> F+1 on the finishing step), it is added to `Event.Frame` before `OnBattleEvent`,
+        and the scene adds it to `FJRPGActionTimeline::StartFrame` of the copy it gives the pawn (`ToPresentationTimeline`). The resolver
+        and `GetEventLog()` still use the raw rules frames (deterministic, never reading pawn data). Pause and `HoldLogic` freeze everything.
+      - *Turn-start condition death*: a kill by a condition at the start of a turn (poison) used to call `CheckFinish()` at once and let
+        `Pump` pick the next actor the same frame; it now schedules like `EndAction` (`ScheduleFinishCheck`: reaction hold, Done band,
+        finish test, pass gap). Test: `JRPG.Battle.PostActionHold`.
+      - *Pawn reactions on logic frames*: the `GetWorldTimerManager` timer is gone; a reaction is a chain (`StartReaction`) whose
+        clips end at logic-frame deadlines checked in `UpdatePlayback`, so pause and hitches agree with the resolver. A killed monster
+        holds its Knockdown's last frame, then fades and sinks `SizeClass / 4` units per frame for `DeathFadeFrames` and hides
+        (`Event.Value` of the Death event carries the fade length). The fade itself is a scalar material parameter
+        (`DeathFadeParameter`, default `JRPGDeathFade`, 1 -> 0) that only the materials which have it will show; without it the body
+        sinks and disappears.
+      - *Hero swings*: `ComposeHeroTimeline` cuts a swing at `ClipFramesToSteps(beat + 3)` of its record's first beat (Vahn arms 20,
+        Noa arms 20 and kicks 16, Gala arms 24 and kicks 16..24) when the record is known; the Chain Cut marker still wins, and
+        `SwingCutFrame` (20) is only the fallback.
+      Files: `BattleTypes.h`, `JRPGBattleResolver.h/.cpp`, `BattleSubsystem.h/.cpp`, `HeroBattleData.h`, `JRPGBattlePawn.h/.cpp`,
+      `JRPGBattleSceneSubsystem.cpp`, `Extras/generate_hero_battle_csv.py`, `Docs/Data/DT_HeroReactions.csv`. Tests:
+      `JRPG.Battle.PostActionHold`, `HeroCut`, and `Fallback` (no tail). Not done: the per-clip knockback speed / end step (still the
+      per-hit constants of 14), and the reaction's slow motion ends with the reaction instead of at the Art's last clip.
+
+20. **The impact sound plays when the swing MISSES.** In PIE, a swing that misses because of the target's height class (tall
+    flyers / short targets, `TargetClass` against the power byte) still plays the attacker's impact sound.
+    - Cause: the sound is a stock `AnimNotify_PlaySound` on the attack clip, and a notify fires whenever the clip passes it; the
+      clip knows nothing about the hit result, which the logic decides at the hit's logic frame.
+    - **Fixed (re-test).** `UJRPGFieldEnemyAnimInstance::HandleNotify` now routes the `PlaySound` notifies of an
+      `AJRPGBattlePawn` owner to `AJRPGBattlePawn::HandleClipSound`. A sound that falls within the asymmetric window of a hit of the
+      step being played (`HitSoundLeadFrames` = 2 logic frames before the hit, `HitSoundLagFrames` = 8 after) is "the impact": it is held until that hit's event for this attacker arrives (the
+      scene forwards every Damage / Block / Miss with `NoteHitResult`) - **Damage or Block plays it, Miss drops it** (or plays the
+      optional `MissSound` of the pawn); if the notify fires after the event, the recorded result decides at once. Sounds outside
+      any hit's window (voices, footsteps, the whoosh at the start), reaction clips and idle play as before, with the notify's own
+      volume, pitch, `bFollow` and `AttachName` (the pawn plays them exactly like `UAnimNotify_PlaySound::Notify`). Held sounds are
+      dropped if the hit never resolves, when the action ends (a notify that arrives after the end, for a hit that never resolved, is
+      discarded) and when the pawn dies; the held-sound deadline counts logic frames, so pause freezes it. Both window values at 0 turn
+      the rule off. The action's sound context (step, hit frames, recorded results) outlives `FinishAction` (`bSoundContextActive`)
+      until the last clip's tail is over - the idle hand-off frame, the last hit + `HitSoundLagFrames` and the end of the
+      `AnimBlendTime` crossfade, whose outgoing clip still fires notifies - so a tail impact sound is still gated by the last hit; it is
+      cleared by the next `BeginAction`, the pawn's death and `InitCombatant`. `PlayNotifySound` attaches the sound only when `bFollow`
+      is on (UE 5.8; `AttachName` is ignored otherwise). Impact sounds authored later should use `UJRPGAnimNotify_HitSound`, which
+      needs no window; on an `AJRPGFieldEnemy` that notify plays its HitSound through `PlayClipSound`.
+    - New opt-in notify `UJRPGAnimNotify_HitSound` (`HitSound`, `MissSound`, volume, pitch, follow, attach) for clips authored later:
+      place it on the impact frame; it belongs to the nearest hit of the step with no window.
+    - Limitation: a visual with its own `AnimClass` (`FJRPGBattleVisual::AnimClass`, not used by the arena today) plays the engine's
+      `PlaySound` itself and cannot be gated; only `UJRPGAnimNotify_HitSound` is (it asks the pawn through the mesh's owner).
+    - Files: `JRPGBattlePawn.h/.cpp`, `JRPGFieldEnemyAnimInstance.cpp`, `JRPGBattleSceneSubsystem.cpp`, new
+      `JRPGAnimNotify_HitSound.h/.cpp`.
 
 ## Not bugs (checked)
 
@@ -240,6 +329,29 @@ Re-test in PIE (nothing was run):
 - 13: plain Low on Vera/Evil Fly misses with default boots; High misses frogs/mushrooms with Noa or Gala.
 - 16: kill one of several enemies with the first swing of an Art: the Art plays to the end on the body, nothing hits the others, the
   enemy falls on the last hit and "Hit N / Damage X" shows on screen at the end; the same on the last enemy (victory only after the action).
+
+Second pass (animation pacing, nothing was built or run):
+
+- **Import `DT_HeroReactions`** (Row Structure `JRPGHeroReactionData`, `/Game/Data/`, from `Docs/Data/DT_HeroReactions.csv`; 4 rows:
+  Vahn, Noa, Gala, Terra, in logic frames at game speed 8, generated from PROT 0863..0866 by `generate_hero_battle_csv.py`). Without it
+  the heroes wait with Vahn's numbers (a log line says so); monsters need no new table (`DT_EnemyActions` already has the lengths;
+  re-import it only if it was never imported).
+- 19 (pacing): one action should now take, for a Vahn plain swing on a Gimard that flinches, about 2.5 s from the action start to the
+  next one (approach ~30 + swing ~50, the flinch is shorter than the swing, then 60 + 6); against a knocked-down Gimard about 3.8 s.
+  Watch: the next attacker waits until the target is up again; nobody attacks a body that is still falling; after the last enemy
+  falls the screen holds ~4 s (256 frames) before the fade, and a wipe holds ~5.4 s (322).
+- 17: a dead Vahn / Noa keeps moving (kneeling loop) instead of freezing.
+- 18: Noa after every kind of Art. Look at the Output Log for `BattlePawn Noa:` lines (action end vs the real end of the last clip).
+- A killed monster: knockdown, then it sinks for ~0.5 s and disappears. The darkening only shows if its material has the scalar
+  parameter `JRPGDeathFade` (1 = normal, 0 = black); none do today - add it to the monster materials you want to fade, or change
+  `DeathFadeParameter`.
+- 20: a Low swing on a flyer (or High on a frog with Noa / Gala): no impact sound on the Miss, the sound still plays on a hit and on a
+  block. If a clip's impact sound is not within 2 frames before / 8 frames after the hit frame, raise `HitSoundLeadFrames` /
+  `HitSoundLagFrames` (or place a `UJRPGAnimNotify_HitSound` on the impact frame).
+- New things to tune (on `AJRPGBattlePawn` unless said): `HitSoundLeadFrames` (2), `HitSoundLagFrames` (8), `MissSound` (none), `MaxIdleHandoffWait` (30),
+  `DeathFadeParameter` (`JRPGDeathFade`), `bDeathSink` (on); on `UBattleSubsystem`: `VictoryHoldFrames` (256), `DefeatHoldFrames`
+  (322; replace `FinishDelayFrames`); in `FJRPGTimelineDefaults` (`TimelineDefaults`): `TailFrames` (now 0), `DoneBandFrames` (60),
+  `PassGapFrames` (6) and the fallback reaction lengths (`Hero*Frames`, `Enemy*Frames`).
 
 Decisions for you:
 

@@ -79,6 +79,7 @@ remain for reference.
 | [DT_RaSeruTiers.csv](Data/DT_RaSeruTiers.csv) | 3 | `FJRPGRaSeruTierData` |
 | [DT_WeaponCosts.csv](Data/DT_WeaponCosts.csv) | 18 | `FJRPGWeaponCostData` |
 | [DT_HeroSwings.csv](Data/DT_HeroSwings.csv) | 114 | `FJRPGHeroSwingData` |
+| [DT_HeroReactions.csv](Data/DT_HeroReactions.csv) | 4 | `FJRPGHeroReactionData` |
 
 `Data/_backup/` holds the copies LegaiaStudio makes on every save.
 

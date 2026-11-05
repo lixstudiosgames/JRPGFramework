@@ -54,7 +54,7 @@ public:
 
 	/** A arena da luta atual (pode ser a provisória); nula fora de luta. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Scene")
-	AJRPGBattleArena* GetArena() const { return Arena.Get(); }
+	AJRPGBattleArena* GetArena() const;
 
 	/** O Field está escondido pela luta (entre OnFieldHidden e OnFieldShown). */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Scene")
@@ -105,7 +105,10 @@ private:
 	/** O Field voltou ao jogador: começa a carência de depois da luta no UBattleSubsystem. */
 	void NoteFieldReturnedToBattleSubsystem();
 
-	/** Um quadro lógico andou: os pawns tocam em compasso. */
+	/** A cópia da timeline com o StartFrame no relógio de apresentação (o dos pawns): soma o UBattleSubsystem::GetPresentationOffset. */
+	static FJRPGActionTimeline ToPresentationTimeline(const UBattleSubsystem& Battle, const FJRPGActionTimeline& Timeline);
+
+	/** Um quadro lógico andou (o relógio de apresentação, UBattleSubsystem::GetPresentationFrame): os pawns tocam em compasso. */
 	UFUNCTION()
 	void HandleLogicFrame(int32 Frame);
 

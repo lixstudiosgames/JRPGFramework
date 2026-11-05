@@ -752,8 +752,12 @@ input window inside a turn, damage per hit with each Art's power, AP on the comb
 - **A round with no action** counts only when nobody could plan one for lack of data (64 in a row, warned each time, then `Aborted` with an
   error in the log — a safety net, the resolver loops without advancing frames); a round emptied by conditions (sleep, stun) does not count.
 - **The fight waits** while the scene is entering (`HoldLogic`: commands are accepted and kept but the round stays in Commands; releasing it
-  starts the execution), `FinishDelayFrames` (90) after the last blow before `EndBattle`, and for as long
-  as the player takes to enter the commands.
+  starts the execution), and for as long as the player takes to enter the commands. **After every action** it waits like the original
+  (`BATTLE_TIMING.md`): the attacker's last clip to its natural end (no tail), then the target's reaction (flinch, block, knockdown +
+  get-up, a hero's Knockdown + Dying, a monster's knockdown + death fade; lengths are data on the combatant), then the 60-vsync Done
+  band, then the victory / defeat test, then about 6 passes before the next actor (`FJRPGBattleState::FinishCheckFrame` /
+  `NextActionNotBefore`; `FJRPGTimelineDefaults::DoneBandFrames`, `PassGapFrames`). The decided fight holds `VictoryHoldFrames` (256) or
+  `DefeatHoldFrames` (322) before `EndBattle`.
 - **Not done**: Item, Escape, Spirit, formation advantage roll, drop / steal (Phase 7); magic and the scripted bosses (Phase 8); the
   enemies' level scaling (the encounter's level is stored, no curve exists); the `UJRPGAnimNotify_Hit` markers on the party's clips
   (content); rule 3 of "Staying in the arena" (minimum spacing) and rule 4 (the per-Art override) — the pawn walks to the reach, the
@@ -776,7 +780,7 @@ random-encounter profile). A scripted fight also cannot be escaped and rolls no 
 advantage (`ctx+0x287`).
 
 **Data the fight needs from the disc** (Phase 5 generator work like Phase 1's — **written 2026-11-04**:
-`DT_EnemyActions`, `DT_Enemies.TargetClass` and `.SizeClass`, `DT_Bosses.bScriptedFight`, `DT_RaSeruTiers`, `DT_WeaponCosts`, `DT_HeroSwings`;
+`DT_EnemyActions`, `DT_Enemies.TargetClass` and `.SizeClass`, `DT_Bosses.bScriptedFight`, `DT_RaSeruTiers`, `DT_WeaponCosts`, `DT_HeroSwings`, and later `DT_HeroReactions` (the heroes' reaction lengths, which the fight waits for);
 [Guides/ENEMIES.md](Guides/ENEMIES.md)):
 
 | Data | From (RE) | For |

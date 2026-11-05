@@ -305,6 +305,7 @@ content across once and remain for reference.
 | `Data/DT_RaSeruTiers.csv` | 3 | `FJRPGRaSeruTierData` (the Ra-Seru's ATK per tier, one row per hero) |
 | `Data/DT_WeaponCosts.csv` | 18 | `FJRPGWeaponCostData` (the Arms button's cost per hero and weapon, when it is not 30) |
 | `Data/DT_HeroSwings.csv` | 114 | `FJRPGHeroSwingData` (the plain swing of each button per hero and equipped item: power byte(s), hit beat(s), rate, cost) |
+| `Data/DT_HeroReactions.csv` | 4 | `FJRPGHeroReactionData` (how long each hero's reactions last, in logic frames: flinch, block, knockdown, get-up, dying; read from the battle files) |
 
 `Data/_backup/` holds the copies LegaiaStudio makes on every save.
 

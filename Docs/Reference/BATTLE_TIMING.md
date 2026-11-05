@@ -1,8 +1,9 @@
 # Battle timing: how the original paces a fight
 
 How long each part of a battle takes in *Legend of Legaia*, what a fight waits for before it moves on, and how that compares with
-our logic timeline. Research only: nothing here is implemented yet. It exists to settle
-[`BATTLE_PHASE5_BUGS.md`](../BATTLE_PHASE5_BUGS.md) bugs 17, 18 and 19 and to give the next implementation pass real numbers.
+our logic timeline. Sections 1 to 8 and 10 are research; section 9 compares it with our code and records the nine changes made to
+follow it (implemented, **not built or run**: they need a PIE re-test). It settles
+[`BATTLE_PHASE5_BUGS.md`](../BATTLE_PHASE5_BUGS.md) bugs 17, 18 and 19.
 
 Everything was derived from the [`legend-of-legaia-re`][re] reverse-engineering project (the US disc). Only numbers and
 descriptions are written down here; no disc data is copied (rule 48). The party clip figures in section 10 were read from the
@@ -355,8 +356,9 @@ frames). The only camera-linked times are:
 
 ## 9. Compared with our implementation
 
-What we do today (from `JRPGBattleResolver.cpp`, `BattleSubsystem.cpp`, `JRPGBattlePawn.cpp`, `BattleTypes.h`,
-`FJRPGTimelineDefaults`):
+What we did **before the change list below** (from `JRPGBattleResolver.cpp`, `BattleSubsystem.cpp`, `JRPGBattlePawn.cpp`,
+`BattleTypes.h`, `FJRPGTimelineDefaults`; the "Ours" column and this list are that old state, the verdict column and the list under
+the table say what is done now):
 
 - Logic clock 1/60 s, `StepFrame` per fixed step. An action's `TotalFrames = LeadFrames (30) + sum of steps + TailFrames (24)`;
   the next action is planned the instant `EndAction` runs (`Pump`), at the same frame.
@@ -375,22 +377,22 @@ Item by item against the original:
 | 1 | Clock | 60 Hz logic frame | 60 Hz vsyncs, SM every `step` | **matches**; keep |
 | 2 | Clip rate math | `ClipFramesToSteps`, `HitStepForBeat` | `4 N / R`, beat at keyframe `B - 1` | **matches** |
 | 3 | Approach | fixed `LeadFrames` 30, lerp to the stop point | constant speed (42/44/28/48 units per vsync) until the range law reads in range; for an example 1150-unit gap about 27 vsyncs for Vahn and 41 for Gala | close for Vahn/Noa, **Gala is too fast**; low priority |
-| 4 | Next swing of a string | monster: beat + 3 (**matches**); hero plain swing: `SwingCutFrame` 20 for all | keyframe `B + 3` per swing: Vahn arms and kicks 20, Noa arms 20 and kicks 16 / 18, Gala arms 24 and kicks 16 / 24 | **change**: derive hero `CutFrame` from the beat |
-| 5 | Action tail | `TailFrames` = 24 after the last clip | none; the last clip plays out, then target reaction, then **60** | **change** |
-| 6 | Wait for the target's reaction | none (resolver); pawn plays it on its own timer | the next action waits (state `0x20`) | **change (bug 19)** |
-| 7 | Gap to the next actor | 0 frames | 60 + about 6 vsyncs, plus the reaction hold | **change** |
-| 8 | Win/wipe check | at `EndAction` | at `0x5A`, after the 60 | **change** |
-| 9 | `FinishDelayFrames` | 90 after the decision | killed monster's knockdown + fade (about 90) + 60 are already inside the last action; then a 256 hold with the win pose (the results screen) | **change** |
-| 10 | Hero death pose | `Dying` then `Down` held | knockdown, entry 7, then entry 8 **looping** | **change (bug 17)** |
-| 11 | Monster death | holds the last Knockdown frame | holds it, **fades additively to black over about 32 vsyncs while sinking**, and the action waits for it | add the fade and the wait |
-| 12 | Knockback | per-hit constant over 12 frames | per-clip speed over the whole clip + end step | approximation; see section 6 |
-| 13 | Idle hand-off | forced `PlayIdle()` at `TotalFrames` | idle is staged id 0; action waits for the last clip's natural end | investigate with bug 18 |
-| 14 | Slow motion | per-step `Speed` for the actor's own clip | every actor's scale 4/2 during an Art, restored at the art clip's end | check the target's reactions use the same scale |
+| 4 | Next swing of a string | monster: beat + 3 (**matches**); hero plain swing: `SwingCutFrame` 20 for all | keyframe `B + 3` per swing: Vahn arms and kicks 20, Noa arms 20 and kicks 16 / 18, Gala arms 24 and kicks 16 / 24 | **done** (item 5): hero `CutFrame` derived from the beat |
+| 5 | Action tail | `TailFrames` = 24 after the last clip | none; the last clip plays out, then target reaction, then **60** | **done** (item 3) |
+| 6 | Wait for the target's reaction | none (resolver); pawn plays it on its own timer | the next action waits (state `0x20`) | **done** (items 1, 2; bug 19) |
+| 7 | Gap to the next actor | 0 frames | 60 + about 6 vsyncs, plus the reaction hold | **done** (item 2) |
+| 8 | Win/wipe check | at `EndAction` | at `0x5A`, after the 60 | **done** (item 2) |
+| 9 | `FinishDelayFrames` | 90 after the decision | killed monster's knockdown + fade (about 90) + 60 are already inside the last action; then a 256 hold with the win pose (the results screen) | **done** (item 7; the win pose itself is not played) |
+| 10 | Hero death pose | `Dying` then `Down` held | knockdown, entry 7, then entry 8 **looping** | **done** (item 4; bug 17) |
+| 11 | Monster death | holds the last Knockdown frame | holds it, **fades additively to black over about 32 vsyncs while sinking**, and the action waits for it | **done** (item 6; the darkening needs a material parameter, the sink and the wait do not) |
+| 12 | Knockback | per-hit constant over 12 frames | per-clip speed over the whole clip + end step | approximation; see section 6 (**deferred**, the optional part of item 8) |
+| 13 | Idle hand-off | forced `PlayIdle()` at `TotalFrames` | idle is staged id 0; action waits for the last clip's natural end | **done** (item 9; bug 18's cause was not reproduced) |
+| 14 | Slow motion | per-step `Speed` for the actor's own clip | every actor's scale 4/2 during an Art, restored at the art clip's end | **partly**: the target's reaction plays and is awaited at the speed in force when it was hit; it does not go back to 8 at the Art clip's end |
 | 15 | Juggle windows | `ReactionWindow`, `HeroReactionBeats` | `4 * beat / rate` | **matches** |
 | 16 | Name labels / entry sweep / round gap | scene `HoldLogic`; nothing between rounds | 90/120 + about 64 before round 1; nothing between rounds | **matches** in effect |
-| 17 | Reactions on wall-clock timers | `GetWorldTimerManager` | vsync-driven | change with 6 so pause and hitches stay consistent |
+| 17 | Reactions on wall-clock timers | `GetWorldTimerManager` | vsync-driven | **done** (item 8) |
 
-### Changes to make later, in order
+### The change list, in order (all nine done; not built or run)
 
 1. **Reaction lengths as data on the combatant (bug 19).** Add to `FJRPGCombatant` (`Public/Battle/BattleTypes.h`) a small struct
    of logic-frame lengths: `FlinchFrames`, `BlockFrames`, `KnockdownFrames`, `GetUpFrames`, `DyingFrames` (hero entry 7),
@@ -406,28 +408,57 @@ Item by item against the original:
    where it is now (the attacker is free), so the pawn can go idle. Run `CheckFinish()` at the end of the hold, not before.
    Add `DoneBandFrames` and `PassGapFrames` to `FJRPGTimelineDefaults`. Update the tests that assume a zero gap
    (`JRPGBattleTests.cpp`, the ones using `D.TailFrames`).
+   **Done (1, 2).** `FJRPGBattleReactionLengths` on `FJRPGCombatant::Reactions` (monsters from `DT_EnemyActions` in
+   `MakeEnemyCombatant`, heroes from the new `DT_HeroReactions` in `MakeHeroCombatant`; the generator reads each hero's `record[0]`
+   and reproduces the table of section 10 exactly). Missing data falls back to `FJRPGTimelineDefaults::Hero*Frames` (Vahn) /
+   `Enemy*Frames` (the disc medians). Each hit sets `ReactionHoldUntilFrame` on its target (scaled by the game speed of the hit, in the
+   event as `GameSpeed`); `EndAction` sets `FinishCheckFrame` and `NextActionNotBefore` on the state, `StepFrame` runs `CheckFinish()`
+   at the first and `Pump()` from the second. One refinement of the text above: the win/wipe test is at the end of the Done band,
+   and only the next action waits the extra `PassGapFrames`. Tests: `JRPG.Battle.PostActionHold` (flinch, knockdown + get-up,
+   victory and defeat timing, an Art's slow motion).
 3. **Drop `TailFrames` to 0 and use the clip's end.** The original has no tail; the last clip's natural end is the end of the
    attacker's part. Set `FJRPGTimelineDefaults::TailFrames` = 0 (and the enemy equivalent), leaving `DoneBandFrames` as the
    fixed pause. The pawn's `Recovery` phase is the rest of the last clip.
+   **Done (3).** `TailFrames` defaults to 0 (the property stays, for tuning); the monster timeline shares it, and `ArtTailFrames` is
+   the tail of an Art's *clip* when it has no markers, not a pause after the action. The hero's last swing plays `Timing.Frames` (the
+   clip) or `SwingFrames` (48; the disc has 50 for arms and 46 for kicks) to its end.
 4. **Hero `Down` loops (bug 17).** In `AJRPGBattlePawn::ShowEvent` (Death, hero) the call is `PlayReaction(RoleDying, false,
    RoleDown, true)`; the last argument holds the final frame. Add a loop mode to the follow clip (a `bLoopFollow`, played with
    `PlayClip(Clip, true, Rate)`), keep `bDown` true so `ReturnToIdle` never fires, and let `FindRoleClip` supply the rate. The
    monster stays a hold. `Dying` is the disc's entry 7 (Vahn 40, Noa 88, Gala 56 vsyncs).
+   **Done (4).** Not as a flag of `PlayReaction` but as a reaction chain (`AJRPGBattlePawn::StartReaction`, steps with an end mode
+   `Idle` / `Hold` / `Loop`): a dying hero plays Knockdown -> Dying -> Down looping.
 5. **Hero `CutFrame` from the beat.** In `ComposeHeroTimeline` (`Swing` case), when the swing has `HitBeats`, use
    `Cut = UBattleFormulas::ClipFramesToSteps(Beat + 3, Plan.Speed, Plan.BeatRate)` instead of `Scaled(Defaults.SwingCutFrame, ...)`.
    Keep `SwingCutFrame` as the fallback.
+   **Done (5).** Also after the Chain Cut marker (which still wins) and before `SwingCutFrame`. Test: `JRPG.Battle.HeroCut`.
 6. **Monster death fade and sink.** In the pawn, after the Knockdown's last frame, fade the body (additive, lanes 0x100 to 0, 32
    vsyncs) while sinking `size_class / 4` units per vsync (the original adds `(record[+0x1F] * dt) >> 2` a pass), then hide it; `DeathFadeFrames` is the resolver's share (item 1).
+   **Done (6).** The Death event carries the fade length in `Value`; `BeginDeathFade` / `UpdateDeathFade` sink the pawn and drive
+   the scalar material parameter `DeathFadeParameter` (1 -> 0), then hide the actor. A lane colour fade in additive mode is not
+   something the plugin can do without editing materials, so the darkening only appears on materials that have that parameter.
 7. **`FinishDelayFrames`.** With the hold in place the 90 is redundant for the killed monster. Replace it by the pose hold the
    results screen wants (the original shows the win pose for 256 vsyncs before the fade; the 80-vsync CD wait is not needed). The
    party-wipe equivalent is about 322 vsyncs. Keep it a `UPROPERTY` and make the number explicit.
+   **Done (7).** `UBattleSubsystem::VictoryHoldFrames` = 256 and `DefeatHoldFrames` = 322 replace `FinishDelayFrames`. The 322 is the
+   original's wipe sequence, including its own fade-out; our scene fade comes after it. The leader's win pose is not played yet. The
+   pawns run on a presentation clock (`UBattleSubsystem::GetPresentationFrame`, +1 per logic step while not paused, also during the
+   Commands stage and this hold; the value of `OnLogicFrame`), not on the resolver's `State.Frame`.
 8. **Reaction timers on logic frames.** Replace `ReactionTimer` (wall clock) in `JRPGBattlePawn.cpp` by a logic-frame deadline
    checked in `UpdatePlayback` / `OnLogicFrame`, so pause, hitches and the resolver's hold agree. Optional: add the per-clip root
    speed and end step (section 6) to the hero table and to `DT_EnemyActions` (the monster entry `+0x0C` / `+0x0E`, not exported yet)
    and replace `KnockbackFrames` = 12 with a slide over the clip's own length.
+   **Done (8), except the optional part.** `ReactionTimer` and `GetWorldTimerManager` are gone from the pawn: reaction chains end at
+   logic-frame deadlines checked in `UpdatePlayback`. The per-clip root speed / end step and the slide over the clip's length are
+   **deferred**: they need new columns in `DT_EnemyActions` (monster entry `+0x0C` / `+0x0E`), the real recoil may already be baked
+   into the clips (section 6's warning) and it changes the feel of the fight, so it should be decided on a real clip.
 9. **Idle hand-off (bug 18).** In `FinishAction`, instead of forcing idle when `Elapsed >= TotalFrames`, compare with the playing
    clip's real remaining length (log when they differ), restore any slowed play rate, and request idle through the crossfade
    instance. Test with Noa's Arts first. The RE says the original never cuts the last clip: the action ends after it.
+   **Done (9).** `FinishAction(LogicFrame)` compares the action's end with the last clip's real end (asset length / play rate in logic
+   frames), logs when they differ by more than 2 frames, and lets Idle wait up to `MaxIdleHandoffWait` (30) frames for the clip.
+   Slowed play rates cannot be left behind any more: every clip, loop or one-shot, is a request on the one crossfade instance, which
+   carries its own rate (see bug 18 for what else changed; the cause of the freeze was never reproduced).
 
 Expected effect on the pacing of a Vahn plain swing against a Gimard (flinch): approach about 30, swing 12 to the hit and 48..50
 to the end, the flinch (60) is over before the swing ends, then 60 + 6: about **150 vsyncs (2.5 s)** per action, against about 100

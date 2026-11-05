@@ -235,6 +235,11 @@ py "<repo>/Extras/ue_import_monster_sounds.py" "<...>/exports/sounds/Sounds" Gim
 Running it again replaces the SoundWaves and rebuilds the sound tracks — it never duplicates.
 Tracks holding any other kind of notify are left alone.
 
+In a fight, `AJRPGBattlePawn` decides these `AnimNotify_PlaySound` sounds: a sound that falls within `HitSoundLeadFrames` (2 logic
+frames before) to `HitSoundLagFrames` (8 after) of a hit of the attack being played is the impact and plays only when the hit connected (Damage or Block), not on a Miss (the
+target's height class); sounds elsewhere on the clip (voices, footsteps) play as the notify says. A clip authored later should place a
+`UJRPGAnimNotify_HitSound` on the impact frame instead (`HitSound`, optional `MissSound`; no window needed).
+
 The SoundWaves are the **battle** ones: 2D, heard everywhere, volume 1, no attenuation. On the
 field, `AJRPGFieldEnemy` plays the same notifies in 3D with a short radius instead — see
 [FIELD_ENEMIES.md](FIELD_ENEMIES.md#3-behaviour).

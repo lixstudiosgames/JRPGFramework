@@ -265,6 +265,45 @@ struct JRPGFRAMEWORK_API FJRPGBattleSwingProfile
 };
 
 /**
+ * Quanto cada reação de um combatente dura, em quadros lógicos (vsyncs) na velocidade normal do jogo (escala 8): é o que o
+ * resolvedor espera depois de um golpe antes de a próxima ação poder começar (o estado 0x20 do original só solta quando o alvo
+ * volta ao idle; Docs/Reference/BATTLE_TIMING.md, seções 3 e 10). DADO do disco (o tamanho e o rate do clip, 4 * N / R), nunca
+ * o clip que o pawn toca: a lógica não depende de geometria nem de asset. 0 = não se sabe: vale o padrão de
+ * FJRPGTimelineDefaults (herói: o Vahn; monstro: a mediana do disco).
+ */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGBattleReactionLengths
+{
+	GENERATED_BODY()
+
+	/** O flinch de golpe alto (tag 2) e de golpe baixo (tag 3). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 FlinchHighFrames = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 FlinchLowFrames = 0;
+
+	/** O clip de block (tag 0x0B). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 BlockFrames = 0;
+
+	/** O knockdown (tag 4) e o levantar (tag 5). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 KnockdownFrames = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 GetUpFrames = 0;
+
+	/** Herói: a entrada 7 depois do knockdown de quem morreu (ele solta a ação ao chegar na 8, que repete para sempre). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 DyingFrames = 0;
+
+	/** Monstro: o fade de derrota depois do knockdown (o corpo some; o original gasta 0x100 / 8 = 32 passos). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 DeathFadeFrames = 0;
+};
+
+/**
  * Um combatente da luta. SÓ REGRAS, tudo inteiro: sem fase, sem timer, nada que o pawn mostre (a
  * fase da ação mora no AJRPGBattlePawn). É uma FOTO tirada no BeginBattle — a resolução nunca lê o
  * UPartySubsystem, o UStatusSubsystem nem o UInventorySubsystem (BATTLE_ROADMAP.md › 5.0 e
@@ -430,6 +469,10 @@ struct JRPGFRAMEWORK_API FJRPGCombatant
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	FJRPGBattleReactionClip BlockClip;
 
+	/** Quanto duram as reações dele (flinch, block, knockdown + levantar, morrer): o que o resolvedor espera antes da próxima ação. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	FJRPGBattleReactionLengths Reactions;
+
 	/** Inimigo: os golpes que a IA sorteia (tag 0x0C..0x1F com custo de AGL), na ordem do arquivo. */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	TArray<FJRPGBattleActionEntry> Swings;
@@ -452,6 +495,14 @@ struct JRPGFRAMEWORK_API FJRPGCombatant
 	/** A reação atual é o block (a janela dele força o próximo bloqueio). */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	bool bReactionIsBlock = false;
+
+	/**
+	 * O quadro lógico em que a reação inteira do último golpe que ele tomou acaba (flinch, block, knockdown + levantar, queda +
+	 * Dying, queda + fade): a próxima ação espera por isto (o estado 0x20 do original). É diferente de ReactionUntilFrame, que é só
+	 * a janela do juggle. 0 = nada a esperar.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 ReactionHoldUntilFrame = 0;
 
 	/** O Spirit do original (Fase 7). */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
@@ -595,7 +646,11 @@ struct JRPGFRAMEWORK_API FJRPGBattleEvent
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	int32 HitIndex = -1;
 
-	/** O quadro lógico da luta em que aconteceu. */
+	/**
+	 * O quadro lógico da luta em que aconteceu. Nas regras (FJRPGBattleResolver::GetEvents, UBattleSubsystem::GetEventLog) é o
+	 * State.Frame cru. No OnBattleEvent do UBattleSubsystem já vem somado ao GetPresentationOffset, no relógio de apresentação
+	 * (o do OnLogicFrame), que também anda na digitação dos comandos.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	int32 Frame = 0;
 
@@ -606,6 +661,13 @@ struct JRPGFRAMEWORK_API FJRPGBattleEvent
 	/** ComboTotal: quantos golpes acertaram o alvo. */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	int32 Count = 0;
+
+	/**
+	 * A escala de velocidade do jogo em vigor quando o fato aconteceu (8 normal, 4 / 2 durante uma Art): a reação de quem apanha
+	 * toca nela, e o resolvedor mede a espera pela mesma escala. Death: Value traz o fade de derrota do monstro (0 no herói).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 GameSpeed = 8;
 
 	/** Na ArtRecognized / ArtLearned: a key da Art no DT_Arts. */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
@@ -736,7 +798,7 @@ struct JRPGFRAMEWORK_API FJRPGActionTimeline
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	int32 SlotIndex = -1;
 
-	/** O quadro lógico da luta em que a ação começou. */
+	/** O quadro lógico das regras (State.Frame) em que a ação começou. A cena soma o GetPresentationOffset ao dar a cópia aos pawns. */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	int32 StartFrame = 0;
 
@@ -833,6 +895,20 @@ struct JRPGFRAMEWORK_API FJRPGBattleState
 	/** O contador da timeline lógica (1/60 s), da luta inteira. */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	int32 Frame = 0;
+
+	/**
+	 * Depois de uma ação a luta ainda espera, na ordem do original (estados 0x20, 0x51, 0x5A): o clip do atacante e a reação do
+	 * alvo (ReactionHoldUntilFrame), a faixa Done de 60 vsyncs, e SÓ ENTÃO o teste de vitória / derrota (FinishCheckFrame); a
+	 * próxima ação só entra uns passos depois (NextActionNotBefore).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bFinishCheckPending = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 FinishCheckFrame = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 NextActionNotBefore = 0;
 
 	/** As recompensas já foram pagas (o EndBattle confere; uma segunda chamada não paga nada). */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")

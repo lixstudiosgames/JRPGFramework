@@ -36,6 +36,47 @@ namespace
 		return (Frames * UBattleFormulas::NormalGameSpeed + Speed - 1) / Speed;
 	}
 
+	/** Qual reação se mede (a duração vem do combatente, ou do padrão quando ele não traz). */
+	enum class EReactionLength : uint8
+	{
+		FlinchHigh,
+		FlinchLow,
+		Block,
+		Knockdown,
+		GetUp,
+		Dying,
+		DeathFade
+	};
+
+	/**
+	 * A duração de uma reação do combatente em quadros lógicos na escala 8: a do dado dele (FJRPGCombatant::Reactions) ou, em 0, o
+	 * padrão (herói: o Vahn; monstro: a mediana do disco). Um flinch que falta cai no outro (o monstro sem um dos dois clips
+	 * reage com o que tem).
+	 */
+	int32 ReactionLengthOf(const FJRPGTimelineDefaults& Defaults, const FJRPGCombatant& C, EReactionLength Kind)
+	{
+		const FJRPGBattleReactionLengths& R = C.Reactions;
+		const bool bEnemy = C.Type == EJRPGCombatantType::Enemy;
+		auto Pick = [](int32 Own, int32 Fallback) { return Own > 0 ? Own : Fallback; };
+		switch (Kind)
+		{
+		case EReactionLength::FlinchHigh:
+			return Pick(R.FlinchHighFrames, Pick(R.FlinchLowFrames, bEnemy ? Defaults.EnemyFlinchHighFrames : Defaults.HeroFlinchFrames));
+		case EReactionLength::FlinchLow:
+			return Pick(R.FlinchLowFrames, Pick(R.FlinchHighFrames, bEnemy ? Defaults.EnemyFlinchLowFrames : Defaults.HeroFlinchFrames));
+		case EReactionLength::Block:
+			return Pick(R.BlockFrames, bEnemy ? Defaults.EnemyBlockFrames : Defaults.HeroBlockFrames);
+		case EReactionLength::Knockdown:
+			return Pick(R.KnockdownFrames, bEnemy ? Defaults.EnemyKnockdownFrames : Defaults.HeroKnockdownFrames);
+		case EReactionLength::GetUp:
+			return Pick(R.GetUpFrames, bEnemy ? Defaults.EnemyGetUpFrames : Defaults.HeroGetUpFrames);
+		case EReactionLength::Dying:
+			return Pick(R.DyingFrames, Defaults.HeroDyingFrames);
+		default:
+			return Pick(R.DeathFadeFrames, Defaults.EnemyDeathFadeFrames);
+		}
+	}
+
 	/** O botão de Art que um clip de golpe do herói representa (o SwingClipName ao contrário). */
 	EJRPGArtButton ButtonForSwing(const FString& Clip, bool bLeftHanded)
 	{
@@ -141,6 +182,7 @@ void FJRPGBattleResolver::Begin(const TArray<FJRPGCombatant>& InCombatants, int3
 		C.InitiativeKey = 0;
 		C.JuggleCounter = 0;
 		C.ReactionUntilFrame = 0;
+		C.ReactionHoldUntilFrame = 0;
 		C.bReactionIsBlock = false;
 		C.bGuarding = false;
 		C.CommandGauge = C.MaxCommandGauge;
@@ -318,6 +360,12 @@ void FJRPGBattleResolver::Pump()
 			return;
 		}
 		if (State.Action.bActive)
+		{
+			return;
+		}
+		// Depois de uma ação a luta espera (a reação do alvo, a faixa Done, o teste de fim e os passos de antes da próxima):
+		// o StepFrame solta isto quando o quadro chega
+		if (State.bFinishCheckPending || State.Frame < State.NextActionNotBefore)
 		{
 			return;
 		}
@@ -539,7 +587,16 @@ void FJRPGBattleResolver::StartAction(int32 Slot)
 		{
 			bTurnLostToConditionThisRound = true;
 		}
-		CheckFinish();
+		if (!C.bAlive)
+		{
+			// Morreu da condição do começo do turno: a queda dele tem o mesmo ritmo do fim de uma ação (a reação, a faixa Done,
+			// o teste de fim e o passo até o próximo), não pula direto para o próximo agente
+			ScheduleFinishCheck();
+		}
+		else
+		{
+			CheckFinish();
+		}
 		return;
 	}
 
@@ -620,10 +677,23 @@ void FJRPGBattleResolver::EndAction(bool bCancelled)
 	{
 		RunConditions(State.Combatants[Slot], false);
 	}
-	if (!CheckFinish())
+
+	ScheduleFinishCheck();
+}
+
+void FJRPGBattleResolver::ScheduleFinishCheck()
+{
+	// O atacante está livre (o ActionEnd saiu), mas a luta não: o estado 0x20 do original segura até o alvo voltar ao idle (ou a
+	// queda / o fade acabar), a faixa Done gasta 60 vsyncs, e só aí o 0x5A testa a vitória e a derrota; a próxima ação entra uns
+	// passos depois. A reação conta do golpe que a começou, então a parte que já tocou durante a ação não é esperada de novo
+	int32 ReactionDone = 0;
+	for (const FJRPGCombatant& C : State.Combatants)
 	{
-		Pump();
+		ReactionDone = FMath::Max(ReactionDone, C.ReactionHoldUntilFrame);
 	}
+	State.FinishCheckFrame = FMath::Max(State.Frame, ReactionDone) + FMath::Max(Defaults.DoneBandFrames, 0);
+	State.NextActionNotBefore = State.FinishCheckFrame + FMath::Max(Defaults.PassGapFrames, 0);
+	State.bFinishCheckPending = true;
 }
 
 bool FJRPGBattleResolver::CheckFinish()
@@ -673,7 +743,20 @@ void FJRPGBattleResolver::StepFrame()
 	++State.Frame;
 	if (!State.Action.bActive)
 	{
-		Pump();
+		// O teste de vitória / derrota vem depois da reação do alvo e da faixa Done (o estado 0x5A), nunca no meio da ação
+		if (State.bFinishCheckPending && State.Frame >= State.FinishCheckFrame)
+		{
+			State.bFinishCheckPending = false;
+			if (CheckFinish())
+			{
+				return;
+			}
+		}
+		// A próxima ação só depois dos passos do fim da anterior (Pump também confere)
+		if (State.Frame >= State.NextActionNotBefore)
+		{
+			Pump();
+		}
 		return;
 	}
 	++State.Action.Elapsed;
@@ -922,7 +1005,21 @@ void FJRPGBattleResolver::ComposeHeroTimeline(const FJRPGCombatant& Hero, const 
 				Out.bUsedDefaults = true;
 				LogFallback(TEXT("swing"), TEXT("golpe simples sem marcador de golpe no clip: quadros padrão (FJRPGTimelineDefaults)"));
 			}
-			Cut = bFound && Timing.CutFrame > 0 ? Timing.CutFrame : Scaled(Defaults.SwingCutFrame, Plan.Speed);
+			// Onde o golpe seguinte da cadeia entra no meio deste clip: o Chain Cut do clip, se ele traz; senão o do original, o
+			// quadro B + 3 do primeiro beat do registro de golpe (o gate +0x76 de todo golpe padrão do herói é 0; BATTLE_TIMING.md,
+			// seção 2), na escala e no rate do passo; e sem beat lido, o corte padrão
+			if (bFound && Timing.CutFrame > 0)
+			{
+				Cut = Timing.CutFrame;
+			}
+			else if (!Plan.HitBeats.IsEmpty() && Plan.HitBeats.Num() == Plan.HitBytes.Num() && Plan.HitBeats[0] > 0)
+			{
+				Cut = UBattleFormulas::ClipFramesToSteps(Plan.HitBeats[0] + 3, Plan.Speed, Plan.BeatRate);
+			}
+			else
+			{
+				Cut = Scaled(Defaults.SwingCutFrame, Plan.Speed);
+			}
 			break;
 		case EJRPGActionStepKind::ArtStarter:
 			Frames = bFound && Timing.Frames > 0 ? Timing.Frames : Scaled(Defaults.ArtStarterFrames, Plan.Speed);
@@ -1345,7 +1442,7 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 	// O miss pela altura (só atacante da party): não sorteia nada, não mexe em nada
 	if (UBattleFormulas::LimbMisses(bHeroAttacker, Hit.PowerByte, Defender.TargetClass))
 	{
-		Emit(EJRPGBattleEventType::Miss, Attacker.SlotIndex, Defender.SlotIndex, 0, HitIndex, Flags);
+		Emit(EJRPGBattleEventType::Miss, Attacker.SlotIndex, Defender.SlotIndex, 0, HitIndex, Flags, NAME_None, 0, Speed);
 		return;
 	}
 
@@ -1393,7 +1490,9 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 			Defender.JuggleCounter = 1;
 			Defender.bReactionIsBlock = true;
 			Defender.ReactionUntilFrame = State.Frame + ReactionFrames(Defender.BlockClip, Speed);
-			Emit(EJRPGBattleEventType::Block, Attacker.SlotIndex, Defender.SlotIndex, 0, HitIndex, Flags);
+			// A ação seguinte espera o block acabar, na velocidade em que ele foi tomado
+			Defender.ReactionHoldUntilFrame = State.Frame + Scaled(ReactionLengthOf(Defaults, Defender, EReactionLength::Block), Speed);
+			Emit(EJRPGBattleEventType::Block, Attacker.SlotIndex, Defender.SlotIndex, 0, HitIndex, Flags, NAME_None, 0, Speed);
 			return;
 		}
 	}
@@ -1439,6 +1538,10 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 	{
 		Defender.ReactionUntilFrame = 0;
 		Flags |= FJRPGBattleEventFlag::Knockdown;
+		// Cai e levanta: a ação seguinte espera o knockdown E o levantar (o estado 0x20 só solta com o alvo de volta ao idle). Quem
+		// morre troca isto pela queda no KillCombatant, logo abaixo
+		Defender.ReactionHoldUntilFrame = State.Frame + Scaled(ReactionLengthOf(Defaults, Defender, EReactionLength::Knockdown)
+			+ ReactionLengthOf(Defaults, Defender, EReactionLength::GetUp), Speed);
 	}
 	else
 	{
@@ -1448,22 +1551,39 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 		const FJRPGBattleReactionClip& Other = bUpper ? Defender.FlinchLow : Defender.FlinchHigh;
 		const FJRPGBattleReactionClip& Flinch = Primary.Beat > 0 ? Primary : Other;
 		Defender.ReactionUntilFrame = State.Frame + ReactionFrames(Flinch, Speed);
+		// Um flinch por cima de outro recomeça o clip: a espera conta do último golpe
+		Defender.ReactionHoldUntilFrame = State.Frame + Scaled(ReactionLengthOf(Defaults, Defender,
+			bUpper ? EReactionLength::FlinchHigh : EReactionLength::FlinchLow), Speed);
 	}
 
-	Emit(EJRPGBattleEventType::Damage, Attacker.SlotIndex, Defender.SlotIndex, Damage, HitIndex, Flags);
+	Emit(EJRPGBattleEventType::Damage, Attacker.SlotIndex, Defender.SlotIndex, Damage, HitIndex, Flags, NAME_None, 0, Speed);
 	if (bFalls)
 	{
-		KillCombatant(Defender, Attacker.SlotIndex);
+		KillCombatant(Defender, Attacker.SlotIndex, Speed);
 	}
 }
 
-void FJRPGBattleResolver::KillCombatant(FJRPGCombatant& Of, int32 KilledBy)
+void FJRPGBattleResolver::KillCombatant(FJRPGCombatant& Of, int32 KilledBy, int32 GameSpeed)
 {
 	Of.HP = 0;
 	Of.bAlive = false;
 	Of.InitiativeKey = 0;
 	Of.ReactionUntilFrame = 0;
-	Emit(EJRPGBattleEventType::Death, Of.SlotIndex, KilledBy, 0);
+	// A queda que a ação seguinte espera: o herói cai e chega à entrada 8 (o knockdown + a entrada 7; a 8 repete para sempre),
+	// o monstro cai e o corpo some no fade de derrota (o terceiro teste do estado 0x20). Conta do quadro da queda
+	int32 Fade = 0;
+	int32 Hold = Scaled(ReactionLengthOf(Defaults, Of, EReactionLength::Knockdown), GameSpeed);
+	if (Of.Type == EJRPGCombatantType::Enemy)
+	{
+		Fade = ReactionLengthOf(Defaults, Of, EReactionLength::DeathFade);
+		Hold += Fade;   // o fade anda por passo, não pela escala da Art
+	}
+	else
+	{
+		Hold += Scaled(ReactionLengthOf(Defaults, Of, EReactionLength::Dying), GameSpeed);
+	}
+	Of.ReactionHoldUntilFrame = State.Frame + Hold;
+	Emit(EJRPGBattleEventType::Death, Of.SlotIndex, KilledBy, Fade, -1, 0, NAME_None, 0, GameSpeed);
 	// Nada é cortado aqui, nem quando é o último inimigo: o original só testa a vitória no fim da ação (o estado 0x5A,
 	// battle-action.md), então a cadeia inteira bate. A luta acaba quando a ação acaba (EndAction -> CheckFinish)
 }
@@ -1541,7 +1661,8 @@ int32 FJRPGBattleResolver::Rand15()
 	return RandOverride ? RandOverride() : UBattleFormulas::Rand15(State.Rng);
 }
 
-void FJRPGBattleResolver::Emit(EJRPGBattleEventType Type, int32 Slot, int32 Target, int32 Value, int32 HitIndex, int32 Flags, FName ArtKey, int32 Count)
+void FJRPGBattleResolver::Emit(EJRPGBattleEventType Type, int32 Slot, int32 Target, int32 Value, int32 HitIndex, int32 Flags, FName ArtKey, int32 Count,
+	int32 GameSpeed)
 {
 	FJRPGBattleEvent& Event = Events.AddDefaulted_GetRef();
 	Event.Type = Type;
@@ -1554,6 +1675,7 @@ void FJRPGBattleResolver::Emit(EJRPGBattleEventType Type, int32 Slot, int32 Targ
 	Event.Flags = Flags;
 	Event.ArtKey = ArtKey;
 	Event.Count = Count;
+	Event.GameSpeed = GameSpeed;
 }
 
 void FJRPGBattleResolver::LogFallback(const FString& Key, const FString& Message)

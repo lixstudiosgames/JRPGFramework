@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-generate_hero_battle_csv.py — gera as duas tabelas pequenas que a luta lê do disco para os heróis:
+generate_hero_battle_csv.py — gera as tabelas pequenas que a luta lê do disco para os heróis:
 
   Docs/Data/DT_RaSeruTiers.csv  (Row Struct: FJRPGRaSeruTierData)  o ATK do Ra-Seru de cada herói, por tier
   Docs/Data/DT_WeaponCosts.csv  (Row Struct: FJRPGWeaponCostData)  o custo do botão de Arms de cada arma
   Docs/Data/DT_HeroSwings.csv   (Row Struct: FJRPGHeroSwingData)    o golpe simples de cada botão, por herói e equipamento:
                                                                     byte(s) de poder, quadro(s) de golpe, rate e custo
+  Docs/Data/DT_HeroReactions.csv (Row Struct: FJRPGHeroReactionData) quanto duram as reações de cada herói (flinch, block,
+                                                                    knockdown, levantar, a queda), em quadros lógicos
 
-    python Extras/generate_hero_battle_csv.py --extracted <LegaiaRE/extracted> --tool <asset.exe> [--dry-run]
+    python Extras/generate_hero_battle_csv.py --extracted <LegaiaRE/extracted> --tool <asset.exe> [--lzs-tool <lzs-decode.exe>] [--dry-run]
 
 O Ra-Seru NÃO é um slot de equipamento aqui (o SeruLevel é um número), mas no original é o item do slot 3 — 24
 linhas "Ra-Seru Meta $1..$9", "Ra-Seru Terra $1..$8", "Ra-Seru Ozma $1..$7" na tabela de equipamentos do
@@ -31,9 +33,16 @@ herói + item + botão: a arma dirige o Arms (na Noa, canhota, é a seção 3), 
 (nada equipado, id 0); `seru_N` = o tier N do Ra-Seru (o Ra-Seru aqui é o SeruLevel, não um item). Sai a mesma tabela que
 o RE documenta (docs/reference/glitches/turn-order-and-arts.md, os calçados do Gala).
 
+O DT_HeroReactions lê a `record[0]` de cada arquivo de batalha (PROT 0863 Vahn, 0864 Noa, 0865 Gala, 0866 Terra), o bloco LZS em
+`+0x10` com `+0x0C` bytes decodificados: 12 `u32` no começo são os offsets das entradas de ação (a tag é o índice), e cada entrada
+traz o rate em `+0x78` e, em `+0xAC`, `[u8 partes][u8 quadros]` do clip. A duração em quadros lógicos (vsyncs, a escala 8) é
+`ceil(4 * quadros / rate)` (Docs/Reference/BATTLE_TIMING.md, seção 1). As entradas: 2 / 3 flinch, 4 knockdown, 5 levantar, 7 morrer,
+8 o caído (repete para sempre), 0x0B block. Uma entrada de stream vazio (a Terra não tem a 7 e a 8) sai 0: a luta usa o padrão.
+
 Fontes (do disco do usuário, lidas com as ferramentas do RE; nada além dos CSVs entra no repositório — regra 48):
   - `asset item-tables <SCUS_942.54> --equipment-only`
   - `asset battle-data-pack <PROT 0863|0864|0865> --out <pasta temporária>`
+  - `lzs-decode raw <PROT 0863..0866> --skip 16 --size <budget> -o <arquivo temporário>` (a record[0], no DT_HeroReactions)
 """
 
 import argparse
@@ -58,6 +67,7 @@ for _stream in (sys.stdout, sys.stderr):
 TIERS_TABLE = "DT_RaSeruTiers"
 COSTS_TABLE = "DT_WeaponCosts"
 SWINGS_TABLE = "DT_HeroSwings"
+REACTIONS_TABLE = "DT_HeroReactions"
 
 # A seção do arquivo de batalha (0 corpo, 1 cabeça, 2, 3, 4 calçado) de cada botão, por herói. O registro de golpe da
 # seção 4 vem em dois: [+0x04] o chute baixo (slot 0xE) e [+0x08] o alto (0xF). A Noa tem as seções 2 e 3 trocadas
@@ -70,6 +80,11 @@ SWING_SECTIONS = {
 # O Ra-Seru de cada herói e o arquivo de batalha dele
 RASERU = {"Meta": "Vahn", "Terra": "Noa", "Ozma": "Gala"}
 PACKS = {"Vahn": "0863", "Noa": "0864", "Gala": "0865"}
+# As reações são de todos os quatro (a Terra, o lobo, tem arquivo próprio)
+REACTION_PACKS = {"Vahn": "0863", "Noa": "0864", "Gala": "0865", "Terra": "0866"}
+# A tag de cada entrada de reação da record[0] e a coluna do DT_HeroReactions
+REACTION_ENTRIES = (("FlinchHighFrames", 2), ("FlinchLowFrames", 3), ("BlockFrames", 0x0B), ("KnockdownFrames", 4),
+                    ("GetUpFrames", 5), ("DyingFrames", 7), ("DownLoopFrames", 8))
 
 ITEM_RE = re.compile(r"^0x(?P<id>[0-9A-Fa-f]{2})\s+(?P<name>.+?)\s+equip\s+atk=(?P<atk>\d+)\s")
 TIER_RE = re.compile(r"^Ra-Seru (?P<seru>Meta|Terra|Ozma) \$(?P<tier>\d+)$")
@@ -162,6 +177,31 @@ def hero_swings(tool, extracted, character, workdir, equipment):
     return out
 
 
+def reaction_lengths(lzs_tool, extracted, character, workdir):
+    """{coluna: quadros lógicos} das entradas de reação da record[0] do arquivo de batalha do herói (0 = stream vazio)."""
+    matches = glob.glob(os.path.join(extracted, "PROT", REACTION_PACKS[character] + "_*.BIN"))
+    if not matches:
+        sys.exit("Não achei PROT/%s_*.BIN em %s" % (REACTION_PACKS[character], extracted))
+    with open(matches[0], "rb") as f:
+        budget = struct.unpack_from("<I", f.read(16), 12)[0]
+    out = os.path.join(workdir, character + "_record0.bin")
+    run(lzs_tool, "raw", matches[0], "--skip", "16", "--size", str(budget), "-o", out)
+    with open(out, "rb") as f:
+        data = f.read()
+    offsets = struct.unpack_from("<12I", data, 0)
+    lengths = {}
+    for column, tag in REACTION_ENTRIES:
+        offset = offsets[tag]
+        if offset == 0 or offset + 0xAE > len(data) or data[offset] != tag:
+            sys.exit("%s: a entrada %d da record[0] não é a esperada (tag %d no offset 0x%X)" % (
+                character, tag, data[offset] if offset < len(data) else -1, offset))
+        rate = data[offset + 0x78]
+        frames = data[offset + 0xAD]
+        # O clip de N quadros no rate R dura 4 * N / R vsyncs; o stream vazio (partes 0) não dura nada
+        lengths[column] = -(-4 * frames // rate) if rate and data[offset + 0xAC] else 0
+    return lengths
+
+
 def same_as_csv(table, columns, rows):
     """O CSV que existe já é exatamente o que seria escrito? (para não gerar backup à toa)"""
     path = lt.csv_path(table)
@@ -180,6 +220,7 @@ def main():
     ap = argparse.ArgumentParser(prog="generate_hero_battle_csv")
     ap.add_argument("--extracted", required=True, help="a pasta extracted/ do legaia-extract (PROT/, SCUS_942.54)")
     ap.add_argument("--tool", required=True, help="o asset.exe do RE (v1.10.0 ou mais novo)")
+    ap.add_argument("--lzs-tool", help="o lzs-decode.exe do RE (padrão: o que está na pasta do --tool)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -260,6 +301,20 @@ def main():
                                    "_default": item == "default", "_id": item_id})
     swing_rows.sort(key=lambda r: (r["Character"], not r["_default"], r["Button"], r["_id"]))
 
+    # --- DT_HeroReactions ---------------------------------------------------------------------------
+    lzs_tool = args.lzs_tool or os.path.join(os.path.dirname(os.path.abspath(args.tool)), "lzs-decode.exe")
+    reaction_rows = []
+    with tempfile.TemporaryDirectory(prefix="legaia_reactions_") as workdir:
+        for character in ("Vahn", "Noa", "Gala", "Terra"):
+            lengths = reaction_lengths(lzs_tool, args.extracted, character, workdir)
+            row = {"---": character, "Character": character}
+            row.update(lengths)
+            reaction_rows.append(row)
+    reaction_columns = ["Character"] + [column for column, _tag in REACTION_ENTRIES]
+
+    print("[hero-battle] DT_HeroReactions: %d heróis" % len(reaction_rows))
+    for r in reaction_rows:
+        print("            %-8s %s" % (r["---"], "  ".join("%s %d" % (c[:-6], r[c]) for c in reaction_columns[1:])))
     print("[hero-battle] DT_HeroSwings: %d linhas (%d padrão)" % (len(swing_rows), sum(1 for r in swing_rows if r["_default"])))
     for r in swing_rows:
         print("            %-34s poder %-9s quadros %-9s rate %d custo %d" % (
@@ -280,7 +335,8 @@ def main():
     for table, columns, rows in ((TIERS_TABLE, ["Character", "TierATK"], tier_rows),
                                  (COSTS_TABLE, ["Character", "Item", "ArmsCost"], cost_rows),
                                  (SWINGS_TABLE, ["Character", "Item", "Button", "PowerBytes", "HitBeats", "Rate", "Cost"],
-                                  swing_rows)):
+                                  swing_rows),
+                                 (REACTIONS_TABLE, reaction_columns, reaction_rows)):
         if same_as_csv(table, columns, rows):
             print("[hero-battle] %s: sem mudança, não reescrita." % table)
             continue

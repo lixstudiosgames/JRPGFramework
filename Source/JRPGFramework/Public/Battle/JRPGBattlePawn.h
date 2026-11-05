@@ -2,7 +2,6 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
-#include "Engine/TimerHandle.h"
 #include "Battle/BattleTypes.h"
 #include "Battle/EnemyActionData.h"
 #include "Battle/EnemyData.h"
@@ -13,6 +12,62 @@ class UCapsuleComponent;
 class USkeletalMeshComponent;
 class UStaticMeshComponent;
 class UAnimSequence;
+class USoundBase;
+
+/**
+ * Um som de clip da luta (o PlaySound da engine, ou o UJRPGAnimNotify_HitSound) a decidir pelo pawn: perto de um golpe, só toca
+ * se ele conectou. Os campos são os do notify; o som segue como o notify manda (preso à malha / ao bone, ou solto no ponto).
+ */
+USTRUCT()
+struct FJRPGBattleSoundSpec
+{
+	GENERATED_BODY()
+
+	/** O som do impacto (o Sound do PlaySound). */
+	UPROPERTY()
+	TObjectPtr<USoundBase> HitSound;
+
+	/** O som de quando o golpe erra; nulo = nenhum (o pawn pode ter o dele, AJRPGBattlePawn::MissSound). */
+	UPROPERTY()
+	TObjectPtr<USoundBase> MissSound;
+
+	UPROPERTY()
+	float VolumeMultiplier = 1.0f;
+
+	UPROPERTY()
+	float PitchMultiplier = 1.0f;
+
+	UPROPERTY()
+	bool bFollow = false;
+
+	UPROPERTY()
+	FName AttachName;
+
+	/**
+	 * Verdadeiro no UJRPGAnimNotify_HitSound: é o som do golpe mais próximo do passo, sem janela. Falso no PlaySound da engine: só é
+	 * do golpe se cai na janela dele (AJRPGBattlePawn::HitSoundLeadFrames / HitSoundLagFrames); fora dela (voz, passo) toca na hora.
+	 */
+	UPROPERTY()
+	bool bExplicitHitSound = false;
+};
+
+/** Um som de golpe à espera do resultado dele (Damage / Block / Miss), até o quadro ExpireFrame. */
+USTRUCT()
+struct FJRPGHeldBattleSound
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FJRPGBattleSoundSpec Spec;
+
+	/** O índice do golpe em FJRPGActionTimeline::Hits. */
+	UPROPERTY()
+	int32 HitIndex = INDEX_NONE;
+
+	/** O quadro lógico em que desiste (o golpe nunca foi resolvido): o som é descartado. */
+	UPROPERTY()
+	int32 ExpireFrame = 0;
+};
 
 /**
  * AJRPGBattlePawn
@@ -89,7 +144,7 @@ public:
 	// --- A luta (apresentação) ----------------------------------------------------------------
 
 	/** A arena que limita onde ele pode andar (a AssembleBattle põe). */
-	void SetArena(AJRPGBattleArena* InArena) { Arena = InArena; }
+	void SetArena(AJRPGBattleArena* InArena);
 
 	/**
 	 * Começa a ação desta timeline: vira para o alvo, anda até o alcance dele (LeadFrames) e depois toca o clip de
@@ -109,8 +164,28 @@ public:
 	 */
 	void SyncActionTimeline(const FJRPGActionTimeline& Current);
 
-	/** A ação acabou (o evento ActionEnd): fecha o que estiver em curso e volta ao idle, sem esperar o TotalFrames da cópia. */
-	void EndAction();
+	/**
+	 * A ação acabou (o evento ActionEnd, no quadro lógico LogicFrame): fecha o que estiver em curso e passa ao idle sem esperar o
+	 * TotalFrames da cópia. Se o último clip ainda tem o que tocar (até MaxIdleHandoffWait quadros), o idle entra quando ele acaba
+	 * (o original nunca corta o último clip); a diferença entre o fim da ação e o fim real do clip sai no log.
+	 */
+	void EndAction(int32 LogicFrame);
+
+	/**
+	 * O resultado de um golpe DESTE pawn (Damage, Block ou Miss; o evento do atacante): solta os sons de impacto que esperavam por
+	 * ele. Quem chama é o UJRPGBattleSceneSubsystem, em todo golpe resolvido.
+	 */
+	void NoteHitResult(const FJRPGBattleEvent& Event);
+
+	/**
+	 * Um som de clip (AnimNotify): o do impacto de um golpe só toca se ele conectou (Damage, Block); no Miss é descartado (ou
+	 * toca o Spec.MissSound / MissSound, se houver). Um som que não é de nenhum golpe (voz, passo, fora da janela, reação, idle)
+	 * toca na hora. Se o notify dispara antes do resultado do golpe, o som espera por ele (HeldSounds); se depois, decide na hora.
+	 */
+	void HandleClipSound(const FJRPGBattleSoundSpec& Spec);
+
+	/** Toca um som como o AnimNotify_PlaySound da engine toca (preso à malha ou ao bone, ou solto no ponto da malha). */
+	static void PlayNotifySound(USkeletalMeshComponent* MeshComp, USoundBase* Sound, float VolumeMultiplier, float PitchMultiplier, bool bFollow, FName AttachName);
 
 	/**
 	 * Mostra um evento que as regras já resolveram. bAsTarget: este pawn é quem sofre (Damage, Miss, Block) ou quem
@@ -191,6 +266,41 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Knockback", meta = (ClampMin = "1"))
 	int32 KnockbackFrames = 12;
 
+	/**
+	 * A janela do som do impacto é assimétrica, em quadros lógicos em volta do quadro de cada golpe: um PlaySound do clip de ataque
+	 * dentro dela é "o som do impacto" e espera o resultado do golpe (no Miss, não toca). Um PlaySound fora da janela (a voz, o
+	 * passo, o assobio do início) toca sempre. Este é o ANTES do golpe (o assobio posto uns quadros antes do impacto não deve ser
+	 * engolido no Miss: padrão curto); o DEPOIS é HitSoundLagFrames. Os dois em 0 desligam a regra: todo PlaySound toca como no
+	 * notify da engine. Os sons de impacto que forem postos nos clips daqui em diante devem usar o UJRPGAnimNotify_HitSound, que
+	 * não depende de janela.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Sound", meta = (ClampMin = "0"))
+	int32 HitSoundLeadFrames = 2;
+
+	/** O DEPOIS da janela do som do impacto (ver HitSoundLeadFrames): os clips do original põem o som uns quadros depois do golpe. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Sound", meta = (ClampMin = "0"))
+	int32 HitSoundLagFrames = 8;
+
+	/** O som de um golpe que ERRA (pela altura do alvo), no lugar do impacto. Nulo (o padrão) = silêncio. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Sound")
+	TObjectPtr<USoundBase> MissSound;
+
+	/** Quantos quadros lógicos o idle espera pelo fim real do último clip da ação quando a ação (os dados) acaba antes dele. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Idle", meta = (ClampMin = "0"))
+	int32 MaxIdleHandoffWait = 30;
+
+	/**
+	 * O fade de derrota do monstro (lanes 0x100 -> 0 em ~32 vsyncs): o nome do parâmetro escalar do material, de 1 (inteiro) a 0
+	 * (preto). Só tem efeito nos materiais que têm o parâmetro; os que não têm ficam como estão e o corpo só afunda e some. None
+	 * desliga o parâmetro.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Death")
+	FName DeathFadeParameter = TEXT("JRPGDeathFade");
+
+	/** O monstro derrotado afunda durante o fade, como no original ((classe de tamanho * passo) >> 2 unidades por passo). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Death")
+	bool bDeathSink = true;
+
 	/** Quanto tempo o texto de um evento fica em cima da cabeça, em segundos. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn", meta = (ClampMin = "0.0"))
 	float EventTextSeconds = 1.4f;
@@ -211,15 +321,49 @@ private:
 	/** Um clip de reação / pose do papel (Idle, Walk, Flinch1, Flinch2, Knockdown, Block, Dying...) e o play rate dele. */
 	UAnimSequence* FindRoleClip(FName ClipRole, float& OutPlayRate) const;
 
+	/** O que o último clip de uma cadeia de reações faz ao acabar. */
+	enum class EReactionEnd : uint8
+	{
+		/** Volta ao idle (a menos que tenha caído). */
+		Idle,
+		/** Fica no último quadro. */
+		Hold,
+		/** Repete para sempre (o herói caído: a entrada 8 do original re-comita a si mesma). */
+		Loop
+	};
+
+	/** Um papel da cadeia de uma reação: o clip e o que fazer quando ele é o último e acaba. */
+	struct FReactionStep
+	{
+		FName Role;
+		EReactionEnd End = EReactionEnd::Idle;
+	};
+
 	/**
-	 * Toca uma reação de uma vez. bHold: fica no último quadro. Com FollowRole, ao acabar toca esse papel (bHoldFollow:
-	 * e fica nele): o knockdown encadeia o levantar (Knockdown -> GetUp -> Idle), o herói que cai encadeia o Dying e o Down.
-	 * Sem nada depois, volta ao idle (a menos que tenha caído).
+	 * Começa uma cadeia de reações no quadro lógico LogicFrame, na escala de velocidade GameSpeed (a em que o golpe foi tomado):
+	 * o knockdown encadeia o levantar (Knockdown -> GetUp -> Idle), o herói que morre encadeia Knockdown -> Dying -> Down (em loop).
+	 * Cada clip dura o que o clip dura, contado em quadros lógicos (não em timer de relógio): a pausa e os soluços do quadro valem
+	 * para ela como para o resolvedor. Um papel sem clip é pulado.
 	 */
-	void PlayReaction(FName ClipRole, bool bHold, FName FollowRole = NAME_None, bool bHoldFollow = false);
-	/** O timer da reação acabou: o papel seguinte da cadeia, ou o idle. */
-	void OnReactionEnded();
+	void StartReaction(const TArray<FReactionStep>& Steps, int32 LogicFrame, int32 GameSpeed);
+	/** Toca o próximo papel da cadeia a partir do quadro dado; no fim dela aplica o End do último. */
+	void AdvanceReaction(int32 LogicFrame);
+	/** O quadro lógico do fim do clip chegou: o papel seguinte, ou o fim da cadeia. */
+	void OnReactionEnded(int32 LogicFrame);
 	void ReturnToIdle();
+
+	/** O fade e o afundar do monstro derrotado, depois do knockdown. */
+	void BeginDeathFade(int32 LogicFrame);
+	void UpdateDeathFade(int32 LogicFrame);
+
+	/** Toca o som decidido (o do impacto, ou o do Miss), ou nada. */
+	void ResolveSound(const FJRPGBattleSoundSpec& Spec, EJRPGBattleEventType Result) const;
+	/**
+	 * O índice do golpe do passo em curso a que o som pertence (o mais próximo do quadro atual, dentro da janela assimétrica
+	 * HitSoundLeadFrames / HitSoundLagFrames); INDEX_NONE se nenhum. Vale também na cauda da ação que acabou (bSoundContextActive).
+	 */
+	int32 FindHitForSound(const FJRPGBattleSoundSpec& Spec) const;
+	void UpdateHeldSounds(int32 LogicFrame);
 
 	/** Desliza até To em Frames quadros lógicos, a partir do quadro dado (o recuo do defensor, o acompanhar do atacante). */
 	void StartSlide(const FVector& To, int32 LogicFrame, int32 Frames);
@@ -268,19 +412,51 @@ private:
 	bool bActionActive = false;
 	int32 PlayedStep = -1;
 	int32 StrikesPlayed = 0;
-	/** Fecha a ação em curso (a ação acabou ou foi cortada): fica onde está e volta ao idle. */
-	void FinishAction();
+	/** Fecha a ação em curso (a ação acabou ou foi cortada): fica onde está e passa ao idle. */
+	void FinishAction(int32 LogicFrame);
 
 	FVector ApproachFrom = FVector::ZeroVector;
 	FVector ApproachTo = FVector::ZeroVector;
 	/** A aproximação (os LeadFrames) já foi fechada no lugar final. */
 	bool bApproachSettled = true;
 	bool bDown = false;
-	FTimerHandle ReactionTimer;
 
-	/** O papel que toca depois da reação em curso (a cadeia Knockdown -> GetUp, Dying -> Down). */
-	FName PendingFollowRole = NAME_None;
-	bool bPendingFollowHold = false;
+	/** O último quadro lógico que o pawn viu (UpdatePlayback / BeginAction): a hora dos sons de clip e do log. */
+	int32 LastLogicFrame = 0;
+
+	/** A cadeia da reação em curso: os papéis que faltam tocar depois do que toca agora, e o quadro lógico em que o que toca acaba. */
+	TArray<FReactionStep> ReactionQueue;
+	EReactionEnd ReactionLastEnd = EReactionEnd::Idle;
+	int32 ReactionEndFrame = INDEX_NONE;
+	int32 ReactionGameSpeed = 8;
+
+	/** O monstro derrotado: o fade (e o afundar) começa quando o knockdown dele acaba. */
+	bool bDeathFadeQueued = false;
+	bool bDeathFading = false;
+	int32 DeathFadeFrames = 32;
+	int32 DeathFadeStartFrame = 0;
+	float DeathFadeBaseZ = 0.0f;
+
+	/** O último clip de golpe tocado: de onde a ação sabe quando ele de fato acaba (o log do idle, a espera do idle). */
+	FName StepClipName = NAME_None;
+	int32 StepClipEndFrame = INDEX_NONE;
+	/** O idle entra neste quadro lógico (o último clip da ação ainda tocava quando a ação acabou); INDEX_NONE = nenhum pendente. */
+	int32 IdleHandoffFrame = INDEX_NONE;
+
+	/** O resultado de cada golpe desta ação já resolvido (HitIndex -> Damage / Block / Miss), e os sons que esperam por ele. */
+	TMap<int32, EJRPGBattleEventType> HitResults;
+
+	/**
+	 * O contexto de som da ação (o passo, os quadros dos golpes e os HitResults) vale: do BeginAction até a cauda da ação que acabou
+	 * passar (SoundContextEndFrame). O último clip segue tocando depois do FinishAction (a espera do idle, o crossfade de AnimBlendTime
+	 * em que o clip que sai ainda dispara notifies), e o som de impacto dessa cauda tem de obedecer o golpe como os de antes.
+	 * Apagado no BeginAction da ação seguinte, na morte e no InitCombatant.
+	 */
+	bool bSoundContextActive = false;
+	int32 SoundContextEndFrame = INDEX_NONE;
+
+	UPROPERTY(Transient)
+	TArray<FJRPGHeldBattleSound> HeldSounds;
 
 	/** O deslize em curso (recuo ou acompanhar o alvo), em quadros lógicos. */
 	bool bSliding = false;

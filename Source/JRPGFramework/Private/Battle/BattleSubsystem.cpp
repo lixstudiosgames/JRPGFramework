@@ -220,6 +220,9 @@ FJRPGCombatant UBattleSubsystem::MakeEnemyCombatant(const FJRPGEnemyData& Row, c
 	for (const FJRPGEnemyActionData* Action : Sorted)
 	{
 		const int32 FirstBeat = Action->HitFrames.IsValidIndex(0) ? Action->HitFrames[0] : 0;
+		// O comprimento do clip em quadros lógicos na escala 8 (4 * N / R): a espera da próxima ação pela reação (dado do disco,
+		// não o clip tocado). Sem o tamanho do clip, 0: vale o padrão do resolvedor
+		const int32 ClipFrames = UBattleFormulas::ClipFramesToSteps(Action->FrameCount, UBattleFormulas::NormalGameSpeed, FMath::Max(Action->Rate, 1));
 		switch (Action->Tag)
 		{
 		case 0x0B:
@@ -227,19 +230,26 @@ FJRPGCombatant UBattleSubsystem::MakeEnemyCombatant(const FJRPGEnemyData& Row, c
 			C.BlockClip.Beat = FirstBeat;
 			C.BlockClip.Rate = FMath::Max(Action->Rate, 1);
 			C.BlockClip.FrameCount = Action->FrameCount;
+			C.Reactions.BlockFrames = ClipFrames;
 			break;
 		case 5:
 			C.bHasGetUp = true;
+			C.Reactions.GetUpFrames = ClipFrames;
+			break;
+		case 4:
+			C.Reactions.KnockdownFrames = ClipFrames;
 			break;
 		case 2:
 			C.FlinchHigh.Beat = FirstBeat;
 			C.FlinchHigh.Rate = FMath::Max(Action->Rate, 1);
 			C.FlinchHigh.FrameCount = Action->FrameCount;
+			C.Reactions.FlinchHighFrames = ClipFrames;
 			break;
 		case 3:
 			C.FlinchLow.Beat = FirstBeat;
 			C.FlinchLow.Rate = FMath::Max(Action->Rate, 1);
 			C.FlinchLow.FrameCount = Action->FrameCount;
+			C.Reactions.FlinchLowFrames = ClipFrames;
 			break;
 		default:
 			break;
@@ -388,6 +398,29 @@ FJRPGCombatant UBattleSubsystem::MakeHeroCombatant(FName Key, int32 SideIndex) c
 	else
 	{
 		UE_LOG(LogTemp, Log, TEXT("BattleSubsystem: DT_HeroSwings não encontrada — golpes simples com o byte e o quadro padrão (Docs/Guides/BATTLE.md)"));
+	}
+
+	// Quanto duram as reações dele (flinch, block, knockdown + levantar, morrer): é o que a luta espera depois de um golpe antes da
+	// próxima ação. Sem a tabela ou sem a linha, 0 em tudo e valem os números do Vahn do resolvedor (FJRPGTimelineDefaults)
+	if (const UDataTable* ReactionTable = UCoreSubsystem::ResolveDataTable(TEXT("DT_HeroReactions")))
+	{
+		if (const FJRPGHeroReactionData* ReactionRow = ReactionTable->FindRow<FJRPGHeroReactionData>(Key, TEXT("BattleSnapshot"), false))
+		{
+			C.Reactions.FlinchHighFrames = ReactionRow->FlinchHighFrames;
+			C.Reactions.FlinchLowFrames = ReactionRow->FlinchLowFrames;
+			C.Reactions.BlockFrames = ReactionRow->BlockFrames;
+			C.Reactions.KnockdownFrames = ReactionRow->KnockdownFrames;
+			C.Reactions.GetUpFrames = ReactionRow->GetUpFrames;
+			C.Reactions.DyingFrames = ReactionRow->DyingFrames;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Log, TEXT("BattleSubsystem: %s não tem linha na DT_HeroReactions — espera pelas reações com os números do Vahn"), *Key.ToString());
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("BattleSubsystem: DT_HeroReactions não encontrada — espera pelas reações com os números do Vahn (Docs/BATTLE_PHASE5_BUGS.md)"));
 	}
 
 	// As Arts: a lista que ele sabe, o Ra-Seru, a chance de aprender no uso (a foto das regras das Arts)
@@ -578,6 +611,8 @@ bool UBattleSubsystem::BeginBattle(const FJRPGBattleSetup& Setup)
 	Accumulator = 0.0;
 	FlushedEvents = 0;
 	FramesSinceFinish = 0;
+	PresentationFrame = 0;
+	PresentationOffset = 0;
 	LastNotifiedSlot = -2;
 	LastNotifiedStage = EJRPGBattleStage::None;
 	LastEncounterTime = FPlatformTime::Seconds();
@@ -838,13 +873,33 @@ void UBattleSubsystem::StepFrame()
 	{
 		return;
 	}
+	// O relógio de apresentação anda 1 por passo, sempre (o Tick já parou com a pausa e com o HoldLogic). O resolvedor só anda na
+	// Execution: na digitação dos comandos e no hold da vitória / derrota o State.Frame fica parado e a diferença (o offset) cresce,
+	// para os eventos e as timelines das regras caírem no mesmo relógio que os pawns recebem
+	++PresentationFrame;
 	Resolver.StepFrame();
+	PresentationOffset = PresentationFrame - Resolver.GetState().Frame;
 	FlushEvents();
-	OnLogicFrame.Broadcast(Resolver.GetState().Frame);
-	// Decidida a luta, espera a queda e a pose tocarem antes de fechar
-	if (bInBattle && Resolver.IsFinished() && ++FramesSinceFinish >= FinishDelayFrames)
+	// Decidida a luta (depois da reação do alvo e da faixa Done), o relógio das regras para, mas a apresentação segue (hold da vitória / derrota)
+	if (bInBattle && Resolver.IsFinished())
+	{
+		++FramesSinceFinish;
+	}
+	OnLogicFrame.Broadcast(PresentationFrame);
+	// Segura a tela de resultados (a pose de vitória, 256 vsyncs no original) antes de fechar
+	if (bInBattle && Resolver.IsFinished() && FramesSinceFinish >= FinishHoldFor(Resolver.GetResult()))
 	{
 		EndBattle(Resolver.GetResult());
+	}
+}
+
+int32 UBattleSubsystem::FinishHoldFor(EJRPGBattleResult Result) const
+{
+	switch (Result)
+	{
+	case EJRPGBattleResult::Victory: return VictoryHoldFrames;
+	case EJRPGBattleResult::Defeat:  return DefeatHoldFrames;
+	default:                         return 0;
 	}
 }
 
@@ -854,8 +909,10 @@ void UBattleSubsystem::FlushEvents()
 	while (FlushedEvents < Events.Num())
 	{
 		// Uma cópia: um listener pode mandar um comando e acrescentar eventos no meio
-		const FJRPGBattleEvent Event = Events[FlushedEvents++];
+		FJRPGBattleEvent Event = Events[FlushedEvents++];
 		UE_LOG(LogTemp, Log, TEXT("Battle: %s"), *Resolver.DescribeEvent(Event));
+		// O quadro vai no relógio de apresentação (o das regras parou durante a digitação); o log e o GetEventLog() ficam com o cru
+		Event.Frame += PresentationOffset;
 		OnBattleEvent.Broadcast(Event);
 	}
 

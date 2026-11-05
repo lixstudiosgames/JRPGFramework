@@ -1,12 +1,14 @@
 #include "Field/JRPGFieldEnemyAnimInstance.h"
 #include "Field/JRPGFieldEnemy.h"
+#include "Battle/JRPGBattlePawn.h"
 #include "Animation/AnimNotifies/AnimNotify_PlaySound.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimSyncScope.h"
 #include "Animation/AnimationPoseData.h"
 #include "AnimationRuntime.h"
+#include "Sound/SoundBase.h"
 
-void UJRPGFieldEnemyAnimInstance::PlayClip(UAnimSequence* Clip, float PlayRate, float BlendTime)
+void UJRPGFieldEnemyAnimInstance::PlayClip(UAnimSequence* Clip, float PlayRate, float BlendTime, bool bLoop)
 {
 	if (Clip != RequestedClip)
 	{
@@ -15,6 +17,13 @@ void UJRPGFieldEnemyAnimInstance::PlayClip(UAnimSequence* Clip, float PlayRate, 
 	}
 	RequestedRate = PlayRate;
 	RequestedBlendTime = BlendTime;
+	// Um clip de uma vez só pedido de novo recomeça (um flinch em cima de outro, o mesmo golpe duas vezes seguidas); o loop que o
+	// Field pede a cada quadro com o mesmo clip não recomeça nada, só uma troca entre loop e uma vez
+	if (!bLoop || bRequestedLooping != bLoop)
+	{
+		++RequestSerial;
+	}
+	bRequestedLooping = bLoop;
 }
 
 FAnimInstanceProxy* UJRPGFieldEnemyAnimInstance::CreateAnimInstanceProxy()
@@ -30,13 +39,29 @@ void UJRPGFieldEnemyAnimInstance::DestroyAnimInstanceProxy(FAnimInstanceProxy* I
 bool UJRPGFieldEnemyAnimInstance::HandleNotify(const FAnimNotifyEvent& AnimNotifyEvent)
 {
 	const UAnimNotify_PlaySound* PlaySound = Cast<UAnimNotify_PlaySound>(AnimNotifyEvent.Notify);
-	AJRPGFieldEnemy* Enemy = Cast<AJRPGFieldEnemy>(GetOwningActor());
-	if (!PlaySound || !Enemy)
+	if (!PlaySound)
 	{
 		return Super::HandleNotify(AnimNotifyEvent);
 	}
-	Enemy->PlayClipSound(PlaySound->Sound, PlaySound->VolumeMultiplier, PlaySound->PitchMultiplier, PlaySound->bFollow, PlaySound->AttachName);
-	return true;
+	AActor* Owner = GetOwningActor();
+	if (AJRPGFieldEnemy* Enemy = Cast<AJRPGFieldEnemy>(Owner))
+	{
+		Enemy->PlayClipSound(PlaySound->Sound, PlaySound->VolumeMultiplier, PlaySound->PitchMultiplier, PlaySound->bFollow, PlaySound->AttachName);
+		return true;
+	}
+	if (AJRPGBattlePawn* BattlePawn = Cast<AJRPGBattlePawn>(Owner))
+	{
+		// Na luta o som perto de um golpe espera o resultado dele: o impacto de um Miss não toca (o pawn decide)
+		FJRPGBattleSoundSpec Spec;
+		Spec.HitSound = PlaySound->Sound;
+		Spec.VolumeMultiplier = PlaySound->VolumeMultiplier;
+		Spec.PitchMultiplier = PlaySound->PitchMultiplier;
+		Spec.bFollow = PlaySound->bFollow;
+		Spec.AttachName = PlaySound->AttachName;
+		BattlePawn->HandleClipSound(Spec);
+		return true;
+	}
+	return Super::HandleNotify(AnimNotifyEvent);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -63,15 +88,27 @@ void FJRPGFieldEnemyAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float De
 	UAnimSequence* Wanted = Instance->GetRequestedClip();
 	BlendTime = Instance->GetRequestedBlendTime();
 
+	const int32 Serial = Instance->GetRequestSerial();
 	if (Wanted != Current.Sequence)
 	{
 		// O que estava tocando vira o clip que sai; o novo começa do início
 		Previous = Current;
 		Current = FJRPGCrossfadeLayer();
 		Current.Sequence = Wanted;
+		Current.Serial = Serial;
 		BlendAlpha = (Previous.Sequence && BlendTime > 0.0f) ? 0.0f : 1.0f;
 	}
+	else if (Serial != Current.Serial)
+	{
+		// O mesmo clip pedido de novo (um clip de uma vez só): recomeça do quadro 0, sem mistura
+		Current = FJRPGCrossfadeLayer();
+		Current.Sequence = Wanted;
+		Current.Serial = Serial;
+		Previous = FJRPGCrossfadeLayer();
+		BlendAlpha = 1.0f;
+	}
 	Current.PlayRate = Instance->GetRequestedRate();
+	Current.bLooping = Instance->GetRequestedLooping();
 
 	if (BlendAlpha < 1.0f)
 	{
@@ -111,7 +148,7 @@ void FAnimNode_JRPGCrossfade::Update_AnyThread(const FAnimationUpdateContext& Co
 		{
 			return;
 		}
-		FAnimTickRecord Record(Layer.Sequence, true, Layer.PlayRate, false, Weight, /*inout*/ Layer.Time, Layer.Marker);
+		FAnimTickRecord Record(Layer.Sequence, Layer.bLooping, Layer.PlayRate, false, Weight, /*inout*/ Layer.Time, Layer.Marker);
 		Record.DeltaTimeRecord = &Layer.DeltaRecord;
 #if ANIM_TRACE_ENABLED
 		Record.SourceProxy = Context.AnimInstanceProxy;
@@ -133,7 +170,7 @@ void FAnimNode_JRPGCrossfade::Evaluate_AnyThread(FPoseContext& Output)
 	auto Extract = [](const FJRPGCrossfadeLayer& Layer, FPoseContext& Into)
 	{
 		FAnimationPoseData PoseData(Into);
-		const FAnimExtractContext Extraction(static_cast<double>(Layer.Time), false, Layer.DeltaRecord, true);
+		const FAnimExtractContext Extraction(static_cast<double>(Layer.Time), false, Layer.DeltaRecord, Layer.bLooping);
 		Layer.Sequence->GetAnimationPose(PoseData, Extraction);
 	};
 

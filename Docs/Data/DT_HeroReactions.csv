@@ -1,0 +1,5 @@
+---,Character,FlinchHighFrames,FlinchLowFrames,BlockFrames,KnockdownFrames,GetUpFrames,DyingFrames,DownLoopFrames
+Vahn,Vahn,32,32,32,32,50,40,40
+Noa,Noa,36,36,28,56,60,88,60
+Gala,Gala,36,36,28,38,56,56,28
+Terra,Terra,60,60,30,50,50,0,0
