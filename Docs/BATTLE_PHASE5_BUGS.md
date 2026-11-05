@@ -422,6 +422,21 @@ Bug 20 (miss sound) confirmed fixed in PIE. Worked on in parts.
 31. **Gimard ended up inside Vahn again.** Not investigated. Suspects: the target's knockdown / get-up end step moving it toward the
     attacker, separation too slow to undo it, or the arrival shove.
 
+#### Backlog (2026-11-05) — noted for later, not started
+
+32. **Full RE sweep of the fight, to make it identical.** Go through the RE inch by inch and list what every piece of the battle
+    does: each state of the action SM, every wait / hold / timer, every animation (which clip, when it is committed, how it ends, what
+    moves the actor), the camera, the sounds. Compare each with ours and reproduce it. Write the result as a reference doc next to
+    `Reference/BATTLE_TIMING.md` (one section per state / mechanism, with the RE source and our file), then fix the differences.
+33. **Arts panel (the Triangle list), UI fixes:**
+    - Show it **only on the command-input screen** (the one where Arms / High / Low / Ra-Seru are typed, `attack`), not on the
+      hero's main menu nor elsewhere in the fight.
+    - **Pages must not wrap:** L1 goes up and R1 goes down and both stop at the first / last page.
+    - **Colours like the original:** a Hyper Art's arrows are all orange-ish; the **last arrow** of every Art is orange too; the
+      name is coloured by kind: **Miracle red, Hyper orange, Super yellowish** (Regular stays white).
+34. **Prefilled chain + Escape:** when the input window opens with the previous round's chain already typed, Escape / Cancel must
+    clear **all** of it at once, not one button at a time (one at a time still applies to buttons typed by hand this time).
+
 26. **Too many blocks.** The block roll misses the RE's two approach terms (`hits.rs` `roll_block`, `block.rs` `block_roll`), spent
     by the **first** hit of each action: `attack_ramp` = how far the defender is from facing the attacker (0 face-on .. `0x800` from
     behind), added to the attacker's side (about SPD + ATK·4/5 ≈ 50), and `guard_ramp`, which grows each frame the attacker walks in,
