@@ -1,6 +1,7 @@
 #include "Battle/JRPGBattleSceneSubsystem.h"
 #include "Arts/ArtsSubsystem.h"
 #include "Arts/JRPGArtsRules.h"
+#include "Battle/BattleFormulas.h"
 #include "Battle/BattleSubsystem.h"
 #include "Battle/JRPGBattleArena.h"
 #include "Battle/JRPGBattlePawn.h"
@@ -618,10 +619,23 @@ void UJRPGBattleSceneSubsystem::HandleLogicFrame(int32 Frame)
 	StepFormation(Frame);
 	// As regras ficaram paradas à espera da aproximação (PvP): a ação do pawn espera junto, para o golpe não tocar antes do dano
 	const bool bRulesHeld = Battle && Battle->WasHeldForApproach();
+	// A câmera lenta das Arts vale para a luta inteira (o byte +0x21D de cada ator): quem age pede, os outros tocam nela
+	const AJRPGBattlePawn* Acting = nullptr;
+	int32 WorldSpeed = UBattleFormulas::NormalGameSpeed;
+	for (const AJRPGBattlePawn* Pawn : Current->GetBattlePawns())
+	{
+		if (IsValid(Pawn) && Pawn->GetActiveActionIndex() != INDEX_NONE)
+		{
+			Acting = Pawn;
+			WorldSpeed = Pawn->GetWorldSpeedRequest(Frame);
+			break;
+		}
+	}
 	for (AJRPGBattlePawn* Pawn : Current->GetBattlePawns())
 	{
 		if (IsValid(Pawn))
 		{
+			Pawn->SetWorldAnimSpeed(Pawn == Acting ? UBattleFormulas::NormalGameSpeed : WorldSpeed);
 			// A ação pode ter sido cortada depois do ActionStart (o último inimigo caiu no meio da combo): relê a timeline
 			// que valeu, para nenhum passo depois do corte tocar
 			const int32 ActionIndex = Pawn->GetActiveActionIndex();

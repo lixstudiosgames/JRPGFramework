@@ -167,6 +167,20 @@ public:
 	bool IsWalkingApproach() const { return bActionActive && !bApproachSettled; }
 
 	/**
+	 * A câmera lenta das Arts que este pawn (o que age) pede para o resto da luta, na escala do original (8 normal): 0 congela todos
+	 * durante o starter de Super / Miracle (só quem dá o dash anda), a velocidade do passo (4, ou 2) durante o clip de uma Art, e 8
+	 * de novo assim que o clip da Art acaba (FUN_801E93C8). Fora de ação, ou com bSlowWorldDuringArts desligado, 8.
+	 */
+	int32 GetWorldSpeedRequest(int32 LogicFrame) const;
+
+	/**
+	 * A velocidade de animação do resto da luta para este pawn quando ele não está agindo (0..8; a cena chama a cada quadro lógico):
+	 * o idle, a reação, o caído tocam nela (GlobalAnimRateScale da malha), e os prazos da reação e a velocidade de raiz andam no
+	 * mesmo tempo. Quem age toca os próprios passos na velocidade deles.
+	 */
+	void SetWorldAnimSpeed(int32 Speed);
+
+	/**
 	 * O alcance, em cm, entre este pawn e o alvo, pela lei de alcance do original (ou o ReachDistance fixo), medido da posição
 	 * deste ao corpo do alvo (GetBodyLocation).
 	 */
@@ -381,6 +395,14 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Reach")
 	bool bFaceTargetEveryFrame = true;
+
+	/**
+	 * A câmera lenta das Arts para todos (o byte de velocidade +0x21D do original, em cada ator): numa Art a luta inteira anda a 4
+	 * (metade), no starter de Super / Miracle todo mundo congela menos quem dá o dash, e tudo volta a 8 quando o clip da Art acaba.
+	 * Desligado: só quem age desacelera, e a reação do alvo toca na velocidade do golpe que a causou (o comportamento antigo).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Animation")
+	bool bSlowWorldDuringArts = true;
 
 	/**
 	 * Quanto o defensor recua por golpe, em cm. O original move quem apanha pela velocidade de raiz do clip de reação
@@ -636,6 +658,13 @@ private:
 	int32 MotionGameSpeed = 8;
 	/** Até que quadro lógico a velocidade de raiz já foi aplicada. */
 	int32 MotionAppliedFrame = INDEX_NONE;
+
+	/** A velocidade do resto da luta para este pawn (SetWorldAnimSpeed), 0..8, e o atraso acumulado do tempo local dele (< 1 quadro). */
+	int32 WorldAnimSpeed = 8;
+	double WorldTimeLag = 0.0;
+
+	/** O tempo local anda a WorldAnimSpeed / 8: cada quadro lógico inteiro de atraso empurra os prazos da reação e do clip em 1. */
+	void AdvanceWorldTime();
 
 	/** A linha do herói no DT_HeroReactions (o movimento das reações); só vale com bHasHeroReactionRow. */
 	FJRPGHeroReactionData HeroReactionRow;

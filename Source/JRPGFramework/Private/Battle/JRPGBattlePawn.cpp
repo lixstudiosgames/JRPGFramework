@@ -431,8 +431,10 @@ void AJRPGBattlePawn::AdvanceReaction(int32 LogicFrame)
 			continue;
 		}
 		ReactionLastEnd = Step.End;
-		// A reação toca na velocidade em que o golpe foi tomado (uma Art deixa o jogo a 4 ou a 2)
-		Rate *= static_cast<float>(ReactionGameSpeed) / static_cast<float>(UBattleFormulas::NormalGameSpeed);
+		// Com a câmera lenta para todos, a reação toca na velocidade normal e a do mundo a desacelera (GlobalAnimRateScale e os prazos
+		// em AdvanceWorldTime): volta a 8 quando o clip da Art acaba, como no original. Sem ela, toca na velocidade do golpe
+		const int32 ClipSpeed = bSlowWorldDuringArts ? UBattleFormulas::NormalGameSpeed : ReactionGameSpeed;
+		Rate *= static_cast<float>(ClipSpeed) / static_cast<float>(UBattleFormulas::NormalGameSpeed);
 		if (bLast && Step.End == EReactionEnd::Loop)
 		{
 			// O herói caído repete o clip dele para sempre (a entrada 8 do original re-comita a si mesma a cada fim natural, com a trava
@@ -447,7 +449,7 @@ void AJRPGBattlePawn::AdvanceReaction(int32 LogicFrame)
 		const int32 Frames = FMath::Max(FMath::CeilToInt(Clip->GetPlayLength() / Speed * static_cast<float>(UBattleFormulas::StepsPerSecond)), 1);
 		ReactionEndFrame = LogicFrame + Frames;
 		// O clip da reação move o ator enquanto toca (o knockdown desliza a queda inteira) e anda o passo do fim dele quando acaba
-		BeginClipMotion(RoleMotion(Step.Role), LogicFrame, ReactionEndFrame, ReactionGameSpeed);
+		BeginClipMotion(RoleMotion(Step.Role), LogicFrame, ReactionEndFrame, ClipSpeed);
 		return;
 	}
 }
@@ -656,8 +658,10 @@ void AJRPGBattlePawn::UpdateRootMotion(int32 LogicFrame)
 	{
 		return;
 	}
-	// facing * speed * step * escala >> 15 por passada = speed unidades por vsync na escala 8 (0x80047D20..0x80047E18)
-	double Move = static_cast<double>(ActiveMotion.RootSpeed) * UnitsToCm * static_cast<double>(MotionGameSpeed)
+	// facing * speed * step * escala >> 15 por passada = speed unidades por vsync na escala 8 (0x80047D20..0x80047E18). A escala é a
+	// do clip para quem age, a do mundo para os outros (a câmera lenta das Arts desacelera o recuo junto com a animação)
+	const int32 Scale = !bActionActive && bSlowWorldDuringArts ? WorldAnimSpeed : MotionGameSpeed;
+	double Move = static_cast<double>(ActiveMotion.RootSpeed) * UnitsToCm * static_cast<double>(Scale)
 		/ static_cast<double>(UBattleFormulas::NormalGameSpeed) * static_cast<double>(LastFrame - FirstFrame);
 	if (ActiveMotion.RootSpeed > 0)
 	{
@@ -1028,6 +1032,67 @@ FVector AJRPGBattlePawn::ComputeSnapPoint(const FVector& From, const AJRPGBattle
 	return ClampToArena(From, Snap);
 }
 
+int32 AJRPGBattlePawn::GetWorldSpeedRequest(int32 LogicFrame) const
+{
+	if (!bSlowWorldDuringArts || !bActionActive || !Action.Steps.IsValidIndex(PlayedStep))
+	{
+		return UBattleFormulas::NormalGameSpeed;
+	}
+	// O clip da Art já acabou (o passo seguinte ainda não entrou, ou é o fim da ação): o original volta todos a 8 nessa passada
+	if (StepClipEndFrame != INDEX_NONE && LogicFrame >= StepClipEndFrame)
+	{
+		return UBattleFormulas::NormalGameSpeed;
+	}
+	const FJRPGActionStep& Step = Action.Steps[PlayedStep];
+	switch (Step.Kind)
+	{
+	case EJRPGActionStepKind::SpecialStarter:
+		// O starter de Super / Miracle (0x1A, 0x8004B728): todos a 0, só quem dá o dash anda (a 2, a velocidade do passo dele)
+		return 0;
+	case EJRPGActionStepKind::Art:
+		// Uma constante de Art (>= 0x1B, 0x8004BB78): todos a 4 (2 no modo especial), a velocidade do próprio passo
+		return FMath::Clamp(Step.GameSpeed, 0, UBattleFormulas::NormalGameSpeed);
+	default:
+		// Os golpes de direção e o starter comum (0x19) não mexem na velocidade
+		return UBattleFormulas::NormalGameSpeed;
+	}
+}
+
+void AJRPGBattlePawn::SetWorldAnimSpeed(int32 Speed)
+{
+	WorldAnimSpeed = bSlowWorldDuringArts ? FMath::Clamp(Speed, 0, UBattleFormulas::NormalGameSpeed) : UBattleFormulas::NormalGameSpeed;
+	// Quem age toca os próprios passos na velocidade deles; o resto (idle, reação, caído) na do mundo
+	const float Scale = bActionActive ? 1.0f : static_cast<float>(WorldAnimSpeed) / static_cast<float>(UBattleFormulas::NormalGameSpeed);
+	if (Mesh && !FMath::IsNearlyEqual(Mesh->GlobalAnimRateScale, Scale))
+	{
+		Mesh->GlobalAnimRateScale = Scale;
+	}
+}
+
+void AJRPGBattlePawn::AdvanceWorldTime()
+{
+	if (bActionActive || WorldAnimSpeed >= UBattleFormulas::NormalGameSpeed)
+	{
+		WorldTimeLag = 0.0;
+		return;
+	}
+	// O tempo local anda a velocidade / 8 por quadro lógico: o que falta vira atraso, e cada quadro inteiro de atraso empurra os prazos
+	// (o fim da reação, o fim do clip), para a reação durar o que a animação mais lenta dura
+	WorldTimeLag += 1.0 - static_cast<double>(WorldAnimSpeed) / static_cast<double>(UBattleFormulas::NormalGameSpeed);
+	while (WorldTimeLag >= 1.0)
+	{
+		WorldTimeLag -= 1.0;
+		if (ReactionEndFrame != INDEX_NONE)
+		{
+			++ReactionEndFrame;
+		}
+		if (MotionEndFrame != INDEX_NONE)
+		{
+			++MotionEndFrame;
+		}
+	}
+}
+
 void AJRPGBattlePawn::UpdateStrikeSpacing()
 {
 	const AJRPGBattlePawn* Foe = TargetPawn.Get();
@@ -1152,6 +1217,12 @@ void AJRPGBattlePawn::BeginAction(const FJRPGActionTimeline& Timeline, AJRPGBatt
 	ActiveMotion = FClipMotion();
 	MotionStartFrame = INDEX_NONE;
 	MotionEndFrame = INDEX_NONE;
+	// Quem age toca os próprios passos na velocidade deles, não na do mundo
+	WorldTimeLag = 0.0;
+	if (Mesh)
+	{
+		Mesh->GlobalAnimRateScale = 1.0f;
+	}
 
 	ApproachFrom = GetActorLocation();
 	ApproachTo = ApproachFrom;
@@ -1269,6 +1340,8 @@ void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 		NeutralCentroid = PoseCentroid();
 		bHasNeutralCentroid = !NeutralCentroid.IsZero();
 	}
+	// O tempo local de quem não age anda na velocidade do mundo (a câmera lenta das Arts): os prazos da reação esticam junto
+	AdvanceWorldTime();
 	// O recuo de quem apanhou e o acompanhar do atacante andam em quadros lógicos, ação ou não
 	UpdateSlide(LogicFrame);
 	// A velocidade de raiz do clip em curso (a reação que desliza, a investida que anda)

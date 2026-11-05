@@ -483,7 +483,18 @@ Bug 20 (miss sound) confirmed fixed in PIE. Worked on in parts.
   another rate: the logic hits land away from the visible impact); (4) an Art hit that falls after the end of the asset. A height
   miss now reads `Miss (height)` over the target. Re-test: play the Arts that "did not land", then read the warnings; a `Miss
   (height)` or `Block` is the rules, not a bug. Bug 29 stays open until a repro is matched to one of these.
-- 1e. Slow motion for everyone. 1f. Crossfade review.
+- **1e. Arts slow motion for everyone (done, not built).** The original's per-actor rate byte `+0x21D`: an Art clip puts the
+  **whole fight** at half speed, a Super / Miracle starter **freezes everyone but the dasher**, and everyone is back at normal
+  speed the moment the Art clip ends (so a monster an Art killed finishes its fall at normal speed). The acting pawn reports it
+  (`AJRPGBattlePawn::GetWorldSpeedRequest`: 0 during a `SpecialStarter` step, the step's speed during an `Art` clip, 8 otherwise
+  and once the clip has ended); the scene hands it to every other pawn each frame (`SetWorldAnimSpeed`), which plays its idle,
+  reaction or down loop at that rate (`GlobalAnimRateScale`) and stretches its reaction deadlines and root motion to match
+  (`AdvanceWorldTime`). A reaction clip now starts at normal speed and the world speed slows it (instead of the hit's speed baked
+  in). Switch: `bSlowWorldDuringArts` on the pawn (off = the old behaviour). The rules' reaction hold is still computed at the
+  hit's speed, so after an Art the next action may wait a little longer than the body needs (harmless; `BATTLE_TIMING.md` 9,
+  item 14). What to look at in PIE: during an Art the others' idles and the target's reactions run at half speed, everything
+  freezes for a Super / Miracle starter dash, and speed snaps back when the Art's clip ends.
+- 1f. Crossfade review.
 
 #### Backlog (2026-11-05) — noted for later, not started
 
