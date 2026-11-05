@@ -165,6 +165,12 @@ public:
 	/** A ação em curso começou com uma caminhada até o alvo (ainda não fechada). */
 	bool IsWalkingApproach() const { return bActionActive && !bApproachSettled; }
 
+	/**
+	 * O alcance, em cm, entre este pawn e o alvo, pela lei de alcance do original (ou o ReachDistance fixo), medido da posição
+	 * deste ao corpo do alvo (GetBodyLocation).
+	 */
+	float ReachFor(const AJRPGBattlePawn* Target) const;
+
 	/** O quadro lógico atual da luta: anda a aproximação, entra no passo que começou, fecha a ação. */
 	void UpdatePlayback(int32 LogicFrame);
 
@@ -214,6 +220,17 @@ public:
 
 	/** Onde ele vai parar: o fim do deslize em curso (recuo, acompanhar o alvo), senão onde está. */
 	FVector GetSettledLocation() const { return bSliding ? SlideTo : GetActorLocation(); }
+
+	/**
+	 * Onde o CORPO está no chão (o "body pair" +0x3C / +0x40 do original): a posição do ator mais o centro da pose atual (a média
+	 * das peças), no plano do chão. É o que o original mede de fora: o lado do alvo na lei de alcance, os dois lados da separação, a
+	 * mira do atacante e a virada do defensor. Um clip que leva o corpo para a frente (uma investida, um knockdown) muda isto sem
+	 * mexer no ator. Com bUseBodyPair desligado, é a posição do ator.
+	 */
+	FVector GetBodyLocation() const { return GetActorLocation() + BodyOffset(); }
+
+	/** GetBodyLocation no fim do deslize em curso (o corpo de agora, levado para onde o ator vai parar). */
+	FVector GetSettledBodyLocation() const { return GetSettledLocation() + BodyOffset(); }
 
 	// --- A formação (a cena move todo mundo, como o original) ----------------------------------
 
@@ -322,6 +339,13 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Reach")
 	bool bApplyArrivalShove = true;
+
+	/**
+	 * Medir o corpo (GetBodyLocation: ator + centro da pose), como o original, no alcance, na separação, na mira e na virada do
+	 * defensor. Desligado: mede a posição do ator (os pés), o comportamento antigo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Reach")
+	bool bUseBodyPair = true;
 
 	/** Abaixo disto, em cm, o deslocamento do fim do clip é ignorado (o idle entra com a mistura normal). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Knockback", meta = (ClampMin = "0.0"))
@@ -452,6 +476,9 @@ private:
 	/** O centro das posições dos bones (menos a raiz) na pose atual, no espaço do componente. */
 	FVector PoseCentroid() const;
 
+	/** Do ator ao corpo, no plano do chão (o centro da pose em mundo menos a posição do ator); zero sem pose ou sem bUseBodyPair. */
+	FVector BodyOffset() const;
+
 	/** A velocidade da caminhada em cm por quadro lógico (a do disco nos heróis, EnemyWalkSpeedUnits nos monstros). */
 	float WalkSpeedCm() const;
 
@@ -478,9 +505,6 @@ private:
 	 * quem já começa ao alcance pula o estado 0x16 (e o empurrão) direto para 0x1E.
 	 */
 	void ArrivalShove();
-
-	/** O alcance, em cm, entre este pawn e o alvo, pela lei de alcance do original (ou o ReachDistance fixo). */
-	float ReachFor(const AJRPGBattlePawn* Target) const;
 
 	/** Onde parar para bater no alvo, a partir de From: From mesmo se já está ao alcance, limitado pela arena. */
 	FVector ComputeStopPoint(const FVector& From, const AJRPGBattlePawn* Target) const;

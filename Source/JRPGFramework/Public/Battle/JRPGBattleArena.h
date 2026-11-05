@@ -162,6 +162,20 @@ public:
 	bool bMakeWay = true;
 
 	/**
+	 * Só sai do caminho quem está no corredor do atacante (entre ele e o ponto onde ele para, a menos da largura do corredor), e só
+	 * o que falta para liberar. Desligado: como o original, TODO mundo de fora anda classe * 8 unidades, perto ou longe.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (EditCondition = "bMakeWay"))
+	bool bMakeWayOnlyInLane = true;
+
+	/**
+	 * A largura do corredor (de cada lado da linha do atacante) em múltiplos da distância de separação dos dois corpos,
+	 * (raio do atacante + raio do outro) / 6. 1 = o mínimo para não se encostarem; mais = sai quem passa mais longe.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (ClampMin = "0.1", EditCondition = "bMakeWay && bMakeWayOnlyInLane"))
+	float MakeWayLaneScale = 1.25f;
+
+	/**
 	 * A separação do original (FUN_80051078 a cada quadro): dois combatentes mais perto que (r1 + r2) / 6 se afastam
 	 * SeparationStepUnits por par por quadro (o raio: herói 0x280, Terra 0x400, monstro classe << 5 unidades).
 	 */

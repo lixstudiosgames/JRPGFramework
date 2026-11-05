@@ -429,6 +429,27 @@ Bug 20 (miss sound) confirmed fixed in PIE. Worked on in parts.
   whose Unreal clip length differs from the disc's `4 * N / R` (hit frames come from `DT_ArtHits`, clip length from the asset).
   Fix list: section 5.8 of that file.
 
+35. **Bystanders step aside even when the attacker walks far from them.** When a hero or monster walks to its target, the others
+    slide sideways although the walk passes nowhere near them. RE (`battle-action-helpers.md` "The make-way step"): the original
+    does exactly that, every bystander steps `class * 8` units off the attack line, near or far, with no distance test.
+    - **Fixed (step 1a, re-test), our improvement:** `UJRPGBattleSceneSubsystem::MakeWay` moves only a bystander whose body is in
+      the attacker's lane (ahead of the attacker, before the point where it stops plus the lane width, and closer to the line than
+      the lane's half width) and only as far as it takes to clear the lane (at most the original's `class * 8`). Half width =
+      `(attacker radius + bystander radius) / 6` (the separation distance) x `MakeWayLaneScale` (1.25). New on
+      `AJRPGBattleArena`: `bMakeWayOnlyInLane` (on; off = the original's behaviour), `MakeWayLaneScale`.
+
+#### Step 1 of the RE sweep: movement (`Reference/BATTLE_RE_SWEEP.md` 10.3), in parts
+
+- **1a. Body location (done, not built).** `AJRPGBattlePawn::GetBodyLocation` / `GetSettledBodyLocation`: the actor plus the
+  current pose centroid (the original's body pair `+0x3C` / `+0x40`), switchable with `bUseBodyPair`. Now measured on the body:
+  the target side of the reach law (`ComputeStopPoint`, so the walk and `FollowTarget`), the arrival shove, the attacker's aim at
+  each step, the defender's turn on a hit (from its body to the attacker), both sides of the separation, and the make-way lane
+  (bug 35). `ReachFor` is public now (the scene reads it). What to look at in PIE: attackers stop at the reach of the body they
+  see (a monster that leans forward is hit where it is), bodies that a clip carries into each other get pushed apart, and the
+  make-way only moves who is in the way. If something looks worse, compare with `bUseBodyPair` off.
+- 1b. In-range back-off and the two-way reach snap. 1c. End step and root speed from the disc. 1d. Bug 29. 1e. Slow motion for
+  everyone. 1f. Crossfade review.
+
 #### Backlog (2026-11-05) — noted for later, not started
 
 32. **Full RE sweep of the fight, to make it identical.** Go through the RE inch by inch and list what every piece of the battle

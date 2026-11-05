@@ -485,6 +485,20 @@ FVector AJRPGBattlePawn::PoseCentroid() const
 	return Sum / static_cast<double>(Pose.Num() - 1);
 }
 
+FVector AJRPGBattlePawn::BodyOffset() const
+{
+	// O body pair do original (FUN_8004998C a cada quadro desenhado): a soma das translações das peças da pose dividida pelo número
+	// de peças, girada pela direção do ator e somada à posição dele. As peças de equipamento são outros componentes (Leader Pose),
+	// então a média da Mesh é só a do corpo, como a do original (o número de peças do stream)
+	if (!bUseBodyPair || !Mesh || Mesh->GetComponentSpaceTransforms().Num() < 2)
+	{
+		return FVector::ZeroVector;
+	}
+	FVector Offset = Mesh->GetComponentTransform().TransformPosition(PoseCentroid()) - GetActorLocation();
+	Offset.Z = 0.0;
+	return Offset;
+}
+
 void AJRPGBattlePawn::SettleIntoIdle(const AJRPGBattlePawn* KeepReachOf)
 {
 	if (!IdleClip || IdleSinceFrame != INDEX_NONE)
@@ -505,7 +519,7 @@ void AJRPGBattlePawn::SettleIntoIdle(const AJRPGBattlePawn* KeepReachOf)
 	// alcance. O avanço do clip vira posição só até a borda do alcance (ou até onde ele já estava, se já estava mais perto)
 	if (KeepReachOf && KeepReachOf != this)
 	{
-		const FVector Foe = KeepReachOf->GetSettledLocation();
+		const FVector Foe = KeepReachOf->GetSettledBodyLocation();
 		const double MinGap = FMath::Min(static_cast<double>(ReachFor(KeepReachOf) + StopMargin), FVector::Dist2D(From, Foe));
 		if (FVector::Dist2D(To, Foe) < MinGap)
 		{
@@ -592,8 +606,9 @@ void AJRPGBattlePawn::ArrivalShove()
 	{
 		return;
 	}
+	// A lei de alcance do original: a posição do atacante contra o CORPO do alvo
 	const FVector Here = GetActorLocation();
-	const FVector There = Foe->GetActorLocation();
+	const FVector There = Foe->GetBodyLocation();
 	const FVector Facing = FVector(There.X - Here.X, There.Y - Here.Y, 0.0);
 	const double Gap = Facing.Size2D();
 	// A borda do alcance: o limiar da lei (o ReachFor já tira a margem de parada, que o original anda para dentro)
@@ -742,7 +757,8 @@ FVector AJRPGBattlePawn::ComputeStopPoint(const FVector& From, const AJRPGBattle
 	{
 		return From;
 	}
-	const FVector TargetLocation = Target->GetSettledLocation();
+	// A lei de alcance do original mede o atacante (From) contra o CORPO do alvo (o body pair), não os pés
+	const FVector TargetLocation = Target->GetSettledBodyLocation();
 	const FVector Flat = FVector(TargetLocation.X - From.X, TargetLocation.Y - From.Y, 0.0).GetSafeNormal();
 	const float Reach = ReachFor(Target);
 	// Já ao alcance (ou em cima do alvo): fica onde está. Senão o alvo é a parede: para a Reach dele
@@ -764,8 +780,10 @@ void AJRPGBattlePawn::FollowTarget(int32 LogicFrame)
 	{
 		return;
 	}
+	// A banda de golpes do original mira o CORPO do alvo (0x801E36F0): um knockdown que leva o corpo de lado vira o atacante junto
 	const FVector Current = GetActorLocation();
-	const FVector Flat = FVector(Foe->GetSettledLocation().X - Current.X, Foe->GetSettledLocation().Y - Current.Y, 0.0).GetSafeNormal();
+	const FVector FoeBody = Foe->GetSettledBodyLocation();
+	const FVector Flat = FVector(FoeBody.X - Current.X, FoeBody.Y - Current.Y, 0.0).GetSafeNormal();
 	if (Flat.IsNearlyZero())
 	{
 		return;
@@ -786,7 +804,8 @@ void AJRPGBattlePawn::ReactToHit(const AJRPGBattlePawn* Attacker, int32 LogicFra
 	{
 		return;
 	}
-	const FVector Here = GetActorLocation();
+	// O commit da reação vira o defensor do CORPO dele para a posição do atacante (0x801EECBC): os dois ficam frente a frente
+	const FVector Here = GetBodyLocation();
 	const FVector Toward = FVector(Attacker->GetActorLocation().X - Here.X, Attacker->GetActorLocation().Y - Here.Y, 0.0).GetSafeNormal();
 	if (Toward.IsNearlyZero())
 	{

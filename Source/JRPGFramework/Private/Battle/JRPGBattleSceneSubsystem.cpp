@@ -881,16 +881,22 @@ void UJRPGBattleSceneSubsystem::MakeWay(const AJRPGBattlePawn* Attacker, const A
 		return;
 	}
 	const FVector From = Attacker->GetActorLocation();
-	const FVector Heading = FVector(Target->GetSettledLocation() - From).GetSafeNormal2D();
-	if (Heading.IsNearlyZero())
+	FVector Lane = Target->GetSettledBodyLocation() - From;
+	Lane.Z = 0.0;
+	const double LaneLength = Lane.Size2D();
+	if (LaneLength <= KINDA_SMALL_NUMBER)
 	{
 		return;
 	}
+	const FVector Heading = Lane / LaneLength;
 	// A classe do monstro da luta corpo a corpo: a do alvo para um herói, a do próprio atacante para um monstro
 	const int32 SizeClass = FMath::Max(Attacker->GetSizeClass() > 0 ? Attacker->GetSizeClass() : Target->GetSizeClass(), 1);
-	const float Distance = static_cast<float>(SizeClass) * 8.0f * Attacker->GetUnitsToCm();
-	// A contagem do original drena a classe pelo passo do quadro: dura uns "classe" vsyncs
-	const int32 Frames = FMath::Max(SizeClass, 8);
+	const float UnitsToCm = Attacker->GetUnitsToCm();
+	// O passo do original: classe * 8 unidades, a 8 unidades por vsync (a contagem drena a classe pelo passo do quadro)
+	const float FullStep = static_cast<float>(SizeClass) * 8.0f * UnitsToCm;
+	const float StepPerFrame = FMath::Max(8.0f * UnitsToCm, 1.0f);
+	// Onde a caminhada para: a borda do alcance antes do alvo; ninguém além disso está no caminho
+	const double WalkEnd = FMath::Max(LaneLength - static_cast<double>(Attacker->ReachFor(Target)), 0.0);
 	const FVector Left(-Heading.Y, Heading.X, 0.0);
 	for (AJRPGBattlePawn* Pawn : Current->GetBattlePawns())
 	{
@@ -898,9 +904,28 @@ void UJRPGBattleSceneSubsystem::MakeWay(const AJRPGBattlePawn* Attacker, const A
 		{
 			continue;
 		}
+		const FVector ToPawn = Pawn->GetSettledBodyLocation() - From;
+		const double Across = FVector::DotProduct(ToPawn, Left);
 		// Cada um sai para o lado da linha em que já está (meia volta de um lado, h + 0x400; do outro, h - 0x400)
-		const FVector ToPawn = Pawn->GetSettledLocation() - From;
-		const float Side = FVector::DotProduct(ToPawn, Left) >= 0.0 ? 1.0f : -1.0f;
+		const float Side = Across >= 0.0 ? 1.0f : -1.0f;
+		float Distance = FullStep;
+		if (Current->bMakeWayOnlyInLane)
+		{
+			// Melhoria nossa (o original move todo mundo, perto ou longe): só sai quem está no corredor do atacante, e só o que
+			// falta para liberar o caminho. A largura do corredor é a distância em que a separação empurraria os dois corpos
+			const double HalfWidth = (Attacker->SeparationRadiusCm() + Pawn->SeparationRadiusCm()) / 6.0 * Current->MakeWayLaneScale;
+			const double Along = FVector::DotProduct(ToPawn, Heading);
+			if (Along <= 0.0 || Along >= WalkEnd + HalfWidth || FMath::Abs(Across) >= HalfWidth)
+			{
+				continue;
+			}
+			Distance = FMath::Min(FullStep, static_cast<float>(HalfWidth - FMath::Abs(Across)));
+		}
+		if (Distance <= 1.0f)
+		{
+			continue;
+		}
+		const int32 Frames = FMath::Max(FMath::CeilToInt(Distance / StepPerFrame), 8);
 		Pawn->StepAside(Left * Side * Distance, Frame, Frames);
 	}
 }
@@ -948,7 +973,9 @@ void UJRPGBattleSceneSubsystem::StepFormation(int32 Frame)
 		{
 			AJRPGBattlePawn* A = Standing[i];
 			AJRPGBattlePawn* B = Standing[j];
-			const FVector Gap = FVector(B->GetActorLocation() - A->GetActorLocation()) * FVector(1.0, 1.0, 0.0);
+			// FUN_80050BB8 mede os dois CORPOS (body pairs) e empurra as posições: um clip que leva o corpo para cima do outro
+			// também separa
+			const FVector Gap = FVector(B->GetBodyLocation() - A->GetBodyLocation()) * FVector(1.0, 1.0, 0.0);
 			const double Threshold = (A->SeparationRadiusCm() + B->SeparationRadiusCm()) / 6.0;
 			const double Dist = Gap.Size2D();
 			if (Dist >= Threshold)
