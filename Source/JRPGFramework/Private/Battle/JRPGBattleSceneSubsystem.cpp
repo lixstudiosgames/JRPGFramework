@@ -494,7 +494,9 @@ void UJRPGBattleSceneSubsystem::HandleBattleEvent(const FJRPGBattleEvent& Event)
 		}
 		if (AJRPGBattlePawn* Target = PawnOf(Event.TargetSlot))
 		{
-			Target->ShowEvent(Event, TEXT("Miss"), true);
+			// O único Miss das regras é o de altura (um golpe baixo num voador, um alto num baixinho): diz isso, para não parecer um
+			// golpe que "não pegou" (bug 29)
+			Target->ShowEvent(Event, TEXT("Miss (height)"), true);
 		}
 		break;
 	case EJRPGBattleEventType::Block:

@@ -42,6 +42,17 @@ namespace
 		const int64 Steps = (ClipFrames * UBattleFormulas::StepsPerSecond * 4 * ClipRate.Denominator + Divisor - 1) / Divisor;
 		return static_cast<int32>(FMath::Min<int64>(Steps, MAX_int32));
 	}
+
+	/** Um aviso do tempo dos clips, uma vez por chave na sessão (o ClipTiming roda a cada ação planejada). */
+	void LogClipTimingOnce(const FString& Key, const FString& Message)
+	{
+		static TSet<FString> Logged;
+		if (!Logged.Contains(Key))
+		{
+			Logged.Add(Key);
+			UE_LOG(LogTemp, Warning, TEXT("BattleSubsystem: %s"), *Message);
+		}
+	}
 }
 
 UBattleSubsystem::UBattleSubsystem()
@@ -608,18 +619,53 @@ bool UBattleSubsystem::BeginBattle(const FJRPGBattleSetup& Setup)
 				OutTiming.HitFrames.Add(SecondsToSteps(Time, ClipRate, Query.GameSpeed));
 			}
 		}
-		else if (Query.Kind == EJRPGActionStepKind::Art && ArtHits)
+		else
 		{
-			// Sem marcadores no clip: os quadros de golpe do registro da Art no disco, na conta do golpe simples
-			const FJRPGArtHitData* Row = ArtHits->FindRow<FJRPGArtHitData>(Query.ArtKey, TEXT("ArtHits"), false);
-			if (Row && Row->HitBeats.Num() == Query.ExpectedHits && Query.ExpectedHits > 0)
+			// Bug 29: marcadores de golpe em quantidade diferente da que a ação espera são ignorados em silêncio; agora avisa
+			if (!Hits.IsEmpty())
 			{
-				for (const int32 Beat : Row->HitBeats)
+				LogClipTimingOnce(Clip->GetPathName() + TEXT("#notifies"), FString::Printf(
+					TEXT("o clip %s tem %d marcador(es) de golpe (UJRPGAnimNotify_Hit), mas a ação espera %d: os marcadores são ignorados"),
+					*Clip->GetName(), Hits.Num(), Query.ExpectedHits));
+			}
+			if (Query.Kind == EJRPGActionStepKind::Art && ArtHits)
+			{
+				// Sem marcadores no clip: os quadros de golpe do registro da Art no disco, na conta do golpe simples
+				const FJRPGArtHitData* Row = ArtHits->FindRow<FJRPGArtHitData>(Query.ArtKey, TEXT("ArtHits"), false);
+				if (Row && Row->HitBeats.Num() == Query.ExpectedHits && Query.ExpectedHits > 0)
 				{
-					const int32 Frame = UBattleFormulas::ClipFramesToSteps(FMath::Max(Beat - 1, 0), Query.GameSpeed, FMath::Max(Row->Rate, 1));
-					OutTiming.HitFrames.Add(Frame);
-					// O clip nunca acaba antes do último golpe dele
-					OutTiming.Frames = FMath::Max(OutTiming.Frames, Frame + 1);
+					const int32 Rate = FMath::Max(Row->Rate, 1);
+					// O asset vem do .glb do RE, assado a 7,5 x rate quadros do disco por segundo: o quadro B - 1 do disco cai em
+					// (B - 1) / (7,5 x rate) segundos do asset, e a duração do asset é um número inteiro de quadros do disco
+					const double DiscFramesPerSecond = 7.5 * static_cast<double>(Rate);
+					const double AssetDiscFrames = static_cast<double>(Clip->GetPlayLength()) * DiscFramesPerSecond;
+					if (FMath::Abs(AssetDiscFrames - FMath::RoundToDouble(AssetDiscFrames)) > 0.2)
+					{
+						LogClipTimingOnce(Clip->GetPathName() + TEXT("#rate"), FString::Printf(
+							TEXT("a Art %s: o clip %s dura %.3f s, %.2f quadros do disco no rate %d (deveria ser inteiro): o asset parece assado em outro rate, e os golpes do DT_ArtHits caem fora do impacto que se vê"),
+							*Query.ArtKey.ToString(), *Clip->GetName(), Clip->GetPlayLength(), AssetDiscFrames, Rate));
+					}
+					for (int32 Index = 0; Index < Row->HitBeats.Num(); ++Index)
+					{
+						const int32 Beat = Row->HitBeats[Index];
+						const int32 Frame = UBattleFormulas::ClipFramesToSteps(FMath::Max(Beat - 1, 0), Query.GameSpeed, Rate);
+						OutTiming.HitFrames.Add(Frame);
+						// O clip nunca acaba antes do último golpe dele
+						OutTiming.Frames = FMath::Max(OutTiming.Frames, Frame + 1);
+						const double HitSeconds = static_cast<double>(FMath::Max(Beat - 1, 0)) / DiscFramesPerSecond;
+						if (HitSeconds > static_cast<double>(Clip->GetPlayLength()) + 1.0 / 30.0)
+						{
+							LogClipTimingOnce(Clip->GetPathName() + FString::Printf(TEXT("#hit%d"), Index), FString::Printf(
+								TEXT("a Art %s: o golpe %d (quadro %d do disco) cai em %.3f s, depois do fim do clip %s (%.3f s): o asset é mais curto que o clip do disco, o golpe toca sem o corpo"),
+								*Query.ArtKey.ToString(), Index + 1, Beat, HitSeconds, *Clip->GetName(), Clip->GetPlayLength()));
+						}
+					}
+				}
+				else if (Row && Query.ExpectedHits > 0)
+				{
+					LogClipTimingOnce(Query.ArtKey.ToString() + TEXT("#count"), FString::Printf(
+						TEXT("a Art %s: o DT_ArtHits tem %d golpe(s), o DT_Arts (HitPower) %d: os golpes ficam espaçados pelo padrão, fora do clip"),
+						*Query.ArtKey.ToString(), Row->HitBeats.Num(), Query.ExpectedHits));
 				}
 			}
 		}

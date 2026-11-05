@@ -476,7 +476,14 @@ Bug 20 (miss sound) confirmed fixed in PIE. Worked on in parts.
   - What to look at in PIE: knockdowns slide back over the whole fall (Gala's ~187 cm, Gimard's ~268 cm), flinches end a little
     back, Slash Kick ends ahead of where it started without gliding back, nobody ends inside a target, monsters walk at their own
     speed.
-- 1d. Bug 29. 1e. Slow motion for everyone. 1f. Crossfade review.
+- **1d. Bug 29 diagnostics (done, not built).** The timing check is a warning in the Output Log, once per clip per session
+  (`BattleSubsystem:` lines), in `ClipTiming`: (1) a clip whose `UJRPGAnimNotify_Hit` markers do not match the action's hit count
+  (they were ignored silently); (2) an Art whose `DT_ArtHits` hit count differs from `DT_Arts` (its hits fell back to the default
+  spacing, away from the clip); (3) an Art clip whose length is not a whole number of disc frames at the row's rate (asset baked at
+  another rate: the logic hits land away from the visible impact); (4) an Art hit that falls after the end of the asset. A height
+  miss now reads `Miss (height)` over the target. Re-test: play the Arts that "did not land", then read the warnings; a `Miss
+  (height)` or `Block` is the rules, not a bug. Bug 29 stays open until a repro is matched to one of these.
+- 1e. Slow motion for everyone. 1f. Crossfade review.
 
 #### Backlog (2026-11-05) — noted for later, not started
 
