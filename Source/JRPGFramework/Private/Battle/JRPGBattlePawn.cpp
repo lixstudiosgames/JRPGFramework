@@ -164,6 +164,12 @@ void AJRPGBattlePawn::InitCombatant(const FJRPGCombatant& InCombatant, const FJR
 	MotionStartFrame = INDEX_NONE;
 	MotionEndFrame = INDEX_NONE;
 	MotionAppliedFrame = INDEX_NONE;
+	bMotionOwnSpeed = false;
+	MotionProgress = 0.0;
+	MotionDuration = 0;
+	bPostActionSpacing = false;
+	WorldAnimSpeed = UBattleFormulas::NormalGameSpeed;
+	WorldTimeLag = 0.0;
 	bHasHeroReactionRow = false;
 	bEnemyHasMotionData = false;
 	SetActorHiddenInGame(false);
@@ -399,8 +405,11 @@ void AJRPGBattlePawn::StartReaction(const TArray<FReactionStep>& Steps, int32 Lo
 	{
 		UpdateRootMotion(LogicFrame);
 		// A reação nova entra com corte seco: o passo anda no mesmo instante em que a pose troca
-		SlideBy(EndStepShift(ClipMotionFraction(LogicFrame)), LogicFrame, 0.0f);
+		SlideBy(EndStepShift(ClipMotionFraction()), LogicFrame, 0.0f);
+		ConsumeClipEndStep();
 	}
+	// Quem apanha não está mais "depois da própria ação"
+	bPostActionSpacing = false;
 	ReactionQueue = Steps;
 	ReactionGameSpeed = FMath::Max(GameSpeed, 1);
 	ReactionEndFrame = INDEX_NONE;
@@ -442,7 +451,7 @@ void AJRPGBattlePawn::AdvanceReaction(int32 LogicFrame)
 			// que para a velocidade de raiz)
 			PlayClip(Clip, true, Rate);
 			ReactionEndFrame = INDEX_NONE;
-			BeginClipMotion(FClipMotion(), LogicFrame, INDEX_NONE, ReactionGameSpeed);
+			BeginClipMotion(FClipMotion(), LogicFrame, INDEX_NONE, ReactionGameSpeed, false);
 			return;
 		}
 		PlayClip(Clip, false, Rate);
@@ -450,7 +459,7 @@ void AJRPGBattlePawn::AdvanceReaction(int32 LogicFrame)
 		const int32 Frames = FMath::Max(FMath::CeilToInt(Clip->GetPlayLength() / Speed * static_cast<float>(UBattleFormulas::StepsPerSecond)), 1);
 		ReactionEndFrame = LogicFrame + Frames;
 		// O clip da reação move o ator enquanto toca (o knockdown desliza a queda inteira) e anda o passo do fim dele quando acaba
-		BeginClipMotion(RoleMotion(Step.Role), LogicFrame, ReactionEndFrame, ClipSpeed);
+		BeginClipMotion(RoleMotion(Step.Role), LogicFrame, ReactionEndFrame, ClipSpeed, false);
 		return;
 	}
 }
@@ -473,6 +482,8 @@ void AJRPGBattlePawn::OnReactionEnded(int32 LogicFrame)
 		{
 			SlideBy(EndStepShift(1.0f), LogicFrame, 0.0f);   // o próximo clip da cadeia entra com corte seco
 		}
+		// Andado (ou pulado, no corpo morto): um clip seguinte que falta não o repete na volta ao idle
+		ConsumeClipEndStep();
 		AdvanceReaction(LogicFrame);
 		return;
 	}
@@ -629,13 +640,16 @@ AJRPGBattlePawn::FClipMotion AJRPGBattlePawn::StepMotion(const FJRPGActionStep& 
 	return Motion;
 }
 
-void AJRPGBattlePawn::BeginClipMotion(const FClipMotion& Motion, int32 StartFrame, int32 EndFrame, int32 GameSpeed)
+void AJRPGBattlePawn::BeginClipMotion(const FClipMotion& Motion, int32 StartFrame, int32 EndFrame, int32 GameSpeed, bool bOwnSpeed)
 {
 	ActiveMotion = Motion;
 	MotionStartFrame = StartFrame;
 	MotionEndFrame = EndFrame;
 	MotionAppliedFrame = StartFrame;
 	MotionGameSpeed = FMath::Max(GameSpeed, 1);
+	bMotionOwnSpeed = bOwnSpeed;
+	MotionProgress = 0.0;
+	MotionDuration = EndFrame != INDEX_NONE ? FMath::Max(EndFrame - StartFrame, 0) : 0;
 }
 
 void AJRPGBattlePawn::UpdateRootMotion(int32 LogicFrame)
@@ -661,14 +675,15 @@ void AJRPGBattlePawn::UpdateRootMotion(int32 LogicFrame)
 	}
 	// facing * speed * step * escala >> 15 por passada = speed unidades por vsync na escala 8 (0x80047D20..0x80047E18). A escala é a
 	// do clip para quem age, a do mundo para os outros (a câmera lenta das Arts desacelera o recuo junto com a animação)
-	const int32 Scale = !bActionActive && bSlowWorldDuringArts ? WorldAnimSpeed : MotionGameSpeed;
+	const int32 Scale = !bMotionOwnSpeed && bSlowWorldDuringArts ? WorldAnimSpeed : MotionGameSpeed;
 	double Move = static_cast<double>(ActiveMotion.RootSpeed) * UnitsToCm * static_cast<double>(Scale)
 		/ static_cast<double>(UBattleFormulas::NormalGameSpeed) * static_cast<double>(LastFrame - FirstFrame);
 	if (ActiveMotion.RootSpeed > 0)
 	{
-		// Positiva: só enquanto a lei de alcance diz "fora", e só até a borda (uma investida não entra no alvo)
+		// Positiva: só enquanto a lei de alcance diz "fora", e só até a borda (uma investida não entra no alvo). Durante um deslize
+		// (o reach snap) quem anda até a borda é o deslize: somar os dois passaria da borda
 		const AJRPGBattlePawn* Foe = TargetPawn.Get();
-		if (!bActionActive || !Foe || Foe == this)
+		if (!bMotionOwnSpeed || bSliding || !Foe || Foe == this)
 		{
 			return;
 		}
@@ -709,13 +724,14 @@ FVector AJRPGBattlePawn::EndStepShift(float Fraction, bool bHeuristic) const
 	return FVector::ZeroVector;
 }
 
-float AJRPGBattlePawn::ClipMotionFraction(int32 LogicFrame) const
+float AJRPGBattlePawn::ClipMotionFraction() const
 {
-	if (MotionStartFrame == INDEX_NONE || MotionEndFrame == INDEX_NONE || MotionEndFrame <= MotionStartFrame)
+	// O quanto do clip tocou no tempo da animação (MotionProgress anda na velocidade do mundo numa reação), não no relógio
+	if (MotionStartFrame == INDEX_NONE || MotionDuration <= 0)
 	{
 		return 1.0f;
 	}
-	return FMath::Clamp(static_cast<float>(LogicFrame - MotionStartFrame) / static_cast<float>(MotionEndFrame - MotionStartFrame), 0.0f, 1.0f);
+	return FMath::Clamp(static_cast<float>(MotionProgress / static_cast<double>(MotionDuration)), 0.0f, 1.0f);
 }
 
 void AJRPGBattlePawn::SlideBy(const FVector& Shift, int32 LogicFrame, float BlendTime)
@@ -1079,7 +1095,15 @@ void AJRPGBattlePawn::SetWorldAnimSpeed(int32 Speed)
 
 void AJRPGBattlePawn::AdvanceWorldTime()
 {
-	if (bActionActive || WorldAnimSpeed >= UBattleFormulas::NormalGameSpeed)
+	// O progresso do clip em curso: um passo da ação anda 1 por quadro (a velocidade dele já está no clip); uma reação anda na
+	// velocidade do mundo (a câmera lenta, o congelamento do starter)
+	const bool bWorldClock = !bActionActive && bSlowWorldDuringArts;
+	if (MotionStartFrame != INDEX_NONE)
+	{
+		MotionProgress += !bMotionOwnSpeed && bWorldClock
+			? static_cast<double>(WorldAnimSpeed) / static_cast<double>(UBattleFormulas::NormalGameSpeed) : 1.0;
+	}
+	if (!bWorldClock || WorldAnimSpeed >= UBattleFormulas::NormalGameSpeed)
 	{
 		WorldTimeLag = 0.0;
 		return;
@@ -1094,9 +1118,15 @@ void AJRPGBattlePawn::AdvanceWorldTime()
 		{
 			++ReactionEndFrame;
 		}
-		if (MotionEndFrame != INDEX_NONE)
+		// O fim de um passo da ação (o clip que acaba depois do FinishAction) toca na velocidade dele: não estica
+		if (MotionEndFrame != INDEX_NONE && !bMotionOwnSpeed)
 		{
 			++MotionEndFrame;
+		}
+		// Os deslizes de quem não age (o recuo, o passo do fim na volta ao idle) andam no tempo da animação: param no congelamento
+		if (bSliding)
+		{
+			++SlideStartFrame;
 		}
 	}
 }
@@ -1104,7 +1134,8 @@ void AJRPGBattlePawn::AdvanceWorldTime()
 void AJRPGBattlePawn::UpdateStrikeSpacing()
 {
 	const AJRPGBattlePawn* Foe = TargetPawn.Get();
-	if (!bActionActive || !bApproachSettled || !Foe || Foe == this || Foe->IsHidden())
+	const bool bInAction = bActionActive && bApproachSettled;
+	if ((!bInAction && !bPostActionSpacing) || bDown || !Foe || Foe == this || Foe->IsHidden())
 	{
 		return;
 	}
@@ -1117,8 +1148,9 @@ void AJRPGBattlePawn::UpdateStrikeSpacing()
 		return;
 	}
 	const FVector Direction = ToFoe / Distance;
-	// A banda de golpes re-mira o corpo do alvo a cada passada, segurando ou não um golpe (0x801E36F0, 0x801E3AD0)
-	if (bFaceTargetEveryFrame)
+	// A banda de golpes re-mira o corpo do alvo a cada passada, segurando ou não um golpe (0x801E36F0, 0x801E3AD0); depois da ação,
+	// só o recuo
+	if (bFaceTargetEveryFrame && bInAction)
 	{
 		SetActorRotation(FRotator(0.0, Direction.Rotation().Yaw, 0.0));
 	}
@@ -1133,7 +1165,7 @@ void AJRPGBattlePawn::UpdateStrikeSpacing()
 	{
 		return;
 	}
-	const int32 Speed = Action.Steps.IsValidIndex(PlayedStep) ? Action.Steps[PlayedStep].GameSpeed : UBattleFormulas::NormalGameSpeed;
+	const int32 Speed = bInAction && Action.Steps.IsValidIndex(PlayedStep) ? Action.Steps[PlayedStep].GameSpeed : UBattleFormulas::NormalGameSpeed;
 	const double PerFrame = static_cast<double>(InRangeBackoffUnits) * UnitsToCm * static_cast<double>(Speed)
 		/ static_cast<double>(UBattleFormulas::NormalGameSpeed);
 	const double Move = FMath::Min(PerFrame, Edge - Distance);
@@ -1227,6 +1259,7 @@ void AJRPGBattlePawn::BeginAction(const FJRPGActionTimeline& Timeline, AJRPGBatt
 	MotionEndFrame = INDEX_NONE;
 	// Quem age toca os próprios passos na velocidade deles, não na do mundo
 	WorldTimeLag = 0.0;
+	bPostActionSpacing = false;
 	if (Mesh)
 	{
 		Mesh->GlobalAnimRateScale = 1.0f;
@@ -1328,13 +1361,13 @@ void AJRPGBattlePawn::PlayStep(const FJRPGActionStep& Step)
 		StepClipName = Clip->GetFName();
 		StepClipEndFrame = Action.StartFrame + Step.StartFrame + ClipFrames;
 		// O clip do passo move o ator enquanto toca (o Slash Kick recua 7 por vsync) e anda o passo do fim dele (534 à frente)
-		BeginClipMotion(StepMotion(Step), Action.StartFrame + Step.StartFrame, StepClipEndFrame, Step.GameSpeed);
+		BeginClipMotion(StepMotion(Step), Action.StartFrame + Step.StartFrame, StepClipEndFrame, Step.GameSpeed, true);
 	}
 	else
 	{
 		StepClipName = NAME_None;
 		StepClipEndFrame = INDEX_NONE;
-		BeginClipMotion(FClipMotion(), Action.StartFrame + Step.StartFrame, INDEX_NONE, Step.GameSpeed);
+		BeginClipMotion(FClipMotion(), Action.StartFrame + Step.StartFrame, INDEX_NONE, Step.GameSpeed, true);
 	}
 }
 
@@ -1376,6 +1409,8 @@ void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 	}
 	if (!bActionActive)
 	{
+		// Depois da própria ação o recuo dentro do alcance continua (o passo do fim do último clip pode entrar no alvo)
+		UpdateStrikeSpacing();
 		return;
 	}
 	const int32 Elapsed = LogicFrame - Action.StartFrame;
@@ -1412,7 +1447,7 @@ void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 		// (0x80047950..0x80047A28); o reach snap logo abaixo decide onde o golpe seguinte começa
 		if (PlayedStep >= 0)
 		{
-			SlideBy(EndStepShift(ClipMotionFraction(LogicFrame)), LogicFrame, 0.0f);   // o passo seguinte entra com corte seco
+			SlideBy(EndStepShift(ClipMotionFraction()), LogicFrame, 0.0f);   // o passo seguinte entra com corte seco
 		}
 		++PlayedStep;
 		const FJRPGActionStep& Step = Action.Steps[PlayedStep];
@@ -1447,8 +1482,10 @@ void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 
 void AJRPGBattlePawn::FinishAction(int32 LogicFrame)
 {
-	// A ação acabou: fica onde está (sem voltar ao lugar) e passa ao idle
+	// A ação acabou: fica onde está (sem voltar ao lugar) e passa ao idle. O recuo dentro do alcance segue até outra ação começar:
+	// o passo do fim do último clip (o Slash Kick anda 534) ainda vai acontecer
 	bActionActive = false;
+	bPostActionSpacing = true;
 	SetPhase(EJRPGActionPhase::Done);
 	// Os sons que ainda esperavam o resultado de um golpe nunca o receberam (o golpe não foi resolvido): descartados
 	HeldSounds.Reset();

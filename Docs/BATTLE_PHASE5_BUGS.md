@@ -503,6 +503,17 @@ Bug 20 (miss sound) confirmed fixed in PIE. Worked on in parts.
   0.2 for a softer look and its tooltip carries the original's figure. What to look at in PIE: no pop at knockdown -> get-up or
   between combo swings; if idle hand-offs look floaty, try `AnimBlendTime` 0.05..0.1.
 
+- **Codex review of step 1 (2026-11-05): no compile / UHT problem found; six logic findings, all accepted and fixed:**
+  (1) a positive root speed added to the reach-snap slide carried the attacker past the edge: positive root motion now waits
+  while a slide runs; (2) the last clip's end step (Slash Kick +534) happened after the in-range back-off had stopped, so an
+  attacker could stay inside its target: the back-off now keeps running after the action (`bPostActionSpacing`, no re-aim) until
+  another action starts (`EndPostActionSpacing` at `ActionStart`) or the pawn is hit; (3) the pro-rated end step of an interrupted
+  reaction measured wall-clock time under slow motion: `ClipMotionFraction` now uses the clip's own progress (`MotionProgress`,
+  advanced at the world speed for reactions); (4) the idle hand-off slide ignored slow motion and freezes: the slides of a pawn
+  that is not acting now run on its local time (`AdvanceWorldTime` pushes `SlideStartFrame`); (5) after `FinishAction` a step
+  clip still playing switched to the world speed: step clips keep their own speed to the end (`bMotionOwnSpeed`); (6) a missing
+  get-up clip made the knockdown's end step apply twice: the end step is consumed once walked (`ConsumeClipEndStep`).
+
 **Step 1 done (1a-1f, nothing built).** Re-test list: bugs 29, 30, 31, 35 and the PIE notes of 1a-1f above; re-import the four
 tables of 1c first.
 

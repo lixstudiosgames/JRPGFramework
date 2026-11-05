@@ -185,6 +185,9 @@ public:
 	 */
 	void SetWorldAnimSpeed(int32 Speed);
 
+	/** Outra ação começou: o recuo dentro do alcance que este pawn seguia fazendo depois da ação dele acaba. */
+	void EndPostActionSpacing() { bPostActionSpacing = false; }
+
 	/**
 	 * O alcance, em cm, entre este pawn e o alvo, pela lei de alcance do original (ou o ReachDistance fixo), medido da posição
 	 * deste ao corpo do alvo (GetBodyLocation).
@@ -542,8 +545,15 @@ private:
 	/** O movimento do clip de um passo da ação (a linha do monstro, a linha da Art no DT_ArtHits; golpe simples e starter: 0 / 0). */
 	FClipMotion StepMotion(const FJRPGActionStep& Step) const;
 
-	/** O clip que começa no quadro StartFrame e acaba (natural) em EndFrame passa a mover o ator (UpdateRootMotion, EndStepShift). */
-	void BeginClipMotion(const FClipMotion& Motion, int32 StartFrame, int32 EndFrame, int32 GameSpeed);
+	/**
+	 * O clip que começa no quadro StartFrame e acaba (natural) em EndFrame passa a mover o ator (UpdateRootMotion, EndStepShift).
+	 * bOwnSpeed: um passo da ação, que toca na velocidade dele (GameSpeed) até o fim, mesmo depois de a ação acabar; uma reação
+	 * (false) anda na velocidade do mundo.
+	 */
+	void BeginClipMotion(const FClipMotion& Motion, int32 StartFrame, int32 EndFrame, int32 GameSpeed, bool bOwnSpeed);
+
+	/** O passo do fim do clip em curso foi andado: não anda de novo (um clip seguinte que falta não o repete). */
+	void ConsumeClipEndStep() { ActiveMotion.EndStep = 0; }
 
 	/** A velocidade de raiz do clip em curso, quadro a quadro (negativa sempre; positiva só com o alvo fora do alcance). */
 	void UpdateRootMotion(int32 LogicFrame);
@@ -556,7 +566,7 @@ private:
 	FVector EndStepShift(float Fraction, bool bHeuristic = false) const;
 
 	/** A fração do clip em curso que já tocou no quadro dado (1 no fim natural ou depois). */
-	float ClipMotionFraction(int32 LogicFrame) const;
+	float ClipMotionFraction() const;
 
 	/**
 	 * Anda Shift (limitado pela arena) junto com a troca de clip: BlendTime 0 (o clip que entra com corte seco, todo clip de uma vez
@@ -666,6 +676,17 @@ private:
 	int32 MotionGameSpeed = 8;
 	/** Até que quadro lógico a velocidade de raiz já foi aplicada. */
 	int32 MotionAppliedFrame = INDEX_NONE;
+	/** O clip em curso é um passo da ação (toca na velocidade dele) e não uma reação (anda na velocidade do mundo). */
+	bool bMotionOwnSpeed = false;
+	/** Quanto do clip em curso já tocou, em quadros lógicos do clip (na velocidade em que começou), e quanto ele dura. */
+	double MotionProgress = 0.0;
+	int32 MotionDuration = 0;
+
+	/**
+	 * Depois da própria ação: o recuo dentro do alcance continua (o último clip pode terminar com um passo para dentro do alvo, o
+	 * Slash Kick anda 534 unidades), como o original faz no done band. Acaba quando outra ação começa ou ele apanha.
+	 */
+	bool bPostActionSpacing = false;
 
 	/** A velocidade do resto da luta para este pawn (SetWorldAnimSpeed), 0..8, e o atraso acumulado do tempo local dele (< 1 quadro). */
 	int32 WorldAnimSpeed = 8;

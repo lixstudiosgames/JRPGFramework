@@ -419,6 +419,14 @@ void UJRPGBattleSceneSubsystem::HandleBattleEvent(const FJRPGBattleEvent& Event)
 	switch (Event.Type)
 	{
 	case EJRPGBattleEventType::ActionStart:
+		// O recuo dentro do alcance que o atacante anterior seguia fazendo depois da ação dele acaba aqui (o done band do original)
+		for (AJRPGBattlePawn* Pawn : Current->GetBattlePawns())
+		{
+			if (IsValid(Pawn))
+			{
+				Pawn->EndPostActionSpacing();
+			}
+		}
 		// A ação nova apaga o resumo da combo da anterior
 		if (GEngine)
 		{
