@@ -1637,6 +1637,7 @@ const TCHAR* UWebUISubsystem::UIStateToJS(EJRPGUIState State)
 	case EJRPGUIState::SaveLoadOpen:   return TEXT("saveload_open");
 	case EJRPGUIState::ShopOpen:       return TEXT("shop_open");
 	case EJRPGUIState::MainMenuOpen:   return TEXT("main_menu");
+	case EJRPGUIState::BattleOpen:     return TEXT("battle_open");
 	case EJRPGUIState::HudOnly:
 	default:                           return TEXT("hud_only");
 	}
@@ -1849,6 +1850,65 @@ void UWebUISubsystem::OpenItemsScreen()
 
 	SetStateInternal(EJRPGUIState::ItemsOpen);
 	DispatchJS(FString::Printf(TEXT("JRPGItems.open(%s);"), *BuildItemsPayloadJS()));
+}
+
+// ============================================================
+// Menu de comandos da luta
+// ============================================================
+
+bool UWebUISubsystem::OpenBattleUI()
+{
+	if (CurrentState == EJRPGUIState::BattleOpen)
+	{
+		return true;
+	}
+	if (CurrentState != EJRPGUIState::HudOnly)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("WebUISubsystem: OpenBattleUI ignorado — estado atual '%s' não permite abrir o menu da luta."),
+			UIStateToJS(CurrentState));
+		return false;
+	}
+	if (!EnsureShellWidget())
+	{
+		return false;
+	}
+
+	ApplyUIFocus();
+	SetStateInternal(EJRPGUIState::BattleOpen);
+	// O JS revalida via UIState.canOpen (defesa em profundidade); a view chega em seguida, por UpdateBattleUI
+	DispatchJS(TEXT("JRPGBattle.open();"));
+	return true;
+}
+
+void UWebUISubsystem::UpdateBattleUI(const FString& ViewJS)
+{
+	if (CurrentState != EJRPGUIState::BattleOpen)
+	{
+		return;
+	}
+	// A view é um objeto literal montado no C++ (os textos já passaram por ToJSStringLiteral)
+	DispatchJS(FString::Printf(TEXT("JRPGBattle.render(%s);"), *ViewJS));
+}
+
+void UWebUISubsystem::CloseBattleUI()
+{
+	if (CurrentState != EJRPGUIState::BattleOpen)
+	{
+		return;
+	}
+	// O C++ fecha na hora (a rodada vai tocar): o JS só esconde a seção e não chama closemenu de volta
+	DispatchJS(TEXT("JRPGBattle.close();"));
+	HandleCloseRequestFromJS();
+}
+
+void UWebUISubsystem::HandleBattleInputFromJS(const FString& Action, int32 A, int32 B)
+{
+	if (CurrentState != EJRPGUIState::BattleOpen)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("WebUISubsystem: onbattleinput('%s') ignorado — o menu da luta não está aberto."), *Action);
+		return;
+	}
+	OnBattleUIInput.Broadcast(Action, A, B);
 }
 
 void UWebUISubsystem::HandleItemDiscard(FName ItemID, int32 Quantity)

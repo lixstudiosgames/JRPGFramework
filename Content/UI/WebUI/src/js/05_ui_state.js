@@ -1,7 +1,7 @@
 // 05_ui_state.js - Máquina de estados global do Shell
 // Estados: 'hud_only' | 'menu_open' | 'dialogue_active' | 'options_open' |
 //          'saveload_open' | 'shop_open' | 'main_menu' | 'dev_open' |
-//          'party_open' | 'items_open'
+//          'party_open' | 'items_open' | 'battle_open'
 // O popup de item NÃO é estado: é um overlay passivo que pode aparecer sempre.
 
 window.UIState = (function () {
@@ -23,7 +23,9 @@ window.UIState = (function () {
         // Formação da party: só do menu de pausa, e volta para ele.
         party:    ['menu_open'],
         // Inventário: idem.
-        items:    ['menu_open']
+        items:    ['menu_open'],
+        // Menu de comandos da luta: o C++ abre a cada fase de comandos, sempre do jogo (hud_only).
+        battle:   ['hud_only']
     };
 
     return {
@@ -58,6 +60,7 @@ window.resetUIShell = function () {
     if (window.JRPGDev) JRPGDev.reset();
     if (window.JRPGParty) JRPGParty.reset();
     if (window.JRPGItems) JRPGItems.reset();
+    if (window.JRPGBattle) JRPGBattle.reset();
     if (window.InputMode) InputMode.reset();
     UIState.set('hud_only');
     log("Shell resetado (hud_only).");
@@ -97,6 +100,9 @@ window.handleUIInput = function (action) {
             break;
         case 'items_open':
             if (window.JRPGItems) JRPGItems.handleInput(action);
+            break;
+        case 'battle_open':
+            if (window.JRPGBattle) JRPGBattle.handleInput(action);
             break;
         default:
             break;

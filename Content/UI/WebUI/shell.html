@@ -4963,6 +4963,630 @@ html.kbd-mode #screen-dev,
 html.kbd-mode #screen-dev * {
     cursor: auto !important;
 }
+
+/* ==== 95_battle_dpad.css ==== */
+/* ============================================================
+   95_battle_dpad.css — O D-PAD DO MENU DE LUTA (peça isolada, placeholder)
+
+   Par de 95_battle_dpad.js. O contêiner (#bt-dpad) é posicionado pelo 96_battle.css; aqui fica só o desenho do d-pad em si:
+   o ícone central e os quatro botões. Trocar pelos botões 3D = apagar este arquivo e o .js.
+
+   Nada de radial-gradient(ellipse) (o Ultralight desenha um círculo) nem <use> (falha em silêncio).
+   ============================================================ */
+
+#bt-dpad {
+    position: absolute;
+    width: 900px;
+    height: 330px;
+}
+
+#bt-dpad.bdp-empty {
+    display: none;
+}
+
+/* O ícone do meio: o centro do d-pad (450, 165) */
+.bdp-center {
+    position: absolute;
+    left: 420px;
+    top: 135px;
+    width: 60px;
+    height: 60px;
+    fill: #9aa0b4;
+    stroke: #3a3f55;
+    stroke-width: 2;
+    opacity: 0.9;
+}
+
+.bdp-btn {
+    position: absolute;
+    width: 300px;
+    height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, #34389a 0%, #1b1e75 100%);
+    border: 3px solid var(--border-gold);
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+    color: var(--text-primary);
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 34px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.bdp-left  { left: 98px;  top: 130px; }
+.bdp-right { left: 502px; top: 130px; }
+.bdp-up    { left: 300px; top: 20px; }
+.bdp-down  { left: 300px; top: 240px; }
+
+.bdp-btn:hover {
+    border-color: var(--gold-bright);
+    background: linear-gradient(180deg, #454ab8 0%, #272b94 100%);
+}
+
+.bdp-label {
+    position: relative;
+    z-index: 1;
+}
+
+/* O custo no gauge, no canto (tela Attack) */
+.bdp-cost {
+    position: absolute;
+    right: 12px;
+    bottom: 4px;
+    font-size: 17px;
+    letter-spacing: 0;
+    color: var(--gold-light);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Apagado: sem destaque e com um X vermelho por cima. */
+.bdp-btn.disabled {
+    opacity: 0.6;
+    cursor: default;
+    border-color: var(--border-gold-dim);
+    background: linear-gradient(180deg, #25274f 0%, #15163a 100%);
+    color: var(--text-secondary);
+}
+
+.bdp-btn.disabled:hover {
+    border-color: var(--border-gold-dim);
+    background: linear-gradient(180deg, #25274f 0%, #15163a 100%);
+}
+
+.bdp-x {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    fill: none;
+    stroke: #e2586b;
+    stroke-width: 5;
+    stroke-linecap: round;
+    pointer-events: none;
+}
+
+/* ==== 96_battle.css ==== */
+/* ============================================================
+   96_battle.css — MENU DE COMANDOS DA LUTA (placeholder)
+
+   Painéis simples e legíveis; o visual de verdade vem depois. Tudo dentro de #bt-stage é o canvas 1920x1080 escalado por
+   --scale-factor (mesmo padrão das outras telas). O d-pad em si é do 95_battle_dpad.css; aqui só onde ele fica.
+
+   Nada de radial-gradient(ellipse) (o Ultralight desenha um círculo), nada de <use>, e nada position:fixed dentro do
+   canvas escalado (ancora no canvas, não no viewport) — o rodapé de atalhos já está fora dele.
+   ============================================================ */
+
+#screen-battle {
+    display: none;
+}
+
+#screen-battle.active {
+    display: block;
+}
+
+#bt-stage {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 1920px;
+    height: 1080px;
+    transform: translate(-50%, -50%) scale(var(--scale-factor, 1));
+    transform-origin: center center;
+    z-index: 1;
+    font-family: 'Cinzel', Georgia, serif;
+    color: var(--text-primary);
+}
+
+/* O que cada tela mostra: tudo começa escondido e a tela (data-screen) liga o que é dela. */
+#bt-escape-text,
+#bt-targets,
+#bt-tactics,
+#bt-final {
+    display: none;
+}
+
+#bt-stage[data-screen="escape"] #bt-escape-text { display: block; }
+#bt-stage[data-screen="target"] #bt-targets     { display: block; }
+#bt-stage[data-screen="tactics"] #bt-tactics    { display: block; }
+#bt-stage[data-screen="final"] #bt-final        { display: block; }
+
+/* --------------------------------------------------------- botão e chip genéricos */
+.bt-btn {
+    display: inline-block;
+    padding: 8px 30px;
+    background: linear-gradient(180deg, #34389a 0%, #1b1e75 100%);
+    border: 3px solid var(--border-gold);
+    border-radius: 10px;
+    color: var(--text-primary);
+    font-size: 26px;
+    font-weight: 600;
+    text-align: center;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+    cursor: pointer;
+}
+
+.bt-btn:hover,
+.bt-btn.current {
+    border-color: var(--gold-bright);
+    background: linear-gradient(180deg, #454ab8 0%, #272b94 100%);
+}
+
+/* --------------------------------------------------------- migalhas (Begin > Vahn > Attack) */
+#bt-crumbs {
+    position: absolute;
+    left: 50px;
+    top: 36px;
+    display: flex;
+    gap: 8px;
+}
+
+.bt-crumb {
+    padding: 8px 28px;
+    background: linear-gradient(180deg, #7a5a30 0%, #4a3418 100%);
+    border: 3px solid #c9a35a;
+    border-radius: 10px;
+    font-size: 32px;
+    font-weight: 600;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+}
+
+/* --------------------------------------------------------- contagem do auto */
+#bt-auto {
+    position: absolute;
+    left: 960px;
+    top: 36px;
+    transform: translateX(-50%);
+    display: none;
+    align-items: center;
+    gap: 22px;
+}
+
+#bt-auto.active {
+    display: flex;
+}
+
+.bt-auto-text {
+    padding: 8px 26px;
+    background: rgba(8, 20, 48, 0.85);
+    border: 2px solid var(--gold);
+    border-radius: 10px;
+    font-size: 26px;
+    letter-spacing: 3px;
+    color: var(--gold-light);
+}
+
+.bt-auto-cancel {
+    font-size: 22px;
+    padding: 6px 22px;
+}
+
+/* --------------------------------------------------------- onde fica o d-pad */
+#bt-dpad[data-pos="center"] {
+    left: 510px;
+    top: 260px;
+}
+
+#bt-dpad[data-pos="right"] {
+    left: 960px;
+    top: 150px;
+}
+
+#bt-escape-text {
+    position: absolute;
+    left: 960px;
+    top: 200px;
+    transform: translateX(-50%);
+    font-size: 38px;
+    letter-spacing: 3px;
+    color: var(--gold-light);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+}
+
+/* --------------------------------------------------------- alvos */
+#bt-targets {
+    position: absolute;
+    left: 960px;
+    top: 330px;
+    transform: translateX(-50%);
+    text-align: center;
+}
+
+#bt-targets-title {
+    margin-bottom: 20px;
+    font-size: 34px;
+    letter-spacing: 3px;
+    color: var(--gold-light);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+}
+
+#bt-targets-list {
+    display: flex;
+    justify-content: center;
+    gap: 22px;
+}
+
+.bt-target {
+    min-width: 220px;
+    padding: 12px 34px;
+    background: linear-gradient(180deg, #34389a 0%, #1b1e75 100%);
+    border: 3px solid var(--border-gold-dim);
+    border-radius: 12px;
+    font-size: 34px;
+    font-weight: 600;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+    cursor: pointer;
+}
+
+.bt-target:hover {
+    border-color: var(--border-gold);
+}
+
+.bt-target.selected {
+    border-color: var(--gold-bright);
+    background: linear-gradient(180deg, #5560d8 0%, #2f35a8 100%);
+    box-shadow: 0 0 22px rgba(240, 208, 120, 0.55);
+}
+
+/* --------------------------------------------------------- tactics */
+#bt-tactics {
+    position: absolute;
+    left: 960px;
+    top: 150px;
+    width: 1100px;
+    transform: translateX(-50%);
+    padding: 30px 40px 34px;
+    border: 2px solid var(--border-gold-dim);
+}
+
+#bt-tactics-title {
+    text-align: center;
+    font-size: 40px;
+    letter-spacing: 8px;
+    color: var(--gold-light);
+}
+
+#bt-tactics-sub {
+    margin: 6px 0 22px;
+    text-align: center;
+    font-size: 20px;
+    color: var(--text-secondary);
+}
+
+.bt-tactic-row {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    padding: 10px 14px;
+    border-left: 4px solid transparent;
+}
+
+.bt-tactic-row.current {
+    border-left-color: var(--gold);
+    background: linear-gradient(90deg, rgba(212, 168, 67, 0.20), rgba(212, 168, 67, 0.04) 70%, transparent);
+}
+
+.bt-tactic-name {
+    flex: 0 0 200px;
+    font-size: 34px;
+    font-weight: 600;
+}
+
+.bt-tactic-opts {
+    display: flex;
+    gap: 16px;
+}
+
+.bt-opt {
+    min-width: 230px;
+    padding: 8px 20px;
+    border: 2px solid var(--border-gold-dim);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    color: var(--text-secondary);
+    font-size: 28px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.bt-opt:hover {
+    border-color: var(--border-gold);
+    color: var(--text-primary);
+}
+
+.bt-opt.selected {
+    border-color: var(--gold-bright);
+    background: linear-gradient(180deg, #454ab8 0%, #272b94 100%);
+    color: var(--gold-bright);
+}
+
+#bt-tactics-confirm {
+    display: block;
+    width: 300px;
+    margin: 22px auto 0;
+}
+
+/* --------------------------------------------------------- final: quem faz o quê */
+#bt-final {
+    position: absolute;
+    left: 50px;
+    top: 600px;
+}
+
+.bt-final-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.bt-final-who,
+.bt-final-what,
+.bt-final-target {
+    padding: 8px 26px;
+    background: linear-gradient(180deg, #7a5a30 0%, #4a3418 100%);
+    border: 3px solid #c9a35a;
+    border-radius: 10px;
+    font-size: 32px;
+    font-weight: 600;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+}
+
+.bt-final-who    { min-width: 150px; }
+.bt-final-what   { min-width: 220px; }
+.bt-final-target { min-width: 220px; }
+
+/* --------------------------------------------------------- recusa */
+#bt-refusal {
+    position: absolute;
+    left: 960px;
+    bottom: 290px;
+    transform: translateX(-50%);
+    display: none;
+    padding: 8px 26px;
+    background: rgba(40, 8, 14, 0.85);
+    border: 2px solid var(--danger);
+    border-radius: 10px;
+    font-size: 26px;
+    color: #ffb4bd;
+}
+
+#bt-refusal.active {
+    display: block;
+}
+
+/* --------------------------------------------------------- janela de entrada (o bloco de Arts) */
+#bt-art {
+    position: absolute;
+    left: 50px;
+    bottom: 160px;
+    width: 1100px;
+    display: none;
+}
+
+#bt-art.active {
+    display: block;
+}
+
+.bt-art-slots {
+    display: flex;
+    gap: 6px;
+    min-height: 66px;
+    margin-bottom: 10px;
+}
+
+.bt-chip {
+    position: relative;
+    min-width: 150px;
+    height: 62px;
+    padding: 0 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, #34389a 0%, #1b1e75 100%);
+    border: 3px solid var(--border-gold);
+    border-radius: 10px;
+    font-size: 28px;
+    font-weight: 600;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+}
+
+.bt-chip i {
+    position: absolute;
+    right: 8px;
+    bottom: 1px;
+    font-size: 13px;
+    font-style: normal;
+    color: var(--gold-light);
+}
+
+/* Um espaço que ainda cabe: tracejado, vazio. */
+.bt-chip.empty {
+    background: rgba(8, 20, 48, 0.45);
+    border: 3px dashed var(--border-gold-dim);
+    box-shadow: none;
+}
+
+.bt-art-gauge {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.bt-art-label {
+    font-size: 20px;
+    letter-spacing: 3px;
+    color: var(--text-secondary);
+}
+
+.bt-art-track {
+    width: 520px;
+    height: 20px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 2px solid var(--border-gold-dim);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.bt-art-fill {
+    height: 100%;
+    background: linear-gradient(180deg, #e8b04a 0%, #a86a1a 100%);
+}
+
+.bt-art-num {
+    font-size: 24px;
+    color: var(--gold-light);
+    font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------- painel do grupo (embaixo) */
+#bt-party {
+    position: absolute;
+    left: 40px;
+    right: 40px;
+    bottom: 56px;
+}
+
+#bt-party.all {
+    display: flex;
+    gap: 24px;
+}
+
+.bt-card {
+    flex: 1 1 0;
+    padding: 10px 22px 12px;
+    background: linear-gradient(180deg, #34389a 0%, #1b1e75 100%);
+    border: 3px solid var(--border-gold-dim);
+    border-radius: 10px;
+}
+
+.bt-card.down {
+    opacity: 0.5;
+}
+
+.bt-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.bt-name {
+    font-size: 32px;
+    font-weight: 600;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+}
+
+.bt-lv {
+    font-size: 30px;
+    font-variant-numeric: tabular-nums;
+}
+
+.bt-lv-tag {
+    margin-right: 10px;
+    font-style: normal;
+    font-size: 20px;
+    color: var(--gold-light);
+}
+
+.bt-stat {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    font-size: 30px;
+    font-variant-numeric: tabular-nums;
+}
+
+.bt-tag {
+    padding: 0 10px;
+    border-radius: 4px;
+    font-style: normal;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #fff;
+}
+
+.bt-tag.hp { background: #c97a10; }
+.bt-tag.mp { background: #1c8a72; }
+.bt-tag.ap { background: #b3243a; }
+
+/* O herói que está sendo comandado: uma faixa só, com a barra de AP em cima à direita. */
+.bt-focus-bar {
+    display: flex;
+    align-items: center;
+    gap: 70px;
+    padding: 10px 30px;
+    background: linear-gradient(180deg, #34389a 0%, #1b1e75 100%);
+    border: 3px solid var(--border-gold);
+    border-radius: 10px;
+}
+
+.bt-focus-bar .bt-name {
+    flex: 0 0 220px;
+}
+
+.bt-focus-bar .bt-stat {
+    flex: 0 0 360px;
+}
+
+.bt-ap {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 560px;
+    margin: 0 0 10px auto;
+    padding: 6px 18px;
+    background: linear-gradient(180deg, #34389a 0%, #1b1e75 100%);
+    border: 3px solid var(--border-gold-dim);
+    border-radius: 10px;
+}
+
+.bt-ap-track {
+    flex: 1 1 auto;
+    height: 18px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 2px solid var(--border-gold-dim);
+    border-radius: 9px;
+    overflow: hidden;
+}
+
+.bt-ap-fill {
+    height: 100%;
+    background: linear-gradient(180deg, #e8b04a 0%, #b3243a 100%);
+}
+
+.bt-ap-num {
+    font-size: 26px;
+    color: var(--gold-light);
+    font-variant-numeric: tabular-nums;
+}
     </style>
 </head>
 <body>
@@ -5909,6 +6533,56 @@ html.kbd-mode #screen-dev * {
         </div>
     </div>
 </div>
+
+<!-- ============ SEÇÃO: MENU DE COMANDOS DA LUTA (placeholder) ============
+     Aparece SÓ na fase de comandos de cada rodada (o C++ abre com JRPGBattle.open() e fecha com
+     JRPGBattle.close() quando a rodada toca). O JS não decide nada: o C++ manda a view inteira a cada
+     passo (JRPGBattle.render) e este arquivo só a desenha. Contrato em Docs/Guides/WEBUI_API.md.
+
+     O d-pad (#bt-dpad) é um bloco ISOLADO: quem o desenha é 95_battle_dpad.js. Para trocar pelos botões
+     3D ao lado do personagem, é esse arquivo (e o 95_battle_dpad.css) que sai; o resto da tela não muda.
+
+     Tudo dentro de #bt-stage é o canvas 1920x1080 escalado por --scale-factor; o rodapé de atalhos fica
+     FORA dele (position:fixed dentro de transform ancora no elemento, não no viewport). -->
+<div id="screen-battle" class="ui-section">
+    <div id="bt-stage" data-screen="start">
+
+        <div id="bt-crumbs"></div>
+        <div id="bt-auto"></div>
+
+        <div id="bt-escape-text">Run away from this battle?</div>
+        <div id="bt-dpad" data-pos="center"></div>
+
+        <div id="bt-targets">
+            <div id="bt-targets-title">Choose a target</div>
+            <div id="bt-targets-list"></div>
+        </div>
+
+        <div id="bt-tactics" class="jrpg-card">
+            <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+            <div id="bt-tactics-title">TACTICS</div>
+            <div id="bt-tactics-sub">Each hero fights on their own, the way you pick.</div>
+            <div id="bt-tactics-rows"></div>
+            <div id="bt-tactics-confirm" class="bt-btn">Confirm</div>
+        </div>
+
+        <div id="bt-final">
+            <div id="bt-final-rows"></div>
+        </div>
+
+        <div id="bt-refusal"></div>
+        <div id="bt-art"></div>
+        <div id="bt-party"></div>
+    </div>
+
+    <div class="jrpg-hints">
+        <div id="bt-hints" class="jrpg-hints-row">
+            <span class="sl-hint"><span class="key-badge">&#9664;&#9650;&#9654;&#9660;</span> Choose</span>
+            <span class="sl-hint"><span class="key-badge">Enter</span> Confirm</span>
+            <span class="sl-hint"><span class="key-badge">Esc</span> Back</span>
+        </div>
+    </div>
+</div>
     <script>
 // ==== 00_core.js ====
 // 00_core.js - Núcleo do Shell: ponte C++, log e som
@@ -5993,7 +6667,7 @@ function playSound(soundName) {
 // 05_ui_state.js - Máquina de estados global do Shell
 // Estados: 'hud_only' | 'menu_open' | 'dialogue_active' | 'options_open' |
 //          'saveload_open' | 'shop_open' | 'main_menu' | 'dev_open' |
-//          'party_open' | 'items_open'
+//          'party_open' | 'items_open' | 'battle_open'
 // O popup de item NÃO é estado: é um overlay passivo que pode aparecer sempre.
 
 window.UIState = (function () {
@@ -6015,7 +6689,9 @@ window.UIState = (function () {
         // Formação da party: só do menu de pausa, e volta para ele.
         party:    ['menu_open'],
         // Inventário: idem.
-        items:    ['menu_open']
+        items:    ['menu_open'],
+        // Menu de comandos da luta: o C++ abre a cada fase de comandos, sempre do jogo (hud_only).
+        battle:   ['hud_only']
     };
 
     return {
@@ -6050,6 +6726,7 @@ window.resetUIShell = function () {
     if (window.JRPGDev) JRPGDev.reset();
     if (window.JRPGParty) JRPGParty.reset();
     if (window.JRPGItems) JRPGItems.reset();
+    if (window.JRPGBattle) JRPGBattle.reset();
     if (window.InputMode) InputMode.reset();
     UIState.set('hud_only');
     log("Shell resetado (hud_only).");
@@ -6089,6 +6766,9 @@ window.handleUIInput = function (action) {
             break;
         case 'items_open':
             if (window.JRPGItems) JRPGItems.handleInput(action);
+            break;
+        case 'battle_open':
+            if (window.JRPGBattle) JRPGBattle.handleInput(action);
             break;
         default:
             break;
@@ -10903,6 +11583,460 @@ window.JRPGDemo = (function () {
     };
 })();
 ;
+// ==== 95_battle_dpad.js ====
+// 95_battle_dpad.js — O D-PAD DO MENU DE LUTA (peça isolada, feita para ser trocada)
+//
+// Quatro botões em volta de um ícone central: esquerda / cima / direita / baixo. É a ÚNICA peça do menu de luta que
+// sabe desenhar o d-pad; o resto (96_battle.js) só chama render(container, pad) e escuta onPress. Para trocar pelos botões
+// 3D ao lado do personagem: este arquivo e o 95_battle_dpad.css saem, e quem os substitui lê o MESMO `pad` que o C++ manda
+// na view (o d-pad já chega pronto: o rótulo, se está ativo e o custo) e devolve o aperto pelo mesmo onPress(dir) —
+// ou fala direto com o FJRPGBattleMenu no C++, que é quem decide o que cada direção faz.
+//
+// pad = { left, up, right, down }, cada um { label, enabled, cost } ou null (esse lado não é desenhado).
+//   enabled:false  -> o botão é desenhado apagado, com um X por cima, e não é selecionável (o C++ recusa o aperto).
+//   cost >= 0      -> o custo no gauge, mostrado no canto do botão (os botões da tela Attack).
+//
+// Ícones são <path> inline (nunca <use>: falha em silêncio no Ultralight).
+
+window.JRPGBattleDpad = (function () {
+    const DIRS = ['up', 'left', 'right', 'down'];
+
+    // O X por cima do botão apagado (um traço que atravessa o botão inteiro)
+    const X_PATH = 'M6 6 L94 94 M94 6 L6 94';
+    // A cruz do ícone central
+    const CROSS_PATH = 'M17 4h14v13h13v14H31v13H17V31H4V17h13z';
+
+    let pressHandler = null;
+
+    function esc(text) {
+        return String(text === undefined || text === null ? '' : text)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function buttonHtml(dir, b) {
+        if (!b) return '';
+        const cost = (b.cost !== undefined && b.cost >= 0) ? `<span class="bdp-cost">${b.cost}</span>` : '';
+        const x = b.enabled ? '' :
+            `<svg class="bdp-x" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="${X_PATH}"/></svg>`;
+        return `<div class="bdp-btn bdp-${dir}${b.enabled ? '' : ' disabled'}" data-dir="${dir}">` +
+               `<span class="bdp-label">${esc(b.label)}</span>${cost}${x}</div>`;
+    }
+
+    return {
+        /** Quem recebe o aperto: fn(dir) com dir = 'left' | 'up' | 'right' | 'down'. */
+        onPress(fn) {
+            pressHandler = fn;
+        },
+
+        /** Desenha o d-pad dentro de `container` (apaga o que havia). */
+        render(container, pad) {
+            if (!container) return;
+            const any = pad && DIRS.some(d => pad[d]);
+            container.classList.toggle('bdp-empty', !any);
+            if (!any) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML =
+                `<svg class="bdp-center" viewBox="0 0 48 48"><path d="${CROSS_PATH}"/></svg>` +
+                DIRS.map(d => buttonHtml(d, pad[d])).join('');
+
+            container.querySelectorAll('.bdp-btn').forEach(el => {
+                // O mouse só destaca no hover (CSS) e escolhe no clique — nunca move o cursor de navegação
+                el.onmouseenter = () => { if (window.InputMode) InputMode.useMouse(); };
+                el.onclick = () => { if (pressHandler) pressHandler(el.dataset.dir); };
+            });
+        },
+
+        clear(container) {
+            if (!container) return;
+            container.classList.add('bdp-empty');
+            container.innerHTML = '';
+        }
+    };
+})();
+;
+// ==== 96_battle.js ====
+// 96_battle.js — MENU DE COMANDOS DA LUTA (placeholder)
+//
+// Só DESENHA e REPASSA. Quem decide cada passo do fluxo é o C++ (FJRPGBattleMenu, Battle/JRPGBattleMenu.h): a cada aperto o
+// C++ manda a view inteira e esta tela a redesenha. Nada de regra aqui (regra 39): o que cabe no gauge, qual botão é qual
+// direção para a mão do herói, quem é o alvo — tudo já chega pronto na view. Os apertos (teclado, gamepad, mouse) saem por
+// UMA função da ponte: bridge.onbattleinput(action, a, b).
+//
+// C++ -> JS
+//   JRPGBattle.open()         abre a seção (estado 'battle_open')
+//   JRPGBattle.render(view)   desenha a view; view = {
+//       screen: 'start'|'escape'|'tactics'|'command'|'attack'|'target'|'final',
+//       round, sfx,                           (sfx: o som a tocar com esta tela, '' = nenhum)
+//       crumbs: ['Begin','Vahn','Attack'],    (as migalhas, canto de cima à esquerda)
+//       party: [{name,lv,hp,maxhp,mp,maxmp,ap,maxap,alive}], focus: índice do herói comandado ou -1,
+//       dpad: {left,up,right,down},           (cada um {label,enabled,cost} ou null; ver 95_battle_dpad.js)
+//       refusal: '',                          (o motivo de uma recusa do núcleo ou do menu)
+//       art: {chips:[{label,cost}], gauge, left, slots, slotsLeft} | null,    (a janela de entrada)
+//       targets: {list:[{name}], cursor} | null,
+//       tactics: {rows:[{name,pick}], options:[...], row, confirmRow, confirm} | null,
+//       summary: [{who,what,target}],         (a tela Final)
+//       autobattle: {on, pending} }
+//   JRPGBattle.close()        esconde a seção (o C++ já devolveu o input ao jogo)
+// JS -> C++
+//   bridge.onbattleinput('up'|'down'|'left'|'right'|'confirm'|'cancel')
+//   bridge.onbattleinput('pick', a, b)   (um clique por posição: alvo = a; tactics: a = linha, b = opção)
+
+window.JRPGBattle = (function () {
+
+    const section = () => document.getElementById('screen-battle');
+    const el = (id) => document.getElementById(id);
+
+    let isOpen = false;
+    let view = null;
+
+    function esc(text) {
+        return String(text === undefined || text === null ? '' : text)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    /** UM ponto de saída: o aperto vai ao C++, que confere tudo (regra 22). */
+    function send(action, a, b) {
+        const bridge = getBridge();
+        if (bridge && typeof bridge.onbattleinput === 'function') {
+            bridge.onbattleinput(action, a | 0, b | 0);
+        } else {
+            log(`Battle: aperto '${action}' ${a | 0},${b | 0} (ponte offline)`);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // peças
+    // ------------------------------------------------------------------
+
+    function drawCrumbs(v) {
+        const box = el('bt-crumbs');
+        if (!box) return;
+        const list = v.crumbs || [];
+        box.innerHTML = list.map(c => `<span class="bt-crumb">${esc(c)}</span>`).join('');
+    }
+
+    function drawAuto(v) {
+        const box = el('bt-auto');
+        if (!box) return;
+        const a = v.autobattle || {};
+        if (a.pending) {
+            // A contagem do auto: a rodada sai sozinha; o Cancel (ou este botão) volta ao manual
+            box.innerHTML = '<span class="bt-auto-text">AUTO-BATTLE starting</span>' +
+                            '<span class="bt-btn bt-auto-cancel">Cancel</span>';
+            const btn = box.querySelector('.bt-auto-cancel');
+            if (btn) {
+                btn.onmouseenter = () => { if (window.InputMode) InputMode.useMouse(); };
+                btn.onclick = () => send('cancel');
+            }
+            box.classList.add('active');
+        } else if (a.on && v.screen === 'start') {
+            box.innerHTML = '<span class="bt-auto-text">AUTO-BATTLE on</span>';
+            box.classList.add('active');
+        } else {
+            box.innerHTML = '';
+            box.classList.remove('active');
+        }
+    }
+
+    function heroCard(h) {
+        return `<div class="bt-card${h.alive ? '' : ' down'}">
+            <div class="bt-card-top"><span class="bt-name">${esc(h.name)}</span>
+                <span class="bt-lv"><i class="bt-lv-tag">LV</i>${h.lv}</span></div>
+            <div class="bt-stat"><i class="bt-tag hp">HP</i><span>${h.hp} / ${h.maxhp}</span></div>
+            <div class="bt-stat"><i class="bt-tag mp">MP</i><span>${h.mp} / ${h.maxmp}</span></div>
+        </div>`;
+    }
+
+    function drawParty(v) {
+        const box = el('bt-party');
+        if (!box) return;
+        const party = v.party || [];
+        const focus = (v.focus !== undefined && v.focus >= 0) ? party[v.focus] : null;
+
+        if (focus) {
+            // O herói que está sendo comandado: a faixa com HP/MP e, em cima, a barra de AP
+            const pct = focus.maxap > 0 ? Math.max(0, Math.min(100, Math.round(100 * focus.ap / focus.maxap))) : 0;
+            box.className = 'focus';
+            box.innerHTML = `
+                <div class="bt-ap"><i class="bt-tag ap">AP</i>
+                    <div class="bt-ap-track"><div class="bt-ap-fill" style="width:${pct}%"></div></div>
+                    <span class="bt-ap-num">${focus.ap}</span></div>
+                <div class="bt-focus-bar">
+                    <span class="bt-name">${esc(focus.name)}</span>
+                    <span class="bt-stat"><i class="bt-tag hp">HP</i><span>${focus.hp} / ${focus.maxhp}</span></span>
+                    <span class="bt-stat"><i class="bt-tag mp">MP</i><span>${focus.mp} / ${focus.maxmp}</span></span>
+                </div>`;
+        } else {
+            box.className = 'all';
+            box.innerHTML = party.map(heroCard).join('');
+        }
+    }
+
+    function drawArt(v) {
+        const box = el('bt-art');
+        if (!box) return;
+        const art = v.art;
+        if (!art) {
+            box.innerHTML = '';
+            box.classList.remove('active');
+            return;
+        }
+        // Os botões já digitados, e os espaços que ainda cabem (tracejados)
+        const chips = (art.chips || []).map(c =>
+            `<span class="bt-chip"><span>${esc(c.label)}</span><i>${c.cost}</i></span>`).join('');
+        const empty = Array.from({ length: Math.max(0, art.slotsLeft || 0) }, () => '<span class="bt-chip empty"></span>').join('');
+        const limited = art.gauge > 0;
+        const pct = limited ? Math.max(0, Math.min(100, Math.round(100 * art.left / art.gauge))) : 100;
+        box.innerHTML = `
+            <div class="bt-art-slots">${chips}${empty}</div>
+            <div class="bt-art-gauge">
+                <span class="bt-art-label">GAUGE</span>
+                <div class="bt-art-track"><div class="bt-art-fill" style="width:${pct}%"></div></div>
+                <span class="bt-art-num">${limited ? `${art.left} / ${art.gauge}` : 'no limit'}</span>
+            </div>`;
+        box.classList.add('active');
+    }
+
+    function drawTargets(v) {
+        const box = el('bt-targets');
+        const list = el('bt-targets-list');
+        if (!box || !list) return;
+        const t = v.targets;
+        if (!t) {
+            list.innerHTML = '';
+            return;
+        }
+        list.innerHTML = (t.list || []).map((e, i) =>
+            `<div class="bt-target${i === t.cursor ? ' selected' : ''}" data-i="${i}">${esc(e.name)}</div>`).join('');
+        list.querySelectorAll('.bt-target').forEach(node => {
+            node.onmouseenter = () => { if (window.InputMode) InputMode.useMouse(); };
+            node.onclick = () => send('pick', parseInt(node.dataset.i, 10), 0);
+        });
+    }
+
+    function drawTactics(v) {
+        const rowsBox = el('bt-tactics-rows');
+        const confirm = el('bt-tactics-confirm');
+        if (!rowsBox || !confirm) return;
+        const t = v.tactics;
+        if (!t) {
+            rowsBox.innerHTML = '';
+            return;
+        }
+        rowsBox.innerHTML = (t.rows || []).map((r, i) => {
+            const opts = (t.options || []).map((o, k) =>
+                `<span class="bt-opt${k === r.pick ? ' selected' : ''}" data-row="${i}" data-opt="${k}">${esc(o)}</span>`).join('');
+            return `<div class="bt-tactic-row${i === t.row ? ' current' : ''}">
+                <span class="bt-tactic-name">${esc(r.name)}</span><span class="bt-tactic-opts">${opts}</span></div>`;
+        }).join('');
+        confirm.textContent = t.confirm || 'Confirm';
+        confirm.classList.toggle('current', t.row === t.confirmRow);
+
+        rowsBox.querySelectorAll('.bt-opt').forEach(node => {
+            node.onmouseenter = () => { if (window.InputMode) InputMode.useMouse(); };
+            node.onclick = () => send('pick', parseInt(node.dataset.row, 10), parseInt(node.dataset.opt, 10));
+        });
+        confirm.onmouseenter = () => { if (window.InputMode) InputMode.useMouse(); };
+        confirm.onclick = () => send('pick', t.confirmRow, 0);
+    }
+
+    function drawFinal(v) {
+        const rows = el('bt-final-rows');
+        if (!rows) return;
+        rows.innerHTML = (v.summary || []).map(s =>
+            `<div class="bt-final-row"><span class="bt-final-who">${esc(s.who)}</span>` +
+            `<span class="bt-final-what">${esc(s.what)}</span><span class="bt-final-target">${esc(s.target)}</span></div>`).join('');
+    }
+
+    function drawRefusal(v) {
+        const box = el('bt-refusal');
+        if (!box) return;
+        box.textContent = v.refusal || '';
+        box.classList.toggle('active', !!v.refusal);
+    }
+
+    // ------------------------------------------------------------------
+    // a tela
+    // ------------------------------------------------------------------
+
+    function draw(v) {
+        const stage = el('bt-stage');
+        if (stage) stage.setAttribute('data-screen', v.screen || 'start');
+
+        drawCrumbs(v);
+        drawAuto(v);
+        drawParty(v);
+        drawArt(v);
+        drawTargets(v);
+        drawTactics(v);
+        drawFinal(v);
+        drawRefusal(v);
+
+        // O d-pad é a peça isolada (95_battle_dpad.js): a posição (centro ou à direita) é do CSS, pela tela
+        const dpad = el('bt-dpad');
+        if (dpad) {
+            dpad.setAttribute('data-pos', (v.screen === 'command' || v.screen === 'attack') ? 'right' : 'center');
+        }
+        if (window.JRPGBattleDpad) JRPGBattleDpad.render(dpad, v.dpad);
+    }
+
+    function hideSection() {
+        const sec = section();
+        if (sec) sec.classList.remove('active');
+    }
+
+    // ------------------------------------------------------------------
+    // API pública
+    // ------------------------------------------------------------------
+
+    const api = {
+        open() {
+            if (!UIState.canOpen('battle')) {
+                log(`JRPGBattle.open ignorado: estado atual '${UIState.get()}' não permite.`);
+                return;
+            }
+            if (typeof updateUIScaleFactor === 'function') updateUIScaleFactor();
+            isOpen = true;
+            view = null;
+            const sec = section();
+            if (sec) sec.classList.add('active');
+            UIState.set('battle_open');
+            // O C++ mostra o ponteiro ao focar a UI a cada rodada; quem vem jogando de teclado / controle não quer vê-lo de volta
+            if (window.InputMode && !InputMode.isMouse()) {
+                const bridge = getBridge();
+                if (bridge && typeof bridge.setcursorvisible === 'function') bridge.setcursorvisible(false);
+            }
+            if (typeof kickUIRepaint === 'function') kickUIRepaint();
+        },
+
+        render(v) {
+            if (!isOpen || !v) return;
+            view = v;
+            draw(v);
+            if (v.sfx) playSound(v.sfx);
+            if (typeof kickUIRepaint === 'function') kickUIRepaint();
+        },
+
+        close() {
+            if (!isOpen) return;
+            isOpen = false;
+            view = null;
+            hideSection();
+            // O C++ fechou por conta própria (a rodada toca): nada de bridge.closemenu aqui, o input já voltou ao jogo
+            if (UIState.get() === 'battle_open') UIState.set('hud_only');
+            if (typeof kickUIRepaint === 'function') kickUIRepaint();
+        },
+
+        forceCloseIfVisible() {
+            hideSection();
+            isOpen = false;
+            view = null;
+        },
+
+        /** teclado e gamepad chegam aqui (handleUIInput); o mouse vai direto ao send dos próprios elementos. */
+        handleInput(action) {
+            if (!isOpen) return;
+            switch (action) {
+                case 'up': case 'down': case 'left': case 'right': case 'confirm': case 'cancel':
+                    send(action);
+                    break;
+                default:
+                    break;
+            }
+        },
+
+        reset() {
+            hideSection();
+            isOpen = false;
+            view = null;
+            ['bt-crumbs', 'bt-auto', 'bt-art', 'bt-party', 'bt-targets-list', 'bt-tactics-rows', 'bt-final-rows', 'bt-refusal'
+            ].forEach(id => { const n = el(id); if (n) n.innerHTML = ''; });
+            if (window.JRPGBattleDpad) JRPGBattleDpad.clear(el('bt-dpad'));
+        },
+
+        /**
+         * Só para ver a tela no Chrome (a ponte fica offline): JRPGBattle.preview('start' | 'command' | 'attack' | 'target' |
+         * 'final' | 'tactics' | 'escape'). Os dados são de mentira; os apertos só vão para o log.
+         */
+        preview(screen) {
+            const party = [
+                { name: 'Vahn', lv: 6, hp: 347, maxhp: 397, mp: 60, maxmp: 60, ap: 100, maxap: 100, alive: true },
+                { name: 'Noa', lv: 7, hp: 308, maxhp: 384, mp: 47, maxmp: 47, ap: 40, maxap: 100, alive: true },
+                { name: 'Gala', lv: 6, hp: 358, maxhp: 445, mp: 80, maxmp: 80, ap: 0, maxap: 100, alive: true }
+            ];
+            const pad = (l, u, r, d) => ({ left: l, up: u, right: r, down: d });
+            const b = (label, enabled, cost) => ({ label, enabled, cost: cost === undefined ? -1 : cost });
+            const base = {
+                round: 1, sfx: '', crumbs: [], party, focus: -1, refusal: '', art: null, targets: null, tactics: null,
+                summary: [], autobattle: { on: false, pending: false },
+                dpad: pad(null, null, null, null)
+            };
+            const screens = {
+                start: { screen: 'start', dpad: pad(b('Begin', true), b('Tactics', true), b('Escape', true), null) },
+                escape: { screen: 'escape', crumbs: ['Escape'], dpad: pad(b('Confirm', true), null, b('Cancel', true), null) },
+                command: {
+                    screen: 'command', crumbs: ['Begin', 'Vahn'], focus: 0,
+                    dpad: pad(b('Attack', true), b('Item', false), b('Meta', false), b('Spirit', false))
+                },
+                attack: {
+                    screen: 'attack', crumbs: ['Begin', 'Vahn', 'Attack'], focus: 0, refusal: 'Not enough gauge for that button.',
+                    dpad: pad(b('Arms', true, 30), b('High', true, 54), b('Ra-Seru', true, 42), b('Low', false, 54)),
+                    art: { chips: [{ label: 'Ra-Seru', cost: 42 }, { label: 'Ra-Seru', cost: 42 }], gauge: 160, left: 76, slots: 5, slotsLeft: 2 }
+                },
+                target: {
+                    screen: 'target', crumbs: ['Begin', 'Vahn', 'Attack', 'Target'], focus: 0,
+                    art: { chips: [{ label: 'Arms', cost: 30 }], gauge: 160, left: 130, slots: 5, slotsLeft: 4 },
+                    targets: { list: [{ name: 'Frog A' }, { name: 'Frog B' }], cursor: 0 }
+                },
+                tactics: {
+                    screen: 'tactics', crumbs: ['Tactics'],
+                    tactics: {
+                        rows: [{ name: 'Vahn', pick: 0 }, { name: 'Noa', pick: 1 }, { name: 'Gala', pick: 2 }],
+                        options: ['Aggressive', 'Standard', 'Defensive'], row: 1, confirmRow: 3, confirm: 'Confirm'
+                    }
+                },
+                final: {
+                    screen: 'final', crumbs: ['Begin'], dpad: pad(b('Begin', true), null, b('Reselect', true), null),
+                    summary: [{ who: 'Vahn', what: 'Attack', target: 'Frog A' }, { who: 'Noa', what: 'Attack x3', target: 'Frog A' },
+                              { who: 'Gala', what: 'Attack', target: 'Frog B' }]
+                }
+            };
+            const chosen = Object.assign({}, base, screens[screen] || screens.start);
+            if (UIState.get() !== 'battle_open') {
+                resetUIShell();
+                api.open();
+            }
+            api.render(chosen);
+        }
+    };
+
+    // Teclado local (as mesmas ações semânticas — vale no Chrome e dentro do jogo, onde só o Escape vem por
+    // triggerAnimateOutAndClose). O gamepad chega por handleUIInput.
+    window.addEventListener('keydown', (event) => {
+        if (UIState.get() !== 'battle_open') return;
+
+        switch (event.key) {
+            case 'ArrowUp':    case 'w': case 'W': handleUIInput('up');      event.preventDefault(); break;
+            case 'ArrowDown':  case 's': case 'S': handleUIInput('down');    event.preventDefault(); break;
+            case 'ArrowLeft':  case 'a': case 'A': handleUIInput('left');    event.preventDefault(); break;
+            case 'ArrowRight': case 'd': case 'D': handleUIInput('right');   event.preventDefault(); break;
+            case 'Enter': case ' ':                handleUIInput('confirm'); event.preventDefault(); break;
+            case 'Escape': case 'Backspace':       handleUIInput('cancel');  event.preventDefault(); break;
+            default: break;
+        }
+    });
+
+    // O d-pad devolve o aperto de uma direção como a mesma ação do teclado
+    if (window.JRPGBattleDpad) {
+        JRPGBattleDpad.onPress((dir) => send(dir));
+    }
+
+    return api;
+})();
+;
 // ==== 99_boot.js ====
 // 99_boot.js - Boot do Shell (último script a rodar)
 
@@ -10938,6 +12072,10 @@ window.triggerAnimateOutAndClose = function () {
             // Escape contextual: fecha o confirm de descarte antes da tela.
             JRPGItems.handleInput('cancel');
             break;
+        case 'battle_open':
+            // Escape é o Cancel do menu da luta (volta um passo); quem fecha a tela é o C++
+            JRPGBattle.handleInput('cancel');
+            break;
         case 'main_menu':
             // Tela raiz: Escape não fecha o main menu
             break;
@@ -10952,6 +12090,7 @@ window.triggerAnimateOutAndClose = function () {
             if (window.JRPGDev) JRPGDev.forceCloseIfVisible();
             if (window.JRPGParty) JRPGParty.forceCloseIfVisible();
             if (window.JRPGItems) JRPGItems.forceCloseIfVisible();
+            if (window.JRPGBattle) JRPGBattle.forceCloseIfVisible();
             break;
     }
 };

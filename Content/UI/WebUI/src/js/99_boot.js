@@ -32,6 +32,10 @@ window.triggerAnimateOutAndClose = function () {
             // Escape contextual: fecha o confirm de descarte antes da tela.
             JRPGItems.handleInput('cancel');
             break;
+        case 'battle_open':
+            // Escape é o Cancel do menu da luta (volta um passo); quem fecha a tela é o C++
+            JRPGBattle.handleInput('cancel');
+            break;
         case 'main_menu':
             // Tela raiz: Escape não fecha o main menu
             break;
@@ -46,6 +50,7 @@ window.triggerAnimateOutAndClose = function () {
             if (window.JRPGDev) JRPGDev.forceCloseIfVisible();
             if (window.JRPGParty) JRPGParty.forceCloseIfVisible();
             if (window.JRPGItems) JRPGItems.forceCloseIfVisible();
+            if (window.JRPGBattle) JRPGBattle.forceCloseIfVisible();
             break;
     }
 };

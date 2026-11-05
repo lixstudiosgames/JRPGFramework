@@ -119,6 +119,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "JRPG|WebUI")
 	void OnItemDiscard(const FString& ItemID, int32 Quantity);
 
+	/**
+	 * O menu de comandos da luta (bridge.onbattleinput): Action = 'up' 'down' 'left' 'right' 'confirm' 'cancel' ou 'pick' (um
+	 * clique por posição, com A e B). UMA função para o menu todo: quem decide é o FJRPGBattleMenu, a ponte só repassa.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|WebUI")
+	void OnBattleInput(const FString& Action, int32 A, int32 B);
+
 private:
 	UPROPERTY()
 	UWebUISubsystem* WebUISubsystem;

@@ -193,6 +193,22 @@ static JSValueRef JSC_OnItemDiscard(JSContextRef ctx, JSObjectRef, JSObjectRef, 
 	return JSValueMakeUndefined(ctx);
 }
 
+static JSValueRef JSC_OnBattleInput(JSContextRef ctx, JSObjectRef, JSObjectRef, size_t argc, const JSValueRef argv[], JSValueRef*)
+{
+	if (argc > 0)
+	{
+		// Só extrai os dados e despacha — nunca tocar UObject na UL thread
+		FString Action = JSValToFString(ctx, argv[0]);
+		const int32 A = argc > 1 ? JSValToInt32(ctx, argv[1]) : 0;
+		const int32 B = argc > 2 ? JSValToInt32(ctx, argv[2]) : 0;
+		ExecuteOnGameThread([Action, A, B](UWebUIBridge* Bridge)
+		{
+			Bridge->OnBattleInput(Action, A, B);
+		});
+	}
+	return JSValueMakeUndefined(ctx);
+}
+
 static JSValueRef JSC_OnDevCommand(JSContextRef ctx, JSObjectRef, JSObjectRef, size_t argc, const JSValueRef argv[], JSValueRef*)
 {
 	if (argc > 0)
@@ -352,6 +368,7 @@ void UWebUIBridge::BindNativeFunctions(void* RawView)
 	AttachFn("ondevcommand",         JSC_OnDevCommand);
 	AttachFn("onpartytoggle",        JSC_OnPartyToggle);
 	AttachFn("onitemdiscard",        JSC_OnItemDiscard);
+	AttachFn("onbattleinput",        JSC_OnBattleInput);
 
 	// 1. Cria o objeto "ue" (window.ue) para compatibilidade nativa com scripts CEF antigos
 	JSObjectRef UeObj = JSObjectMake(Ctx, nullptr, nullptr);
@@ -452,6 +469,14 @@ void UWebUIBridge::OnItemDiscard(const FString& ItemID, int32 Quantity)
 	if (WebUISubsystem)
 	{
 		WebUISubsystem->HandleItemDiscard(FName(*ItemID), Quantity);
+	}
+}
+
+void UWebUIBridge::OnBattleInput(const FString& Action, int32 A, int32 B)
+{
+	if (WebUISubsystem)
+	{
+		WebUISubsystem->HandleBattleInputFromJS(Action, A, B);
 	}
 }
 

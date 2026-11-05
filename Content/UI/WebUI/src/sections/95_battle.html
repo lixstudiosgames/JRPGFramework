@@ -1,0 +1,49 @@
+<!-- ============ SEÇÃO: MENU DE COMANDOS DA LUTA (placeholder) ============
+     Aparece SÓ na fase de comandos de cada rodada (o C++ abre com JRPGBattle.open() e fecha com
+     JRPGBattle.close() quando a rodada toca). O JS não decide nada: o C++ manda a view inteira a cada
+     passo (JRPGBattle.render) e este arquivo só a desenha. Contrato em Docs/Guides/WEBUI_API.md.
+
+     O d-pad (#bt-dpad) é um bloco ISOLADO: quem o desenha é 95_battle_dpad.js. Para trocar pelos botões
+     3D ao lado do personagem, é esse arquivo (e o 95_battle_dpad.css) que sai; o resto da tela não muda.
+
+     Tudo dentro de #bt-stage é o canvas 1920x1080 escalado por --scale-factor; o rodapé de atalhos fica
+     FORA dele (position:fixed dentro de transform ancora no elemento, não no viewport). -->
+<div id="screen-battle" class="ui-section">
+    <div id="bt-stage" data-screen="start">
+
+        <div id="bt-crumbs"></div>
+        <div id="bt-auto"></div>
+
+        <div id="bt-escape-text">Run away from this battle?</div>
+        <div id="bt-dpad" data-pos="center"></div>
+
+        <div id="bt-targets">
+            <div id="bt-targets-title">Choose a target</div>
+            <div id="bt-targets-list"></div>
+        </div>
+
+        <div id="bt-tactics" class="jrpg-card">
+            <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+            <div id="bt-tactics-title">TACTICS</div>
+            <div id="bt-tactics-sub">Each hero fights on their own, the way you pick.</div>
+            <div id="bt-tactics-rows"></div>
+            <div id="bt-tactics-confirm" class="bt-btn">Confirm</div>
+        </div>
+
+        <div id="bt-final">
+            <div id="bt-final-rows"></div>
+        </div>
+
+        <div id="bt-refusal"></div>
+        <div id="bt-art"></div>
+        <div id="bt-party"></div>
+    </div>
+
+    <div class="jrpg-hints">
+        <div id="bt-hints" class="jrpg-hints-row">
+            <span class="sl-hint"><span class="key-badge">&#9664;&#9650;&#9654;&#9660;</span> Choose</span>
+            <span class="sl-hint"><span class="key-badge">Enter</span> Confirm</span>
+            <span class="sl-hint"><span class="key-badge">Esc</span> Back</span>
+        </div>
+    </div>
+</div>
