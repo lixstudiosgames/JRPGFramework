@@ -65,9 +65,31 @@ bool UBattleFormulas::LimbMisses(bool bAttackerIsHero, int32 PowerByte, int32 Ta
 	}
 }
 
-int32 UBattleFormulas::SwingPowerByte(EJRPGArtButton Button)
+int32 UBattleFormulas::DefaultSwingPowerByte(FName Hero, EJRPGArtButton Button)
 {
-	return Button == EJRPGArtButton::Low ? SwingLowerByte : SwingUpperByte;
+	// Lido dos arquivos de batalha do disco (PROT 0863..0865), seção padrão (id 0) de cada slot de golpe: o calçado dá o
+	// chute baixo (slot 0xE) e o alto (0xF); a arma e o Ra-Seru, os braços (0xC esquerdo, 0xD direito). A Noa é canhota:
+	// o braço esquerdo dela é o Ra-Seru (Terra, 0x1D) e o direito a arma (0x18). RE: docs/reference/glitches/
+	// turn-order-and-arts.md (a tabela dos calçados) e docs/subsystems/battle-action-queue.md (o byte do golpe é o do registro)
+	static const FName Noa(TEXT("Noa"));
+	static const FName Gala(TEXT("Gala"));
+	switch (Button)
+	{
+	case EJRPGArtButton::Arms:   return SwingFreeHighByte;
+	case EJRPGArtButton::RaSeru: return Hero == Noa ? SwingFreeLowByte : SwingFreeHighByte;
+	case EJRPGArtButton::High:   return (Hero == Noa || Hero == Gala) ? SwingRestrictedHighByte : SwingFreeHighByte;
+	default:                     return SwingRestrictedLowByte;
+	}
+}
+
+int32 UBattleFormulas::SwingPowerByte(const FJRPGCombatant& Hero, EJRPGArtButton Button)
+{
+	const int32 Index = static_cast<int32>(Button);
+	if (Hero.SwingBytes.IsValidIndex(Index) && Hero.SwingBytes[Index] > 0)
+	{
+		return Hero.SwingBytes[Index];
+	}
+	return DefaultSwingPowerByte(Hero.Key, Button);
 }
 
 int32 UBattleFormulas::ArtPowerByte(int32 HitPower, EJRPGArtHitTarget Target)

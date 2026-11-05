@@ -52,6 +52,27 @@ namespace
 		return (bRight != bLeftHanded) ? EJRPGArtButton::RaSeru : EJRPGArtButton::Arms;
 	}
 
+	/**
+	 * Os golpes de um golpe simples do botão: os bytes de poder (o perfil do equipamento, senão o byte padrão do herói) e, se o
+	 * perfil traz, os quadros de golpe do clip (beats) e o rate. Sem beats, o quadro padrão da timeline.
+	 */
+	void FillSwingHits(const FJRPGCombatant& Hero, EJRPGArtButton Button, TArray<int32>& OutBytes, TArray<int32>& OutBeats, int32& OutRate)
+	{
+		const int32 Index = static_cast<int32>(Button);
+		if (Hero.SwingProfiles.IsValidIndex(Index) && !Hero.SwingProfiles[Index].PowerBytes.IsEmpty())
+		{
+			const FJRPGBattleSwingProfile& Profile = Hero.SwingProfiles[Index];
+			OutBytes = Profile.PowerBytes;
+			if (Profile.Beats.Num() == Profile.PowerBytes.Num())
+			{
+				OutBeats = Profile.Beats;
+				OutRate = FMath::Max(Profile.Rate, 1);
+			}
+			return;
+		}
+		OutBytes.Add(UBattleFormulas::SwingPowerByte(Hero, Button));
+	}
+
 	EJRPGHitSource SourceForButton(EJRPGArtButton Button)
 	{
 		switch (Button)
@@ -89,6 +110,9 @@ struct FJRPGBattleResolver::FPlanStep
 	int32 Entry = -1;
 	int32 Speed = UBattleFormulas::NormalGameSpeed;
 	TArray<int32> HitBytes;
+	/** Os quadros de golpe do clip (beats) do golpe simples, lidos do equipamento; vazio = o quadro padrão. */
+	TArray<int32> HitBeats;
+	int32 BeatRate = 2;
 	EJRPGHitSource HitSource = EJRPGHitSource::Arms;
 };
 
@@ -549,6 +573,7 @@ void FJRPGBattleResolver::StartAction(int32 Slot)
 	Timelines.Add(Timeline);   // a cópia da apresentação: o índice é o ActionIndex
 	Action.Elapsed = 0;
 	Action.ComboDamage.Init(0, State.Combatants.Num());
+	Action.ComboHits.Init(0, State.Combatants.Num());
 
 	C.TargetSlot = Target;
 	State.ActiveSlot = Slot;
@@ -568,6 +593,24 @@ void FJRPGBattleResolver::StartAction(int32 Slot)
 void FJRPGBattleResolver::EndAction(bool bCancelled)
 {
 	const int32 Slot = State.Action.Slot;
+
+	// Seguro: quem ficou com o HP em 0 sem que algum golpe escrevesse o total (nenhum golpe que conecte sobrou) cai agora
+	for (FJRPGCombatant& C : State.Combatants)
+	{
+		if (C.bAlive && C.HP <= 0)
+		{
+			KillCombatant(C, Slot);
+		}
+	}
+	// O resumo da combo (o HIT / TOTAL do original): quantos golpes acertaram cada alvo e o dano de todos somado, inclusive
+	// o que passou do HP. Sai também com 1 golpe só (Count 1): a apresentação mostra então só o Damage, o DAMAGE do original
+	for (int32 i = 0; i < State.Action.ComboHits.Num(); ++i)
+	{
+		if (State.Action.ComboHits[i] >= 1 && State.Action.ComboDamage.IsValidIndex(i))
+		{
+			Emit(EJRPGBattleEventType::ComboTotal, Slot, i, State.Action.ComboDamage[i], -1, 0, NAME_None, State.Action.ComboHits[i]);
+		}
+	}
 	Emit(EJRPGBattleEventType::ActionEnd, Slot, State.Action.TargetSlot, bCancelled ? 1 : 0);
 	State.Action.bActive = false;
 	State.ActiveSlot = -1;
@@ -693,7 +736,7 @@ bool FJRPGBattleResolver::PlanHeroAction(const FJRPGCombatant& Hero, const FJRPG
 			Step.Kind = EJRPGActionStepKind::Swing;
 			Step.Entry = e;
 			Step.ClipName = SwingClipFor(Entry.Button, Hero.bLeftHanded);
-			Step.HitBytes.Add(UBattleFormulas::SwingPowerByte(Entry.Button));
+			FillSwingHits(Hero, Entry.Button, Step.HitBytes, Step.HitBeats, Step.BeatRate);
 			Step.HitSource = SourceForButton(Entry.Button);
 		}
 		else
@@ -801,7 +844,7 @@ void FJRPGBattleResolver::ExpandSequenceStep(const FJRPGCombatant& Hero, int32 E
 		// Um conector da Super: um golpe simples do botão que o clip representa
 		const EJRPGArtButton Button = ButtonForSwing(Name, Hero.bLeftHanded);
 		Basic.Kind = EJRPGActionStepKind::Swing;
-		Basic.HitBytes.Add(UBattleFormulas::SwingPowerByte(Button));
+		FillSwingHits(Hero, Button, Basic.HitBytes, Basic.HitBeats, Basic.BeatRate);
 		Basic.HitSource = SourceForButton(Button);
 	}
 }
@@ -859,9 +902,19 @@ void FJRPGBattleResolver::ComposeHeroTimeline(const FJRPGCombatant& Hero, const 
 		{
 		case EJRPGActionStepKind::Swing:
 			Frames = bFound && Timing.Frames > 0 ? Timing.Frames : Scaled(Defaults.SwingFrames, Plan.Speed);
-			if (bFound && Timing.HitFrames.Num() == 1)
+			if (bFound && !Timing.HitFrames.IsEmpty() && Timing.HitFrames.Num() == Plan.HitBytes.Num())
 			{
-				HitFrames.Add(Timing.HitFrames[0]);
+				HitFrames = Timing.HitFrames;
+			}
+			else if (!Plan.HitBeats.IsEmpty() && Plan.HitBeats.Num() == Plan.HitBytes.Num())
+			{
+				// O quadro de golpe do registro de golpe do equipamento (DT_HeroSwings), na mesma conta dos monstros: o beat B
+				// cai no quadro B - 1 do clip, e o clip anda no rate dele. O clip cobre o último golpe
+				for (const int32 Beat : Plan.HitBeats)
+				{
+					HitFrames.Add(UBattleFormulas::HitStepForBeat(Beat, Plan.Speed, Plan.BeatRate));
+				}
+				Frames = FMath::Max(Frames, HitFrames.Last() + 1);
 			}
 			else
 			{
@@ -1268,17 +1321,13 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 		return;
 	}
 
-	// O alvo caiu no meio da ação: o vivo de menor slot (o monstro sorteia outro herói); nenhum = o resto não resolve
+	// O original NUNCA muda de alvo no meio da ação (o alvo é fixado no começo dela, actor[+0x1DD]; o re-sorteio
+	// FUN_801DB124 só roda ao despachar a ação, com o alvo já morto) e NUNCA corta a cadeia: soma o combo e escreve o total
+	// no último golpe que conecta, então todos os golpes resolvem no mesmo alvo e o dano que passa do HP se perde. Aqui o
+	// alvo só cai nesse último golpe (ver bAppliesTotal); este retorno é só para um alvo que caiu por outro caminho
 	if (!IsLivingFoe(Attacker, Action.TargetSlot))
 	{
-		const int32 Next = Attacker.Type == EJRPGCombatantType::Enemy ? DrawLivingFoe(Attacker) : LowestLivingFoe(Attacker);
-		if (Next == INDEX_NONE)
-		{
-			CutRestOfAction();
-			return;
-		}
-		Action.TargetSlot = Next;
-		Attacker.TargetSlot = Next;
+		return;
 	}
 	FJRPGCombatant& Defender = State.Combatants[Action.TargetSlot];
 	const bool bHeroAttacker = Attacker.Type != EJRPGCombatantType::Enemy;
@@ -1361,18 +1410,30 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 	Melee.bDefenderGuarding = Defender.bGuarding;
 	const int32 Damage = UBattleFormulas::ResolveMelee(Melee, [this]() { return Rand15(); }).Damage;
 
+	// O HP nunca passa de 0 e o excesso se perde (o original soma o combo e escreve max(HP - total, 0)); o total do combo
+	// guarda o dano de TODOS os golpes, o que passou do HP também (é o que o TOTAL do original mostra)
 	Defender.HP = FMath::Max(Defender.HP - Damage, 0);
 	if (Action.ComboDamage.IsValidIndex(Defender.SlotIndex))
 	{
 		Action.ComboDamage[Defender.SlotIndex] += Damage;
 	}
+	if (Action.ComboHits.IsValidIndex(Defender.SlotIndex))
+	{
+		++Action.ComboHits[Defender.SlotIndex];
+	}
 
 	// A reação: o golpe que mata ou, em quem tem o clip de levantar, que passa de ¼ do HP máximo num só combo (ou
-	// deixa o HP abaixo de ¼) derruba (sem janela de juggle); os outros dão o flinch, alto ou baixo, e abrem a janela
+	// deixa o HP abaixo de ¼) derruba (sem janela de juggle); os outros dão o flinch, alto ou baixo, e abrem a janela.
+	// O original só decide o knockdown no golpe que ESCREVE o total do combo (o último que conecta no alvo; RE:
+	// FUN_801EC3E4 0x801EE380..0x801EE3B4, "kill_check" de melee_reaction_entry): os golpes de antes só dão flinch, mesmo
+	// com o total já passando de ¼. Aqui o HP cai a cada golpe, mas o knockdown segue a regra do original
 	const bool bDead = Defender.HP <= 0;
 	const bool bComboTooBig = Action.ComboDamage.IsValidIndex(Defender.SlotIndex)
 		&& Action.ComboDamage[Defender.SlotIndex] > (Defender.MaxHP >> 2);
-	const bool bKnockdown = bDead || (Defender.bHasGetUp && (bComboTooBig || Defender.HP < (Defender.MaxHP >> 2)));
+	const bool bAppliesTotal = IsLastConnectingHit(HitIndex, bHeroAttacker, Defender);
+	// O alvo com o HP em 0 só cai no golpe que escreve o total: até lá fica de pé (flinch), apanhando o resto da cadeia
+	const bool bFalls = bDead && bAppliesTotal;
+	const bool bKnockdown = bFalls || (bAppliesTotal && Defender.bHasGetUp && (bComboTooBig || Defender.HP < (Defender.MaxHP >> 2)));
 	Defender.bReactionIsBlock = false;
 	if (bKnockdown)
 	{
@@ -1390,7 +1451,7 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 	}
 
 	Emit(EJRPGBattleEventType::Damage, Attacker.SlotIndex, Defender.SlotIndex, Damage, HitIndex, Flags);
-	if (bDead)
+	if (bFalls)
 	{
 		KillCombatant(Defender, Attacker.SlotIndex);
 	}
@@ -1403,46 +1464,24 @@ void FJRPGBattleResolver::KillCombatant(FJRPGCombatant& Of, int32 KilledBy)
 	Of.InitiativeKey = 0;
 	Of.ReactionUntilFrame = 0;
 	Emit(EJRPGBattleEventType::Death, Of.SlotIndex, KilledBy, 0);
-
-	// O último inimigo caiu no meio da combo: o resto da cadeia não resolve (a luta acaba quando a ação acaba)
-	bool bTeamAlive = false;
-	for (const FJRPGCombatant& C : State.Combatants)
-	{
-		if (C.bAlive && C.Team == Of.Team)
-		{
-			bTeamAlive = true;
-			break;
-		}
-	}
-	if (!bTeamAlive && State.Action.bActive)
-	{
-		CutRestOfAction();
-	}
+	// Nada é cortado aqui, nem quando é o último inimigo: o original só testa a vitória no fim da ação (o estado 0x5A,
+	// battle-action.md), então a cadeia inteira bate. A luta acaba quando a ação acaba (EndAction -> CheckFinish)
 }
 
-void FJRPGBattleResolver::CutRestOfAction()
+bool FJRPGBattleResolver::IsLastConnectingHit(int32 HitIndex, bool bHeroAttacker, const FJRPGCombatant& Defender) const
 {
-	FJRPGActiveAction& Action = State.Action;
-	FJRPGActionTimeline& Timeline = Action.Timeline;
-	// O que não chegou nem se credita nem se debita; os golpes que faltam não resolvem
-	Timeline.Hits.SetNum(FMath::Min(Action.NextHit, Timeline.Hits.Num()));
-	Timeline.Marks.SetNum(FMath::Min(Action.NextMark, Timeline.Marks.Num()));
-	Timeline.TotalFrames = FMath::Min(Timeline.TotalFrames, Action.Elapsed + Defaults.KillTailFrames);
-	// Os passos que ainda não começaram saem (a apresentação lê esta cópia e não toca clip nenhum depois do corte); os
-	// golpes que sobraram já foram resolvidos, então só apontam para passos que ficam
-	for (int32 i = Timeline.Steps.Num() - 1; i >= 0 && Timeline.Steps[i].StartFrame > Action.Elapsed; --i)
+	// O original soma o combo e escreve o total no último golpe que ainda conecta com o alvo: os golpes que sobram só
+	// contam se a classe de altura do alvo deixa passar o byte deles (a mesma regra do miss, a olhada adiante do modo
+	// de aplicar, RE: battle-action-queue.md, s2)
+	const TArray<FJRPGActionHit>& Hits = State.Action.Timeline.Hits;
+	for (int32 i = HitIndex + 1; i < Hits.Num(); ++i)
 	{
-		Timeline.Steps.RemoveAt(i);
+		if (!UBattleFormulas::LimbMisses(bHeroAttacker, Hits[i].PowerByte, Defender.TargetClass))
+		{
+			return false;
+		}
 	}
-	if (!Timeline.Steps.IsEmpty())
-	{
-		FJRPGActionStep& Last = Timeline.Steps.Last();
-		Last.EndFrame = FMath::Min(Last.EndFrame, Timeline.TotalFrames);
-	}
-	if (Timelines.IsValidIndex(Timeline.ActionIndex))
-	{
-		Timelines[Timeline.ActionIndex] = Timeline;
-	}
+	return true;
 }
 
 bool FJRPGBattleResolver::RunConditions(FJRPGCombatant& Of, bool bTurnStart)
@@ -1502,7 +1541,7 @@ int32 FJRPGBattleResolver::Rand15()
 	return RandOverride ? RandOverride() : UBattleFormulas::Rand15(State.Rng);
 }
 
-void FJRPGBattleResolver::Emit(EJRPGBattleEventType Type, int32 Slot, int32 Target, int32 Value, int32 HitIndex, int32 Flags, FName ArtKey)
+void FJRPGBattleResolver::Emit(EJRPGBattleEventType Type, int32 Slot, int32 Target, int32 Value, int32 HitIndex, int32 Flags, FName ArtKey, int32 Count)
 {
 	FJRPGBattleEvent& Event = Events.AddDefaulted_GetRef();
 	Event.Type = Type;
@@ -1514,6 +1553,7 @@ void FJRPGBattleResolver::Emit(EJRPGBattleEventType Type, int32 Slot, int32 Targ
 	Event.Frame = State.Frame;
 	Event.Flags = Flags;
 	Event.ArtKey = ArtKey;
+	Event.Count = Count;
 }
 
 void FJRPGBattleResolver::LogFallback(const FString& Key, const FString& Message)
@@ -1559,6 +1599,8 @@ FString FJRPGBattleResolver::DescribeEvent(const FJRPGBattleEvent& Event) const
 		return FString::Printf(TEXT("%s %s performs %s"), *When, *SlotName(Event.SlotIndex), *Event.ArtKey.ToString());
 	case EJRPGBattleEventType::ArtLearned:
 		return FString::Printf(TEXT("%s %s learned %s!"), *When, *SlotName(Event.SlotIndex), *Event.ArtKey.ToString());
+	case EJRPGBattleEventType::ComboTotal:
+		return FString::Printf(TEXT("%s %s combo on %s: %d hits, %d total"), *When, *SlotName(Event.SlotIndex), *SlotName(Event.TargetSlot), Event.Count, Event.Value);
 	case EJRPGBattleEventType::ActionEnd:
 		return FString::Printf(TEXT("%s %s ends%s"), *When, *SlotName(Event.SlotIndex), Event.Value != 0 ? TEXT(" (cut short)") : TEXT(""));
 	default:

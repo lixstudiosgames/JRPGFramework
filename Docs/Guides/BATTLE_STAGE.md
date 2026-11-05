@@ -44,8 +44,10 @@ A fight, start to end:
    - The screen opens.
 4. `EndBattle(Result)` fades to black; the arena destroys the pawns and puts the field back
    exactly as it was (controls, camera, what was hidden); `OnFieldShown` brings the field
-   enemies back at home; the screen opens. For `EncounterGraceTime` seconds after that no new
-   encounter starts.
+   enemies back at home (a zone enemy goes to a point of the zone **away from the player**, farther than its detect
+   radius); the screen opens. The grace period counts **from this moment** (`NoteFieldReturned`):
+   for `PostBattleGraceTime` (5 s) no new encounter starts and no field enemy chases, and one that was already touching the
+   player when the grace ends triggers then. `EncounterGraceTime` (3 s) still separates two encounters.
 
 ---
 
@@ -183,7 +185,7 @@ Directories to Package*. The testers can then change the waves without a new bui
 | Command | |
 |---|---|
 | `JRPG.Battle.Start <EnemyKey> [Count] [Level]` | A fight where the player stands. `JRPG.Battle.Start gimard 3` |
-| `JRPG.Battle.End [victory\|defeat\|escape\|abort]` | Ends the current fight (victory by default). In the Muscle Dome, `victory` calls the next wave. |
+| `JRPG.Battle.End [victory\|defeat\|escape\|abort]` | Ends the current fight (victory by default; it pays the rewards of every enemy, living ones too, to test them). In the Muscle Dome, `victory` calls the next wave. |
 | `JRPG.Battle.Attack [enemy]`, `JRPG.Battle.Arts <buttons> [enemy]`, `JRPG.Battle.Auto` | Play the fight without a HUD ([BATTLE.md](BATTLE.md) section 2) |
 
 ---

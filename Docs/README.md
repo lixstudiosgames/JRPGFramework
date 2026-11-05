@@ -77,6 +77,7 @@ remain for reference.
 | [DT_EnemyActions.csv](Data/DT_EnemyActions.csv) | 1753 | `FJRPGEnemyActionData` |
 | [DT_RaSeruTiers.csv](Data/DT_RaSeruTiers.csv) | 3 | `FJRPGRaSeruTierData` |
 | [DT_WeaponCosts.csv](Data/DT_WeaponCosts.csv) | 18 | `FJRPGWeaponCostData` |
+| [DT_HeroSwings.csv](Data/DT_HeroSwings.csv) | 114 | `FJRPGHeroSwingData` |
 
 `Data/_backup/` holds the copies LegaiaStudio makes on every save.
 

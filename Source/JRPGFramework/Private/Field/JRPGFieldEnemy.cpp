@@ -474,6 +474,11 @@ bool AJRPGFieldEnemy::CanDetect(const APawn* Player) const
 	{
 		return false;
 	}
+	// Depois de uma luta ninguém persegue por um tempo: o jogador sai de cima de quem estava ao lado
+	if (IsEncounterGraceActive())
+	{
+		return false;
+	}
 	if (FVector::Dist2D(Player->GetActorLocation(), GetActorLocation()) > DetectRadius)
 	{
 		return false;
@@ -505,6 +510,14 @@ void AJRPGFieldEnemy::Think()
 
 	const float Now = GetWorld()->GetTimeSeconds();
 	APawn* Player = GetPlayerPawn();
+
+	// Encostou durante a carência (o encontro foi recusado) e continua encostando: o evento de overlap não repete, então
+	// quem decide é aqui, quando a carência acaba
+	if (Player && ContactSphere && ContactSphere->IsOverlappingActor(Player) && !IsEncounterGraceActive())
+	{
+		TriggerEncounter();
+		return;
+	}
 
 	switch (State)
 	{
@@ -750,6 +763,13 @@ void AJRPGFieldEnemy::HandleContactOverlap(UPrimitiveComponent* OverlappedCompon
 
 void AJRPGFieldEnemy::OnContact_Implementation(const FJRPGFieldEncounter& EncounterInfo)
 {
+}
+
+bool AJRPGFieldEnemy::IsEncounterGraceActive() const
+{
+	const UGameInstance* GI = GetGameInstance();
+	const UBattleSubsystem* Battle = GI ? GI->GetSubsystem<UBattleSubsystem>() : nullptr;
+	return Battle && Battle->IsInEncounterGrace();
 }
 
 void AJRPGFieldEnemy::TriggerEncounter()
@@ -1015,7 +1035,13 @@ void AJRPGFieldEnemy::ResetToHome()
 {
 	const float Half = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
 	FVector Floor;
-	if (!Zone || !Zone->GetRandomFloorPoint(Floor))
+	// Na zona, longe do jogador (a luta foi montada em cima dele): fora do raio de detecção, para ninguém estar colado
+	// quando a tela abrir
+	const APawn* Player = GetPlayerPawn();
+	const bool bPicked = Zone && (Player
+		? Zone->GetRandomFloorPointAway(Player->GetActorLocation(), DetectRadius + 200.0f, Floor)
+		: Zone->GetRandomFloorPoint(Floor));
+	if (!bPicked)
 	{
 		Floor = HomeLocation - FVector(0.0f, 0.0f, Half);
 	}

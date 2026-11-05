@@ -104,6 +104,15 @@ struct JRPGFRAMEWORK_API FJRPGEnemyData : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy")
 	int32 TargetClass = 0;
 
+	/**
+	 * A classe de tamanho do monstro (+0x1F do registro): decide até onde o golpe dele e o dos heróis alcançam (a lei de
+	 * alcance FUN_8004E2F0). O limiar de alcance é {256, 384, 1024}[classe] se a classe é menor que 3, senão classe << 4
+	 * (unidades do PS1; 0.433 cm cada). O disco vai de 14 a 48. 0 = não se sabe (linha criada à mão): a apresentação usa
+	 * uma classe padrão (AJRPGBattlePawn::DefaultSizeClass).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy")
+	int32 SizeClass = 0;
+
 	// --- Stats (registro cru; UJRPGBattleRules::InstallEnemyStats dá os da luta) ---
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy|Stats")

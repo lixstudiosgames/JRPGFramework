@@ -7,6 +7,7 @@ golpe, custo de AGL, rate, seletor de status, tamanho do clip).
 Formato (legend-of-legaia-re, docs/formats/monster-animation.md e docs/subsystems/battle-formulas.md):
 
   registro   +0x1D elemento, +0x1E classe do alvo (a altura: 0 todo golpe alcança, 2 voando, 3 baixo),
+             +0x1F classe de tamanho (14..48 no disco; dá o alcance do golpe, FUN_8004E2F0),
              +0x21..+0x23 ids de magia, +0x4A (u8) quantidade de ações, +0x4C u32[] offsets das
              ações (relativos ao começo do bloco)
   ação       +0x00 tag (e o 1º byte de poder), +0x00..+0x03 bytes de poder (um por golpe),
@@ -64,6 +65,7 @@ def parse_block(block):
     return {
         "element": block[0x1D],
         "target_class": block[0x1E],
+        "size_class": block[0x1F],
         "magic": [b for b in block[0x21:0x24] if b > 1],
         "actions": actions,
     }

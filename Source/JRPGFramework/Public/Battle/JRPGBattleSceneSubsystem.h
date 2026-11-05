@@ -7,6 +7,7 @@
 
 class AJRPGBattleArena;
 class AJRPGBattlePawn;
+class UBattleSubsystem;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnJRPGBattleSceneEvent);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnJRPGBattleSceneAssembled, AJRPGBattleArena*, Arena, const TArray<AJRPGBattlePawn*>&, Pawns);
@@ -59,6 +60,13 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Scene")
 	bool IsFieldHidden() const { return bFieldHidden; }
 
+	/**
+	 * Esconde o prompt de debug na tela ("Round 1 - command for Vahn: JRPG.Battle.Attack...") e o aviso vermelho de comando recusado
+	 * enquanto a UI de comando da luta (UJRPGBattleUISubsystem) está de pé; as duas linhas continuam no log. Os comandos de console seguem
+	 * valendo — é só a tela que fica limpa.
+	 */
+	void SetDebugPromptSuppressed(bool bSuppress);
+
 protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
 
@@ -86,6 +94,16 @@ private:
 	/** Quem digita / age mudou: avisa na tela de quem é o comando. */
 	UFUNCTION()
 	void HandleSlotChanged(int32 Slot, EJRPGBattleStage Stage);
+
+	/** Um comando foi recusado: o motivo na tela, em vermelho, ao lado do prompt (a luta não parece travada). */
+	UFUNCTION()
+	void HandleCommandRefused(int32 Slot, const FString& Why);
+
+	/** O prompt de quem digita, na tela e no log. */
+	void ShowCommandPrompt(const UBattleSubsystem& Battle, int32 Slot) const;
+
+	/** O Field voltou ao jogador: começa a carência de depois da luta no UBattleSubsystem. */
+	void NoteFieldReturnedToBattleSubsystem();
 
 	/** Um quadro lógico andou: os pawns tocam em compasso. */
 	UFUNCTION()
@@ -115,4 +133,7 @@ private:
 
 	EPhase Phase = EPhase::Idle;
 	FTimerHandle TransitionTimer;
+
+	/** A UI de comando está de pé: o prompt de debug na tela fica escondido (ver SetDebugPromptSuppressed). */
+	bool bDebugPromptSuppressed = false;
 };

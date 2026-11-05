@@ -581,7 +581,9 @@ the same job, and the hero models configured by hand.
 - Models come from the DataTables: `DT_Characters.BattleMesh` / `BattleAnims` for heroes,
   `DT_Enemies.Mesh` / `Anims` for enemies.
 - `EndBattle` → black → `TeardownBattle` (everything back exactly as it was) → `OnFieldShown`
-  → screen opens. `EncounterGraceTime` also counts from the end.
+  → screen opens. `EncounterGraceTime` also counts from the end, and a longer `PostBattleGraceTime` (5 s) counts from the
+  moment the field is shown again: until it passes no encounter starts and no field enemy chases (bug 4 of the Phase 5 test
+  batch: an enemy standing next to the player started a new fight ~3 s after a victory).
 
 Console: `JRPG.Battle.Start <EnemyKey> [Count] [Level]` and `JRPG.Battle.End
 [victory|defeat|escape|abort]`.
@@ -712,8 +714,27 @@ input window inside a turn, damage per hit with each Art's power, AP on the comb
   beat over its rate (the RE's measurements are tests: Gobu Gobu 16, Zeto 32, Caruban 40, Vahn 12, Gilium under an Art 32).
 - **The block's second gate** is "the defender still stands" (above). **Inside a reaction window** the roll is overridden as in the
   RE port: a defender in its block window keeps blocking, one in a flinch window cannot block.
-- **Knockdown**: a hit that kills, or (on someone with a get-up clip) takes more than ¼ of max HP in one action or leaves it under ¼,
-  knocks down and opens no juggle window; the others flinch (high hit: flinch 1, low: flinch 2) and open the window.
+- **Knockdown**: a hit that kills, or (on someone with a get-up clip) the **last connecting hit of the action** when the combo took more
+  than ¼ of max HP or left it under ¼, knocks down and opens no juggle window; the others flinch (high hit: flinch 1, low: flinch 2)
+  and open the window. The original adds the combo up and decides once, on the hit that writes the total (`melee_reaction_entry`'s
+  `kill_check`), so a combo does not flag every hit after the ¼ as a knockdown. The pawn plays Knockdown → GetUp → Idle.
+- **The target falls mid-chain**: **nothing is cut and nothing is retargeted** (RE: the target is fixed at dispatch, `actor[+0x1DD]`; the
+  combo total is added up and written to HP once, on the last connecting hit, floored at 0; the wipe is only tested at the end of the
+  action, state `0x5A`). Every hit still resolves on the same target, HP stops at 0 and the excess is discarded (never dealt to anyone
+  else). The target only falls (Death, `KillCombatant`, the knockdown) on the last connecting hit; until then it flinches. That holds for
+  the last enemy too: a 99-hit Art lands 99 hits and victory comes when the action ends. At the end of the action a `ComboTotal` event
+  (`Count` hits, `Value` = the damage of every hit, excess included; sent for 1+ hits) shows the on-screen summary: nothing during
+  the combo (each hit only shows its damage over the target), and at the end of the action the cluster reads "Hit N" over "Damage X" (a one-hit action only "Damage X"),
+  the original's `HIT` / `TOTAL` cluster (`DAT_8007BD14`, one running sum of the landed hits, shown until the `0x51` teardown).
+- **Party swings** come from the swing record of what is equipped (`DT_HeroSwings`, one row per hero + item + button, read from PROT
+  0863..0865 by `generate_hero_battle_csv.py`): the power byte(s), the hit beat(s) (the frame of the clip where each hit falls; 1 or 2
+  per swing), the rate and the button cost. The plain swing's hit lands at logic frame `ceil(32 (beat − 1) / (8 × rate))`, as the monsters'
+  do, instead of the one `SwingHitFrame`. Default section (nothing equipped): Arms `0x18`, Ra-Seru `0x18` (Noa `0x1D`), High `0x18` (Vahn)
+  or `0x0E` (Noa, Gala), Low `0x13`; the restricted ones (`0x13` Low, `0x0E` High) miss class 2 / class 3 targets, the boots that bring
+  `0x1D` / `0x18` do not. Missing table or row: the default byte and the default frame, as before.
+- **Reach** is the original's range law by size class (`DT_Enemies.SizeClass`), knockback is per hit (the defender turns and slides back,
+  the attacker follows at each step), nobody walks back to a seat (confirmed by the RE, `battle-action.md`).
+- **A refused command** (`OnCommandRefused`) shows on screen in red next to the prompt, with the reason.
 - **The monster's swings** are queued with the original's budget loop (a random candidate; it is queued if the AGL pool pays;
   15 swings or 16 unpaid draws); with a next swing queued and `Gate` 0 the clip is cut at beat + 3 and the later hits are lost. A monster
   with no swing row (the data is missing, or `cort`, whose script is Phase 8) hits with a default swing, logged (`ActionIndex` −1: the pawn
@@ -755,7 +776,7 @@ random-encounter profile). A scripted fight also cannot be escaped and rolls no 
 advantage (`ctx+0x287`).
 
 **Data the fight needs from the disc** (Phase 5 generator work like Phase 1's — **written 2026-11-04**:
-`DT_EnemyActions`, `DT_Enemies.TargetClass`, `DT_Bosses.bScriptedFight`, `DT_RaSeruTiers`, `DT_WeaponCosts`;
+`DT_EnemyActions`, `DT_Enemies.TargetClass` and `.SizeClass`, `DT_Bosses.bScriptedFight`, `DT_RaSeruTiers`, `DT_WeaponCosts`, `DT_HeroSwings`;
 [Guides/ENEMIES.md](Guides/ENEMIES.md)):
 
 | Data | From (RE) | For |
@@ -854,6 +875,9 @@ USTRUCT(BlueprintType) struct FJRPGCombatant {
                               // folded per hit (Damage formula › Equipment fold)
   EJRPGElement Element;       // heroes: Vahn fire, Noa wind, Gala thunder, Terra wind; enemies: DT_Enemies
   int32 TargetClass;          // enemies: record +0x1E (the miss by height); heroes: 0
+  int32 SizeClass;            // enemies: record +0x1F (the reach of the range law, FUN_8004E2F0); heroes: 0
+  TArray<int32> SwingBytes;   // heroes: the plain swing's power byte per button, from the equipment's swing record (empty = the default)
+  TArray<FJRPGBattleSwingProfile> SwingProfiles;   // heroes: per button, the swing record's power bytes, hit beats and rate (DT_HeroSwings)
   int32 AP, MaxAP;            // persistent meter (Arts add, specials spend)
   int32 CommandGauge, MaxCommandGauge;   // the AGL pool: the input budget and the enemy's action budget
   TArray<int32> ButtonCost;   // heroes: per button, from the weapon (30 / 42 / 54)
@@ -962,7 +986,13 @@ HighHit = (b - 0x0C) % 10 < 5            // high hits roll against UDF, low ones
 
 **Miss by height** (hero attackers only; the monster's `TargetClass`): `b < 0x16` against class 2
 misses when `b >= 0x11`; against class 3 when `b < 0x11`. A miss draws nothing and does nothing
-(a `Miss` event).
+(a `Miss` event). The party's **plain swings** go through this too: their byte is the equipment's swing record's first
+byte (RE `docs/reference/glitches/turn-order-and-arts.md`): `0x18` / `0x1D` are free (power 20, UDF / LDF), `0x0E` is a
+restricted high kick (misses short targets) and `0x13` a restricted low kick (misses floating ones). The default footwear
+gives Low `0x13` for all three heroes and High `0x0E` for Noa and Gala, `0x18` for Vahn — so a plain Low swing always
+misses a flyer, as in the original (`UBattleFormulas::DefaultSwingPowerByte`). Equipment that brings the free pair
+(Gala's War God Boots, Vahn's Triumph and Ra-Seru Boots) is read from `DT_HeroSwings` (`UBattleSubsystem::ApplyHeroSwings` →
+`FJRPGCombatant::SwingBytes` / `SwingProfiles`).
 
 **Block** (a defender that has a block clip — tag `0x0B` — and passes the RE's second gate,
 `target[+0x0] < defender HP` — settled 2026-11-04 from the RE port (`World::roll_block`): the word is the combo
@@ -1103,9 +1133,16 @@ a set of rules, not trimming the Arts:
 
 1. **The target is the wall.** The original's range law (`FUN_8004E2F0`, the in-range back-off
    `0x80047C3C`) holds an attacker at the edge of its reach while it strikes: its clips cannot
-   carry it through the enemy. The remake keeps that — forward movement stops at reach distance.
+   carry it through the enemy. The remake keeps that — forward movement stops at reach distance,
+   which is the law's own: the threshold of the target's size class (`{256, 384, 1024}[class]` PSX units under 3, else
+   `class << 4`; the hero adds his offset `+43 / 0 / -53 / -100`), 0.433 cm a unit. At the start of every step the attacker
+   closes the distance again (the commit's "reach snap"), so a defender that slid back keeps being reached.
+   RE confirmation of the rest of this section: "an action does not return its combatants to their authored formation
+   seats ... there is no walk-home leg ... no recover backstep" (`battle-action.md`, "Where an action leaves its combatants").
 2. **The arena bounds clamp everyone.** Knockback, the arrival shove and the attacker's own root
-   movement are all clamped to the arena's area (`AJRPGBattleArena`). A target pinned against the
+   movement are all clamped to the arena's area (`AJRPGBattleArena`). Knockback is what pushes the defender back on each hit
+   (the original does it through the reaction clip's root speed `+0x0C` and end step `+0x0E`; the remake uses a per-hit
+   distance, `FlinchKnockback` 45 cm / `KnockdownKnockback` 120 cm / `BlockKnockback` 20 cm on the pawn). A target pinned against the
    edge stops the attacker by rule 1, so the whole fight stays inside.
 3. **Fighters keep their distance.** A minimum spacing between any two combatants (allies
    included), so a party that drifted forward does not stack on the enemy line.
@@ -1149,7 +1186,7 @@ And the failures, each an automation test where it can be one (no map):
 | Two equal initiative keys | The tie drawn from the fight's `Rng` (the original's rule); the same seed gives the same order every run |
 | A hero's ATK in the snapshot | The base stat, with a sword equipped too; a High hit folds half the shoes' ATK, an Art half of all five pieces |
 | The damage kernel (no map) | The RE's worked example (Vahn vs Evil Fly, `battle-formulas.md`) and its regression cases give the same numbers with the same draws |
-| The last enemy dies in the middle of a combo | The rest of the chain does not resolve; victory once the action ends |
+| The last enemy dies in the middle of a combo | The whole chain still resolves (HP stops at 0, the excess is lost; the original tests the wipe only at the end of the action); the enemy falls on the last hit and victory comes once the action ends |
 | A clip is missing | The default frames; the fight goes on, a log line says which |
 | The fight ends during a transition (fade, a second `EndBattle`) | Ends once; rewards once |
 | `Aborted` | The party exactly as before the fight; no item consumed, no reward |
@@ -1304,7 +1341,7 @@ recognition time, `+0x170`). **Decided 2026-11-04** (open question 6):
 | Moment | What happens |
 |---|---|
 | **Commit** (the chain is recognized) | The chain is walked **left to right** with a running AP (start: the hero's AP). A loose regular Art adds its `APGain` (capped at 100); a special that fits the running AP is kept and subtracts its `APCost`; one that does not fit is downgraded to its buttons (plain swings / the regular Arts inside it, which add as loose Arts) and the walk goes on. Nothing is debited or credited yet |
-| **Each Art, when its action reaches it** | The meter moves the same way, step by step: a loose regular Art **credits** `APGain` at its first hit (an Art cut short by the enemy's death still credits); a kept special **debits** `APCost` when it starts; the Arts inside a fired Super move nothing. The meter never goes below 0 — the commit already made sure every special fits where it is |
+| **Each Art, when its action reaches it** | The meter moves the same way, step by step: a loose regular Art **credits** `APGain` at its first hit (an Art whose target already fell still goes on and credits); a kept special **debits** `APCost` when it starts; the Arts inside a fired Super move nothing. The meter never goes below 0 — the commit already made sure every special fits where it is |
 | **The action is cancelled** (the hero dies, the fight ends) | What was not reached is neither credited nor debited |
 
 Examples:
@@ -1423,6 +1460,11 @@ Two kinds of work, kept apart: the **rules** go through the combat core like Pha
   enum** (values are serialized in Blueprints). New `UWebUIBridge` callbacks:
   `OnBattleCommand`, `OnBattleArtsButton`, `OnBattleArtsCommit`, `OnBattleTargetChanged`.
   C++→JS always goes through `UWebUISubsystem`, never `ExecuteJS` from `UBattleSubsystem`.
+  *Status (2026-11-05): a placeholder of this screen's core exists — the command phase only (Start /
+  Tactics / Attack inputs / Target / Final, auto-battle tactics), see
+  [Guides/BATTLE.md › Battle UI](Guides/BATTLE.md#13-battle-ui). It uses ONE bridge callback,
+  `onbattleinput`, instead of the four listed above, and keeps the choices in a buffer sent on Begin. The
+  enemy row, the AP bar with cost markers and the damage log below are still to do.*
 - **Attack camera.** `FocusOnActor` on turn start, `PlayCameraShake` on `Strike`, `Orbit`
   on victory.
 - **Sound — the rest of it.** Phase 2 brought the monsters' sounds and the party clips' own cues;

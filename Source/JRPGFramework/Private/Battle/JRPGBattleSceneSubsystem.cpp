@@ -72,7 +72,8 @@ namespace
 		{
 			Result = EJRPGBattleResult::Aborted;
 		}
-		Battle->EndBattle(Result);
+		// Atalho de teste: a vitória paga o EXP e o Gold de todos os inimigos, vivos também (a de verdade só conta os caídos)
+		Battle->EndBattleForDebug(Result, Result == EJRPGBattleResult::Victory);
 	}
 
 	TAutoConsoleVariable<int32> CVarPrintBattleEvents(
@@ -105,18 +106,37 @@ namespace
 		return INDEX_NONE;
 	}
 
+	/** A chave da linha de recusa na tela, ao lado do prompt (7421): a linha nova substitui a velha. */
+	constexpr uint64 RefusalMessageKey = 7422;
+	constexpr uint64 PromptMessageKey = 7421;
+
+	/** O resumo da combo no fim da ação: "Hit N" na linha de cima, "Damage X" na de baixo (a linha nova substitui a velha). */
+	constexpr uint64 ComboHitMessageKey = 7430;
+	constexpr uint64 ComboDamageMessageKey = 7431;
+	constexpr float ComboMessageSeconds = 10.0f;
+
+	/** Um aviso de comando que não valeu: no log E na tela (senão a luta parece travada esperando o comando). */
+	void ShowCommandNotice(const FString& Text)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("BattleScene: %s"), *Text);
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(RefusalMessageKey, 12.0f, FColor::Red, Text);
+		}
+	}
+
 	/** A luta em andamento, esperando o comando de alguém; senão avisa e devolve nulo. */
 	UBattleSubsystem* BattleWaitingForCommands(UWorld* World, const TCHAR* Command)
 	{
 		UBattleSubsystem* Battle = GetBattleSubsystem(World);
 		if (!Battle || !Battle->IsInBattle())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("%s: nenhuma luta acontecendo"), Command);
+			ShowCommandNotice(FString::Printf(TEXT("%s: nenhuma luta acontecendo"), Command));
 			return nullptr;
 		}
 		if (Battle->GetState().Stage != EJRPGBattleStage::Commands || Battle->GetActiveSlot() < 0)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("%s: a luta não está esperando comandos (a rodada está tocando)"), Command);
+			ShowCommandNotice(FString::Printf(TEXT("%s: a luta não está esperando comandos (a rodada está tocando)"), Command));
 			return nullptr;
 		}
 		return Battle;
@@ -166,7 +186,7 @@ namespace
 		TArray<EJRPGArtButton> Buttons;
 		if (!UJRPGArtsRules::ParseButtons(ButtonText, Hero.bLeftHanded, Buttons) || Buttons.IsEmpty())
 		{
-			UE_LOG(LogTemp, Warning, TEXT("JRPG.Battle.Arts: não entendi os botões '%s' (Arms, Ra-Seru, High, Low; ou A R H L; ou setas)"), *ButtonText);
+			ShowCommandNotice(FString::Printf(TEXT("JRPG.Battle.Arts: não entendi os botões '%s' (Arms, Ra-Seru, High, Low; ou A R H L; ou setas)"), *ButtonText));
 			return;
 		}
 		FJRPGBattleCommand Command;
@@ -245,6 +265,7 @@ void UJRPGBattleSceneSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 		Battle->OnBattleEvent.AddDynamic(this, &UJRPGBattleSceneSubsystem::HandleBattleEvent);
 		Battle->OnSlotChanged.AddDynamic(this, &UJRPGBattleSceneSubsystem::HandleSlotChanged);
 		Battle->OnLogicFrame.AddDynamic(this, &UJRPGBattleSceneSubsystem::HandleLogicFrame);
+		Battle->OnCommandRefused.AddDynamic(this, &UJRPGBattleSceneSubsystem::HandleCommandRefused);
 	}
 }
 
@@ -263,6 +284,7 @@ void UJRPGBattleSceneSubsystem::Deinitialize()
 		Battle->OnBattleEvent.RemoveDynamic(this, &UJRPGBattleSceneSubsystem::HandleBattleEvent);
 		Battle->OnSlotChanged.RemoveDynamic(this, &UJRPGBattleSceneSubsystem::HandleSlotChanged);
 		Battle->OnLogicFrame.RemoveDynamic(this, &UJRPGBattleSceneSubsystem::HandleLogicFrame);
+		Battle->OnCommandRefused.RemoveDynamic(this, &UJRPGBattleSceneSubsystem::HandleCommandRefused);
 		// O mapa saiu no meio da luta: ela não pode ficar aberta no GameInstance
 		if (Battle->IsInBattle())
 		{
@@ -334,6 +356,7 @@ void UJRPGBattleSceneSubsystem::HandleBattleEnded(EJRPGBattleResult Result)
 		}
 		ReleaseArena();
 		Phase = EPhase::Idle;
+		NoteFieldReturnedToBattleSubsystem();
 		OnFieldShown.Broadcast();
 		return;
 	}
@@ -389,6 +412,12 @@ void UJRPGBattleSceneSubsystem::HandleBattleEvent(const FJRPGBattleEvent& Event)
 	switch (Event.Type)
 	{
 	case EJRPGBattleEventType::ActionStart:
+		// A ação nova apaga o resumo da combo da anterior
+		if (GEngine)
+		{
+			GEngine->RemoveOnScreenDebugMessage(ComboHitMessageKey);
+			GEngine->RemoveOnScreenDebugMessage(ComboDamageMessageKey);
+		}
 		if (AJRPGBattlePawn* Actor = PawnOf(Event.SlotIndex))
 		{
 			if (const FJRPGActionTimeline* Timeline = Battle->FindTimeline(Event.ActionIndex))
@@ -409,6 +438,24 @@ void UJRPGBattleSceneSubsystem::HandleBattleEvent(const FJRPGBattleEvent& Event)
 		if (AJRPGBattlePawn* Target = PawnOf(Event.TargetSlot))
 		{
 			Target->ShowEvent(Event, (Event.Flags & FJRPGBattleEventFlag::ArtHit) ? FString::Printf(TEXT("%d!"), Event.Value) : FString::FromInt(Event.Value), true);
+			// O defensor vira para quem bateu e recua um pouco (a reação do golpe: o knockback, limitado pela arena)
+			Target->ReactToHit(PawnOf(Event.SlotIndex), Event.Frame, (Event.Flags & FJRPGBattleEventFlag::Knockdown) != 0, false);
+		}
+		break;
+	case EJRPGBattleEventType::ComboTotal:
+		// O fim da ação, como o cluster do original: "Hit N" em cima e "Damage X" embaixo, X = o dano de todos os golpes, o
+		// que passou do HP também. Um golpe só mostra apenas o Damage (o DAMAGE do original). O número em cima de cada alvo fica
+		if (GEngine)
+		{
+			if (Event.Count >= 2)
+			{
+				GEngine->AddOnScreenDebugMessage(ComboHitMessageKey, ComboMessageSeconds, FColor::Yellow, FString::Printf(TEXT("Hit %d"), Event.Count));
+			}
+			else
+			{
+				GEngine->RemoveOnScreenDebugMessage(ComboHitMessageKey);
+			}
+			GEngine->AddOnScreenDebugMessage(ComboDamageMessageKey, ComboMessageSeconds, FColor::Orange, FString::Printf(TEXT("Damage %d"), Event.Value));
 		}
 		break;
 	case EJRPGBattleEventType::Miss:
@@ -421,6 +468,7 @@ void UJRPGBattleSceneSubsystem::HandleBattleEvent(const FJRPGBattleEvent& Event)
 		if (AJRPGBattlePawn* Target = PawnOf(Event.TargetSlot))
 		{
 			Target->ShowEvent(Event, TEXT("Block"), true);
+			Target->ReactToHit(PawnOf(Event.SlotIndex), Event.Frame, false, true);
 		}
 		break;
 	case EJRPGBattleEventType::Death:
@@ -455,12 +503,56 @@ void UJRPGBattleSceneSubsystem::HandleSlotChanged(int32 Slot, EJRPGBattleStage S
 	{
 		return;
 	}
+	// Quem digita mudou: a recusa de antes (de outro herói, de outra rodada) não vale mais
+	if (GEngine)
+	{
+		GEngine->RemoveOnScreenDebugMessage(RefusalMessageKey);
+	}
+	ShowCommandPrompt(*Battle, Slot);
+}
+
+void UJRPGBattleSceneSubsystem::SetDebugPromptSuppressed(bool bSuppress)
+{
+	bDebugPromptSuppressed = bSuppress;
+	if (bSuppress && GEngine)
+	{
+		// A UI de comando subiu: o prompt que já estava na tela (e o aviso vermelho) saem
+		GEngine->RemoveOnScreenDebugMessage(PromptMessageKey);
+		GEngine->RemoveOnScreenDebugMessage(RefusalMessageKey);
+	}
+}
+
+void UJRPGBattleSceneSubsystem::ShowCommandPrompt(const UBattleSubsystem& Battle, int32 Slot) const
+{
+	if (!Battle.GetCombatants().IsValidIndex(Slot) || bDebugPromptSuppressed)
+	{
+		return;
+	}
 	const FString Prompt = FString::Printf(TEXT("Round %d - command for %s (slot %d): JRPG.Battle.Attack [enemy] | JRPG.Battle.Arts <buttons> [enemy] | JRPG.Battle.Auto"),
-		Battle->GetState().Round, *Battle->GetCombatants()[Slot].Key.ToString(), Slot);
+		Battle.GetState().Round, *Battle.GetCombatants()[Slot].Key.ToString(), Slot);
 	UE_LOG(LogTemp, Log, TEXT("BattleScene: %s"), *Prompt);
 	if (GEngine)
 	{
-		GEngine->AddOnScreenDebugMessage(7421, 30.0f, FColor::Cyan, Prompt);   // a mesma chave: a linha nova substitui a velha
+		GEngine->AddOnScreenDebugMessage(PromptMessageKey, 60.0f, FColor::Cyan, Prompt);   // a mesma chave: a linha nova substitui a velha
+	}
+}
+
+void UJRPGBattleSceneSubsystem::HandleCommandRefused(int32 Slot, const FString& Why)
+{
+	const UBattleSubsystem* Battle = GetBattleSubsystem(GetWorld());
+	const FString Who = Battle && Battle->GetCombatants().IsValidIndex(Slot)
+		? FString::Printf(TEXT("%s (slot %d)"), *Battle->GetCombatants()[Slot].Key.ToString(), Slot) : FString::Printf(TEXT("slot %d"), Slot);
+	if (bDebugPromptSuppressed)
+	{
+		// A UI de comando mostra o motivo no menu: aqui só o log
+		UE_LOG(LogTemp, Warning, TEXT("BattleScene: Command refused for %s: %s"), *Who, *Why);
+		return;
+	}
+	// Ao lado do prompt, que continua de pé: o comando é do mesmo herói, de novo
+	ShowCommandNotice(FString::Printf(TEXT("Command refused for %s: %s"), *Who, *Why));
+	if (Battle)
+	{
+		ShowCommandPrompt(*Battle, Battle->GetActiveSlot());
 	}
 }
 
@@ -539,7 +631,17 @@ void UJRPGBattleSceneSubsystem::LeaveBattleScene()
 	PendingCombatants.Reset();
 
 	bFieldHidden = false;
+	NoteFieldReturnedToBattleSubsystem();
 	OnFieldShown.Broadcast();
+}
+
+void UJRPGBattleSceneSubsystem::NoteFieldReturnedToBattleSubsystem()
+{
+	// O Field voltou: a carência de depois da luta (nenhum encontro novo, ninguém persegue) conta daqui
+	if (UBattleSubsystem* Battle = GetBattleSubsystem(GetWorld()))
+	{
+		Battle->NoteFieldReturned();
+	}
 }
 
 // ---------------------------------------------------------------------------------------------

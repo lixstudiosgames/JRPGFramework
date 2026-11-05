@@ -26,10 +26,6 @@ struct JRPGFRAMEWORK_API FJRPGTimelineDefaults
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline")
 	int32 TailFrames = 24;
 
-	/** A cauda quando a luta acaba no meio da ação (o último inimigo cai no meio de uma combo). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline")
-	int32 KillTailFrames = 30;
-
 	/** Um golpe simples (SwingL..U): o tamanho do clip, o quadro do golpe e o corte (onde o próximo passo entra). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline")
 	int32 SwingFrames = 48;
@@ -224,14 +220,15 @@ private:
 	void ProcessDue();
 	void ResolveHit(int32 HitIndex);
 	void ApplyMark(const FJRPGActionMark& Mark);
-	void CutRestOfAction();
 	bool RunConditions(FJRPGCombatant& Of, bool bTurnStart);
 	void KillCombatant(FJRPGCombatant& Of, int32 KilledBy);
+	/** Nenhum golpe depois deste conecta com o alvo: é o que escreve o total do combo (e decide o knockdown e a queda). */
+	bool IsLastConnectingHit(int32 HitIndex, bool bHeroAttacker, const FJRPGCombatant& Defender) const;
 
 	// --- Ajudas ---
 	bool IsLivingFoe(const FJRPGCombatant& Of, int32 Slot) const;
 	bool HasCondition(const FJRPGCombatant& Of, FName Condition) const;
-	void Emit(EJRPGBattleEventType Type, int32 Slot, int32 Target, int32 Value, int32 HitIndex = -1, int32 Flags = 0, FName ArtKey = NAME_None);
+	void Emit(EJRPGBattleEventType Type, int32 Slot, int32 Target, int32 Value, int32 HitIndex = -1, int32 Flags = 0, FName ArtKey = NAME_None, int32 Count = 0);
 	/** Um sorteio de 15 bits do Rng da luta. */
 	int32 Rand15();
 

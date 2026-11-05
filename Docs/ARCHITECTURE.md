@@ -304,6 +304,7 @@ content across once and remain for reference.
 | `Data/DT_EnemyActions.csv` | 1753 | `FJRPGEnemyActionData` (one row per monster clip: power bytes, hit frames, AGL cost, rate) |
 | `Data/DT_RaSeruTiers.csv` | 3 | `FJRPGRaSeruTierData` (the Ra-Seru's ATK per tier, one row per hero) |
 | `Data/DT_WeaponCosts.csv` | 18 | `FJRPGWeaponCostData` (the Arms button's cost per hero and weapon, when it is not 30) |
+| `Data/DT_HeroSwings.csv` | 114 | `FJRPGHeroSwingData` (the plain swing of each button per hero and equipped item: power byte(s), hit beat(s), rate, cost) |
 
 `Data/_backup/` holds the copies LegaiaStudio makes on every save.
 

@@ -87,7 +87,12 @@ enum class EJRPGBattleEventType : uint8
 	ArtRecognized,
 	ArtLearned,
 	/** A ação acabou (ou foi descartada: Value = 1). */
-	ActionEnd
+	ActionEnd,
+	/**
+	 * O resumo da combo, no fim da ação, para cada alvo que levou algum golpe: SlotIndex bate em TargetSlot, Count =
+	 * quantos golpes acertaram, Value = o dano de TODOS somado, inclusive o que passou do HP (o HIT / TOTAL do original).
+	 */
+	ComboTotal
 };
 
 /** Bits de FJRPGBattleEvent::Flags (a apresentação escolhe o clip de reação por eles). */
@@ -240,6 +245,26 @@ struct JRPGFRAMEWORK_API FJRPGBattleReactionClip
 };
 
 /**
+ * O golpe simples de um botão do herói, lido do registro de golpe do equipamento (DT_HeroSwings): os bytes de poder (um por
+ * golpe), os quadros de golpe do clip (os "beats") e o rate, para o quadro lógico de cada golpe sair do dado.
+ */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGBattleSwingProfile
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<int32> PowerBytes;
+
+	/** O beat de cada golpe (a mesma quantidade de PowerBytes); vazio = sem quadro lido, vale o quadro padrão. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<int32> Beats;
+
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Rate = 2;
+};
+
+/**
  * Um combatente da luta. SÓ REGRAS, tudo inteiro: sem fase, sem timer, nada que o pawn mostre (a
  * fase da ação mora no AJRPGBattlePawn). É uma FOTO tirada no BeginBattle — a resolução nunca lê o
  * UPartySubsystem, o UStatusSubsystem nem o UInventorySubsystem (BATTLE_ROADMAP.md › 5.0 e
@@ -329,6 +354,14 @@ struct JRPGFRAMEWORK_API FJRPGCombatant
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	int32 TargetClass = 0;
 
+	/**
+	 * Inimigo: o +0x1F do registro, a classe de tamanho que decide até onde o golpe alcança (a lei de alcance
+	 * FUN_8004E2F0: o limiar é {256, 384, 1024}[classe] se menor que 3, senão classe << 4, em unidades do PS1). 0 = não
+	 * se sabe (o disco só tem 14..48): a apresentação cai numa classe padrão. Herói: 0.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 SizeClass = 0;
+
 	/** O medidor persistente (as Arts somam, os especiais gastam). */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	int32 AP = 0;
@@ -346,6 +379,21 @@ struct JRPGFRAMEWORK_API FJRPGCombatant
 	/** Herói: o custo de cada botão no gauge, indexado por EJRPGArtButton (Arms, Ra-Seru, High, Low): 30 / 42 / 54. */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	TArray<int32> ButtonCost;
+
+	/**
+	 * Herói: o byte de poder do golpe simples de cada botão, indexado por EJRPGArtButton (Arms, Ra-Seru, High, Low). No
+	 * original ele vem do registro de golpe do equipamento (calçado: o chute baixo e o alto; arma e Ra-Seru: os braços).
+	 * Vazio, ou um 0 no índice, vale o padrão do herói (UBattleFormulas::DefaultSwingPowerByte).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<int32> SwingBytes;
+
+	/**
+	 * Herói: o golpe simples de cada botão (indexado por EJRPGArtButton) lido do equipamento: os bytes de poder, os quadros de
+	 * golpe e o rate. Vazio, ou um botão sem bytes, vale SwingBytes / o byte padrão e o quadro padrão da timeline.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<FJRPGBattleSwingProfile> SwingProfiles;
 
 	/** Herói: as Arts que sabe (cresce quando uma Art é aprendida na luta). */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
@@ -555,6 +603,10 @@ struct JRPGFRAMEWORK_API FJRPGBattleEvent
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	int32 Flags = 0;
 
+	/** ComboTotal: quantos golpes acertaram o alvo. */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	int32 Count = 0;
+
 	/** Na ArtRecognized / ArtLearned: a key da Art no DT_Arts. */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	FName ArtKey;
@@ -746,9 +798,13 @@ struct JRPGFRAMEWORK_API FJRPGActiveAction
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	int32 NextMark = 0;
 
-	/** O dano acumulado em cada slot por esta ação (a regra do knockdown do original). */
+	/** O dano acumulado em cada slot por esta ação, sem teto no HP (a regra do knockdown e o TOTAL do original). */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	TArray<int32> ComboDamage;
+
+	/** Quantos golpes acertaram cada slot nesta ação (o HIT do original; o bloqueado e o que erra não contam). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	TArray<int32> ComboHits;
 };
 
 /**

@@ -355,6 +355,8 @@ protected:
 
 private:
 	void Think();
+	/** Em carência depois de uma luta (UBattleSubsystem::IsInEncounterGrace): ninguém persegue nem começa encontro. */
+	bool IsEncounterGraceActive() const;
 	void EnterIdle(float WaitSeconds);
 	void StartWander();
 	void StartChase(APawn* Player);

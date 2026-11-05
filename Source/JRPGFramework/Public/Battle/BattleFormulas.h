@@ -100,9 +100,17 @@ public:
 	/** 0x801F64E4: o peso do sorteio de bloqueio do atacante, mesmo índice. */
 	static constexpr int32 BlockScalars[5] = { 6, 4, 4, 4, 2 };
 
-	/** O golpe simples de direção: poder 20, defesa de cima (0x18) ou de baixo (0x1D); alcança qualquer alvo. */
-	static constexpr int32 SwingUpperByte = 0x18;
-	static constexpr int32 SwingLowerByte = 0x1D;
+	/**
+	 * Os bytes de poder dos registros de golpe do disco (o 1º byte do registro de golpe do equipamento: os dois chutes do
+	 * calçado, o braço da arma e o do Ra-Seru). Todos de poder 20 ((b - 0x0C) % 5 = 2), só a defesa e a altura mudam:
+	 *   0x18 alto, livre   (UDF, alcança qualquer alvo)      0x1D baixo, livre   (LDF, alcança qualquer alvo)
+	 *   0x0E alto, restrito (UDF, erra o baixo, classe 3)    0x13 baixo, restrito (LDF, erra o voador, classe 2)
+	 * O calçado escolhe o par do chute baixo e do alto (docs/reference/glitches/turn-order-and-arts.md do RE).
+	 */
+	static constexpr int32 SwingFreeHighByte = 0x18;
+	static constexpr int32 SwingFreeLowByte = 0x1D;
+	static constexpr int32 SwingRestrictedHighByte = 0x0E;
+	static constexpr int32 SwingRestrictedLowByte = 0x13;
 
 	/** Um byte de poder de 0x16 para cima alcança qualquer classe de alvo (sem miss pela altura). */
 	static constexpr int32 ReachesAllByte = 0x16;
@@ -152,9 +160,17 @@ public:
 	UFUNCTION(BlueprintPure, Category = "JRPG|Battle|Formulas")
 	static bool LimbMisses(bool bAttackerIsHero, int32 PowerByte, int32 TargetClass);
 
-	/** O byte do golpe simples de um botão: Low 0x1D (poder 20, LDF), os outros 0x18 (poder 20, UDF). */
+	/**
+	 * O byte do golpe simples de um botão para um herói SEM equipamento especial (a seção padrão do arquivo de batalha
+	 * dele, lida do disco): o Low é sempre o chute restrito 0x13 (erra o voador); o High é livre 0x18 no Vahn e
+	 * restrito 0x0E na Noa e no Gala (erra o baixo, classe 3); o braço Arms é 0x18; o Ra-Seru é 0x18, e 0x1D (LDF) na
+	 * Noa, cujo Terra é a seção de golpe do botão esquerdo.
+	 */
 	UFUNCTION(BlueprintPure, Category = "JRPG|Battle|Formulas")
-	static int32 SwingPowerByte(EJRPGArtButton Button);
+	static int32 DefaultSwingPowerByte(FName Hero, EJRPGArtButton Button);
+
+	/** O byte do golpe simples de um botão para este herói: o do equipamento (SwingBytes) se tem, senão o padrão dele. */
+	static int32 SwingPowerByte(const FJRPGCombatant& Hero, EJRPGArtButton Button);
 
 	/**
 	 * O byte de uma Art a partir do HitPower (12/18/20/22/28) e do HitTarget da linha do DT_Arts, com idx a

@@ -12,6 +12,7 @@
 #include "BattleSubsystem.generated.h"
 
 class UCoreSubsystem;
+class UDataTable;
 
 /** Um encontro começou: os inimigos sorteados para a luta. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGEncounterStarted, const TArray<FJRPGEncounterCombatant>&, Enemies);
@@ -30,6 +31,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGLogicFrame, int32, Frame);
 
 /** Quem digita (Commands) ou age (Execution) mudou; Slot -1 = ninguém. */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnJRPGSlotChanged, int32, Slot, EJRPGBattleStage, Stage);
+
+/** Um comando foi recusado: o slot dele e por quê (o texto das regras, para mostrar ao lado do prompt). */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnJRPGCommandRefused, int32, Slot, const FString&, Why);
 
 /**
  * UBattleSubsystem
@@ -106,6 +110,12 @@ public:
 	void EndBattle(EJRPGBattleResult Result);
 
 	/**
+	 * O fim de debug (JRPG.Battle.End): como EndBattle, mas com bPayEveryEnemy a Vitória paga o EXP e o Gold de TODOS os
+	 * inimigos da luta, vivos também (a vitória de verdade só conta os derrotados). Para testar a recompensa.
+	 */
+	void EndBattleForDebug(EJRPGBattleResult Result, bool bPayEveryEnemy);
+
+	/**
 	 * Um comando, um ponto de entrada: confere que quem manda é o dono do slot e o resto (regra 22; a recusa
 	 * sai no log com o motivo). Nunca chame isto direto de um callback da UI sem passar o jogador que mandou.
 	 */
@@ -172,9 +182,33 @@ public:
 	static FJRPGCombatant MakeEnemyCombatant(const FJRPGEnemyData& Row, const TArray<FJRPGEnemyActionData>& Actions, int32 Level,
 		bool bScriptedFight, EJRPGRuleset Ruleset, const UCoreSubsystem* Core);
 
+	/**
+	 * Preenche o golpe simples de cada botão do herói pelo que ele tem equipado, da DT_HeroSwings (FJRPGHeroSwingData): a
+	 * linha <Herói>_<Item>_<Botão> do item (a arma no Arms, o tier "seru_N" no Ra-Seru, o calçado no Low e no High) e, sem ela,
+	 * a <Herói>_default_<Botão>. Põe SwingBytes, SwingProfiles e o custo do botão (só da linha do próprio item, ou da padrão
+	 * quando o slot está vazio; um item sem linha mantém o custo que já estava). Table nula ou de outra struct: não faz nada.
+	 * Estática e sem subsistema, para os testes.
+	 */
+	static void ApplyHeroSwings(FJRPGCombatant& Hero, const UDataTable* Table, FName Weapon, FName Shoes, int32 SeruLevel);
+
 	/** Segundos, depois de um encontro aceito ou de uma luta encerrada, em que outro é recusado. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle", meta = (ClampMin = "0.0"))
 	float EncounterGraceTime = 3.0f;
+
+	/**
+	 * Segundos, a partir de o Field aparecer de novo depois de uma luta (NoteFieldReturned), em que nenhum encontro começa
+	 * e os inimigos do Field nem perseguem: dá tempo de o jogador sair de cima de quem estava ao lado.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle", meta = (ClampMin = "0.0"))
+	float PostBattleGraceTime = 5.0f;
+
+	/** Em carência: um encontro novo é recusado e os inimigos do Field não detectam o jogador. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle")
+	bool IsInEncounterGrace() const;
+
+	/** A cena devolveu o Field ao jogador (a tela abriu depois da luta): começa a PostBattleGraceTime. */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Battle")
+	void NoteFieldReturned();
 
 	/** Quantos heróis entram numa luta (os Seru como membros de apoio aumentam isto). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle", meta = (ClampMin = "1"))
@@ -205,6 +239,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
 	FJRPGBattleReactionClip HeroBlock;
 
+	/**
+	 * O beat do flinch e do block de cada herói (rate 1), medido nos arquivos de batalha: Vahn 3, Noa 2, Gala 4. Vale no
+	 * lugar do beat de HeroFlinch / HeroBlock para quem está na lista; quem não está usa os dois acima.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	TMap<FName, int32> HeroReactionBeats;
+
 	/** Quadros lógicos entre a luta decidida (último inimigo caído) e o EndBattle: a queda e a pose tocam. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle", meta = (ClampMin = "0"))
 	int32 FinishDelayFrames = 90;
@@ -232,6 +273,10 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle")
 	FOnJRPGSlotChanged OnSlotChanged;
 
+	/** Um comando foi recusado (e por quê): a UI mostra ao lado do prompt. */
+	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle")
+	FOnJRPGCommandRefused OnCommandRefused;
+
 	/** Cada quadro lógico, depois dos eventos dele: a apresentação anda os clips por este contador. */
 	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle")
 	FOnJRPGLogicFrame OnLogicFrame;
@@ -250,6 +295,12 @@ private:
 
 	/** FPlatformTime::Seconds() do último encontro aceito / luta encerrada (relógio real: vale com o jogo pausado). */
 	double LastEncounterTime = -1.0e9;
+
+	/** FPlatformTime::Seconds() até quando vale a carência de depois da luta (NoteFieldReturned). */
+	double PostBattleGraceUntil = -1.0e9;
+
+	/** O fim de debug em curso paga todos os inimigos (EndBattleForDebug). */
+	bool bDebugPayEveryEnemy = false;
 
 	bool bInBattle = false;
 	/** Estava no Field quando a luta começou (devolve o SAVE ao acabar). */

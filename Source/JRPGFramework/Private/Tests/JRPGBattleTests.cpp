@@ -13,6 +13,7 @@
 #include "Battle/BattleFormulas.h"
 #include "Battle/BattleSubsystem.h"
 #include "Battle/BattleTypes.h"
+#include "Battle/HeroBattleData.h"
 #include "Battle/JRPGBattleResolver.h"
 #include "Battle/JRPGBattleRules.h"
 #include "Core/CoreSubsystem.h"
@@ -91,14 +92,47 @@ bool FJRPGBattlePowerBytesTest::RunTest(const FString& Parameters)
 		TestEqual(FString::Printf(TEXT("classe 2, 0x%02X"), b), UBattleFormulas::LimbMisses(true, b, 2), b >= 0x11 && b < 0x16);
 		TestEqual(FString::Printf(TEXT("classe 3, 0x%02X"), b), UBattleFormulas::LimbMisses(true, b, 3), b < 0x11);
 	}
-	TestFalse(TEXT("0x18 alcança o voador"), UBattleFormulas::LimbMisses(true, UBattleFormulas::SwingUpperByte, 2));
-	TestFalse(TEXT("0x1D alcança o baixo"), UBattleFormulas::LimbMisses(true, UBattleFormulas::SwingLowerByte, 3));
+	// Os quatro bytes dos registros de golpe do disco: os livres (0x16+) alcançam todo mundo; os restritos não
+	for (const int32 Free : { UBattleFormulas::SwingFreeHighByte, UBattleFormulas::SwingFreeLowByte })
+	{
+		TestFalse(TEXT("o golpe livre alcança o voador"), UBattleFormulas::LimbMisses(true, Free, 2));
+		TestFalse(TEXT("o golpe livre alcança o baixo"), UBattleFormulas::LimbMisses(true, Free, 3));
+	}
+	TestTrue(TEXT("o chute baixo restrito (0x13) erra o voador"), UBattleFormulas::LimbMisses(true, UBattleFormulas::SwingRestrictedLowByte, 2));
+	TestFalse(TEXT("e alcança o baixo"), UBattleFormulas::LimbMisses(true, UBattleFormulas::SwingRestrictedLowByte, 3));
+	TestTrue(TEXT("o chute alto restrito (0x0E) erra o baixo"), UBattleFormulas::LimbMisses(true, UBattleFormulas::SwingRestrictedHighByte, 3));
+	TestFalse(TEXT("e alcança o voador"), UBattleFormulas::LimbMisses(true, UBattleFormulas::SwingRestrictedHighByte, 2));
+	// Os quatro são poder 20; 0x18 e 0x0E batem em cima (UDF), 0x1D e 0x13 embaixo (LDF)
+	for (const int32 Byte : { 0x18, 0x1D, 0x0E, 0x13 })
+	{
+		TestEqual(FString::Printf(TEXT("0x%02X é poder 20"), Byte), UBattleFormulas::PowerScalar(Byte), 20);
+	}
+	TestTrue(TEXT("0x0E bate em cima"), UBattleFormulas::TargetsUpper(0x0E));
+	TestFalse(TEXT("0x13 bate embaixo"), UBattleFormulas::TargetsUpper(0x13));
 
-	// Os bytes que o herói produz: o golpe simples e o das Arts (HitPower x HitTarget)
-	TestEqual(TEXT("Arms"), UBattleFormulas::SwingPowerByte(EJRPGArtButton::Arms), 0x18);
-	TestEqual(TEXT("Ra-Seru"), UBattleFormulas::SwingPowerByte(EJRPGArtButton::RaSeru), 0x18);
-	TestEqual(TEXT("High"), UBattleFormulas::SwingPowerByte(EJRPGArtButton::High), 0x18);
-	TestEqual(TEXT("Low"), UBattleFormulas::SwingPowerByte(EJRPGArtButton::Low), 0x1D);
+	// Os bytes que o herói produz: o golpe simples (a seção padrão do arquivo de batalha de cada um) e o das Arts
+	// (HitPower x HitTarget). Vahn: chute alto livre; Noa e Gala: restrito. O chute baixo é restrito em todos; o Terra
+	// da Noa, que é o braço esquerdo dela (o Ra-Seru), é 0x1D
+	for (const FName Hero : { FName(TEXT("Vahn")), FName(TEXT("Noa")), FName(TEXT("Gala")) })
+	{
+		TestEqual(FString::Printf(TEXT("%s: Arms"), *Hero.ToString()), UBattleFormulas::DefaultSwingPowerByte(Hero, EJRPGArtButton::Arms), 0x18);
+		TestEqual(FString::Printf(TEXT("%s: Low"), *Hero.ToString()), UBattleFormulas::DefaultSwingPowerByte(Hero, EJRPGArtButton::Low), 0x13);
+	}
+	TestEqual(TEXT("Vahn: Ra-Seru"), UBattleFormulas::DefaultSwingPowerByte(TEXT("Vahn"), EJRPGArtButton::RaSeru), 0x18);
+	TestEqual(TEXT("Vahn: High"), UBattleFormulas::DefaultSwingPowerByte(TEXT("Vahn"), EJRPGArtButton::High), 0x18);
+	TestEqual(TEXT("Noa: Ra-Seru (Terra)"), UBattleFormulas::DefaultSwingPowerByte(TEXT("Noa"), EJRPGArtButton::RaSeru), 0x1D);
+	TestEqual(TEXT("Noa: High"), UBattleFormulas::DefaultSwingPowerByte(TEXT("Noa"), EJRPGArtButton::High), 0x0E);
+	TestEqual(TEXT("Gala: Ra-Seru"), UBattleFormulas::DefaultSwingPowerByte(TEXT("Gala"), EJRPGArtButton::RaSeru), 0x18);
+	TestEqual(TEXT("Gala: High"), UBattleFormulas::DefaultSwingPowerByte(TEXT("Gala"), EJRPGArtButton::High), 0x0E);
+	// O equipamento manda no padrão: as War God Boots do Gala trazem o chute baixo livre (0x1D) e o alto livre (0x18)
+	FJRPGCombatant Gala;
+	Gala.Key = TEXT("Gala");
+	TestEqual(TEXT("sem equipamento, o padrão"), UBattleFormulas::SwingPowerByte(Gala, EJRPGArtButton::Low), 0x13);
+	Gala.SwingBytes = { 0, 0, 0x18, 0x1D };
+	TestEqual(TEXT("War God Boots: Low"), UBattleFormulas::SwingPowerByte(Gala, EJRPGArtButton::Low), 0x1D);
+	TestEqual(TEXT("War God Boots: High"), UBattleFormulas::SwingPowerByte(Gala, EJRPGArtButton::High), 0x18);
+	TestEqual(TEXT("um 0 no índice volta ao padrão"), UBattleFormulas::SwingPowerByte(Gala, EJRPGArtButton::Arms), 0x18);
+	TestEqual(TEXT("e o Ra-Seru dele também"), UBattleFormulas::SwingPowerByte(Gala, EJRPGArtButton::RaSeru), 0x18);
 	const int32 Powers[5] = { 12, 18, 20, 22, 28 };
 	for (int32 i = 0; i < 5; ++i)
 	{
@@ -1021,12 +1055,13 @@ bool FJRPGBattleKernelWiringTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Attack = o botão Arms, com a metade da arma"), FirstDamage({ Ar }), ArmsDamage);
 	TestEqual(TEXT("o número do cálculo à mão"), ArmsDamage, 158);
 
-	// High: o calçado (86 >> 1 = 43) contra a UDF; Low: o calçado contra a LDF 60 (byte 0x1D)
+	// High: o calçado (86 >> 1 = 43) contra a UDF; Low: o calçado contra a LDF 60 (byte 0x13, o chute baixo do calçado
+	// padrão: poder 20 e LDF como o 0x1D, só que erra o voador)
 	Expected.BaseOffense = 143;
 	FSequenceDraw ZeroHigh({ 0 });
 	TestEqual(TEXT("High = a metade do calçado, UDF"), FirstDamage({ Hi }),
 		UBattleFormulas::ResolveMelee(Expected, [&ZeroHigh]() { return ZeroHigh(); }).Damage);
-	Expected.PowerByte = 0x1D;
+	Expected.PowerByte = UBattleFormulas::SwingRestrictedLowByte;
 	Expected.DefenderDefense = 60;
 	FSequenceDraw ZeroLow({ 0 });
 	TestEqual(TEXT("Low = a metade do calçado, LDF"), FirstDamage({ Lo }),
@@ -1045,7 +1080,8 @@ bool FJRPGBattleKernelWiringTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattleComboTest, "JRPG.Battle.Combo", JRPG_BATTLE_TEST_FLAGS)
 bool FJRPGBattleComboTest::RunTest(const FString& Parameters)
 {
-	// O último inimigo cai no meio da combo: o resto da cadeia não resolve, e a vitória sai quando a ação acaba
+	// O último inimigo cai no meio da combo: a cadeia INTEIRA ainda bate (o original só testa a vitória no fim da ação, e
+	// escreve o total do combo no último golpe), o HP não passa de 0, a queda vem no último golpe e a vitória quando a ação acaba
 	{
 		FFight Fight;
 		Fight.RandOverride = []() { return 0; };
@@ -1055,15 +1091,25 @@ bool FJRPGBattleComboTest::RunTest(const FString& Parameters)
 		{
 			Fight.StepFrame();
 		}
-		TestEqual(TEXT("um só golpe resolveu"), CountEvents(Fight, EJRPGBattleEventType::Damage), 1);
+		TestEqual(TEXT("os quatro golpes resolveram"), CountEvents(Fight, EJRPGBattleEventType::Damage), 4);
 		TestEqual(TEXT("o inimigo caiu uma vez"), CountEvents(Fight, EJRPGBattleEventType::Death, 1), 1);
+		TestEqual(TEXT("com o HP em 0, não abaixo"), Fight.GetCombatants()[1].HP, 0);
 		TestTrue(TEXT("a luta acabou"), Fight.IsFinished());
 		TestEqual(TEXT("Vitória"), (int32)Fight.GetResult(), (int32)EJRPGBattleResult::Victory);
-		TestEqual(TEXT("a ação terminou (cortada)"), CountEvents(Fight, EJRPGBattleEventType::ActionEnd, 0), 1);
+		TestEqual(TEXT("a ação terminou"), CountEvents(Fight, EJRPGBattleEventType::ActionEnd, 0), 1);
 		const FJRPGBattleEvent* End = FirstEvent(Fight, EJRPGBattleEventType::ActionEnd, 0);
 		const FJRPGBattleEvent* Death = FirstEvent(Fight, EJRPGBattleEventType::Death, 1);
-		TestTrue(TEXT("o ActionEnd depois do Death"), End && Death && End->Frame > Death->Frame);
-		TestTrue(TEXT("e antes do fim cheio da timeline"), End && Fight.GetState().Frame < 400);
+		TestTrue(TEXT("o ActionEnd depois do Death"), End && Death && End->Frame >= Death->Frame);
+		// A queda vem junto do último golpe, não do que cruzou o 0
+		int32 LastHitFrame = -1;
+		for (const FJRPGBattleEvent& Event : Fight.GetEvents())
+		{
+			if (Event.Type == EJRPGBattleEventType::Damage)
+			{
+				LastHitFrame = Event.Frame;
+			}
+		}
+		TestTrue(TEXT("o Death no quadro do último golpe"), Death && Death->Frame == LastHitFrame);
 	}
 
 	// A combo de Arms contra um monstro que reage: o juggle sobe golpe a golpe (poder 20, sorteios em 0)
@@ -1103,6 +1149,273 @@ bool FJRPGBattleComboTest::RunTest(const FString& Parameters)
 			TestTrue(TEXT("cada golpe da combo bate mais que o anterior"), Damages[0] < Damages[1] && Damages[1] < Damages[2]);
 		}
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattleKnockdownTest, "JRPG.Battle.Knockdown", JRPG_BATTLE_TEST_FLAGS)
+bool FJRPGBattleKnockdownTest::RunTest(const FString& Parameters)
+{
+	// Quatro golpes de Arms contra um monstro que levanta (tem o clip de levantar): o ¼ do HP máximo passa no 2º golpe, mas o
+	// knockdown é decidido só no golpe que escreve o total do combo, o último que conecta (o original soma o combo e decide
+	// uma vez; RE: FUN_801EC3E4 0x801EE380..0x801EE3B4). Os de antes só dão o flinch
+	auto Play = [](int32 MaxHP, TArray<int32>& OutDamages, TArray<int32>& OutFlags, int32& OutHP)
+	{
+		FFight Fight;
+		Fight.RandOverride = []() { return 0; };
+		FJRPGCombatant Hero0 = Hero(0, TEXT("Vahn"), 2560, 500, 100);
+		FJRPGCombatant Dummy = Foe(1, TEXT("dummy"), MaxHP, 10, 1);
+		Dummy.bHasGetUp = true;
+		Fight.Begin({ Hero0, Dummy }, 1, false, 0);
+		Fight.SubmitCommand(ArtsCommand(0, 1, { Ar, Ar, Ar, Ar }));
+		PlayUntilActionEnds(Fight, 0);
+		for (const FJRPGBattleEvent& Event : Fight.GetEvents())
+		{
+			if (Event.Type == EJRPGBattleEventType::Damage && Event.SlotIndex == 0)
+			{
+				OutDamages.Add(Event.Value);
+				OutFlags.Add(Event.Flags);
+			}
+		}
+		OutHP = Fight.GetCombatants()[1].HP;
+	};
+
+	// Primeiro com HP enorme, só para medir o dano de cada golpe (os sorteios são fixos)
+	TArray<int32> Measure;
+	TArray<int32> Ignored;
+	int32 IgnoredHP = 0;
+	Play(100000000, Measure, Ignored, IgnoredHP);
+	if (!TestEqual(TEXT("quatro golpes"), Measure.Num(), 4))
+	{
+		return false;
+	}
+	// O ¼ fica entre o 1º golpe e os dois primeiros juntos: o 2º passaria do ¼ pela regra antiga
+	const int32 MaxHP = 4 * (Measure[0] + Measure[1] / 2);
+	TArray<int32> Damages;
+	TArray<int32> Flags;
+	int32 HP = 0;
+	Play(MaxHP, Damages, Flags, HP);
+	if (TestEqual(TEXT("os mesmos quatro golpes"), Damages.Num(), 4))
+	{
+		TestTrue(TEXT("depois do 2º golpe o combo passa de ¼"), Damages[0] + Damages[1] > (MaxHP >> 2));
+		TestTrue(TEXT("o monstro sobrevive"), HP > 0);
+		for (int32 i = 0; i < 3; ++i)
+		{
+			TestEqual(FString::Printf(TEXT("o golpe %d só dá o flinch"), i + 1), Flags[i] & FJRPGBattleEventFlag::Knockdown, 0);
+		}
+		TestTrue(TEXT("o último golpe derruba (o combo passou de ¼)"), (Flags[3] & FJRPGBattleEventFlag::Knockdown) != 0);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattleTargetFallsTest, "JRPG.Battle.TargetFalls", JRPG_BATTLE_TEST_FLAGS)
+bool FJRPGBattleTargetFallsTest::RunTest(const FString& Parameters)
+{
+	// O alvo chega a 0 no 1º golpe de uma cadeia de 4 e sobra outro inimigo: nada é cortado nem re-apontado (o original fixa o
+	// alvo no começo da ação e escreve o total do combo no último golpe). Os quatro golpes resolvem no mesmo alvo, o HP fica
+	// em 0, o excesso se perde (nenhum golpe vai para o outro inimigo), a queda vem no último golpe e o resumo da combo traz
+	// os 4 golpes e o dano de todos somado, inclusive o excesso
+	FFight Fight;
+	Fight.RandOverride = []() { return 0; };
+	Fight.Begin({ Hero(0, TEXT("Vahn"), 100000, 500, 100), Foe(1, TEXT("a"), 1, 10, 1), Foe(2, TEXT("b"), 1000000, 10, 1) }, 1, false, 0);
+	Fight.SubmitCommand(ArtsCommand(0, 1, { Ar, Ar, Ar, Ar }));
+	PlayUntilActionEnds(Fight, 0);
+
+	TArray<const FJRPGBattleEvent*> Hits;
+	int32 Sum = 0;
+	for (const FJRPGBattleEvent& Event : Fight.GetEvents())
+	{
+		if (Event.Type == EJRPGBattleEventType::Damage && Event.SlotIndex == 0)
+		{
+			Hits.Add(&Event);
+			Sum += Event.Value;
+		}
+	}
+	if (!TestEqual(TEXT("os quatro golpes resolveram"), Hits.Num(), 4))
+	{
+		return false;
+	}
+	for (const FJRPGBattleEvent* Hit : Hits)
+	{
+		TestEqual(TEXT("todos no alvo original"), Hit->TargetSlot, 1);
+	}
+	TestEqual(TEXT("o alvo caiu uma vez"), CountEvents(Fight, EJRPGBattleEventType::Death, 1), 1);
+	const FJRPGBattleEvent* Death = FirstEvent(Fight, EJRPGBattleEventType::Death, 1);
+	TestTrue(TEXT("a queda no quadro do último golpe"), Death && Death->Frame == Hits.Last()->Frame);
+	TestEqual(TEXT("os golpes de antes só dão flinch"), Hits[0]->Flags & FJRPGBattleEventFlag::Knockdown, 0);
+	TestTrue(TEXT("o último derruba"), (Hits.Last()->Flags & FJRPGBattleEventFlag::Knockdown) != 0);
+	TestEqual(TEXT("o HP do alvo não passa de 0"), Fight.GetCombatants()[1].HP, 0);
+	TestTrue(TEXT("o dano rolado passa do HP (o excesso é jogado fora)"), Sum > 1);
+	TestEqual(TEXT("o outro inimigo está intacto"), Fight.GetCombatants()[2].HP, Fight.GetCombatants()[2].MaxHP);
+
+	// A timeline não foi cortada
+	const FJRPGActionTimeline* Whole = Fight.FindTimeline(0);
+	if (TestNotNull(TEXT("a timeline da ação"), Whole))
+	{
+		TestEqual(TEXT("os quatro golpes seguem nela"), Whole->Hits.Num(), 4);
+		TestEqual(TEXT("e os quatro passos"), Whole->Steps.Num(), 4);
+	}
+
+	// O resumo: quantos golpes e o dano de todos
+	const FJRPGBattleEvent* Summary = FirstEvent(Fight, EJRPGBattleEventType::ComboTotal, 0);
+	if (TestNotNull(TEXT("o resumo da combo"), Summary))
+	{
+		TestEqual(TEXT("no alvo"), Summary->TargetSlot, 1);
+		TestEqual(TEXT("quatro golpes"), Summary->Count, 4);
+		TestEqual(TEXT("o dano de todos somado, inclusive o excesso"), Summary->Value, Sum);
+		const FJRPGBattleEvent* End = FirstEvent(Fight, EJRPGBattleEventType::ActionEnd, 0);
+		TestTrue(TEXT("antes do ActionEnd"), End && Summary->Frame <= End->Frame);
+	}
+	TestFalse(TEXT("a luta segue (sobrou um inimigo)"), Fight.IsFinished());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattleHeroSwingsTest, "JRPG.Battle.HeroSwings", JRPG_BATTLE_TEST_FLAGS)
+bool FJRPGBattleHeroSwingsTest::RunTest(const FString& Parameters)
+{
+	// A DT_HeroSwings de teste (os números são os do disco para o Gala): o padrão de cada botão, as War God Boots (chute
+	// baixo 0x1D / alto 0x18), a Survival Knife (custo 42) e o tier 4 do Ra-Seru (dois golpes)
+	UDataTable* Table = NewObject<UDataTable>(GetTransientPackage(), NAME_None, RF_Transient);
+	Table->RowStruct = FJRPGHeroSwingData::StaticStruct();
+	Table->AddToRoot();
+	static const TCHAR* const ButtonNames[4] = { TEXT("Arms"), TEXT("RaSeru"), TEXT("High"), TEXT("Low") };
+	auto AddRow = [&](const TCHAR* Item, EJRPGArtButton Button, const TArray<int32>& Bytes, const TArray<int32>& Beats, int32 Cost)
+	{
+		FJRPGHeroSwingData Row;
+		Row.Character = TEXT("Gala");
+		Row.Item = Item;
+		Row.Button = Button;
+		Row.PowerBytes = Bytes;
+		Row.HitBeats = Beats;
+		Row.Rate = 2;
+		Row.Cost = Cost;
+		Table->AddRow(FName(*FString::Printf(TEXT("Gala_%s_%s"), Item, ButtonNames[static_cast<int32>(Button)])), Row);
+	};
+	AddRow(TEXT("default"), Ar, { 0x18 }, { 9 }, 30);
+	AddRow(TEXT("default"), Se, { 0x18 }, { 9 }, 30);
+	AddRow(TEXT("default"), Hi, { 0x0E }, { 9 }, 30);
+	AddRow(TEXT("default"), Lo, { 0x13 }, { 5 }, 30);
+	AddRow(TEXT("war_god_boots"), Lo, { 0x1D }, { 9 }, 30);
+	AddRow(TEXT("war_god_boots"), Hi, { 0x18 }, { 10 }, 30);
+	AddRow(TEXT("survival_knife"), Ar, { 0x17 }, { 7 }, 42);
+	AddRow(TEXT("seru_4"), Se, { 0x18, 0x16 }, { 4, 14 }, 30);
+
+	// Equipado: a arma, o calçado e o tier do Ra-Seru mandam; o resto é o padrão
+	FJRPGCombatant Equipped;
+	Equipped.Key = TEXT("Gala");
+	Equipped.ButtonCost.Init(30, 4);
+	UBattleSubsystem::ApplyHeroSwings(Equipped, Table, TEXT("survival_knife"), TEXT("war_god_boots"), 4);
+	if (TestEqual(TEXT("um byte por botão"), Equipped.SwingBytes.Num(), 4))
+	{
+		TestEqual(TEXT("Arms: a Survival Knife"), Equipped.SwingBytes[0], 0x17);
+		TestEqual(TEXT("Ra-Seru: o tier 4"), Equipped.SwingBytes[1], 0x18);
+		TestEqual(TEXT("High: as War God Boots"), Equipped.SwingBytes[2], 0x18);
+		TestEqual(TEXT("Low: as War God Boots"), Equipped.SwingBytes[3], 0x1D);
+	}
+	TestEqual(TEXT("o custo do Arms é o da Survival Knife"), Equipped.ButtonCost[0], 42);
+	TestEqual(TEXT("os outros custam 30"), Equipped.ButtonCost[3], 30);
+	if (TestEqual(TEXT("um perfil por botão"), Equipped.SwingProfiles.Num(), 4))
+	{
+		TestEqual(TEXT("o tier 4 tem dois golpes"), Equipped.SwingProfiles[1].PowerBytes.Num(), 2);
+		TestTrue(TEXT("e os dois quadros"), Equipped.SwingProfiles[1].Beats == TArray<int32>({ 4, 14 }));
+		TestEqual(TEXT("o rate"), Equipped.SwingProfiles[1].Rate, 2);
+	}
+
+	// Nada equipado, ou um item que a tabela não traz: a linha padrão do botão; o custo de um item sem linha fica como estava
+	FJRPGCombatant Bare;
+	Bare.Key = TEXT("Gala");
+	Bare.ButtonCost.Init(30, 4);
+	UBattleSubsystem::ApplyHeroSwings(Bare, Table, NAME_None, NAME_None, 1);
+	TestEqual(TEXT("sem calçado, o chute baixo restrito"), Bare.SwingBytes[3], 0x13);
+	TestEqual(TEXT("sem calçado, o alto restrito"), Bare.SwingBytes[2], 0x0E);
+	FJRPGCombatant Unknown;
+	Unknown.Key = TEXT("Gala");
+	Unknown.ButtonCost = { 54, 30, 30, 30 };
+	UBattleSubsystem::ApplyHeroSwings(Unknown, Table, TEXT("mace"), TEXT("mystery_boots"), 1);
+	TestEqual(TEXT("calçado desconhecido: o padrão"), Unknown.SwingBytes[3], 0x13);
+	TestEqual(TEXT("arma desconhecida: o byte padrão"), Unknown.SwingBytes[0], 0x18);
+	TestEqual(TEXT("e o custo que já estava"), Unknown.ButtonCost[0], 54);
+	// Sem a tabela nada muda
+	FJRPGCombatant Untouched;
+	Untouched.Key = TEXT("Gala");
+	UBattleSubsystem::ApplyHeroSwings(Untouched, nullptr, TEXT("survival_knife"), TEXT("war_god_boots"), 4);
+	TestTrue(TEXT("sem tabela, sem bytes"), Untouched.SwingBytes.IsEmpty() && Untouched.SwingProfiles.IsEmpty());
+
+	// Na luta: o calçado muda o byte do chute baixo (as War God Boots alcançam o voador, o padrão erra)
+	auto KickAtFlier = [&](bool bBoots, int32& OutDamage, int32& OutMiss)
+	{
+		FFight Fight;
+		Fight.RandOverride = []() { return 0; };
+		FJRPGCombatant Gala = Hero(0, TEXT("Gala"), 100000, 100, 100);
+		if (bBoots)
+		{
+			UBattleSubsystem::ApplyHeroSwings(Gala, Table, NAME_None, TEXT("war_god_boots"), 1);
+		}
+		FJRPGCombatant Flier = Foe(1, TEXT("flier"), 1000000, 10, 1);
+		Flier.TargetClass = 2;
+		Fight.Begin({ Gala, Flier }, 1, false, 0);
+		Fight.SubmitCommand(ArtsCommand(0, 1, { Lo }));
+		PlayUntilActionEnds(Fight, 0);
+		OutDamage = CountEvents(Fight, EJRPGBattleEventType::Damage, 0);
+		OutMiss = CountEvents(Fight, EJRPGBattleEventType::Miss, 0);
+	};
+	int32 Damage = 0;
+	int32 Miss = 0;
+	KickAtFlier(true, Damage, Miss);
+	TestTrue(TEXT("War God Boots: o chute baixo acerta o voador"), Damage == 1 && Miss == 0);
+	KickAtFlier(false, Damage, Miss);
+	TestTrue(TEXT("padrão: o chute baixo erra o voador"), Damage == 0 && Miss == 1);
+
+	// O quadro do golpe vem do beat: beat 9 no rate 2 = 2 * (9 - 1) = 16 quadros lógicos (o padrão seria 12)
+	{
+		FFight Fight;
+		Fight.RandOverride = []() { return 0; };
+		FJRPGCombatant Gala = Hero(0, TEXT("Gala"), 100000, 100, 100);
+		UBattleSubsystem::ApplyHeroSwings(Gala, Table, NAME_None, NAME_None, 1);
+		Fight.Begin({ Gala, Foe(1, TEXT("a"), 1000000, 10, 1) }, 1, false, 0);
+		Fight.SubmitCommand(Attack(0, 1));
+		const FJRPGActionTimeline* Timeline = Fight.GetActiveTimeline();
+		if (TestNotNull(TEXT("a ação começou"), Timeline) && TestEqual(TEXT("um golpe"), Timeline->Hits.Num(), 1))
+		{
+			TestEqual(TEXT("que são 16"), UBattleFormulas::HitStepForBeat(9, 8, 2), 16);
+			TestEqual(TEXT("o golpe no quadro do beat"), Timeline->Hits[0].Frame, Fight.Defaults.LeadFrames + 16);
+			TestFalse(TEXT("não é quadro padrão"), Timeline->bUsedDefaults);
+		}
+	}
+
+	// O tier de dois golpes: dois golpes no mesmo passo, cada um no quadro do beat dele e com o byte dele
+	{
+		FFight Fight;
+		Fight.RandOverride = []() { return 0; };
+		FJRPGCombatant Gala = Hero(0, TEXT("Gala"), 100000, 100, 100);
+		UBattleSubsystem::ApplyHeroSwings(Gala, Table, NAME_None, NAME_None, 4);
+		Fight.Begin({ Gala, Foe(1, TEXT("a"), 1000000, 10, 1) }, 1, false, 0);
+		Fight.SubmitCommand(ArtsCommand(0, 1, { Se }));
+		const FJRPGActionTimeline* Timeline = Fight.GetActiveTimeline();
+		if (TestNotNull(TEXT("a ação começou"), Timeline) && TestEqual(TEXT("dois golpes"), Timeline->Hits.Num(), 2))
+		{
+			TestEqual(TEXT("o 1º no beat 4"), Timeline->Hits[0].Frame, Fight.Defaults.LeadFrames + 6);
+			TestEqual(TEXT("o 2º no beat 14"), Timeline->Hits[1].Frame, Fight.Defaults.LeadFrames + 26);
+			TestEqual(TEXT("o byte do 1º"), Timeline->Hits[0].PowerByte, 0x18);
+			TestEqual(TEXT("o byte do 2º"), Timeline->Hits[1].PowerByte, 0x16);
+			TestTrue(TEXT("os dois no mesmo passo"), Timeline->Hits[0].StepIndex == Timeline->Hits[1].StepIndex);
+		}
+	}
+
+	// Sem perfil (a tabela não veio): exatamente como antes, o quadro padrão
+	{
+		FFight Fight;
+		Fight.bLogFallbacks = false;
+		Fight.RandOverride = []() { return 0; };
+		Fight.Begin({ Hero(0, TEXT("Gala"), 100000, 100, 100), Foe(1, TEXT("a"), 1000000, 10, 1) }, 1, false, 0);
+		Fight.SubmitCommand(Attack(0, 1));
+		const FJRPGActionTimeline* Timeline = Fight.GetActiveTimeline();
+		if (TestNotNull(TEXT("a ação começou"), Timeline) && TestEqual(TEXT("um golpe"), Timeline->Hits.Num(), 1))
+		{
+			TestEqual(TEXT("o quadro padrão"), Timeline->Hits[0].Frame, Fight.Defaults.LeadFrames + Fight.Defaults.SwingHitFrame);
+			TestTrue(TEXT("marcado como padrão"), Timeline->bUsedDefaults);
+		}
+	}
+	Table->RemoveFromRoot();
 	return true;
 }
 
@@ -1312,7 +1625,8 @@ bool FJRPGBattleArtsInFightTest::RunTest(const FString& Parameters)
 		}
 	}
 
-	// Cortada antes de chegar: o que não chegou nem se aprende nem se credita
+	// O alvo cai no 1º golpe: a cadeia não é cortada (o original bate tudo e joga o excesso fora), então a Art chega, é
+	// aprendida e credita o AP como numa luta normal
 	{
 		FFight Fight;
 		Fight.RandOverride = []() { return 0; };
@@ -1325,13 +1639,33 @@ bool FJRPGBattleArtsInFightTest::RunTest(const FString& Parameters)
 		{
 			Fight.StepFrame();
 		}
-		TestEqual(TEXT("o 1º golpe matou"), CountEvents(Fight, EJRPGBattleEventType::Damage, 0), 1);
-		TestEqual(TEXT("nada aprendido"), CountEvents(Fight, EJRPGBattleEventType::ArtLearned), 0);
-		TestEqual(TEXT("o AP não andou"), Fight.GetCombatants()[0].AP, 10);
-		TestTrue(TEXT("a lista não cresceu"), Fight.GetCombatants()[0].KnownArts.IsEmpty());
+		TestEqual(TEXT("os três golpes resolveram"), CountEvents(Fight, EJRPGBattleEventType::Damage, 0), 3);
+		TestEqual(TEXT("o inimigo caiu uma vez"), CountEvents(Fight, EJRPGBattleEventType::Death, 1), 1);
+		TestEqual(TEXT("a Art foi aprendida"), CountEvents(Fight, EJRPGBattleEventType::ArtLearned), 1);
+		TestEqual(TEXT("o AP subiu o APGain"), Fight.GetCombatants()[0].AP, 19);
+		TestTrue(TEXT("a lista cresceu"), Fight.GetCombatants()[0].KnownArts.Contains(TEXT("test_somersault")));
 	}
 
-	// O golpe baixo da Art erra o monstro que voa (classe 2): o Miss sai, não há dano, e o AP credita do mesmo jeito
+	// O golpe baixo da Art erra o monstro que voa (classe 2): o Miss sai, não há dano, e o AP credita do mesmo jeito.
+	// Com as botas que trazem o chute baixo livre (0x1D: as War God Boots do Gala, as Triumph do Vahn) os dois golpes simples acertam
+	{
+		FFight Fight;
+		Fight.RandOverride = []() { return 0; };
+		Fight.ArtsTable = Arts;
+		FJRPGCombatant Vahn = Hero(0, TEXT("Vahn"), 100000, 100, 100);
+		Vahn.KnownArts = { TEXT("test_sweep") };
+		Vahn.SwingBytes = { 0, 0, 0, UBattleFormulas::SwingFreeLowByte };
+		FJRPGCombatant Flier = Foe(1, TEXT("flier"), 1000000, 10, 1);
+		Flier.TargetClass = 2;
+		Fight.Begin({ Vahn, Flier }, 1, false, 0);
+		Fight.SubmitCommand(ArtsCommand(0, 1, { Lo, Lo, Lo }));   // as duas primeiras são golpes simples (0x1D, alcançam)
+		PlayUntilActionEnds(Fight, 0);
+		TestEqual(TEXT("dois golpes simples acertam"), CountEvents(Fight, EJRPGBattleEventType::Damage, 0), 2);
+		TestEqual(TEXT("os dois golpes da Art erram pela altura"), CountEvents(Fight, EJRPGBattleEventType::Miss, 0), 2);
+		TestEqual(TEXT("o AP creditou"), Fight.GetCombatants()[0].AP, 12);
+	}
+
+	// Sem botas especiais o golpe baixo simples (0x13) também erra o voador, não só o da Art: nenhum dos três acerta
 	{
 		FFight Fight;
 		Fight.RandOverride = []() { return 0; };
@@ -1341,11 +1675,25 @@ bool FJRPGBattleArtsInFightTest::RunTest(const FString& Parameters)
 		FJRPGCombatant Flier = Foe(1, TEXT("flier"), 1000000, 10, 1);
 		Flier.TargetClass = 2;
 		Fight.Begin({ Vahn, Flier }, 1, false, 0);
-		Fight.SubmitCommand(ArtsCommand(0, 1, { Lo, Lo, Lo }));   // as duas primeiras são golpes simples (0x1D, alcançam)
+		Fight.SubmitCommand(ArtsCommand(0, 1, { Lo, Lo, Lo }));
 		PlayUntilActionEnds(Fight, 0);
-		TestEqual(TEXT("dois golpes simples acertam"), CountEvents(Fight, EJRPGBattleEventType::Damage, 0), 2);
-		TestEqual(TEXT("os dois golpes da Art erram pela altura"), CountEvents(Fight, EJRPGBattleEventType::Miss, 0), 2);
-		TestEqual(TEXT("o AP creditou"), Fight.GetCombatants()[0].AP, 12);
+		TestEqual(TEXT("nenhum golpe acerta o voador"), CountEvents(Fight, EJRPGBattleEventType::Damage, 0), 0);
+		TestEqual(TEXT("os dois simples e os dois da Art erram"), CountEvents(Fight, EJRPGBattleEventType::Miss, 0), 4);
+		TestEqual(TEXT("o monstro não perdeu HP"), Fight.GetCombatants()[1].HP, Fight.GetCombatants()[1].MaxHP);
+	}
+
+	// O chute alto restrito (0x0E, Noa e Gala) erra o monstro baixo (classe 3); o golpe de Arms (0x18) alcança
+	{
+		FFight Fight;
+		Fight.RandOverride = []() { return 0; };
+		FJRPGCombatant Noa = Hero(0, TEXT("Noa"), 100000, 100, 100);
+		FJRPGCombatant Frog = Foe(1, TEXT("frog"), 1000000, 10, 1);
+		Frog.TargetClass = 3;
+		Fight.Begin({ Noa, Frog }, 1, false, 0);
+		Fight.SubmitCommand(ArtsCommand(0, 1, { Hi, Ar }));
+		PlayUntilActionEnds(Fight, 0);
+		TestEqual(TEXT("o chute alto erra o baixo"), CountEvents(Fight, EJRPGBattleEventType::Miss, 0), 1);
+		TestEqual(TEXT("e o golpe de Arms acerta"), CountEvents(Fight, EJRPGBattleEventType::Damage, 0), 1);
 	}
 	Arts->RemoveFromRoot();
 	return true;
@@ -1484,6 +1832,14 @@ bool FJRPGBattleEndOnceTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("e o relógio parou"), Fight.GetState().Frame, Frame);
 	TestFalse(TEXT("nem se aceita comando"), Fight.SubmitCommand(Attack(0, 1)));
 	TestEqual(TEXT("uma Vitória"), CountEvents(Fight, EJRPGBattleEventType::Death, 1), 1);
+	// Um golpe só também tem o resumo (Count 1): a tela mostra então só o Damage
+	const FJRPGBattleEvent* OneHit = FirstEvent(Fight, EJRPGBattleEventType::ComboTotal, 0);
+	const FJRPGBattleEvent* OneDamage = FirstEvent(Fight, EJRPGBattleEventType::Damage, 0);
+	if (TestNotNull(TEXT("o resumo de um golpe"), OneHit) && TestNotNull(TEXT("e o golpe"), OneDamage))
+	{
+		TestEqual(TEXT("um golpe"), OneHit->Count, 1);
+		TestEqual(TEXT("o Damage é o dano dele"), OneHit->Value, OneDamage->Value);
+	}
 
 	// As recompensas só são pagas uma vez
 	TestFalse(TEXT("ainda não pagas"), Fight.GetState().bRewardsPaid);
@@ -1519,6 +1875,7 @@ bool FJRPGBattleVersionRulesTest::RunTest(const FString& Parameters)
 	Gimard.EXP = 55;
 	Gimard.Element = EJRPGElement::Fire;
 	Gimard.TargetClass = 0;
+	Gimard.SizeClass = 18;
 
 	const FJRPGCombatant Japan = UBattleSubsystem::MakeEnemyCombatant(Gimard, {}, 1, false, EJRPGRuleset::Japan, nullptr);
 	TestEqual(TEXT("Japan: o ATK cru"), Japan.ATK, 23);
@@ -1572,6 +1929,7 @@ bool FJRPGBattleVersionRulesTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("dois golpes"), Full.Swings.Num(), 2);
 	TestEqual(TEXT("na ordem do arquivo"), Full.Swings.Num() == 2 ? Full.Swings[0].ActionIndex : -1, 6);
 	TestEqual(TEXT("com o custo de AGL"), Full.Swings.Num() == 2 ? Full.Swings[1].AGLCost : -1, 32);
+	TestEqual(TEXT("a classe de tamanho (o alcance do golpe)"), Full.SizeClass, 18);
 	TestEqual(TEXT("o nível"), Full.Level, 3);
 	TestEqual(TEXT("o time dos inimigos"), Full.Team, 1);
 	TestEqual(TEXT("o pool de AGL"), Full.MaxCommandGauge, 60);

@@ -8,6 +8,7 @@
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
 #include "NavigationSystem.h"
 #include "TimerManager.h"
 #include "Engine/Texture2D.h"
@@ -195,13 +196,43 @@ void AJRPGEncounterZone::Respawn(TWeakObjectPtr<AJRPGFieldEnemy> Enemy)
 		NotifyEnemyHidden(Enemy.Get());
 		return;
 	}
+	// Longe do jogador: reaparecer em cima dele começaria outra luta na hora
+	const APawn* Player = UGameplayStatics::GetPlayerPawn(this, 0);
 	FVector Floor;
-	if (!GetRandomFloorPoint(Floor))
+	if (!(Player ? GetRandomFloorPointAway(Player->GetActorLocation(), Enemy->DetectRadius + 200.0f, Floor) : GetRandomFloorPoint(Floor)))
 	{
 		NotifyEnemyHidden(Enemy.Get());
 		return;
 	}
 	Enemy->RespawnAtFloor(Floor);
+}
+
+bool AJRPGEncounterZone::GetRandomFloorPointAway(const FVector& Avoid, float MinDistance, FVector& OutFloor) const
+{
+	// Sorteia até achar um ponto a MinDistance (no plano) de Avoid; numa zona pequena demais, o mais longe dos sorteados
+	bool bFound = false;
+	float BestDistance = -1.0f;
+	for (int32 Attempt = 0; Attempt < 12; ++Attempt)
+	{
+		FVector Point;
+		if (!GetRandomFloorPoint(Point))
+		{
+			continue;
+		}
+		const float Distance = static_cast<float>(FVector::Dist2D(Point, Avoid));
+		if (Distance >= MinDistance)
+		{
+			OutFloor = Point;
+			return true;
+		}
+		if (Distance > BestDistance)
+		{
+			BestDistance = Distance;
+			OutFloor = Point;
+			bFound = true;
+		}
+	}
+	return bFound;
 }
 
 bool AJRPGEncounterZone::GetRandomFloorPoint(FVector& OutFloor) const

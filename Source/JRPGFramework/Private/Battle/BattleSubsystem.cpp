@@ -52,6 +52,11 @@ UBattleSubsystem::UBattleSubsystem()
 	HeroFlinch.Rate = 1;
 	HeroBlock.Beat = 3;
 	HeroBlock.Rate = 1;
+	// O beat da entrada de flinch e de block (a mesma em cada herói) dos arquivos de batalha do disco: Vahn 3, Noa 2, Gala 4,
+	// todas a rate 1 (as entradas 2, 3 e 0x0B de PROT 0863..0865). Quem não está na lista usa HeroFlinch / HeroBlock
+	HeroReactionBeats.Add(TEXT("Vahn"), 3);
+	HeroReactionBeats.Add(TEXT("Noa"), 2);
+	HeroReactionBeats.Add(TEXT("Gala"), 4);
 }
 
 void UBattleSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -83,9 +88,10 @@ bool UBattleSubsystem::TryStartEncounter(const TArray<FJRPGEncounterCombatant>& 
 		return false;
 	}
 	const double Now = FPlatformTime::Seconds();
-	if (Now - LastEncounterTime < EncounterGraceTime)
+	if (IsInEncounterGrace())
 	{
-		UE_LOG(LogTemp, Log, TEXT("BattleSubsystem: encontro recusado (o último foi há %.1fs)"), Now - LastEncounterTime);
+		UE_LOG(LogTemp, Log, TEXT("BattleSubsystem: encontro recusado (carência: o último foi há %.1fs, o Field voltou há %.1fs)"),
+			Now - LastEncounterTime, Now - (PostBattleGraceUntil - PostBattleGraceTime));
 		return false;
 	}
 	if (Enemies.Num() == 0)
@@ -98,6 +104,69 @@ bool UBattleSubsystem::TryStartEncounter(const TArray<FJRPGEncounterCombatant>& 
 	UE_LOG(LogTemp, Log, TEXT("BattleSubsystem: encontro com %d inimigo(s)"), Enemies.Num());
 	OnEncounterStarted.Broadcast(Enemies);
 	return true;
+}
+
+void UBattleSubsystem::ApplyHeroSwings(FJRPGCombatant& Hero, const UDataTable* Table, FName Weapon, FName Shoes, int32 SeruLevel)
+{
+	if (!Table || Table->GetRowStruct() != FJRPGHeroSwingData::StaticStruct())
+	{
+		return;
+	}
+	static const TCHAR* const ButtonNames[4] = { TEXT("Arms"), TEXT("RaSeru"), TEXT("High"), TEXT("Low") };
+	static const FName DefaultItem(TEXT("default"));
+	// O item que dirige cada botão, na ordem de EJRPGArtButton (Arms, Ra-Seru, High, Low)
+	const FName Items[4] = { Weapon, FName(*FString::Printf(TEXT("seru_%d"), FMath::Max(SeruLevel, 1))), Shoes, Shoes };
+
+	Hero.SwingBytes.Init(0, 4);
+	Hero.SwingProfiles.SetNum(4);
+	if (Hero.ButtonCost.Num() < 4)
+	{
+		Hero.ButtonCost.Init(DefaultButtonCost, 4);
+	}
+	for (int32 Index = 0; Index < 4; ++Index)
+	{
+		auto FindRow = [&](FName Item) -> const FJRPGHeroSwingData*
+		{
+			if (Item.IsNone())
+			{
+				return nullptr;
+			}
+			const FName RowKey(*FString::Printf(TEXT("%s_%s_%s"), *Hero.Key.ToString(), *Item.ToString(), ButtonNames[Index]));
+			return Table->FindRow<FJRPGHeroSwingData>(RowKey, TEXT("BattleSnapshot"), false);
+		};
+		const FJRPGHeroSwingData* OwnRow = FindRow(Items[Index]);
+		const FJRPGHeroSwingData* Row = OwnRow ? OwnRow : FindRow(DefaultItem);
+		if (!Row || Row->PowerBytes.IsEmpty())
+		{
+			continue;
+		}
+		FJRPGBattleSwingProfile& Profile = Hero.SwingProfiles[Index];
+		Profile.PowerBytes = Row->PowerBytes;
+		if (Row->HitBeats.Num() == Row->PowerBytes.Num())
+		{
+			Profile.Beats = Row->HitBeats;
+			Profile.Rate = FMath::Max(Row->Rate, 1);
+		}
+		Hero.SwingBytes[Index] = Row->PowerBytes[0];
+		// O custo vem do registro do próprio item; um item que a tabela não traz mantém o custo de antes (DT_WeaponCosts)
+		if ((OwnRow || Items[Index].IsNone()) && Row->Cost > 0)
+		{
+			Hero.ButtonCost[Index] = Row->Cost;
+		}
+	}
+}
+
+bool UBattleSubsystem::IsInEncounterGrace() const
+{
+	const double Now = FPlatformTime::Seconds();
+	return Now < PostBattleGraceUntil || Now - LastEncounterTime < EncounterGraceTime;
+}
+
+void UBattleSubsystem::NoteFieldReturned()
+{
+	// A carência de depois da luta conta daqui, de quando o Field aparece de novo (o fim da luta vem ~2 s antes: a queda, o
+	// fade), e não do EndBattle: senão o inimigo ao lado do jogador encostava logo que a tela abria
+	PostBattleGraceUntil = FPlatformTime::Seconds() + PostBattleGraceTime;
 }
 
 // =================================================================================================
@@ -134,6 +203,7 @@ FJRPGCombatant UBattleSubsystem::MakeEnemyCombatant(const FJRPGEnemyData& Row, c
 	C.AGL = Stats.AGL;
 	C.Element = Row.Element;
 	C.TargetClass = Row.TargetClass;
+	C.SizeClass = Row.SizeClass;
 	C.AP = 0;
 	C.MaxAP = 0;
 	C.MaxCommandGauge = Stats.AGL;
@@ -309,6 +379,17 @@ FJRPGCombatant UBattleSubsystem::MakeHeroCombatant(FName Key, int32 SideIndex) c
 		UE_LOG(LogTemp, Warning, TEXT("BattleSubsystem: DT_WeaponCosts não encontrada — todo botão custa %d"), DefaultButtonCost);
 	}
 
+	// O golpe simples de cada botão (byte de poder, quadro de golpe, custo) do que ele tem equipado; sem a tabela, o byte
+	// padrão do herói e o quadro padrão da timeline, como antes
+	if (const UDataTable* Swings = UCoreSubsystem::ResolveDataTable(TEXT("DT_HeroSwings")))
+	{
+		ApplyHeroSwings(C, Swings, EquippedAt(EJRPGEquipSlot::Weapon), EquippedAt(EJRPGEquipSlot::Shoes), bInRoster ? Member.SeruLevel : 1);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("BattleSubsystem: DT_HeroSwings não encontrada — golpes simples com o byte e o quadro padrão (Docs/Guides/BATTLE.md)"));
+	}
+
 	// As Arts: a lista que ele sabe, o Ra-Seru, a chance de aprender no uso (a foto das regras das Arts)
 	if (Arts)
 	{
@@ -326,9 +407,16 @@ FJRPGCombatant UBattleSubsystem::MakeHeroCombatant(FName Key, int32 SideIndex) c
 	// Os heróis têm os clips de block e de levantar; a janela de reação é a do original (Vahn: beat 3 / rate 1)
 	C.bHasBlock = true;
 	C.bHasGetUp = true;
-	C.FlinchHigh = HeroFlinch;
-	C.FlinchLow = HeroFlinch;
-	C.BlockClip = HeroBlock;
+	FJRPGBattleReactionClip Flinch = HeroFlinch;
+	FJRPGBattleReactionClip BlockWindow = HeroBlock;
+	if (const int32* Beat = HeroReactionBeats.Find(Key))
+	{
+		Flinch.Beat = *Beat;
+		BlockWindow.Beat = *Beat;
+	}
+	C.FlinchHigh = Flinch;
+	C.FlinchLow = Flinch;
+	C.BlockClip = BlockWindow;
 	return C;
 }
 
@@ -539,6 +627,13 @@ void UBattleSubsystem::EndBattle(EJRPGBattleResult Result)
 	OnBattleEnded.Broadcast(Result);
 }
 
+void UBattleSubsystem::EndBattleForDebug(EJRPGBattleResult Result, bool bPayEveryEnemy)
+{
+	bDebugPayEveryEnemy = bPayEveryEnemy;
+	EndBattle(Result);
+	bDebugPayEveryEnemy = false;
+}
+
 void UBattleSubsystem::WriteBack(EJRPGBattleResult Result)
 {
 	// Derrota e Aborted não escrevem nada: o roster fica como estava antes da luta
@@ -610,13 +705,14 @@ void UBattleSubsystem::PayRewards()
 	UCoreSubsystem* Core = GI ? GI->GetSubsystem<UCoreSubsystem>() : nullptr;
 	const EJRPGRuleset Ruleset = Core ? Core->GetRuleset() : EJRPGRuleset::USA;
 
-	// O EXP cru e o Gold cru dos inimigos derrotados (DT_Enemies); a versão e a dificuldade entram depois
+	// O EXP cru e o Gold cru dos inimigos derrotados (DT_Enemies); a versão e a dificuldade entram depois. O fim de debug
+	// (JRPG.Battle.End victory) paga todos, vivos também, para dar para testar a recompensa sem derrotar a luta inteira
 	int32 RawEXP = 0;
 	TArray<int32> Golds;
 	for (const FJRPGCombatant& C : Resolver.GetCombatants())
 	{
 		FJRPGEnemyData Row;
-		if (C.Side == EJRPGBattleSide::Enemy && !C.bAlive && UJRPGEncounterLibrary::GetEnemyData(C.Key, Row))
+		if (C.Side == EJRPGBattleSide::Enemy && (!C.bAlive || bDebugPayEveryEnemy) && UJRPGEncounterLibrary::GetEnemyData(C.Key, Row))
 		{
 			RawEXP += Row.EXP;
 			Golds.Add(Row.Gold);
@@ -641,7 +737,11 @@ void UBattleSubsystem::PayRewards()
 	if (Core)
 	{
 		Gold = Core->ScaleGoldReward(Gold);
-		Core->AddGold(Gold);
+		// Uma vitória que paga 0 (inimigo sem Gold) não chama o AddGold: ele reclama de quantia inválida
+		if (Gold > 0)
+		{
+			Core->AddGold(Gold);
+		}
 	}
 	UE_LOG(LogTemp, Log, TEXT("BattleSubsystem: recompensa — EXP cru %d (%d cada, %d herói(s) vivo(s)), Gold %d"), RawEXP, PerHero, Participants.Num(), Gold);
 }
@@ -676,6 +776,8 @@ bool UBattleSubsystem::SubmitCommand(const FJRPGBattleCommand& Command)
 	if (!bAccepted)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("BattleSubsystem: comando recusado — %s"), *Why);
+		// A recusa também vai para quem escuta (a tela mostra, ao lado do prompt): senão a luta parece travada
+		OnCommandRefused.Broadcast(Command.Slot, Why);
 	}
 	FlushEvents();
 	return bAccepted;

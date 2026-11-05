@@ -18,8 +18,9 @@ Com --archive e --tool (o arquivo de monstros e o asset.exe do RE), cada registr
 bloco decodificado do monstro (`asset monster-archive --id N --dump-block`, Extras/monster_block.py)
 para a TargetClass — o byte +0x1E, a classe de altura que decide quais golpes alcançam o monstro
 (0 todo golpe alcança; 2 voando: o golpe baixo erra; 3 baixo: o golpe alto erra; BATTLE_ROADMAP.md ›
-5.0) — e para conferir o Element do TOML contra o +0x1D (o inimigo só do disco ganha o do registro).
-Sem eles, a TargetClass que já está no CSV é mantida.
+5.0) — e para a SizeClass (o +0x1F, 14..48 no disco: a classe de tamanho que dá o alcance do golpe, a lei
+FUN_8004E2F0) — e para conferir o Element do TOML contra o +0x1D (o inimigo só do disco ganha o do
+registro). Sem eles, a TargetClass e a SizeClass que já estão no CSV são mantidas (0 = não se sabe).
 
 A tabela guarda o REGISTRO CRU do disco (stats, EXP, Gold), igual em todas as versões do
 jogo. O que cada versão faz com ele — o boost dos stats ao carregar a luta, o corte de EXP e
@@ -53,7 +54,7 @@ import monster_block as mb
 TABLE = "DT_Enemies"
 
 COLUMNS = [
-    "Key", "DisplayName", "Location", "bIsBoss", "Element", "TargetClass",
+    "Key", "DisplayName", "Location", "bIsBoss", "Element", "TargetClass", "SizeClass",
     "BaseHP", "BaseMP", "BaseAGL", "BaseATK", "BaseUDF", "BaseLDF", "BaseSPD", "BaseINT",
     "EXP", "Gold", "DropItem", "DropChance", "StealItem", "StealChance",
     "CaptureSeru", "CatchRate", "MonsterArchiveID", "Mesh", "Anims",
@@ -267,9 +268,11 @@ def main():
                     # Sem registro no disco para ler: a TargetClass que já está no CSV, senão 0 (nunca vazia)
                     old = old_rows.get(r["---"])
                     r["TargetClass"] = old.get("TargetClass", 0) if old and old.get("TargetClass", "") != "" else 0
+                    r["SizeClass"] = old.get("SizeClass", 0) if old and old.get("SizeClass", "") != "" else 0
                     continue
                 block = reader.read(monster_id)
                 r["TargetClass"] = block["target_class"]
+                r["SizeClass"] = block["size_class"]
                 disc_element = RECORD_ELEMENTS.get(block["element"], "None")
                 if r["Element"] == "None" and not r.get("Location"):
                     r["Element"] = disc_element        # só no disco: o registro é a fonte
@@ -282,6 +285,7 @@ def main():
         old = old_rows.get(r["---"])
         if not args.archive:
             r["TargetClass"] = old.get("TargetClass", 0) if old and old.get("TargetClass", "") != "" else 0
+            r["SizeClass"] = old.get("SizeClass", 0) if old and old.get("SizeClass", "") != "" else 0
         for c in MANUAL_COLUMNS:
             r[c] = old.get(c, "") if old else ""
         if old and int(r["MonsterArchiveID"]) == -1 and old.get("MonsterArchiveID") not in ("", "-1"):

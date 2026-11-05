@@ -31,6 +31,7 @@ in LegaiaStudio (*Enemies* in the sidebar) and re-import.
 | `bIsBoss` | Bool | 26 bosses |
 | `Element` | `EJRPGElement` | `lightning` and `thunder` in the source are both `Thunder`. The generator checks it against the record's `+0x1D` byte |
 | `TargetClass` | Int | The record's `+0x1E` byte: which of the heroes' hits reach the monster. `0` every hit; `2` **floating** (Evil Fly, bees, ghosts - 49 monsters): the low hits ("Lower, misses floating") miss it; `3` **short** (frogs - 6): the high hits ("Upper, misses short") miss it; `1` appears once. Hits with a power byte of `0x16` or more reach anyone. 123 monsters are `0`. See `UBattleFormulas::LimbMisses` |
+| `SizeClass` | Int | The record's `+0x1F` byte, the size class that decides how far a strike reaches (the original's range law `FUN_8004E2F0`: threshold `{256, 384, 1024}[class]` PSX units under 3, else `class << 4`; 14..48 on the disc, 22 for 35 monsters). `0` = unknown (a row made by hand): the pawn falls back to `DefaultSizeClass` (22). See [BATTLE.md](BATTLE.md) |
 
 ### Stats — the raw record
 
@@ -112,11 +113,11 @@ python Extras/generate_enemies_csv.py --monster-list monster_list.txt \
     [--archive extracted/PROT/0867_battle_data.BIN --tool asset.exe] [--dry-run]
 ```
 
-`--archive` and `--tool` (the monster archive and the RE's `asset.exe`) go together and fill `TargetClass`:
+`--archive` and `--tool` (the monster archive and the RE's `asset.exe`) go together and fill `TargetClass` and `SizeClass`:
 the generator dumps each monster's decoded block (`asset monster-archive ... --id N --dump-block`, into a
-temporary folder - nothing from the disc is kept) and reads the record's `+0x1E` byte, and it also checks the
+temporary folder - nothing from the disc is kept) and reads the record's `+0x1E` and `+0x1F` bytes, and it also checks the
 TOML's `Element` against `+0x1D` (today: no difference; the two disc-only rows, Comm and Evil Bat, take the
-record's). Without them the `TargetClass` already in the CSV is kept.
+record's). Without them the `TargetClass` and `SizeClass` already in the CSV are kept.
 
 Python 3.11+ (it reads the TOML with `tomllib`). Two sources:
 
@@ -256,7 +257,10 @@ python Extras/generate_hero_battle_csv.py --extracted <LegaiaRE/extracted> --too
 |---|---|---|
 | `DT_RaSeruTiers` | `FJRPGRaSeruTierData` | One row per hero (`Vahn`, `Noa`, `Gala`): `TierATK`, the ATK of the Ra-Seru at each tier - Meta `10 20 30 40 50 60 70 85 100`, Terra `16 26 36 46 56 66 81 96`, Ozma `24 36 48 60 72 89 106`. The tier is the hero's `SeruLevel` (past the last tier the last one counts). In the original the Ra-Seru is an item of its own (`Ra-Seru Meta $1..$9` in the SCUS equipment table); here it is one of the five pieces the damage folds. Source: `asset item-tables SCUS_942.54 --equipment-only` |
 | `DT_WeaponCosts` | `FJRPGWeaponCostData` | `<Hero>_<Weapon>` -> `ArmsCost`: what the hero's **Arms button** costs on the command gauge with that weapon - `30` the favoured class, `42` one class away, `54` far off (Vahn's Astral Sword; Noa with a club or an axe). Only weapons the hero can equip and whose cost is not 30 have a row (18); everything else, and the other three buttons, cost `UJRPGArtsRules::DefaultButtonCost` (30). Source: the weapon section of the battle files PROT 863 / 864 / 865 (`[+0x04] + 0x74`), `asset battle-data-pack`; the values are the table in the RE's `arts-command-gauge.md` |
+| `DT_HeroSwings` | `FJRPGHeroSwingData` | One row per **hero + item + button** (114 rows), `<Hero>_<Item>_<Button>` (`Gala_war_god_boots_Low`). Columns: `Character`, `Item` (the `DT_Items` key; `default` = the section default, nothing equipped; `seru_N` = Ra-Seru tier N, since the Ra-Seru is the hero's `SeruLevel` and not an item), `Button` (`Arms` / `RaSeru` / `High` / `Low`), `PowerBytes` (one per hit, 1 or 2), `HitBeats` (the clip frame of each hit, the same count), `Rate` (1 or 2) and `Cost` (the button's gauge cost). The weapon drives Arms (Noa's right arm), the Ra-Seru tier the Ra-Seru button (Noa's Terra is her left arm), the shoes the two kicks. Read from the same swing records as the costs (record `+0x00..+0x03`, `+0x10..+0x13`, `+0x78`, `+0x74`). Items the table does not know (Feral, Mace and a Vahn id with no name) fall back to `default` |
 
 Import each as a DataTable with its Row Structure, named like the file, at `/Game/Data/`. Without
 `DT_RaSeruTiers` the Ra-Seru piece is 0 ATK; without `DT_WeaponCosts` every button costs 30 - both log a
-warning when the fight starts, and the fight goes on.
+warning when the fight starts, and the fight goes on. Without `DT_HeroSwings` the plain swings use the default byte of the
+hero (`UBattleFormulas::DefaultSwingPowerByte`) and `FJRPGTimelineDefaults::SwingHitFrame` (one line in the log). When both
+tables exist, a row's `Cost` wins over `DT_WeaponCosts` (an item with no row keeps the `DT_WeaponCosts` cost); `DT_WeaponCosts` stays as it is.
