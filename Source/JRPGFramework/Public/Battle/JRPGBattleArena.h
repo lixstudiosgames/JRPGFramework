@@ -5,6 +5,7 @@
 #include "Core/JRPGSplineArea.h"
 #include "Battle/BattleTypes.h"
 #include "Camera/CameraData.h"
+#include "Battle/JRPGBattleCamera.h"
 #include "JRPGBattleArena.generated.h"
 
 class USplineComponent;
@@ -12,6 +13,7 @@ class UBillboardComponent;
 class USkeletalMesh;
 class USkeletalMeshComponent;
 class AJRPGBattlePawn;
+class AJRPGBattleCamera;
 class APlayerController;
 
 /** De onde saem os lugares da formação automática. */
@@ -86,7 +88,7 @@ struct JRPGFRAMEWORK_API FJRPGArenaSeat
  * Na luta (AssembleBattle, chamado pelo UJRPGBattleSceneSubsystem com a tela já preta): esconde e
  * congela a party do Field e o HideDuringBattle, desliga o controle do Field, cria um
  * AJRPGBattlePawn por combatente nos lugares (o modelo de batalha vem do DT_Characters /
- * DT_Enemies) e aponta a câmera — a BattleCamera, ou FrameGroup em todos. TeardownBattle devolve
+ * DT_Enemies) e aponta a câmera — a BattleCamera, a câmera da luta (AJRPGBattleCamera) ou FrameGroup em todos. TeardownBattle devolve
  * tudo como estava. Mapa sem arena: o subsystem cria uma provisória no ponto do encontro.
  * Guia: Docs/Guides/BATTLE_STAGE.md.
  */
@@ -141,7 +143,8 @@ public:
 	 * arena, e uma formação mais larga que FormationSpanLimitUnits num eixo é comprimida. É o que impede a luta de ir parar
 	 * na borda (o chefe empurrado até o fim da arena, com a party amontoada em cima dele). A cena avisa as câmeras
 	 * (UJRPGBattleSceneSubsystem::OnFormationShifted) para andarem junto, como o foco da câmera do original.
-	 * Desligado por padrão enquanto a câmera da luta é fixa (o salto aparece); ligar quando as câmeras de ação seguirem o evento.
+	 * Desligado por padrão (bugs 21-26: com a câmera parada o salto aparece). A câmera da luta (bUseBattleCamera) já segue o evento,
+	 * andando o foco no mesmo quadro; com ela, ligar isto é o comportamento do original.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation")
 	bool bRecentreFormation = false;
@@ -240,16 +243,27 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
 	TObjectPtr<AActor> BattleCamera;
 
-	/** O enquadramento quando não há BattleCamera (gira em volta do primeiro do grupo). */
+	/**
+	 * Sem BattleCamera: a câmera da luta (AJRPGBattleCamera) segue a luta como a do original — o plano geral girando, os closes do
+	 * menu, a ação. Desligado, a câmera fica parada no enquadramento de todos (FrameGroup, CameraPreset / CameraPadding).
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
+	bool bUseBattleCamera = true;
+
+	/** A classe da câmera da luta (um Blueprint filho muda distâncias, giro, velocidade). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (EditCondition = "bUseBattleCamera"))
+	TSubclassOf<AJRPGBattleCamera> BattleCameraClass;
+
+	/** O enquadramento parado quando não há BattleCamera nem câmera da luta (gira em volta do primeiro do grupo). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (EditCondition = "!bUseBattleCamera"))
 	ECameraFramingPreset CameraPreset = ECameraFramingPreset::BattleWide;
 
 	/** Folga em volta dos combatentes (1 = encostando nas bordas da tela). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (ClampMin = "1.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (ClampMin = "1.0", EditCondition = "!bUseBattleCamera"))
 	float CameraPadding = 1.15f;
 
-	/** A câmera fica atrás da party, olhando para os inimigos. Desligado, o contrário. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
+	/** A câmera parada fica atrás da party, olhando para os inimigos. Desligado, o contrário. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (EditCondition = "!bUseBattleCamera"))
 	bool bCameraBehindParty = true;
 
 	/**
@@ -381,6 +395,10 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Arena")
 	AJRPGBattlePawn* GetPawnForSlot(int32 SlotIndex) const;
 
+	/** A câmera da luta montada aqui (nula com BattleCamera posta à mão, com bUseBattleCamera desligado ou fora de luta). */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Arena")
+	AJRPGBattleCamera* GetBattleCameraActor() const { return SpawnedBattleCamera; }
+
 	// --- Botões no editor ---------------------------------------------------------------------
 
 	/** Lista no Message Log (Map Check) os lugares amarelos/vermelhos da formação de preview. */
@@ -451,6 +469,9 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AJRPGBattlePawn>> BattlePawns;
+
+	UPROPERTY(Transient)
+	TObjectPtr<AJRPGBattleCamera> SpawnedBattleCamera;
 
 	TArray<FHiddenActor> HiddenActors;
 	TWeakObjectPtr<APlayerController> InputController;

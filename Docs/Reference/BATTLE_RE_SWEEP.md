@@ -615,6 +615,10 @@ per-art camera; only Close runs case 7's pull-in and case 8's dead / live re-aim
 over every combatant with the `BattleWide` preset (`CameraPadding` 1.15, `bCameraBehindParty`), and leaves it there. Formation
 recentre is off by default *because* the camera is fixed (bugs 21-26; `OnFormationShifted` exists for future action cameras).
 
+**Done so far (camera pass, 2026-11-05):** `AJRPGBattleCamera` (`Docs/Guides/BATTLE_STAGE.md` "The battle camera"), spawned by
+the arena when there is no `BattleCamera` (`bUseBattleCamera`). Part a: the pose model and units of 7.1, the ease-out of 7.4, the
+lens, case 9 with the orbit of 7.5, and the focus moving with `OnFormationShifted`.
+
 **Gap: the whole battle camera.** Suggested shape (implementation pass): a `UJRPGBattleCameraDirector` owned by the scene subsystem
 that, every logic frame, picks the case from the battle stage + the acting pawn's phase + the menu screen, builds the target pose
 (pitch, yaw, TR, focus) from the live pawns' **body locations** (5.1) with the unit conversion of 7.1, and chases it with the

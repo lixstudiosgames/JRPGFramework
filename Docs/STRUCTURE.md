@@ -174,6 +174,8 @@ JRPGFramework/
 │   │       │                                       assembles it: formation preview + ground check,
 │   │       │                                       hand-drawn area, FindArenaFor, AssembleBattle /
 │   │       │                                       TeardownBattle (BATTLE_ROADMAP Phase 4)
+│   │       ├── JRPGBattleCamera.h 🟡            ← the battle camera (the original's framing cases, ease-out,
+│   │       │                                       orbit), spawned by the arena. Guides/BATTLE_STAGE.md
 │   │       ├── JRPGBattleSceneSubsystem.h ✅    ← world subsystem: picks the arena, fade, OnFieldHidden /
 │   │       │                                       OnFieldShown, console commands. Guides/BATTLE_STAGE.md
 │   │       ├── JRPGBattleMenu.h 🟡              ← the battle command menu's state machine (no UObject, no
@@ -238,7 +240,7 @@ JRPGFramework/
 │       │                    JRPGBattleUITests.cpp 🟡 — JRPG.Battle.UI.*: the command menu, written, to run)
 │       └── Battle/ 🟡      (BattleSubsystem.cpp 🟡, JRPGBattleResolver.cpp 🟡, BattleFormulas.cpp 🟡,
 │                           JRPGBattleMenu.cpp 🟡, JRPGBattleUISubsystem.cpp 🟡,
-│                           JRPGBattleArena.cpp ✅, JRPGBattleSceneSubsystem.cpp ✅,
+│                           JRPGBattleArena.cpp ✅, JRPGBattleCamera.cpp 🟡, JRPGBattleSceneSubsystem.cpp ✅,
 │                           JRPGBattlePawn.cpp ✅, JRPGBattleWaves.cpp ✅, JRPGBattleRules.cpp ✅,
 │                           JRPGAnimNotify_Hit.cpp ✅, JRPGAnimNotify_HitSound.cpp ✅)
 │

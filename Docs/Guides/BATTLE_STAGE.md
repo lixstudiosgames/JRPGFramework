@@ -39,8 +39,8 @@ A fight, start to end:
      point of its zone. Nobody is left glued to the player for when the fight ends.
    - The arena hides and freezes the field party (the controlled character and the followers)
      and its `HideDuringBattle`, turns the field controls off, spawns one `AJRPGBattlePawn` per
-     combatant at its seats (`GetFormation`), and points the camera — its `BattleCamera`, or
-     `UCameraSubsystem::FrameGroup` over every combatant.
+     combatant at its seats (`GetFormation`), and points the camera — its `BattleCamera`, else the
+     battle camera (`AJRPGBattleCamera`, below), else `UCameraSubsystem::FrameGroup` over every combatant.
    - The screen opens.
 4. `EndBattle(Result)` fades to black; the arena destroys the pawns and puts the field back
    exactly as it was (controls, camera, what was hidden); `OnFieldShown` brings the field
@@ -108,14 +108,40 @@ A combatant without a model appears as its capsule only, and the arena says why 
 |---|---|---|
 | `HideDuringBattle` | — | Actors hidden while a fight happens here (a tree in front of the camera, an NPC in a seat). |
 | `BattleCamera` | — | A CameraActor / CineCameraActor placed by hand; replaces the automatic framing. |
-| `CameraPreset` | `BattleWide` | Framing when there is no `BattleCamera`. |
-| `CameraPadding` | 1.15 | Room around the combatants. |
-| `bCameraBehindParty` | true | Camera behind the heroes looking at the enemies; off = the other way. |
+| `bUseBattleCamera` | true | Without `BattleCamera`: the battle camera follows the fight (below). Off = one still framing of everyone (`FrameGroup`). |
+| `BattleCameraClass` | `AJRPGBattleCamera` | A Blueprint child to tune distances, turn speed, lens. |
+| `CameraPreset` | `BattleWide` | The still framing (`bUseBattleCamera` off). |
+| `CameraPadding` | 1.15 | Room around the combatants (still framing). |
+| `bCameraBehindParty` | true | Still framing behind the heroes looking at the enemies; off = the other way. |
 | `TransitionTime` | 0.35 | Fade to black in and out; the scene changes with the screen fully black. 0 = hard cut. |
 | `TransitionColor` | black | |
 | `PawnClass` | `AJRPGBattlePawn` | A Blueprint child for entry effects, a name over the head… |
 
 A map with no arena uses these defaults on the temporary one.
+
+### The battle camera (`AJRPGBattleCamera`)
+
+The original's battle camera, from the RE (`Docs/Reference/BATTLE_RE_SWEEP.md` section 7). The arena spawns it at assembly
+(already on its first pose, while the screen is black) and destroys it at teardown.
+
+- **Every frame** it picks a shot from the state of the fight, builds that shot's pose from the live combatants, and moves
+  toward it with the original's **ease-out**: each 30 Hz step covers `1 / ChaseSteps` of what is left (6; 7 for the far
+  shot). The target is rebuilt every frame, so the camera chases moving fighters and never stops dead at a state change.
+- **A pose** is the original's: a focus point, a turn around it (`Yaw`, 0 = behind the party looking at the enemies), a
+  tilt (`Pitch`) and the view-space offset `TR` (side shift, eye height, eye distance). The original's numbers are PS1
+  units; camera offsets are in the battle's 4x scale, so `cm = TR / 4 * OriginalCmPerUnit`, and "prescale" is x1.6.
+- **Lens** (`bOriginalLens`): 64° horizontal at 4:3 with the vertical held (about 50°); a wider screen shows more at the
+  sides.
+- **Formation recentre**: the camera moves its focus with `OnFormationShifted` in the same frame, as the original does, so
+  `bRecentreFormation` no longer shows a jump.
+
+| Shot | When | Pose |
+|---|---|---|
+| **Far** (case 9) | Always, for now (the menu and action shots come next) | The whole formation's box centre on the floor; distance `prescale(max(width * 3, 0x800))` (1 v 1: ~831 cm), eye ~139 cm up, tilt 2.8°. The yaw is passed through and **orbits** at -10.5°/s (`bOrbit`). |
+
+Tuning on the class: `DistanceScale` (every eye distance; 1 = the original's), `ChaseSteps` / `FarChaseSteps` (0 = hard
+cut), `StartYaw` (the original opens at 0, both rows in line; 20° by default), `OrbitDegreesPerSecond`, `bMirrorYaw`,
+`FieldOfView43`, `bPrintDebug` (shot and pose on screen).
 
 **Field enemies:** `bStartBattle` (default on) — off, contact only announces the encounter, as
 in Phase 3.
