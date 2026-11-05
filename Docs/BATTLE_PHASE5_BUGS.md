@@ -421,6 +421,13 @@ Bug 20 (miss sound) confirmed fixed in PIE. Worked on in parts.
     the part beyond it blends back. Not investigated.
 31. **Gimard ended up inside Vahn again.** Not investigated. Suspects: the target's knockdown / get-up end step moving it toward the
     attacker, separation too slow to undo it, or the arrival shove.
+- **29-31 analysed (2026-11-05), still open:** see [`Reference/BATTLE_RE_SWEEP.md`](Reference/BATTLE_RE_SWEEP.md) section 1. 30
+  and 31 come from our movement model: the original measures reach and separation on the **body pair** (position + pose
+  centroid), backs the attacker off at speed 4 every tick while it is in range, snaps reach **both ways** at every commit and
+  ends a clip with the entry's own `+0x0E` step; we measure feet, only snap forward, and invent the end step from the centroid
+  with a reach clamp (the clamped part is Slash Kick's slide). 29 is most likely a Miss / Block read as "nothing", or an Art
+  whose Unreal clip length differs from the disc's `4 * N / R` (hit frames come from `DT_ArtHits`, clip length from the asset).
+  Fix list: section 5.8 of that file.
 
 #### Backlog (2026-11-05) — noted for later, not started
 
@@ -428,6 +435,8 @@ Bug 20 (miss sound) confirmed fixed in PIE. Worked on in parts.
     does: each state of the action SM, every wait / hold / timer, every animation (which clip, when it is committed, how it ends, what
     moves the actor), the camera, the sounds. Compare each with ours and reproduce it. Write the result as a reference doc next to
     `Reference/BATTLE_TIMING.md` (one section per state / mechanism, with the RE source and our file), then fix the differences.
+    **Documented (2026-11-05):** [`Reference/BATTLE_RE_SWEEP.md`](Reference/BATTLE_RE_SWEEP.md) (also covers effects, camera, the
+    remaining sounds and the HUD; magic / summons / capture out of scope for now). Implementation: its section 10.3, in order.
 33. **Arts panel (the Triangle list), UI fixes:**
     - Show it **only on the command-input screen** (the one where Arms / High / Low / Ra-Seru are typed, `attack`), not on the
       hero's main menu nor elsewhere in the fight.
