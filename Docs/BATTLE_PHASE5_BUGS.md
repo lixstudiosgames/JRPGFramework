@@ -447,8 +447,16 @@ Bug 20 (miss sound) confirmed fixed in PIE. Worked on in parts.
   (bug 35). `ReachFor` is public now (the scene reads it). What to look at in PIE: attackers stop at the reach of the body they
   see (a monster that leans forward is hit where it is), bodies that a clip carries into each other get pushed apart, and the
   make-way only moves who is in the way. If something looks worse, compare with `bUseBodyPair` off.
-- 1b. In-range back-off and the two-way reach snap. 1c. End step and root speed from the disc. 1d. Bug 29. 1e. Slow motion for
-  everyone. 1f. Crossfade review.
+- **1b. Spacing during the strikes (done, not built).** `AJRPGBattlePawn::UpdateStrikeSpacing`, every logic frame of an action
+  after the walk: (1) the attacker **faces the target's body every frame** (`bFaceTargetEveryFrame`; the original's 0x1E / 0x1F
+  stores); (2) the **in-range back-off**: while the target's body is closer than the reach threshold, the attacker steps back
+  `InRangeBackoffUnits` (4) PS1 units a frame, scaled by the step's game speed, never past the edge, not during a slide. And
+  `FollowTarget` is now the **two-way reach snap**: at each step it goes to the reach threshold of the target's body, forward from
+  too far **or back from too close** (`ComputeSnapPoint`; a band of `StopMargin` inside the edge counts as "at the edge", like
+  the original's one step either side), over `FollowFrames` (6; 0 = the original's one-frame cut). What to look at in PIE: no
+  attacker ends a swing or an Art inside its target; combos stay at the edge; the attacker turns with a target whose knockdown
+  carries it sideways. Tunables on the pawn: `InRangeBackoffUnits`, `bFaceTargetEveryFrame`, `FollowFrames`.
+- 1c. End step and root speed from the disc. 1d. Bug 29. 1e. Slow motion for everyone. 1f. Crossfade review.
 
 #### Backlog (2026-11-05) — noted for later, not started
 

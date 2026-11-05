@@ -351,9 +351,27 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Knockback", meta = (ClampMin = "0.0"))
 	float EndStepMinDistance = 3.0f;
 
-	/** Quadros lógicos que o atacante leva para fechar a distância de novo no começo de cada passo (o reach snap do original é de um quadro). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Reach", meta = (ClampMin = "1"))
+	/**
+	 * Quadros lógicos do reach snap no começo de cada passo: o atacante vai até a borda do alcance do corpo do alvo, para a frente
+	 * se está longe, para trás se está perto demais. O original faz isso num quadro só (0 = igual, um corte); o padrão desliza.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Reach", meta = (ClampMin = "0"))
 	int32 FollowFrames = 6;
+
+	/**
+	 * O recuo do original dentro do alcance (0x80047C3C..0x80047D1C): enquanto o atacante age e o corpo do alvo está mais perto
+	 * que o limiar de alcance, ele anda para trás isto em unidades do PS1 por quadro lógico (4 no original, na velocidade 8; a
+	 * câmera lenta das Arts reduz junto), até a borda. É o que impede um atacante de terminar dentro do alvo. 0 desliga.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Reach", meta = (ClampMin = "0.0"))
+	float InRangeBackoffUnits = 4.0f;
+
+	/**
+	 * Depois da caminhada, o atacante mira o corpo do alvo a cada quadro (o original nos estados 0x1E e 0x1F, 0x801E36F0): um
+	 * knockdown que leva o corpo de lado vira o atacante junto. Desligado: só vira no começo de cada passo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Reach")
+	bool bFaceTargetEveryFrame = true;
 
 	/**
 	 * Quanto o defensor recua por golpe, em cm. O original move quem apanha pela velocidade de raiz do clip de reação
@@ -509,8 +527,17 @@ private:
 	/** Onde parar para bater no alvo, a partir de From: From mesmo se já está ao alcance, limitado pela arena. */
 	FVector ComputeStopPoint(const FVector& From, const AJRPGBattlePawn* Target) const;
 
-	/** No começo de cada passo: vira para o alvo e fecha a distância de novo (o alvo recuou com o golpe anterior). */
+	/** No começo de cada passo: vira para o alvo e vai até a borda do alcance, para a frente ou para trás (o reach snap). */
 	void FollowTarget(int32 LogicFrame);
+
+	/**
+	 * O ponto do reach snap a partir de From: na linha até o corpo do alvo, exatamente no limiar de alcance (ReachFor +
+	 * StopMargin), venha de longe ou de perto demais; limitado pela arena.
+	 */
+	FVector ComputeSnapPoint(const FVector& From, const AJRPGBattlePawn* Target) const;
+
+	/** A cada quadro da ação, depois da caminhada: mira o corpo do alvo e recua o que estiver dentro do alcance (InRangeBackoffUnits). */
+	void UpdateStrikeSpacing();
 
 	/** A linha do DT_EnemyActions com este índice de ação (nula em herói ou sem tabela). */
 	const FJRPGEnemyActionData* FindEnemyAction(int32 ActionIndex) const;

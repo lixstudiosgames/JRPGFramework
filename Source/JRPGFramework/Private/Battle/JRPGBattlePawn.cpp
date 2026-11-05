@@ -789,12 +789,91 @@ void AJRPGBattlePawn::FollowTarget(int32 LogicFrame)
 		return;
 	}
 	SetActorRotation(Flat.Rotation());
-	const FVector Stop = ComputeStopPoint(Current, Foe);
-	if (FVector::Dist2D(Stop, Current) > 5.0)
+	// O reach snap do commit (0x8004BF7C..0x8004C118): fora do alcance anda para a frente, dentro anda para TRÁS, até a borda. Cada
+	// golpe da sequência começa na borda do alcance, o que quer que o recuo e o golpe anterior tenham feito
+	const FVector Stop = ComputeSnapPoint(Current, Foe);
+	if (FVector::Dist2D(Stop, Current) > 1.0)
 	{
 		ApproachTo = Stop;
-		StartSlide(Stop, LogicFrame, FollowFrames);
+		if (FollowFrames <= 0)
+		{
+			bSliding = false;
+			SetActorLocation(Stop);
+		}
+		else
+		{
+			StartSlide(Stop, LogicFrame, FollowFrames);
+		}
 	}
+}
+
+FVector AJRPGBattlePawn::ComputeSnapPoint(const FVector& From, const AJRPGBattlePawn* Target) const
+{
+	if (!Target || Target == this)
+	{
+		return From;
+	}
+	const FVector TargetBody = Target->GetSettledBodyLocation();
+	const FVector Flat = FVector(TargetBody.X - From.X, TargetBody.Y - From.Y, 0.0).GetSafeNormal();
+	if (Flat.IsNearlyZero())
+	{
+		return From;
+	}
+	// O limiar da lei de alcance (o ReachFor tira a margem de parada da caminhada; o snap vai até o limiar mesmo). Os dois laços do
+	// original param um passo de cada lado da borda: quem já está nessa faixa (a margem de parada) fica, e o recuo cuida do resto
+	const double Edge = static_cast<double>(ReachFor(Target) + StopMargin);
+	const double Distance = FVector::Dist2D(From, TargetBody);
+	if (Distance >= Edge - static_cast<double>(StopMargin) - 1.0 && Distance <= Edge + 1.0)
+	{
+		return From;
+	}
+	FVector Snap = TargetBody - Flat * Edge;
+	Snap.Z = From.Z;
+	return ClampToArena(From, Snap);
+}
+
+void AJRPGBattlePawn::UpdateStrikeSpacing()
+{
+	const AJRPGBattlePawn* Foe = TargetPawn.Get();
+	if (!bActionActive || !bApproachSettled || !Foe || Foe == this || Foe->IsHidden())
+	{
+		return;
+	}
+	const FVector Here = GetActorLocation();
+	const FVector FoeBody = Foe->GetBodyLocation();
+	const FVector ToFoe(FoeBody.X - Here.X, FoeBody.Y - Here.Y, 0.0);
+	const double Distance = ToFoe.Size2D();
+	if (Distance <= KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
+	const FVector Direction = ToFoe / Distance;
+	// A banda de golpes re-mira o corpo do alvo a cada passada, segurando ou não um golpe (0x801E36F0, 0x801E3AD0)
+	if (bFaceTargetEveryFrame)
+	{
+		SetActorRotation(FRotator(0.0, Direction.Rotation().Yaw, 0.0));
+	}
+	// O recuo dentro do alcance (0x80047C3C): enquanto a lei diz "dentro", volta pela direção a velocidade 4, na escala de animação
+	// do ator (a câmera lenta reduz junto). Nunca passa da borda. Durante um deslize (o snap, um recuo) o deslize manda
+	if (InRangeBackoffUnits <= 0.0f || bSliding)
+	{
+		return;
+	}
+	const double Edge = static_cast<double>(ReachFor(Foe) + StopMargin);
+	if (Distance >= Edge)
+	{
+		return;
+	}
+	const int32 Speed = Action.Steps.IsValidIndex(PlayedStep) ? Action.Steps[PlayedStep].GameSpeed : UBattleFormulas::NormalGameSpeed;
+	const double PerFrame = static_cast<double>(InRangeBackoffUnits) * UnitsToCm * static_cast<double>(Speed)
+		/ static_cast<double>(UBattleFormulas::NormalGameSpeed);
+	const double Move = FMath::Min(PerFrame, Edge - Distance);
+	if (Move <= KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
+	const FVector To = ClampToArena(Here, Here - Direction * Move);
+	TranslateBy(To - Here);
 }
 
 void AJRPGBattlePawn::ReactToHit(const AJRPGBattlePawn* Attacker, int32 LogicFrame, bool bKnockdown, bool bBlocked)
@@ -1055,6 +1134,9 @@ void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 			break;
 		}
 	}
+
+	// Depois da caminhada: mira o corpo do alvo e não deixa o atacante dentro dele
+	UpdateStrikeSpacing();
 
 	if (Elapsed >= Action.TotalFrames)
 	{
