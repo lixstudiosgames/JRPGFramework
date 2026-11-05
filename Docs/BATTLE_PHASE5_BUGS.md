@@ -82,6 +82,7 @@ Status key: **Fixed** / **Partly fixed** / **Open**.
      through the single-node path. `PlayClip` with `bLoop` now puts the `UJRPGFieldEnemyAnimInstance` back (`SetAnimInstanceClass`)
      when the current instance is not it, i.e. the same state the fight starts in, which loops by the engine's own tick records. If
      Noa still freezes, the next suspects are her Art clip asset (a last frame held by `RateScale`) and the leader-pose pieces.
+   - **Still happens (PIE, 2026-11-05).** Noa stays frozen after an Art. See 18.
 10. **Walking in place.** The approach plays the walk clip even when the target is already within reach, so the pawn
     walks without moving. Skip the Advance phase and the walk clip when `ApproachTo == ApproachFrom`, and check the
     other cases too.
@@ -180,6 +181,40 @@ Status key: **Fixed** / **Partly fixed** / **Open**.
       (a new line replaces the old one, the next action clears it): **nothing during the combo** (each hit only shows its damage over the
       target, as before), and at the end "Hit 11" over "Damage 1234"; a one-hit action shows only "Damage X" (the original's `DAMAGE`).
       Placeholder styling (yellow / orange `AddOnScreenDebugMessage`, 10 s) to be polished. Blocked and missed hits do not count. Tests: `JRPG.Battle.TargetFalls`, `Combo`, `ArtsInFight`.
+
+### Second test pass (PIE, 2026-11-05) — animation polish
+
+These are visual only. The logic is fine; the animation sequencing needs to be put together properly.
+
+17. **The defeated hero's pose is frozen.** Vahn and Noa, once dead, stay kneeling on a still frame.
+    - The `Dying -> Down` chain holds the last frame of `Down` (`PlayReaction(RoleDying, false, RoleDown, true)`).
+    - The original's downed hero keeps animating while kneeling. `Down` should loop, not hold.
+    - Check the heroes' `_Down` clips, and what the original plays for a fallen party member.
+    - **Research done (2026-11-05):** the original's downed hero plays Knockdown, then entry 7, then entry 8, and entry 8 re-commits
+      itself at every natural end, so `Down` loops (Vahn 10 keyframes at rate 1 = a 40-frame cycle, Noa 60, Gala 28; entry 7 is
+      Vahn 40, Noa 88, Gala 56 frames). See [`Reference/BATTLE_TIMING.md`](Reference/BATTLE_TIMING.md), section 4 and change list
+      item 4.
+18. **Noa still freezes after an Art** (9 is not fixed).
+    - After the action ends she stays on a still frame instead of looping Idle.
+    - The `SetAnimInstanceClass` fallback in `PlayClip` did not help. Find the real cause: her Art clips, `EndAction`'s return to
+      idle, the leader-pose pieces, or a clip that never hands back to the crossfade instance.
+    - **Research done (2026-11-05):** the RE does not explain the freeze, but it gives the original's rules: the action never ends
+      before the attacker's last clip reaches its natural end, idle is the staged id 0 and loops by re-committing, and the Art's
+      slow-motion scale (4 / 2, a freeze for the special starter) is restored the pass the art clip ends. What to test is in
+      [`Reference/BATTLE_TIMING.md`](Reference/BATTLE_TIMING.md), section 7 and change list item 9.
+19. **No time for the fall and the get-up before the next attack.** When a hero or an enemy is knocked down, the next combatant
+    attacks right away. It should wait for the knockdown and the GetUp clip to play before the next action starts, like the
+    original.
+    - The logic timeline does not count the target's Knockdown + GetUp length. Add that hold, in logic frames, at the end of the
+      action, or before the next action, when someone is down.
+    - Same for a hero who falls and gets up.
+    - In general, sequence the reactions properly (fall, down, get-up, idle) so actions don't overlap them.
+    - **Research done (2026-11-05):** confirmed, the original waits. State `0x20` holds until the target is back on idle (a hero
+      who is killed: until it reaches clip 8; a killed monster: until its defeat fade is over), then a fixed 60-vsync Done band
+      (150 with the level-up banner), then about 3 SM passes, then the next actor. Knockdown + get-up lengths: Vahn 82, Noa 116,
+      Gala 94 vsyncs; monsters median 119 (84..240). Full numbers and the implementation plan (reaction lengths as data on the
+      combatant, a post-action hold in the resolver, `TailFrames` to 0) in
+      [`Reference/BATTLE_TIMING.md`](Reference/BATTLE_TIMING.md), sections 3 and 9.
 
 ## Not bugs (checked)
 

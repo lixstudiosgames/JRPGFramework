@@ -52,6 +52,7 @@ New here? Read [`ARCHITECTURE.md`](ARCHITECTURE.md), then
 |---|---|
 | [PROGRESSION.md](Reference/PROGRESSION.md) | XP curve, stat growth and difficulty, derived from the original disc and validated against it |
 | [ULTRALIGHT_INTEGRATION.md](Reference/ULTRALIGHT_INTEGRATION.md) | How the HTML UI actually renders: dedicated thread, custom D3D11 GPU driver, shared texture |
+| [BATTLE_TIMING.md](Reference/BATTLE_TIMING.md) | How the original paces a fight: the vsync clock, clip lengths, what each action waits for (target reactions, the 60-vsync Done band), death, round and victory timing, and how ours differs |
 
 ## Data
 
