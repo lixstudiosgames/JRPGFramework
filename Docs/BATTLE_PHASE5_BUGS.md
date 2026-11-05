@@ -494,7 +494,17 @@ Bug 20 (miss sound) confirmed fixed in PIE. Worked on in parts.
   hit's speed, so after an Art the next action may wait a little longer than the body needs (harmless; `BATTLE_TIMING.md` 9,
   item 14). What to look at in PIE: during an Art the others' idles and the target's reactions run at half speed, everything
   freezes for a Super / Miracle starter dash, and speed snaps back when the Art's clip ends.
-- 1f. Crossfade review.
+- **1f. Crossfade review (done, not built).** Finding: one-shot clips (swings, Arts, reactions) already enter with a hard cut;
+  only loops (idle, walk, down) blend over `AnimBlendTime` (0.2 s). The end step of 1c was slid over 0.2 s at every clip change,
+  so a hard-cut transition (knockdown -> get-up, a combo's next swing, a hit in mid-flinch) would pop the body back and then
+  slide it forward. Now `SlideBy` follows the blend of the clip that enters: a hard cut moves the actor in the same frame the pose
+  changes (as the original's commit does), the idle hand-off still slides over the idle's blend. The original has no blend layer
+  (only the last keyframe interval is tweened into the next clip's frame 0: 2 to 4 logic frames, ~0.05 s); `AnimBlendTime` keeps
+  0.2 for a softer look and its tooltip carries the original's figure. What to look at in PIE: no pop at knockdown -> get-up or
+  between combo swings; if idle hand-offs look floaty, try `AnimBlendTime` 0.05..0.1.
+
+**Step 1 done (1a-1f, nothing built).** Re-test list: bugs 29, 30, 31, 35 and the PIE notes of 1a-1f above; re-import the four
+tables of 1c first.
 
 #### Backlog (2026-11-05) — noted for later, not started
 

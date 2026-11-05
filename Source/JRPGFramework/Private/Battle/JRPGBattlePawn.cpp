@@ -398,7 +398,8 @@ void AJRPGBattlePawn::StartReaction(const TArray<FReactionStep>& Steps, int32 Lo
 	if (!bDown && !bActionActive && ReactionEndFrame != INDEX_NONE)
 	{
 		UpdateRootMotion(LogicFrame);
-		SlideBy(EndStepShift(ClipMotionFraction(LogicFrame)), LogicFrame);
+		// A reação nova entra com corte seco: o passo anda no mesmo instante em que a pose troca
+		SlideBy(EndStepShift(ClipMotionFraction(LogicFrame)), LogicFrame, 0.0f);
 	}
 	ReactionQueue = Steps;
 	ReactionGameSpeed = FMath::Max(GameSpeed, 1);
@@ -470,7 +471,7 @@ void AJRPGBattlePawn::OnReactionEnded(int32 LogicFrame)
 		// passo com o HP em 0)
 		if (!bDown && !bDeathFadeQueued && !bDeathFading)
 		{
-			SlideBy(EndStepShift(1.0f), LogicFrame);
+			SlideBy(EndStepShift(1.0f), LogicFrame, 0.0f);   // o próximo clip da cadeia entra com corte seco
 		}
 		AdvanceReaction(LogicFrame);
 		return;
@@ -553,7 +554,7 @@ void AJRPGBattlePawn::SettleIntoIdle()
 	ActiveMotion = FClipMotion();
 	MotionStartFrame = INDEX_NONE;
 	MotionEndFrame = INDEX_NONE;
-	SlideBy(Shift, LastLogicFrame);
+	SlideBy(Shift, LastLogicFrame, AnimBlendTime);   // o idle entra misturando por AnimBlendTime
 	PlayIdle();
 }
 
@@ -717,7 +718,7 @@ float AJRPGBattlePawn::ClipMotionFraction(int32 LogicFrame) const
 	return FMath::Clamp(static_cast<float>(LogicFrame - MotionStartFrame) / static_cast<float>(MotionEndFrame - MotionStartFrame), 0.0f, 1.0f);
 }
 
-void AJRPGBattlePawn::SlideBy(const FVector& Shift, int32 LogicFrame)
+void AJRPGBattlePawn::SlideBy(const FVector& Shift, int32 LogicFrame, float BlendTime)
 {
 	if (Shift.Size2D() < EndStepMinDistance)
 	{
@@ -729,8 +730,15 @@ void AJRPGBattlePawn::SlideBy(const FVector& Shift, int32 LogicFrame)
 	{
 		return;
 	}
-	// Durante a mistura para o clip seguinte: o clip que sai leva o corpo, o ator anda o mesmo tanto, e os dois se compensam
-	const int32 BlendFrames = FMath::Max(FMath::CeilToInt(AnimBlendTime * static_cast<float>(UBattleFormulas::StepsPerSecond)), 1);
+	// O ator anda o passo junto com a troca da pose: num corte seco (o clip de uma vez só) no mesmo instante, como o commit do
+	// original; numa mistura (a volta ao idle) durante ela, e o clip que sai e o deslize se compensam. Um deslize em curso (o reach
+	// snap) leva o passo junto
+	if (BlendTime <= 0.0f)
+	{
+		TranslateBy(To - From);
+		return;
+	}
+	const int32 BlendFrames = FMath::Max(FMath::CeilToInt(BlendTime * static_cast<float>(UBattleFormulas::StepsPerSecond)), 1);
 	StartSlide(To, LogicFrame, BlendFrames);
 }
 
@@ -1404,7 +1412,7 @@ void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 		// (0x80047950..0x80047A28); o reach snap logo abaixo decide onde o golpe seguinte começa
 		if (PlayedStep >= 0)
 		{
-			SlideBy(EndStepShift(ClipMotionFraction(LogicFrame)), LogicFrame);
+			SlideBy(EndStepShift(ClipMotionFraction(LogicFrame)), LogicFrame, 0.0f);   // o passo seguinte entra com corte seco
 		}
 		++PlayedStep;
 		const FJRPGActionStep& Step = Action.Steps[PlayedStep];

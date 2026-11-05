@@ -116,7 +116,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn")
 	float MeshYawOffset = 90.0f;
 
-	/** Segundos de mistura quando o clip troca (sem Anim Blueprint). 0 = corte seco. */
+	/**
+	 * Segundos de mistura quando um LOOP entra (o idle, o andar, o caído; sem Anim Blueprint). 0 = corte seco. Os clips de uma vez só
+	 * (golpes, reações) sempre entram com corte seco. O original não tem camada de mistura: o decodificador só interpola o último
+	 * intervalo de quadros do clip até o quadro 0 do próximo (4 / rate vsyncs na velocidade 8: 2 a 4 quadros lógicos, uns 0,05 s).
+	 * O padrão (0,2) é mais macio que o original; o passo do fim do clip anda durante esta mistura (SettleIntoIdle).
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn", meta = (ClampMin = "0.0"))
 	float AnimBlendTime = 0.2f;
 
@@ -553,8 +558,11 @@ private:
 	/** A fração do clip em curso que já tocou no quadro dado (1 no fim natural ou depois). */
 	float ClipMotionFraction(int32 LogicFrame) const;
 
-	/** Anda Shift (limitado pela arena) durante a mistura de AnimBlendTime, a partir do quadro dado. */
-	void SlideBy(const FVector& Shift, int32 LogicFrame);
+	/**
+	 * Anda Shift (limitado pela arena) junto com a troca de clip: BlendTime 0 (o clip que entra com corte seco, todo clip de uma vez
+	 * só) move no mesmo instante; senão desliza durante a mistura (a volta ao idle, BlendTime = AnimBlendTime).
+	 */
+	void SlideBy(const FVector& Shift, int32 LogicFrame, float BlendTime);
 
 	/** O centro das posições dos bones (menos a raiz) na pose atual, no espaço do componente. */
 	FVector PoseCentroid() const;
