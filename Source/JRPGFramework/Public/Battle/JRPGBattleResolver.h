@@ -75,6 +75,17 @@ struct JRPGFRAMEWORK_API FJRPGTimelineDefaults
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline", meta = (ClampMin = "0"))
 	int32 PassGapFrames = 6;
 
+	/** O turno de Spirit quando o clip AS_<Herói>_Battle_Spirit não é achado: a duração dele, em quadros lógicos. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline|Spirit", meta = (ClampMin = "1"))
+	int32 SpiritFrames = 60;
+
+	/**
+	 * O AP que um turno de Spirit rende (a faixa Done do original paga 0x20 = 32 num Spirit, contra 8 nas outras ações; o AP do plugin
+	 * é o das Arts, então só o Spirit soma aqui). Limitado ao MaxAP. 0 = o Spirit não mexe no AP.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Timeline|Spirit", meta = (ClampMin = "0"))
+	int32 SpiritAPGain = 32;
+
 	/**
 	 * A duração das reações quando o combatente não traz a dele (FJRPGCombatant::Reactions em 0): o herói usa o Vahn (os números
 	 * do disco), o monstro a mediana dos 179 do DT_EnemyActions (flinch tag 2: 54, tag 3: 46, block 46, knockdown 60, levantar 60).
@@ -291,6 +302,9 @@ private:
 	void AppendArtSteps(const FJRPGCombatant& Hero, int32 Entry, FName ArtKey, TArray<FPlanStep>& Steps) const;
 	void ExpandSequenceStep(const FJRPGCombatant& Hero, int32 Entry, FName Step, FName SelfKey, const FJRPGArtData& Self,
 		int32 Depth, TArray<FPlanStep>& Steps) const;
+	/** O turno de Spirit: um passo só (o clip Spirit, na velocidade normal, sem caminhada nem golpe) e o AP que ele rende no fim. */
+	void ComposeSpiritTimeline(const FJRPGCombatant& Hero, FJRPGActionTimeline& Out);
+
 	void ComposeHeroTimeline(const FJRPGCombatant& Hero, const FJRPGArtChain& Chain, TArray<FPlanStep>& Steps,
 		FJRPGActionTimeline& Out);
 	void ComposeEnemyTimeline(const FJRPGCombatant& Monster, const TArray<FJRPGBattleActionEntry>& Queue, FJRPGActionTimeline& Out);

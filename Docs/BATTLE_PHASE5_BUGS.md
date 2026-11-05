@@ -517,6 +517,19 @@ Bug 20 (miss sound) confirmed fixed in PIE. Worked on in parts.
 **Step 1 done (1a-1f, nothing built).** Re-test list: bugs 29, 30, 31, 35 and the PIE notes of 1a-1f above; re-import the four
 tables of 1c first.
 
+#### Step 2 of the RE sweep: Spirit (done, not built)
+
+- `EJRPGBattleCommandKind::Guard` is accepted (no target). Rules (`FJRPGBattleResolver`): the stance (`bGuarding`) starts at the
+  commit and lasts until the next round start (defence x3, block side x3/2, both already in `UBattleFormulas`); the turn is one
+  `EJRPGActionStepKind::Spirit` step with the clip `AS_<Hero>_Battle_Spirit` (no walk, no hit; `SpiritFrames` 60 without the
+  clip); it adds `SpiritAPGain` (32) AP at the end of the clip; the next round opens with `min(Max * 7/5 + 8, 288)` gauge. Menu:
+  the Down arm (Spirit) commits at once and moves on (Final shows `Vahn | Spirit`); Tactics Defensive = Spirit. Scene: an action
+  whose target is the actor itself gets no target (nobody walks or aims). No effect yet (the aura comes with the effects pass).
+  Tests: `JRPG.Battle.Spirit` (new), `JRPG.BattleUI` updated. Docs: `Guides/BATTLE.md` section 6.
+- What to look at in PIE: Spirit on a hero plays the Spirit clip in place; enemy hits on that hero this round do much less
+  damage and are blocked more; the hero's AP goes up by 32; next round the Attack window's gauge is longer (Vahn 160 -> 232);
+  the round after, normal again. Tune on `UBattleSubsystem::TimelineDefaults`: `SpiritAPGain`, `SpiritFrames`.
+
 #### Backlog (2026-11-05) — noted for later, not started
 
 32. **Full RE sweep of the fight, to make it identical.** Go through the RE inch by inch and list what every piece of the battle

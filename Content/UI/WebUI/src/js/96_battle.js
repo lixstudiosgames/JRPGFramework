@@ -398,7 +398,7 @@ window.JRPGBattle = (function () {
                 escape: { screen: 'escape', crumbs: ['Escape'], dpad: pad(b('Confirm', true), null, b('Cancel', true), null) },
                 command: {
                     screen: 'command', crumbs: ['Begin', 'Vahn'], focus: 0, artlist: sampleArts,
-                    dpad: pad(b('Attack', true), b('Item', false), b('Meta', false), b('Spirit', false))
+                    dpad: pad(b('Attack', true), b('Item', false), b('Meta', false), b('Spirit', true))
                 },
                 attack: {
                     screen: 'attack', crumbs: ['Begin', 'Vahn', 'Attack'], focus: 0, refusal: 'Not enough gauge for that button.',

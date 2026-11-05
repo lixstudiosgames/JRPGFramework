@@ -33,7 +33,7 @@ enum class EJRPGBattleTactic : uint8
 	Standard,
 	/** Gasta o gauge na cadeia mais longa que cabe (uma Art conhecida, completada com o botão mais barato). */
 	Aggressive,
-	/** Seguro: o Spirit (Guard), quando o núcleo o tiver. Hoje cai no Standard. */
+	/** Seguro: o Spirit (Guard): defesa x3 nesta rodada, gauge estendido na próxima, AP. */
 	Defensive
 };
 
@@ -222,8 +222,7 @@ namespace JRPGBattleTactics
 
 	/**
 	 * O comando que um herói dá com esta tática. Standard: um golpe de Arms no alvo. Aggressive: a cadeia mais longa que cabe
-	 * no gauge (ver LongestAffordableChain). Defensive: o Spirit quando o núcleo o aceitar; hoje é o Standard.
-	 * TODO(Fase 7): a Defensive vira Guard quando o Spirit existir no núcleo (EJRPGBattleCommandKind::Guard é recusado hoje).
+	 * no gauge (ver LongestAffordableChain). Defensive: o Spirit (MakeSpiritCommand).
 	 */
 	JRPGFRAMEWORK_API FJRPGBattleCommand ChooseCommand(EJRPGBattleTactic Tactic, const FJRPGBattleMenuHero& Hero, int32 TargetSlot, int32 PlayerIndex);
 
@@ -240,6 +239,9 @@ namespace JRPGBattleTactics
 	 * bytes (UJRPGArtsRules::EncodeArtBytes).
 	 */
 	JRPGFRAMEWORK_API FJRPGBattleCommand MakeChainCommand(const FJRPGBattleMenuHero& Hero, const TArray<EJRPGArtButton>& Buttons, int32 TargetSlot, int32 PlayerIndex);
+
+	/** O Spirit do herói (EJRPGBattleCommandKind::Guard): sem alvo nem botões (o TargetSlot vai junto só como informação). */
+	JRPGFRAMEWORK_API FJRPGBattleCommand MakeSpiritCommand(const FJRPGBattleMenuHero& Hero, int32 TargetSlot, int32 PlayerIndex);
 }
 
 namespace JRPGBattleMenu
@@ -266,10 +268,10 @@ struct FJRPGBattleMenuResult
 class JRPGFRAMEWORK_API FJRPGBattleMenu
 {
 public:
-	/** O Item, o Ra-Seru e o Spirit do menu principal estão apagados (um X por cima) nesta fase. */
+	/** O Item e o Ra-Seru do menu principal estão apagados (um X por cima) nesta fase; o Spirit funciona. */
 	static constexpr bool bItemEnabled = false;
 	static constexpr bool bRaSeruEnabled = false;
-	static constexpr bool bSpiritEnabled = false;
+	static constexpr bool bSpiritEnabled = true;
 
 	/** Uma luta nova: todos Standard, auto desligado. */
 	void ResetFight();

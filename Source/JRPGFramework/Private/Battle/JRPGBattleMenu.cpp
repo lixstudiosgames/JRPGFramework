@@ -344,6 +344,16 @@ FJRPGBattleCommand JRPGBattleTactics::MakeChainCommand(const FJRPGBattleMenuHero
 	return Chosen;
 }
 
+FJRPGBattleCommand JRPGBattleTactics::MakeSpiritCommand(const FJRPGBattleMenuHero& Hero, int32 TargetSlot, int32 PlayerIndex)
+{
+	FJRPGBattleCommand Chosen;
+	Chosen.PlayerIndex = PlayerIndex;
+	Chosen.Slot = Hero.Slot;
+	Chosen.TargetSlot = TargetSlot;
+	Chosen.Kind = EJRPGBattleCommandKind::Guard;
+	return Chosen;
+}
+
 FJRPGBattleCommand JRPGBattleTactics::ChooseCommand(EJRPGBattleTactic Tactic, const FJRPGBattleMenuHero& Hero, int32 TargetSlot, int32 PlayerIndex)
 {
 	switch (Tactic)
@@ -358,8 +368,8 @@ FJRPGBattleCommand JRPGBattleTactics::ChooseCommand(EJRPGBattleTactic Tactic, co
 			break;
 		}
 	case EJRPGBattleTactic::Defensive:
-		// TODO(Fase 7): o Spirit (EJRPGBattleCommandKind::Guard) ainda é recusado pelo núcleo; até lá a Defensive é a Standard
-		break;
+		// O Spirit: defende nesta rodada e abre a próxima com o gauge estendido
+		return MakeSpiritCommand(Hero, TargetSlot, PlayerIndex);
 	case EJRPGBattleTactic::Standard:
 	default:
 		break;
@@ -625,8 +635,23 @@ FJRPGBattleMenuResult FJRPGBattleMenu::PressCommand(EJRPGBattleMenuKey Key)
 		// TODO(Fase 8): Ra-Seru abre a lista de magias
 		return Refused();
 	case EJRPGBattleMenuKey::Down:
-		// TODO(Fase 7): Spirit (o Guard do original)
-		return Refused();
+		{
+			// Spirit: sem alvo nem botões; guarda e vai para o próximo herói (o último vai direto à confirmação final, como o
+			// braço de baixo do original vai ao 0x6E)
+			const FJRPGBattleMenuHero* Hero = FocusHero();
+			if (!Hero || !bSpiritEnabled)
+			{
+				return Refused();
+			}
+			if (!Plan.Set(JRPGBattleTactics::MakeSpiritCommand(*Hero, Ctx.LowestLivingEnemySlot(), Ctx.PlayerIndex)))
+			{
+				Refusal = TEXT("That command did not fit.");
+				return Refused();
+			}
+			Refusal.Reset();
+			Screen = Plan.IsComplete() ? EJRPGBattleMenuScreen::Final : EJRPGBattleMenuScreen::Command;
+			return Changed(TEXT("Select"));
+		}
 	case EJRPGBattleMenuKey::Cancel:
 		// Volta ao herói anterior (a escolha dele cai: vai refazê-la); do primeiro, volta à Start
 		if (!Plan.StepBack())
@@ -1043,14 +1068,15 @@ FString FJRPGBattleMenu::BuildViewJS(const FString& Sfx) const
 			const FJRPGBattleCommand& Entry = Plan.Entries[i];
 			const FJRPGBattleMenuHero* Who = Ctx.FindHero(Entry.Slot);
 			const FJRPGBattleMenuEnemy* Whom = Ctx.FindEnemy(Entry.TargetSlot);
-			// Uma cadeia de mais de um botão aparece como "Attack x3"
-			FString What = JRPGBattleMenuText::AttackLabel;
+			// Uma cadeia de mais de um botão aparece como "Attack x3"; o Spirit, sem alvo
+			const bool bSpirit = Entry.Kind == EJRPGBattleCommandKind::Guard;
+			FString What = bSpirit ? FString(JRPGBattleMenuText::SpiritLabel) : FString(JRPGBattleMenuText::AttackLabel);
 			if (Entry.Kind == EJRPGBattleCommandKind::Arts && Entry.ArtBytes.Num() > 1)
 			{
 				What += FString::Printf(TEXT(" x%d"), Entry.ArtBytes.Num());
 			}
 			Out += FString::Printf(TEXT("%s{who:%s,what:%s,target:%s}"), i > 0 ? TEXT(",") : TEXT(""),
-				*Lit(Who ? Who->Name : FString()), *Lit(What), *Lit(Whom ? Whom->Name : FString()));
+				*Lit(Who ? Who->Name : FString()), *Lit(What), *Lit(!bSpirit && Whom ? Whom->Name : FString()));
 		}
 	}
 	Out += TEXT("],");

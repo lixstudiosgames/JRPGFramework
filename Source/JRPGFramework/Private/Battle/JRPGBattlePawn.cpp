@@ -1458,6 +1458,7 @@ void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 		{
 		case EJRPGActionStepKind::ArtStarter:
 		case EJRPGActionStepKind::SpecialStarter:
+		case EJRPGActionStepKind::Spirit:   // o Spirit concentra no lugar: não é golpe
 			SetPhase(EJRPGActionPhase::Windup);
 			break;
 		default:

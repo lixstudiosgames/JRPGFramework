@@ -438,6 +438,11 @@ void UJRPGBattleSceneSubsystem::HandleBattleEvent(const FJRPGBattleEvent& Event)
 			if (const FJRPGActionTimeline* Timeline = Battle->FindTimeline(Event.ActionIndex))
 			{
 				AJRPGBattlePawn* Target = PawnOf(Event.TargetSlot);
+				// Uma ação em si mesmo (o Spirit): sem alvo, ninguém anda nem mira
+				if (Target == Actor)
+				{
+					Target = nullptr;
+				}
 				// O recentrar do original no começo da ação: o alvo de um golpe vai para o centro da arena (a ação sem golpe
 				// centra todos). Desliza com tudo o que vier depois (a caminhada parte de onde estão e anda junto)
 				const bool bMelee = Timeline->Steps.ContainsByPredicate([](const FJRPGActionStep& Step) { return Step.Kind != EJRPGActionStepKind::SpecialStarter; });

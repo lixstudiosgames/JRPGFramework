@@ -184,8 +184,8 @@ namespace JRPGBattleUITests
 		TestEqual(TEXT("o menu principal"), AsInt(Menu.GetScreen()), AsInt(EScreen::Command));
 		TestEqual(TEXT("do Vahn"), Menu.GetPlan().CurrentSlot(), 0);
 
-		// Item, Ra-Seru e Spirit estão apagados: não abrem nada
-		for (const EKey Disabled : { EKey::Up, EKey::Right, EKey::Down })
+		// Item e Ra-Seru estão apagados: não abrem nada (o Spirit funciona; ver o teste dele abaixo)
+		for (const EKey Disabled : { EKey::Up, EKey::Right })
 		{
 			const FJRPGBattleMenuResult Result = Menu.Press(Disabled);
 			TestEqual(TEXT("o botão apagado não muda de tela"), AsInt(Menu.GetScreen()), AsInt(EScreen::Command));
@@ -194,7 +194,7 @@ namespace JRPGBattleUITests
 		const FString CommandView = Menu.BuildViewJS(TEXT(""));
 		TestTrue(TEXT("Item apagado na view"), CommandView.Contains(TEXT("up:{label:'Item',enabled:false")));
 		TestTrue(TEXT("o Ra-Seru do Vahn é Meta, apagado"), CommandView.Contains(TEXT("right:{label:'Meta',enabled:false")));
-		TestTrue(TEXT("Spirit apagado"), CommandView.Contains(TEXT("down:{label:'Spirit',enabled:false")));
+		TestTrue(TEXT("Spirit ligado"), CommandView.Contains(TEXT("down:{label:'Spirit',enabled:true")));
 		TestTrue(TEXT("Attack ligado"), CommandView.Contains(TEXT("left:{label:'Attack',enabled:true")));
 		TestTrue(TEXT("as migalhas: Begin > Vahn"), CommandView.Contains(TEXT("crumbs:['Begin','Vahn']")));
 
@@ -400,10 +400,11 @@ namespace JRPGBattleUITests
 		TestEqual(TEXT("do slot dele"), Standard.Slot, 0);
 		TestEqual(TEXT("com o jogador que mandou"), Standard.PlayerIndex, 0);
 
-		// Defensive: sem Spirit no núcleo, é a Standard
+		// Defensive: o Spirit (Guard), do slot dele
 		const FJRPGBattleCommand Defensive = JRPGBattleTactics::ChooseCommand(EJRPGBattleTactic::Defensive, Hero, 3, 0);
-		TestEqual(TEXT("a Defensive cai no Attack"), AsInt(Defensive.Kind), AsInt(EJRPGBattleCommandKind::Attack));
-		TestEqual(TEXT("no mesmo alvo"), Defensive.TargetSlot, Standard.TargetSlot);
+		TestEqual(TEXT("a Defensive é o Spirit"), AsInt(Defensive.Kind), AsInt(EJRPGBattleCommandKind::Guard));
+		TestEqual(TEXT("do slot dele"), Defensive.Slot, Standard.Slot);
+		TestTrue(TEXT("sem botões"), Defensive.ArtBytes.IsEmpty());
 
 		// Aggressive sem Arts: o botão mais barato quantas vezes cabe (160 / 30 = 5)
 		const TArray<EJRPGArtButton> Filler = JRPGBattleTactics::LongestAffordableChain(Hero);
@@ -494,7 +495,7 @@ namespace JRPGBattleUITests
 		TestEqual(TEXT("Vahn: a Art conhecida mais Arms"), AsInt(Plan.Entries[0].Kind), AsInt(EJRPGBattleCommandKind::Arts));
 		TestTrue(TEXT("Arms, Arms, Ra-Seru, Arms"), Plan.Entries[0].ArtBytes == UJRPGArtsRules::EncodeArtBytes({ Ar, Ar, Se, Ar }));
 		TestEqual(TEXT("Noa: Standard ataca"), AsInt(Plan.Entries[1].Kind), AsInt(EJRPGBattleCommandKind::Attack));
-		TestEqual(TEXT("Gala: Defensive hoje ataca"), AsInt(Plan.Entries[2].Kind), AsInt(EJRPGBattleCommandKind::Attack));
+		TestEqual(TEXT("Gala: Defensive faz Spirit"), AsInt(Plan.Entries[2].Kind), AsInt(EJRPGBattleCommandKind::Guard));
 		for (const FJRPGBattleCommand& Entry : Plan.Entries)
 		{
 			TestEqual(TEXT("no inimigo vivo de menor slot"), Entry.TargetSlot, 3);

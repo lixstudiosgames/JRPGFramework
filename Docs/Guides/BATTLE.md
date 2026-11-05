@@ -137,8 +137,20 @@ the next round
   its `Swings` while the pool pays. The magic roll and the per-monster scripts are Phase 8 (a monster
   with magic always takes the physical branch).
 - Commands are checked at the door (`SubmitCommand`): the issuer must own the slot, the target must be
-  a living foe, Art bytes must be buttons that fit the gauge. `Item`, `Magic`, `Escape` and `Guard` are
+  a living foe (not for Spirit), Art bytes must be buttons that fit the gauge. `Item`, `Magic` and `Escape` are
   refused until Phases 7 / 8.
+- **Spirit** (`EJRPGBattleCommandKind::Guard`, the original's action category 4; RE `battle-action.md` states
+  `0x46..0x48`, `battle-formulas.md` "Defense Value" and "Per-round AGL restore"):
+  - **Defence for the round.** From the commit to the next round start the hero is in the Spirit stance
+    (`FJRPGCombatant::bGuarding`), before and after their own turn: physical hits face their defence x3 and their
+    side of the block roll is x3/2 (`UBattleFormulas`, already there). Another command for the same slot undoes it.
+  - **The turn** is one step in place (`EJRPGActionStepKind::Spirit`, the clip `AS_<Hero>_Battle_Spirit`): no target, no
+    walk, no hit. Length: the clip's, or `FJRPGTimelineDefaults::SpiritFrames` (60) without it. Then the usual Done band.
+  - **AP:** the turn adds `FJRPGTimelineDefaults::SpiritAPGain` (32, the original's Done-band pay for a Spirit turn), capped
+    at `MaxAP`, at the end of the clip. 0 turns it off.
+  - **Gauge next round:** the next round opens with `CommandGauge = min(Max * 7/5 + 8, 288)` (the menu's gauge shows it);
+    the round after that is back to `Max` unless the hero uses Spirit again.
+  - No effect is spawned yet (the aura comes with the effects pass). Test: `JRPG.Battle.Spirit`.
 
 ---
 
@@ -279,7 +291,7 @@ Nothing here has been built or run by the author. In the editor:
    a knocked-down fighter gets up, and that the clips play (a monster plays its row's `Anim`; a hero looks for `AS_<Name>_Battle_<Clip>` next to its
    mesh).
 
-Not in Phase 5: Item, Escape, Spirit, formation advantage, drop / steal (Phase 7); magic and the monsters' scripts
+Not in Phase 5: Item, Escape, formation advantage, drop / steal (Phase 7); magic and the monsters' scripts
 (Phase 8); the parry (its window and effect are open question 5; the input is accepted, stamped and kept, and has
 no effect yet); level scaling of the enemy stats (no curve is defined: the row is used as is).
 
@@ -333,7 +345,7 @@ on the Start screen. A party with no hero of this player (all AI) never sees it.
 | **Start** | **Left** Begin · **Up** Tactics · **Right** Escape | The party panel (name, LV, HP, MP) at the bottom. The Up label is one constant, `JRPGBattleMenuText::TacticsLabel` ("Tactics" or "Quick Battle": undecided) |
 | **Escape** | **Left** Confirm · **Right** Cancel | Confirm ends the fight as `Escaped` (13.5). Drawn with an X in a scripted fight |
 | **Tactics** | rows, not the d-pad | One row per hero of the fight: Aggressive / Standard / Defensive (left / right), up / down changes hero, Enter or the Confirm button applies and turns the auto on, Esc goes back without changing anything |
-| **Command** (a hero) | **Left** Attack · Up Item · Right Ra-Seru (Meta / Terra / Ozma) · Down Spirit | Item, Ra-Seru and Spirit are drawn with an **X** and are not selectable in this phase. HP / MP / AP at the bottom. Esc goes back to the previous hero (from the first hero: to the Start screen) |
+| **Command** (a hero) | **Left** Attack · Up Item · Right Ra-Seru (Meta / Terra / Ozma) · Down Spirit | Item and Ra-Seru are drawn with an **X** and are not selectable in this phase. **Spirit** commits the hero's Spirit at once (no target) and moves to the next hero, or to the Final screen after the last. HP / MP / AP at the bottom. Esc goes back to the previous hero (from the first hero: to the Start screen) |
 | **Attack** | the four buttons: **Up** High · **Down** Low · **Left / Right** Arms and Ra-Seru *by the hero's hand* | The art block shows the buttons entered, the slots that still fit and the gauge left. Enter confirms, Esc removes the last button (empty: back). A refusal is written on the screen |
 | **Target** | left / right (or a click) | The enemy's name; the same species gets A / B ("Frog A", "Frog B"), fixed for the whole fight |
 | **Final** | **Left** Begin · **Right** Reselect | One row per hero: `Vahn | Attack | Frog A`. Reselect drops every choice and goes back to the first hero. Esc undoes only the last hero's choice |
@@ -371,7 +383,7 @@ the round plays by itself and so does every following round.
 |---|---|
 | **Standard** | One Arms swing at the living enemy of lowest slot (what `JRPG.Battle.Auto` does) |
 | **Aggressive** | The longest chain that fits the gauge: the longest *Regular* Art the hero knows, then the cheapest button as many times as still fit (up to 16 buttons) |
-| **Defensive** | Falls back to Standard. `TODO(Phase 7)`: Guard when the core accepts the Spirit (`EJRPGBattleCommandKind::Guard` is refused today) |
+| **Defensive** | Spirit every round (defence x3 for the round, extended gauge, AP) |
 
 With the auto on, each command phase shows the Start screen with an **AUTO-BATTLE starting** banner for
 `AutoStartDelay` seconds (1.2 s), then the round goes out by the tactics. **Cancel** (Esc / B / the
@@ -407,7 +419,8 @@ still missing).
 
 1. `JRPG.Battle.Start gimard 2` (or a field enemy): after the fade-in the Start screen appears with the
    three heroes at the bottom. The mouse cursor is visible; arrows / the pad take over and hide it.
-2. Begin → Vahn's menu: Item, Ra-Seru (Meta) and Spirit have an X and do nothing. Attack → the four
+2. Begin → Vahn's menu: Item and Ra-Seru (Meta) have an X and do nothing; Spirit commits at once (Final shows
+   `Vahn | Spirit`). Attack → the four
    buttons; check the **left-handed Noa** has Arms on the right. Enter more buttons than the gauge pays:
    the refusal appears and the button dims. Esc removes the last one.
 3. Target: left / right and a click; "Gimard A / Gimard B" with two. Next hero; Esc on a hero's first

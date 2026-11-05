@@ -52,7 +52,11 @@ enum class EJRPGBattleCommandKind : uint8
 	Magic,
 	/** Fase 7. */
 	Escape,
-	/** O Spirit do original, Fase 7. */
+	/**
+	 * O Spirit do original (a categoria 4): o herói se concentra no turno dele. Do commit até o fim da rodada a defesa dele vale x3
+	 * e o lado dele no bloqueio x3/2; na rodada seguinte o gauge de comandos abre estendido (min(Max * 7/5 + 8, 288)); e o turno
+	 * rende AP (FJRPGTimelineDefaults::SpiritAPGain). Sem alvo.
+	 */
 	Guard
 };
 
@@ -504,7 +508,10 @@ struct JRPGFRAMEWORK_API FJRPGCombatant
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	int32 ReactionHoldUntilFrame = 0;
 
-	/** O Spirit do original (Fase 7). */
+	/**
+	 * Na postura de Spirit (o comando Guard desta rodada): do commit até o começo da rodada seguinte a defesa vale x3 e o lado dele no
+	 * bloqueio x3/2, antes e depois da vez dele (a categoria +0x1DE == 4 do original).
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	bool bGuarding = false;
 
@@ -708,7 +715,9 @@ enum class EJRPGActionStepKind : uint8
 	SpecialStarter,
 	Art,
 	/** O golpe de um monstro (a ação ActionIndex do DT_EnemyActions). */
-	EnemySwing
+	EnemySwing,
+	/** O turno de Spirit do herói (o clip AS_<Herói>_Battle_Spirit, a entrada 0x10 do original): sem alvo, sem golpe. */
+	Spirit
 };
 
 /** Um clip da ação, em quadros lógicos a partir do começo dela. */

@@ -2349,6 +2349,59 @@ bool FJRPGBattleHeroCutTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// --- O Spirit ----------------------------------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattleSpiritTest, "JRPG.Battle.Spirit", JRPG_BATTLE_TEST_FLAGS)
+bool FJRPGBattleSpiritTest::RunTest(const FString& Parameters)
+{
+	// Vahn (AGL 160, AP 10) faz Spirit contra um monstro de HP enorme: a postura vale do commit ao fim da rodada, o turno é um
+	// passo só sem golpe, rende 32 de AP, e a rodada seguinte abre com o gauge estendido, min(160 * 7/5 + 8, 288) = 232
+	FFight Fight;
+	Fight.RandOverride = []() { return 0; };
+	FJRPGCombatant Vahn = Hero(0, TEXT("Vahn"), 100000, 100, 100, 160);
+	Vahn.AP = 10;
+	Fight.Begin({ Vahn, Foe(1, TEXT("a"), 100000, 100, 20) }, 1, false, 0);
+
+	FJRPGBattleCommand Spirit = Attack(0, 0);
+	Spirit.Kind = EJRPGBattleCommandKind::Guard;   // sem alvo: o TargetSlot (ele mesmo) é ignorado
+	FString Why;
+	TestTrue(TEXT("o Spirit é aceito"), Fight.SubmitCommand(Spirit, &Why));
+	TestTrue(TEXT("a postura começa no commit"), Fight.GetCombatants()[0].bGuarding);
+
+	bool bSawSpirit = false;
+	bool bGuardedAllRound = true;
+	for (int32 Frames = 0; Frames < 5000 && Fight.GetState().Round == 1 && !Fight.IsFinished(); ++Frames)
+	{
+		if (const FJRPGActionTimeline* Timeline = Fight.GetActiveTimeline())
+		{
+			if (Timeline->SlotIndex == 0)
+			{
+				bSawSpirit |= Timeline->Steps.Num() == 1 && Timeline->Steps[0].Kind == EJRPGActionStepKind::Spirit
+					&& Timeline->Hits.IsEmpty() && Timeline->LeadFrames == 0;
+			}
+		}
+		bGuardedAllRound &= Fight.GetCombatants()[0].bGuarding;
+		Fight.StepFrame();
+	}
+	TestTrue(TEXT("o turno do Spirit é um passo só, sem golpe nem caminhada"), bSawSpirit);
+	TestTrue(TEXT("a postura vale a rodada inteira"), bGuardedAllRound);
+	TestEqual(TEXT("o Spirit rende 32 de AP"), Fight.GetCombatants()[0].AP, 42);
+	TestEqual(TEXT("a rodada 2 começou"), Fight.GetState().Round, 2);
+	TestFalse(TEXT("a postura acabou na virada"), Fight.GetCombatants()[0].bGuarding);
+	TestEqual(TEXT("o gauge estendido na rodada seguinte"), Fight.GetCombatants()[0].CommandGauge, 232);
+
+	// Uma rodada de Attack: a seguinte volta ao gauge normal
+	TestTrue(TEXT("o Attack da rodada 2"), Fight.SubmitCommand(Attack(0, 1)));
+	TestFalse(TEXT("o Attack desfaz a postura"), Fight.GetCombatants()[0].bGuarding);
+	for (int32 Frames = 0; Frames < 5000 && Fight.GetState().Round == 2 && !Fight.IsFinished(); ++Frames)
+	{
+		Fight.StepFrame();
+	}
+	TestEqual(TEXT("a rodada 3 começou"), Fight.GetState().Round, 3);
+	TestEqual(TEXT("o gauge normal depois de uma rodada sem Spirit"), Fight.GetCombatants()[0].CommandGauge, 160);
+	return true;
+}
+
 } // namespace JRPGBattleTests
 
 #endif // WITH_DEV_AUTOMATION_TESTS

@@ -253,14 +253,18 @@ void FJRPGBattleResolver::StartRound()
 	for (FJRPGCombatant& C : State.Combatants)
 	{
 		C.InitiativeKey = 0;
-		C.bGuarding = false;   // o Spirit vale do commit até a varredura da rodada seguinte (Fase 7)
+		// O Spirit vale do commit até a varredura desta virada de rodada (FUN_801D88CC zera a categoria aqui)
+		const bool bWasSpirit = C.bGuarding;
+		C.bGuarding = false;
 		if (!C.bAlive)
 		{
 			continue;
 		}
-		// O pool da AGL (FUN_801D88CC): quem comandou ataque / Arts e todo monstro volta ao máximo. Na
-		// Fase 5 só existem Attack e Arts, então é todo mundo; o Spirit (min(Max*7/5+8, 288)) é da Fase 7
-		C.CommandGauge = C.MaxCommandGauge;
+		// O pool da AGL (FUN_801D88CC): quem fez Spirit na rodada que acabou abre esta com o gauge estendido, min(Max * 7/5 + 8,
+		// 288); quem comandou ataque / Arts e todo monstro volta ao máximo
+		C.CommandGauge = bWasSpirit && C.MaxCommandGauge > 0
+			? FMath::Min(C.MaxCommandGauge * 7 / 5 + 8, FMath::Max(UBattleFormulas::SpiritGaugeCap, C.MaxCommandGauge))
+			: C.MaxCommandGauge;
 		// Quem mirava um alvo que caiu passa a mirar o vivo de menor slot (FUN_801DB8B4)
 		if (!IsLivingFoe(C, C.TargetSlot))
 		{
@@ -492,11 +496,13 @@ bool FJRPGBattleResolver::SubmitCommand(const FJRPGBattleCommand& Command, FStri
 	{
 		return Refuse(FString::Printf(TEXT("o slot %d está caído"), Command.Slot));
 	}
-	if (Command.Kind != EJRPGBattleCommandKind::Attack && Command.Kind != EJRPGBattleCommandKind::Arts)
+	if (Command.Kind != EJRPGBattleCommandKind::Attack && Command.Kind != EJRPGBattleCommandKind::Arts
+		&& Command.Kind != EJRPGBattleCommandKind::Guard)
 	{
-		return Refuse(TEXT("só Attack e Arts existem na Fase 5 (Item e Escape são a Fase 7, Magic a 8)"));
+		return Refuse(TEXT("só Attack, Arts e Spirit (Guard) existem hoje (Item e Escape são a Fase 7, Magic a 8)"));
 	}
-	if (!IsLivingFoe(C, Command.TargetSlot))
+	// O Spirit não tem alvo: o TargetSlot do comando é ignorado
+	if (Command.Kind != EJRPGBattleCommandKind::Guard && !IsLivingFoe(C, Command.TargetSlot))
 	{
 		return Refuse(FString::Printf(TEXT("o alvo %d não é um adversário vivo"), Command.TargetSlot));
 	}
@@ -525,11 +531,16 @@ bool FJRPGBattleResolver::SubmitCommand(const FJRPGBattleCommand& Command, FStri
 
 	FJRPGBattleCommand& Stored = State.Commands[Command.Slot];
 	Stored = Command;
-	if (Stored.Kind == EJRPGBattleCommandKind::Attack)
+	if (Stored.Kind == EJRPGBattleCommandKind::Attack || Stored.Kind == EJRPGBattleCommandKind::Guard)
 	{
-		Stored.ArtBytes.Reset();   // o Attack é o Arms sozinho
+		Stored.ArtBytes.Reset();   // o Attack é o Arms sozinho; o Spirit não tem botões
 	}
-	State.Combatants[Command.Slot].TargetSlot = Command.TargetSlot;
+	// A postura de Spirit começa no commit (a categoria 4 do original vale desde o menu, antes da vez dele); outro comando a desfaz
+	State.Combatants[Command.Slot].bGuarding = Stored.Kind == EJRPGBattleCommandKind::Guard;
+	if (Stored.Kind != EJRPGBattleCommandKind::Guard)
+	{
+		State.Combatants[Command.Slot].TargetSlot = Command.TargetSlot;
+	}
 
 	Pump();
 	return true;
@@ -823,6 +834,14 @@ void FJRPGBattleResolver::StepFrame()
 bool FJRPGBattleResolver::PlanHeroAction(const FJRPGCombatant& Hero, const FJRPGBattleCommand& Command, int32& OutTarget,
 	FJRPGArtChain& OutChain, FJRPGActionTimeline& OutTimeline)
 {
+	// O Spirit: o herói se concentra no lugar (o alvo é ele mesmo, para a cena não andar nem mirar ninguém)
+	if (Command.Kind == EJRPGBattleCommandKind::Guard)
+	{
+		OutTarget = Hero.SlotIndex;
+		ComposeSpiritTimeline(Hero, OutTimeline);
+		return !OutTimeline.Steps.IsEmpty();
+	}
+
 	// O alvo que caiu antes da ação: o vivo de menor slot; nenhum = a ação é descartada
 	OutTarget = IsLivingFoe(Hero, Command.TargetSlot) ? Command.TargetSlot : LowestLivingFoe(Hero);
 	if (OutTarget == INDEX_NONE)
@@ -878,6 +897,46 @@ bool FJRPGBattleResolver::PlanHeroAction(const FJRPGCombatant& Hero, const FJRPG
 	}
 	ComposeHeroTimeline(Hero, OutChain, Steps, OutTimeline);
 	return !OutTimeline.Steps.IsEmpty();
+}
+
+void FJRPGBattleResolver::ComposeSpiritTimeline(const FJRPGCombatant& Hero, FJRPGActionTimeline& Out)
+{
+	// A faixa do Spirit do original (estados 0x46..0x48): o clip 0x10, a espera de 0x20 e a subida do gauge, tudo no lugar. Aqui a
+	// duração é a do clip (lida como dado, como a dos golpes); o gauge estendido e a postura são regra, não tempo
+	static const FName SpiritClip(TEXT("Spirit"));
+	FJRPGClipTiming Timing;
+	FJRPGClipQuery Query;
+	Query.Kind = EJRPGActionStepKind::Spirit;
+	Query.ClipName = SpiritClip;
+	Query.GameSpeed = UBattleFormulas::NormalGameSpeed;
+	Query.ExpectedHits = 0;
+	const bool bFound = ClipTiming && ClipTiming(Hero.Key, Query, Timing) && Timing.Frames > 0;
+	if (!bFound)
+	{
+		Out.bUsedDefaults = true;
+		LogFallback(TEXT("spirit"), TEXT("o clip Spirit do herói não foi achado: a duração padrão (FJRPGTimelineDefaults::SpiritFrames)"));
+	}
+	const int32 Frames = FMath::Max(bFound ? Timing.Frames : Defaults.SpiritFrames, 1);
+
+	Out.LeadFrames = 0;
+	FJRPGActionStep& Step = Out.Steps.AddDefaulted_GetRef();
+	Step.Kind = EJRPGActionStepKind::Spirit;
+	Step.StartFrame = 0;
+	Step.EndFrame = Frames;
+	Step.ClipName = SpiritClip;
+	Step.GameSpeed = UBattleFormulas::NormalGameSpeed;
+	Step.EntryIndex = -1;
+	Out.TotalFrames = Frames + Defaults.TailFrames;
+
+	// O AP do turno de Spirit (a faixa Done paga 0x20 no lugar de 8), no fim do clip
+	const int32 NewAP = FMath::Clamp(Hero.AP + FMath::Max(Defaults.SpiritAPGain, 0), 0, FMath::Max(Hero.MaxAP, 0));
+	if (NewAP != Hero.AP)
+	{
+		FJRPGActionMark& Mark = Out.Marks.AddDefaulted_GetRef();
+		Mark.Frame = FMath::Max(Frames - 1, 0);
+		Mark.Kind = EJRPGActionMarkKind::SetAP;
+		Mark.Value = NewAP;
+	}
 }
 
 void FJRPGBattleResolver::AppendArtSteps(const FJRPGCombatant& Hero, int32 Entry, FName ArtKey, TArray<FPlanStep>& Steps) const
