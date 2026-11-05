@@ -61,6 +61,10 @@ def parse_block(block):
             "rate": entry[0x78],
             "status": entry[0x7A],
             "frames": entry[0x8D],
+            # +0x0C a velocidade de raiz (unidades por vsync ao longo da direção; negativa = recua) e +0x0E o passo do fim do
+            # clip (o quanto o clip deixa o corpo de onde começou, ao longo da direção), os dois i16
+            "root_speed": struct.unpack_from("<h", entry, 0x0C)[0],
+            "end_step": struct.unpack_from("<h", entry, 0x0E)[0],
         })
     return {
         "element": block[0x1D],

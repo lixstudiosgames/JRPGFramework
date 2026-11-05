@@ -85,6 +85,21 @@ struct JRPGFRAMEWORK_API FJRPGEnemyActionData : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy Action")
 	int32 FrameCount = 0;
 
+	/**
+	 * A velocidade de raiz (+0x0C), em unidades do PS1 por vsync ao longo da direção do ator, enquanto o clip toca. Negativa (as
+	 * reações: knockdown, block, flinch) recua o clip inteiro; positiva (andar, investidas) só anda enquanto o alvo está fora do
+	 * alcance. Na tag 1 é a velocidade da caminhada do monstro.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy Action")
+	int32 RootSpeed = 0;
+
+	/**
+	 * O passo do fim do clip (+0x0E), em unidades do PS1 ao longo da direção: o quanto o clip deixa o corpo de onde começou. No fim
+	 * natural o ator anda isso (a pose volta ao começo e o corpo fica onde o clip o deixou); num corte, a fração tocada.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Enemy Action")
+	int32 EndStep = 0;
+
 	/** Um golpe que a IA do original sorteia: tag 0x0C..0x1F com um custo de AGL de verdade. */
 	bool IsSwing() const { return Tag >= 0x0C && Tag <= 0x1F && AGLCost != 0xFF; }
 };

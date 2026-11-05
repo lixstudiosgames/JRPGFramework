@@ -9,7 +9,8 @@ Battle/EnemyActionData.h): uma linha por clip (por entrada de ação) de cada mo
 
 O que a luta precisa de cada ação do monstro e que não é um notify: os bytes de poder (um por golpe),
 os quadros de golpe (a lista de eventos +0x10..+0x13), o custo de AGL (+0x74), o rate (+0x78), o
-seletor de status (+0x7A), o gate (+0x76) e o tamanho do clip. É a própria entrada de ação do disco
+seletor de status (+0x7A), o gate (+0x76), o tamanho do clip, a velocidade de raiz (+0x0C) e o passo do fim
+do clip (+0x0E). É a própria entrada de ação do disco
 (docs/formats/monster-animation.md, do legend-of-legaia-re); a linha lógica da luta nasce daqui, e
 nada depende de um clip tocar (BATTLE_ROADMAP.md › 5.0 › The logic timeline).
 
@@ -42,7 +43,7 @@ for _stream in (sys.stdout, sys.stderr):
 TABLE = "DT_EnemyActions"
 ROOT = "/Game/Legaia/Battle/Enemies"
 COLUMNS = ["Enemy", "ArchiveID", "ActionIndex", "Tag", "Clip", "Anim", "Power", "HitFrames",
-           "AGLCost", "Gate", "Rate", "StatusSelector", "FrameCount"]
+           "AGLCost", "Gate", "Rate", "StatusSelector", "FrameCount", "RootSpeed", "EndStep"]
 # Preenchidas fora do gerador quando o lote não conhece o monstro: mantidas se já existiam
 MANUAL_COLUMNS = ["Anim"]
 
@@ -116,6 +117,7 @@ def main():
                     "Power": lt.ue_array(a["power"]), "HitFrames": lt.ue_array(a["hit_frames"]),
                     "AGLCost": a["agl_cost"], "Gate": a["gate"], "Rate": a["rate"],
                     "StatusSelector": a["status"], "FrameCount": a["frames"],
+                    "RootSpeed": a["root_speed"], "EndStep": a["end_step"],
                 })
 
     # Trabalho manual sobrevive à regeneração

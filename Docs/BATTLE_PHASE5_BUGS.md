@@ -456,7 +456,27 @@ Bug 20 (miss sound) confirmed fixed in PIE. Worked on in parts.
   the original's one step either side), over `FollowFrames` (6; 0 = the original's one-frame cut). What to look at in PIE: no
   attacker ends a swing or an Art inside its target; combos stay at the edge; the attacker turns with a target whose knockdown
   carries it sideways. Tunables on the pawn: `InRangeBackoffUnits`, `bFaceTargetEveryFrame`, `FollowFrames`.
-- 1c. End step and root speed from the disc. 1d. Bug 29. 1e. Slow motion for everyone. 1f. Crossfade review.
+- **1c. Clip motion from the disc (done, not built) - closes bug 30.** Every action entry carries a root speed (`+0x0C`, PS1
+  units per vsync along the facing) and an end step (`+0x0E`, how far the clip leaves the body from where it began). The
+  generators now export them: `generate_enemy_actions_csv.py` (via `monster_block.py`) -> `RootSpeed` / `EndStep` on
+  `DT_EnemyActions`; `generate_hero_battle_csv.py` -> the same two on `DT_HeroSwings` and `DT_ArtHits`, and six pairs on
+  `DT_HeroReactions` (`FlinchHigh`, `FlinchLow`, `Block`, `Knockdown`, `GetUp`, `Dying` + `RootSpeed` / `EndStep`). Checked against
+  `BATTLE_TIMING.md` section 6 (Vahn flinch 0 / -159, knockdown -4 / -1; Gimard knockdown -8, walk 28). Slash Kick is **-7 / +534**:
+  it ends 534 units (~231 cm) ahead, which the old reach clamp cut and blended back (bug 30). Hero plain swings are all 4 / 0.
+  - Pawn: `BeginClipMotion` on every clip (reaction, step); `UpdateRootMotion` each frame: a negative speed always moves (a
+    knockdown slides the whole fall, a block steps back), a positive one only while the target's body is out of reach and only to
+    the edge. The end step is walked over the crossfade (`SlideBy`) at the natural end (reaction chain, idle hand-off), pro-rated
+    when a clip is cut (a combo's next swing, a hit in mid-flinch), never for a body that died. The reach clamp of
+    `SettleIntoIdle` is gone (the in-range back-off of 1b keeps the attacker out of the target). The fixed `FlinchKnockback` /
+    `KnockdownKnockback` / `BlockKnockback` and the pose-centroid end step stay only for clips without data (tables imported before
+    these columns). Monster walk speed comes from its tag-1 row (`EnemyWalkSpeedUnits` is the fallback). The arrival shove now runs
+    only for the six monsters with a tag-`0x20` walk entry. Switch: `bUseClipMotion` on the pawn.
+  - **Re-import** in `/Game/Data/`: `DT_EnemyActions`, `DT_HeroReactions`, `DT_HeroSwings`, `DT_ArtHits` (new columns; without
+    them the pawn falls back to the old knockback and end step, by design).
+  - What to look at in PIE: knockdowns slide back over the whole fall (Gala's ~187 cm, Gimard's ~268 cm), flinches end a little
+    back, Slash Kick ends ahead of where it started without gliding back, nobody ends inside a target, monsters walk at their own
+    speed.
+- 1d. Bug 29. 1e. Slow motion for everyone. 1f. Crossfade review.
 
 #### Backlog (2026-11-05) — noted for later, not started
 

@@ -91,6 +91,10 @@ REACTION_PACKS = {"Vahn": "0863", "Noa": "0864", "Gala": "0865", "Terra": "0866"
 # A tag de cada entrada de reação da record[0] e a coluna do DT_HeroReactions
 REACTION_ENTRIES = (("FlinchHighFrames", 2), ("FlinchLowFrames", 3), ("BlockFrames", 0x0B), ("KnockdownFrames", 4),
                     ("GetUpFrames", 5), ("DyingFrames", 7), ("DownLoopFrames", 8))
+# O movimento de cada reação: a velocidade de raiz (+0x0C, unidades por vsync ao longo da direção; negativa = recua durante o
+# clip inteiro) e o passo do fim do clip (+0x0E, o quanto o clip deixa o corpo de onde começou). A entrada 8 (o caído) é 0 em todo
+# arquivo e fica de fora
+REACTION_MOTION = (("FlinchHigh", 2), ("FlinchLow", 3), ("Block", 0x0B), ("Knockdown", 4), ("GetUp", 5), ("Dying", 7))
 
 ART_HITS_TABLE = "DT_ArtHits"
 # O bloco das Arts na record[0]: o ponteiro em +0x58 aponta 4 bytes antes do primeiro registro (o da constante 0x10)
@@ -151,7 +155,9 @@ def read_swing(data, offset):
             break
         beats.append(b)
     powers = list(data[offset:offset + len(beats)])
-    return {"powers": powers, "beats": beats, "rate": data[offset + 0x78], "cost": data[offset + 0x74]}
+    return {"powers": powers, "beats": beats, "rate": data[offset + 0x78], "cost": data[offset + 0x74],
+            "root_speed": struct.unpack_from("<h", data, offset + 0x0C)[0],
+            "end_step": struct.unpack_from("<h", data, offset + 0x0E)[0]}
 
 
 def hero_swings(tool, extracted, character, workdir, equipment):
@@ -231,8 +237,11 @@ def art_hits(data, character, arts, report):
         if expected and expected != len(beats):
             report["Art com golpes diferentes do DT_Arts"].append("%s %s: disco %d, DT_Arts %d" % (
                 character, key, len(beats), expected))
+        # A entrada do clip começa em +0x24 do registro: a velocidade de raiz em +0x30 e o passo do fim em +0x32
         rows.append({"---": key, "Character": character, "ActionConstant": constant,
-                     "HitBeats": lt.ue_array(beats), "Rate": rate})
+                     "HitBeats": lt.ue_array(beats), "Rate": rate,
+                     "RootSpeed": struct.unpack_from("<h", data, off + 0x30)[0],
+                     "EndStep": struct.unpack_from("<h", data, off + 0x32)[0]})
     return rows
 
 
@@ -250,6 +259,10 @@ def reaction_lengths(lzs_tool, extracted, character, workdir):
         frames = data[offset + 0xAD]
         # O clip de N quadros no rate R dura 4 * N / R vsyncs; o stream vazio (partes 0) não dura nada
         lengths[column] = -(-4 * frames // rate) if rate and data[offset + 0xAC] else 0
+    for name, tag in REACTION_MOTION:
+        offset = offsets[tag]
+        lengths[name + "RootSpeed"] = struct.unpack_from("<h", data, offset + 0x0C)[0]
+        lengths[name + "EndStep"] = struct.unpack_from("<h", data, offset + 0x0E)[0]
     return lengths
 
 
@@ -349,6 +362,7 @@ def main():
                 swing_rows.append({"---": "%s_%s_%s" % (character, item, button), "Character": character, "Item": item,
                                    "Button": button, "PowerBytes": lt.ue_array(swing["powers"]),
                                    "HitBeats": lt.ue_array(swing["beats"]), "Rate": swing["rate"], "Cost": swing["cost"],
+                                   "RootSpeed": swing["root_speed"], "EndStep": swing["end_step"],
                                    "_default": item == "default", "_id": item_id})
     swing_rows.sort(key=lambda r: (r["Character"], not r["_default"], r["Button"], r["_id"]))
 
@@ -361,7 +375,8 @@ def main():
             row = {"---": character, "Character": character}
             row.update(lengths)
             reaction_rows.append(row)
-    reaction_columns = ["Character"] + [column for column, _tag in REACTION_ENTRIES]
+    reaction_columns = (["Character"] + [column for column, _tag in REACTION_ENTRIES]
+                        + [name + suffix for name, _tag in REACTION_MOTION for suffix in ("RootSpeed", "EndStep")])
 
     # --- DT_ArtHits ---------------------------------------------------------------------------------
     arts, arts_order = lt.read_rows("DT_Arts")
@@ -372,7 +387,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="legaia_arts_") as workdir:
         for character in ("Vahn", "Noa", "Gala"):
             art_rows += art_hits(decode_record0(lzs_tool, args.extracted, character, workdir), character, arts_list, report)
-    art_columns = ["Character", "ActionConstant", "HitBeats", "Rate"]
+    art_columns = ["Character", "ActionConstant", "HitBeats", "Rate", "RootSpeed", "EndStep"]
 
     print("[hero-battle] DT_ArtHits: %d Arts" % len(art_rows))
     for r in art_rows:
@@ -400,7 +415,7 @@ def main():
         return
     for table, columns, rows in ((TIERS_TABLE, ["Character", "TierATK"], tier_rows),
                                  (COSTS_TABLE, ["Character", "Item", "ArmsCost"], cost_rows),
-                                 (SWINGS_TABLE, ["Character", "Item", "Button", "PowerBytes", "HitBeats", "Rate", "Cost"],
+                                 (SWINGS_TABLE, ["Character", "Item", "Button", "PowerBytes", "HitBeats", "Rate", "Cost", "RootSpeed", "EndStep"],
                                   swing_rows),
                                  (REACTIONS_TABLE, reaction_columns, reaction_rows),
                                  (ART_HITS_TABLE, art_columns, art_rows)):

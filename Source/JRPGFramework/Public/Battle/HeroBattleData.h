@@ -95,6 +95,16 @@ struct JRPGFRAMEWORK_API FJRPGHeroSwingData : public FTableRowBase
 	/** O custo do botão no gauge de comandos (30 / 42 / 54). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Swing")
 	int32 Cost = 30;
+
+	/**
+	 * O movimento do clip do golpe (+0x0C velocidade de raiz e +0x0E passo do fim, unidades do PS1; FJRPGEnemyActionData). No disco
+	 * todo golpe simples é 4 / 0 (anda só enquanto está fora do alcance, termina onde começou): o pawn não precisa deles hoje.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Swing")
+	int32 RootSpeed = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Swing")
+	int32 EndStep = 0;
 };
 
 /**
@@ -142,6 +152,46 @@ struct JRPGFRAMEWORK_API FJRPGHeroReactionData : public FTableRowBase
 	/** A entrada 8, o caído: repete para sempre (um ciclo; só informativo, a luta não espera por ele). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction", meta = (ClampMin = "0"))
 	int32 DownLoopFrames = 40;
+
+	/**
+	 * O movimento de cada reação (a entrada do clip: +0x0C velocidade de raiz por vsync, +0x0E passo do fim, unidades do PS1 ao
+	 * longo da direção; ver FJRPGEnemyActionData). Negativo = para trás (para longe de quem bateu). O caído (8) é sempre 0.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction|Motion")
+	int32 FlinchHighRootSpeed = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction|Motion")
+	int32 FlinchHighEndStep = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction|Motion")
+	int32 FlinchLowRootSpeed = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction|Motion")
+	int32 FlinchLowEndStep = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction|Motion")
+	int32 BlockRootSpeed = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction|Motion")
+	int32 BlockEndStep = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction|Motion")
+	int32 KnockdownRootSpeed = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction|Motion")
+	int32 KnockdownEndStep = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction|Motion")
+	int32 GetUpRootSpeed = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction|Motion")
+	int32 GetUpEndStep = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction|Motion")
+	int32 DyingRootSpeed = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Hero Reaction|Motion")
+	int32 DyingEndStep = 0;
 };
 
 /**
@@ -172,7 +222,17 @@ struct JRPGFRAMEWORK_API FJRPGArtHitData : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Hits")
 	TArray<int32> HitBeats;
 
-	/** O rate do clip (1..4). */
+	/** O rate do clip (1..7 no disco). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Hits", meta = (ClampMin = "1"))
 	int32 Rate = 2;
+
+	/**
+	 * O movimento do clip da Art (a entrada em +0x24 do registro: +0x30 velocidade de raiz por vsync, +0x32 passo do fim, unidades
+	 * do PS1; ver FJRPGEnemyActionData). O Slash Kick, por exemplo, recua 7 por vsync e termina 534 à frente.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Hits")
+	int32 RootSpeed = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Hits")
+	int32 EndStep = 0;
 };

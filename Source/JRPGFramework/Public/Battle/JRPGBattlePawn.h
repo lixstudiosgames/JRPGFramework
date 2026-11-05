@@ -5,6 +5,7 @@
 #include "Battle/BattleTypes.h"
 #include "Battle/EnemyActionData.h"
 #include "Battle/EnemyData.h"
+#include "Battle/HeroBattleData.h"
 #include "JRPGBattlePawn.generated.h"
 
 class AJRPGBattleArena;
@@ -318,24 +319,32 @@ public:
 	float MinWalkDistance = 40.0f;
 
 	/**
-	 * A velocidade da caminhada do monstro, em unidades do PS1 por quadro lógico (vsync). O original anda em velocidade constante
-	 * até a lei de alcance dizer "ao alcance"; os heróis têm a do disco (Vahn 42, Noa 44, Gala 28, Terra 48, a velocidade do clip de
-	 * andar), a dos monstros não foi exportada (+0x0C da entrada de andar): este é um valor médio, ajustável.
+	 * A velocidade da caminhada do monstro, em unidades do PS1 por quadro lógico (vsync), quando a linha de andar (tag 1) do
+	 * DT_EnemyActions não traz a RootSpeed dela. O original anda em velocidade constante até a lei de alcance dizer "ao alcance";
+	 * os heróis têm a do disco (Vahn 42, Noa 44, Gala 28, Terra 48).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Reach", meta = (ClampMin = "1.0"))
 	float EnemyWalkSpeedUnits = 36.0f;
 
 	/**
-	 * O passo do fim do clip (+0x0E no original): o clip de reação (e o de golpe) termina com o corpo deslocado da pose do idle. Na
-	 * volta ao idle, esse deslocamento vira posição do ator, e o idle entra sem mistura: o corpo fica onde o clip o deixou, em vez de
-	 * deslizar de volta no crossfade.
+	 * O movimento de cada clip, do disco (RootSpeed / EndStep do DT_EnemyActions, DT_HeroReactions e DT_ArtHits): a velocidade de
+	 * raiz move o ator enquanto o clip toca (um knockdown desliza a queda inteira, um block recua) e o passo do fim anda o que o clip
+	 * deixa o corpo de onde começou (o Slash Kick termina 534 unidades à frente). Substitui o recuo fixo (FlinchKnockback...) e o
+	 * passo pelo centro da pose, que ficam só para os clips sem dado. Desligado: o comportamento antigo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Knockback")
+	bool bUseClipMotion = true;
+
+	/**
+	 * Para os clips sem dado de movimento (as tabelas sem as colunas novas): na volta ao idle, o deslocamento do corpo em relação à
+	 * pose do idle vira posição do ator (a heurística antiga do passo do fim do clip).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Knockback")
 	bool bApplyEndStep = true;
 
 	/**
-	 * O arrival shove do original: quando a caminhada até o alvo fecha, o alvo é empurrado até a borda do alcance, para os dois
-	 * não ficarem colados (a margem de parada e o que o alvo andou durante a caminhada).
+	 * O arrival shove do original (só na cadeia de caminhada dos seis monstros com a entrada de tag 0x20: Caruban x3, Evil Shadow,
+	 * Shade, Nightmare): quando a caminhada até o alvo fecha, o alvo é empurrado até a borda do alcance.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Reach")
 	bool bApplyArrivalShove = true;
@@ -479,17 +488,51 @@ private:
 	void AdvanceReaction(int32 LogicFrame);
 	/** O quadro lógico do fim do clip chegou: o papel seguinte, ou o fim da cadeia. */
 	void OnReactionEnded(int32 LogicFrame);
-	/** Volta ao idle com o passo do fim do clip; bAfterAction: o atacante no fim da ação (o passo vai só até a borda do alcance). */
-	void ReturnToIdle(bool bAfterAction);
+	/** Volta ao idle com o passo do fim do clip (nada, se caído ou no meio da própria ação). */
+	void ReturnToIdle();
 
 	/** PlayClip com o tempo de mistura dado (0 = corte seco). */
 	void PlayClipBlended(UAnimSequence* Clip, bool bLoop, float PlayRate, float BlendTime);
 
 	/**
-	 * Entra no idle aplicando o passo do fim do clip (bApplyEndStep): o deslocamento do corpo em relação à pose do idle vira posição
-	 * do ator (limitada pela arena) e o idle entra sem mistura. Sem a pose do idle medida ainda, é o PlayIdle de sempre.
+	 * Entra no idle aplicando o passo do fim do clip que acabou (EndStepShift): o ator anda o passo durante a mistura para o idle,
+	 * e o corpo fica onde o clip o deixou. Sem passo, é o PlayIdle de sempre.
 	 */
-	void SettleIntoIdle(const AJRPGBattlePawn* KeepReachOf = nullptr);
+	void SettleIntoIdle();
+
+	/** O movimento de um clip, do disco (+0x0C velocidade de raiz por vsync, +0x0E passo do fim; unidades do PS1). */
+	struct FClipMotion
+	{
+		int32 RootSpeed = 0;
+		int32 EndStep = 0;
+		/** Há dado para este clip (senão vale a heurística antiga: o passo pelo centro da pose, o recuo fixo). */
+		bool bValid = false;
+	};
+
+	/** O movimento do clip de uma reação (DT_EnemyActions pela tag; DT_HeroReactions no herói). */
+	FClipMotion RoleMotion(FName ClipRole) const;
+
+	/** O movimento do clip de um passo da ação (a linha do monstro, a linha da Art no DT_ArtHits; golpe simples e starter: 0 / 0). */
+	FClipMotion StepMotion(const FJRPGActionStep& Step) const;
+
+	/** O clip que começa no quadro StartFrame e acaba (natural) em EndFrame passa a mover o ator (UpdateRootMotion, EndStepShift). */
+	void BeginClipMotion(const FClipMotion& Motion, int32 StartFrame, int32 EndFrame, int32 GameSpeed);
+
+	/** A velocidade de raiz do clip em curso, quadro a quadro (negativa sempre; positiva só com o alvo fora do alcance). */
+	void UpdateRootMotion(int32 LogicFrame);
+
+	/**
+	 * O passo do fim do clip em curso, em mundo, no plano do chão: EndStep * Fraction ao longo da direção (Fraction < 1 num corte, a
+	 * parte tocada). Sem dado do clip e com bHeuristic: o deslocamento do corpo em relação à pose do idle (a heurística antiga,
+	 * bApplyEndStep, só na volta ao idle).
+	 */
+	FVector EndStepShift(float Fraction, bool bHeuristic = false) const;
+
+	/** A fração do clip em curso que já tocou no quadro dado (1 no fim natural ou depois). */
+	float ClipMotionFraction(int32 LogicFrame) const;
+
+	/** Anda Shift (limitado pela arena) durante a mistura de AnimBlendTime, a partir do quadro dado. */
+	void SlideBy(const FVector& Shift, int32 LogicFrame);
 
 	/** O centro das posições dos bones (menos a raiz) na pose atual, no espaço do componente. */
 	FVector PoseCentroid() const;
@@ -586,7 +629,21 @@ private:
 	int32 ApproachFrames = 0;
 	int32 ApproachStallFrames = 0;
 
-	/** A pose do idle medida (o centro dos bones, espaço do componente): a referência do passo do fim do clip. */
+	/** O movimento do clip em curso (BeginClipMotion) e onde ele está no relógio lógico. */
+	FClipMotion ActiveMotion;
+	int32 MotionStartFrame = INDEX_NONE;
+	int32 MotionEndFrame = INDEX_NONE;
+	int32 MotionGameSpeed = 8;
+	/** Até que quadro lógico a velocidade de raiz já foi aplicada. */
+	int32 MotionAppliedFrame = INDEX_NONE;
+
+	/** A linha do herói no DT_HeroReactions (o movimento das reações); só vale com bHasHeroReactionRow. */
+	FJRPGHeroReactionData HeroReactionRow;
+	bool bHasHeroReactionRow = false;
+	/** O DT_EnemyActions importado traz o movimento (alguma linha do monstro com RootSpeed ou EndStep); senão, a heurística antiga. */
+	bool bEnemyHasMotionData = false;
+
+	/** A pose do idle medida (o centro dos bones, espaço do componente): a referência do passo do fim do clip sem dado. */
 	FVector NeutralCentroid = FVector::ZeroVector;
 	bool bHasNeutralCentroid = false;
 	/** O idle toca desde este quadro lógico (INDEX_NONE = outro clip toca). */
