@@ -419,6 +419,22 @@ const FJRPGBattleMenuHero* FJRPGBattleMenu::FocusHero() const
 	return Ctx.FindHero(Plan.CurrentSlot());
 }
 
+int32 FJRPGBattleMenu::GetFocusHeroSlot() const
+{
+	const FJRPGBattleMenuHero* Hero = FocusHero();
+	return Hero ? Hero->Slot : INDEX_NONE;
+}
+
+int32 FJRPGBattleMenu::GetTargetCursorSlot() const
+{
+	if (Screen != EJRPGBattleMenuScreen::Target)
+	{
+		return INDEX_NONE;
+	}
+	const TArray<int32> Living = Ctx.LivingEnemyIndices();
+	return Living.IsValidIndex(TargetCursor) ? Ctx.Enemies[Living[TargetCursor]].Slot : INDEX_NONE;
+}
+
 FJRPGBattleMenuResult FJRPGBattleMenu::Press(EJRPGBattleMenuKey Key)
 {
 	switch (Screen)

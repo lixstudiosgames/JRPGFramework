@@ -617,7 +617,9 @@ recentre is off by default *because* the camera is fixed (bugs 21-26; `OnFormati
 
 **Done so far (camera pass, 2026-11-05):** `AJRPGBattleCamera` (`Docs/Guides/BATTLE_STAGE.md` "The battle camera"), spawned by
 the arena when there is no `BattleCamera` (`bUseBattleCamera`). Part a: the pose model and units of 7.1, the ease-out of 7.4, the
-lens, case 9 with the orbit of 7.5, and the focus moving with `OnFormationShifted`.
+lens, case 9 with the orbit of 7.5, and the focus moving with `OnFormationShifted`. Part b: the menu framings, case 0 on the
+Command and Attack screens and case 1 on the Target screen (`FJRPGBattleMenu::GetFocusHeroSlot` / `GetTargetCursorSlot`); case 3
+waits for the ally cursor (items, magic).
 
 **Gap: the whole battle camera.** Suggested shape (implementation pass): a `UJRPGBattleCameraDirector` owned by the scene subsystem
 that, every logic frame, picks the case from the battle stage + the acting pawn's phase + the menu screen, builds the target pose

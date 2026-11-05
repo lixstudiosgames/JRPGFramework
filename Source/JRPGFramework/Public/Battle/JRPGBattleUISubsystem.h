@@ -45,6 +45,9 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle UI")
 	bool IsMenuUp() const { return bMenuUp; }
 
+	/** O menu (só leitura): a tela, o herói comandado e o cursor de alvo. A câmera da luta enquadra por ele. */
+	const FJRPGBattleMenu& GetMenu() const { return Menu; }
+
 	/** Desliga a UI inteira: a luta volta a só ter o prompt de debug e os comandos de console. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle UI")
 	bool bUIEnabled = true;

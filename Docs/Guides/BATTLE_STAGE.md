@@ -127,7 +127,7 @@ The original's battle camera, from the RE (`Docs/Reference/BATTLE_RE_SWEEP.md` s
 - **Every frame** it picks a shot from the state of the fight, builds that shot's pose from the live combatants, and moves
   toward it with the original's **ease-out**: each 30 Hz step covers `1 / ChaseSteps` of what is left (6; 7 for the far
   shot). The target is rebuilt every frame, so the camera chases moving fighters and never stops dead at a state change.
-- **A pose** is the original's: a focus point, a turn around it (`Yaw`, 0 = behind the party looking at the enemies), a
+- **A pose** is the original's: a focus point, the world direction the camera looks (`Yaw`), a
   tilt (`Pitch`) and the view-space offset `TR` (side shift, eye height, eye distance). The original's numbers are PS1
   units; camera offsets are in the battle's 4x scale, so `cm = TR / 4 * OriginalCmPerUnit`, and "prescale" is x1.6.
 - **Lens** (`bOriginalLens`): 64° horizontal at 4:3 with the vertical held (about 50°); a wider screen shows more at the
@@ -137,11 +137,18 @@ The original's battle camera, from the RE (`Docs/Reference/BATTLE_RE_SWEEP.md` s
 
 | Shot | When | Pose |
 |---|---|---|
-| **Far** (case 9) | Always, for now (the menu and action shots come next) | The whole formation's box centre on the floor; distance `prescale(max(width * 3, 0x800))` (1 v 1: ~831 cm), eye ~139 cm up, tilt 2.8°. The yaw is passed through and **orbits** at -10.5°/s (`bOrbit`). |
+| **Far** (case 9) | Menu Start / Tactics / Escape / Final screens; no menu (console commands); during actions, for now (the action shots come next) | The whole formation's box centre on the floor; distance `prescale(max(width * 3, 0x800))` (1 v 1: ~831 cm), eye ~139 cm up, tilt 2.8°. The yaw is passed through (it keeps the direction of the shot before) and **orbits** at -10.5°/s (`bOrbit`). |
+| **Member** (case 0) | Menu Command and Attack (arts entry) screens | Close-up of the hero being commanded: focus on his feet, looking at him from the front 21° to one side (`0x8F0 - facing`), shifted so he sits left of centre (`TR.x -0x200`), ~266 cm away, eye at his row of the original's height table (Vahn 1152 ≈ 125 cm, Noa 960, Gala 1408; `MemberLiftUnits`), tilt 2.8°. |
+| **TargetEnemy** (case 1) | Menu Target screen | Behind and above the hero, looking from the camera's focus to the enemy under the cursor (`0x800 - bearing`): focus on the hero, ~355 cm away, eye ~166 cm up, tilt 22.5°. Moving the cursor swings the camera to the next enemy. |
+
+"Facing-relative" yaws (case 0, and the action shots) are the original's `angle - facing`: the camera looks along the
+character's front turned by `-angle` (0 = from behind, `0x800` = at his face). The original's world is Y-down, so the side
+could come out mirrored: `bMirrorYaw` swaps it.
 
 Tuning on the class: `DistanceScale` (every eye distance; 1 = the original's), `ChaseSteps` / `FarChaseSteps` (0 = hard
-cut), `StartYaw` (the original opens at 0, both rows in line; 20° by default), `OrbitDegreesPerSecond`, `bMirrorYaw`,
-`FieldOfView43`, `bPrintDebug` (shot and pose on screen).
+cut), `StartYaw` (relative to the arena; the original opens at 0, both rows in line; 20° by default), `OrbitDegreesPerSecond`,
+`bMirrorYaw`, `bMenuShots` (off = the menu stays on the far shot), the `Member*` / `Target*` numbers, `FieldOfView43`,
+`bPrintDebug` (shot, slots and pose on screen).
 
 **Field enemies:** `bStartBattle` (default on) — off, contact only announces the encounter, as
 in Phase 3.

@@ -20,7 +20,7 @@ struct JRPGFRAMEWORK_API FJRPGBattleCameraPose
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera")
 	FVector Focus = FVector::ZeroVector;
 
-	/** Graus em volta do foco, relativo à arena: 0 = de trás da party, olhando para os inimigos (+X da arena). */
+	/** Para onde a câmera olha no plano, em graus de mundo (o Yaw de um FRotator). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera")
 	float Yaw = 0.0f;
 
@@ -41,7 +41,11 @@ UENUM(BlueprintType)
 enum class EJRPGBattleShot : uint8
 {
 	/** Caso 9: a formação inteira, de longe, girando devagar (o prompt da rodada, a confirmação, entre as ações). */
-	Far
+	Far,
+	/** Caso 0: o close do herói comandado (o menu dele e a entrada das Arts), de frente, um pouco de lado. */
+	Member,
+	/** Caso 1: o cursor de alvo num inimigo: por trás e acima do herói, olhando o inimigo. */
+	TargetEnemy
 };
 
 /**
@@ -117,7 +121,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Motion", meta = (ClampMin = "0.1"))
 	float DistanceScale = 1.0f;
 
-	/** Inverte o sentido de todo giro (o original é Y para baixo; isto só espelha a escolha de lado). */
+	/**
+	 * Inverte o lado dos giros presos a um personagem (o original é Y para baixo, e o giro dele é "frente do personagem menos o
+	 * ângulo"): o close do menu sai do outro lado do rosto, e o mesmo para os da ação.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Motion")
 	bool bMirrorYaw = false;
 
@@ -153,20 +160,80 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Far", meta = (ClampMin = "0.0"))
 	float FarMinSpanUnits = 2048.0f;
 
+	// --- Menu (casos 0 e 1) ---------------------------------------------------------------------
+
+	/**
+	 * Usar os closes do menu (o herói comandado, o cursor de alvo). Desligado, o menu fica no plano geral. Precisa da UI de comando
+	 * (UJRPGBattleUISubsystem); pelos comandos de console fica sempre no plano geral.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Menu")
+	bool bMenuShots = true;
+
+	/** Caso 0: o giro em volta do herói, em unidades do original (0x8F0: de frente, 21 graus de lado). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Menu")
+	float MemberYawUnits = 2288.0f;
+
+	/** Caso 0: inclinação (32 = 2,8 graus). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Menu")
+	float MemberPitchUnits = 32.0f;
+
+	/** Caso 0: o desvio lateral (-0x200: o herói à esquerda da tela, o menu à direita). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Menu")
+	float MemberSideUnits = -512.0f;
+
+	/** Caso 0: a distância, antes do prescale (0x600: uns 266 cm). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Menu", meta = (ClampMin = "0.0"))
+	float MemberDepthUnits = 1536.0f;
+
+	/**
+	 * Caso 0: a altura do olho por herói (a tabela 0x801F4D2C do original, pela chave do combatente): Vahn 1152 (uns 125 cm),
+	 * Noa 960, Gala 1408. Quem não está aqui usa MemberDefaultLiftUnits.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Menu")
+	TMap<FName, float> MemberLiftUnits;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Menu")
+	float MemberDefaultLiftUnits = 1152.0f;
+
+	/** Caso 1: inclinação (0x100 = 22,5 graus, olhando de cima). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Menu")
+	float TargetPitchUnits = 256.0f;
+
+	/** Caso 1: a altura do olho (0x600, uns 166 cm). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Menu")
+	float TargetLiftUnits = 1536.0f;
+
+	/** Caso 1: a distância, antes do prescale (0x800: uns 355 cm). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Menu", meta = (ClampMin = "0.0"))
+	float TargetDepthUnits = 2048.0f;
+
 	/** Mostrar na tela o enquadramento e a pose (debug no PIE). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Debug")
 	bool bPrintDebug = false;
 
 protected:
 	/**
-	 * O enquadramento de agora e a pose alvo dele (re-armada todo quadro, como o original). Base: o caso 9 com a órbita. Um filho
-	 * em C++ pode trocar a escolha inteira.
+	 * O enquadramento de agora (e de quem: o slot do personagem e o do alvo, INDEX_NONE quando não há) e a pose alvo dele,
+	 * re-armada todo quadro como no original. Um filho em C++ pode trocar a escolha inteira.
 	 */
-	virtual EJRPGBattleShot ChooseShot() const;
+	virtual EJRPGBattleShot ChooseShot(int32& OutSlot, int32& OutTargetSlot) const;
 	virtual bool BuildShotPose(EJRPGBattleShot InShot, float DeltaSeconds, FJRPGBattleCameraPose& OutPose);
 
 	/** Caso 9: a caixa da formação inteira; o giro é o da câmera (passa direto), a órbita anda ele. */
 	bool BuildFarPose(float DeltaSeconds, FJRPGBattleCameraPose& OutPose);
+	/** Caso 0: o close do herói ShotSlot. */
+	bool BuildMemberPose(FJRPGBattleCameraPose& OutPose) const;
+	/** Caso 1: do herói ShotSlot para o inimigo ShotTargetSlot. */
+	bool BuildTargetEnemyPose(FJRPGBattleCameraPose& OutPose) const;
+
+	/**
+	 * O giro do original preso à frente de um personagem ("ângulo - frente do personagem", em unidades) como o Yaw de mundo da
+	 * câmera: o ângulo é medido a partir de olhar para o rosto dele (0x800 = de frente, 0 = por trás), bMirrorYaw troca o lado.
+	 */
+	float FacingRelativeYaw(const AJRPGBattlePawn* Pawn, float Units) const;
+
+	/** O pawn de um slot (nulo se não há ou não está à vista). */
+	AJRPGBattlePawn* PawnForSlot(int32 Slot) const;
 
 	/** Unidades do original (4096 = 360 graus) para graus. */
 	static float UnitsToDegrees(float Units) { return Units * (360.0f / 4096.0f); }
@@ -195,5 +262,8 @@ private:
 	FJRPGBattleCameraPose Live;
 	FJRPGBattleCameraPose Target;
 	EJRPGBattleShot Shot = EJRPGBattleShot::Far;
+	/** De quem é o enquadramento de agora e o alvo dele (INDEX_NONE quando não há). */
+	int32 ShotSlot = INDEX_NONE;
+	int32 ShotTargetSlot = INDEX_NONE;
 	bool bHasPose = false;
 };

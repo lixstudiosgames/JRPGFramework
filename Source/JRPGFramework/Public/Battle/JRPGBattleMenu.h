@@ -306,6 +306,12 @@ public:
 	void TurnAutoOff();
 
 	EJRPGBattleMenuScreen GetScreen() const { return Screen; }
+
+	/** O slot do herói sendo comandado (o do cursor do buffer); INDEX_NONE depois do último. A câmera fecha nele. */
+	int32 GetFocusHeroSlot() const;
+
+	/** Na tela Target, o slot do inimigo sob o cursor; INDEX_NONE nas outras telas. */
+	int32 GetTargetCursorSlot() const;
 	const FJRPGBattleMenuContext& GetContext() const { return Ctx; }
 	const FJRPGBattleCommandPlan& GetPlan() const { return Plan; }
 	EJRPGBattleTactic GetTactic(FName HeroKey) const { return Tactics.FindRef(HeroKey); }
