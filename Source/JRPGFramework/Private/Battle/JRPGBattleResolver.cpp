@@ -892,7 +892,7 @@ bool FJRPGBattleResolver::PlanHeroAction(const FJRPGCombatant& Hero, const FJRPG
 		}
 		else
 		{
-			AppendArtSteps(Hero, e, Entry.ArtKey, Steps);
+			AppendArtSteps(Hero, e, Entry.ArtKey, Steps, Entry.bNewlyLearned);
 		}
 	}
 	ComposeHeroTimeline(Hero, OutChain, Steps, OutTimeline);
@@ -939,7 +939,7 @@ void FJRPGBattleResolver::ComposeSpiritTimeline(const FJRPGCombatant& Hero, FJRP
 	}
 }
 
-void FJRPGBattleResolver::AppendArtSteps(const FJRPGCombatant& Hero, int32 Entry, FName ArtKey, TArray<FPlanStep>& Steps) const
+void FJRPGBattleResolver::AppendArtSteps(const FJRPGCombatant& Hero, int32 Entry, FName ArtKey, TArray<FPlanStep>& Steps, bool bNewlyLearned) const
 {
 	const FJRPGArtData* Row = ArtsTable ? ArtsTable->FindRow<FJRPGArtData>(ArtKey, TEXT("BattleResolver"), false) : nullptr;
 	if (!Row)
@@ -958,11 +958,13 @@ void FJRPGBattleResolver::AppendArtSteps(const FJRPGCombatant& Hero, int32 Entry
 		return;
 	}
 
-	// A Regular sem Sequence: o starter e o clip dela (os golpes dos botões antes já são entradas Swing da cadeia)
+	// A Regular sem Sequence: o starter e o clip dela (os golpes dos botões antes já são entradas Swing da cadeia). A Art
+	// descoberta agora entra pelo starter especial, como no original (o 0x1A no lugar do 0x19: o dash com a luta congelada, o
+	// "NEW", e a Art no modo especial); a conhecida, pelo starter comum
 	FPlanStep& Starter = Steps.AddDefaulted_GetRef();
-	Starter.Kind = EJRPGActionStepKind::ArtStarter;
+	Starter.Kind = bNewlyLearned ? EJRPGActionStepKind::SpecialStarter : EJRPGActionStepKind::ArtStarter;
 	Starter.Entry = Entry;
-	Starter.ClipName = TEXT("ArtStarter");
+	Starter.ClipName = bNewlyLearned ? TEXT("SpecialStarter") : TEXT("ArtStarter");
 	Starter.ArtKey = ArtKey;
 
 	FPlanStep& Art = Steps.AddDefaulted_GetRef();
@@ -1683,6 +1685,21 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 	}
 
 	Emit(EJRPGBattleEventType::Damage, Attacker.SlotIndex, Defender.SlotIndex, Damage, HitIndex, Flags, NAME_None, 0, Speed);
+
+	// O AP de quem apanha (o "spirit gauge fill" do original, FUN_801EC3E4 0x801EDB80..0x801EDCC8; battle-formulas.md):
+	// max(1, dano x 100 / HP máximo) a cada golpe que acerta, até o máximo. TODO: o AP Boost (+1/4) e o passivo 0x100 (+1/10)
+	// quando os passivos de acessório existirem
+	if (Defender.Side == EJRPGBattleSide::Party && Damage > 0 && Defender.MaxHP > 0)
+	{
+		const int32 Gain = FMath::Max(1, static_cast<int32>(static_cast<int64>(Damage) * 100 / Defender.MaxHP));
+		const int32 NewAP = FMath::Clamp(Defender.AP + Gain, 0, FMath::Max(Defender.MaxAP, 0));
+		if (NewAP != Defender.AP)
+		{
+			Defender.AP = NewAP;
+			Emit(EJRPGBattleEventType::APChanged, Defender.SlotIndex, Defender.SlotIndex, NewAP);
+		}
+	}
+
 	if (bFalls)
 	{
 		KillCombatant(Defender, Attacker.SlotIndex, Speed);

@@ -280,11 +280,16 @@ public:
 	 * O "slow" das Arts do original: enquanto o grito da Art é lido do CD (a voz XA no starter de uma Art conhecida, a fanfarra no
 	 * dash de uma Art nova / Super / Miracle), o PS1 fica sem fôlego e o jogo INTEIRO anda mais devagar — o clip do starter do Lizard
 	 * Tail dura 32 vsyncs em vez de 22, o da Art 61 em vez de 40 (docs/subsystems/battle-action-helpers.md, "Retail frames stretch
-	 * while a shout streams"). Aqui é a dilatação do tempo do mundo (regras, animações, câmera; a voz não muda de tom) enquanto um
-	 * herói toca o starter, o dash ou o clip de uma Art. 1 = sem o slow.
+	 * while a shout streams"). Aqui é a dilatação do tempo do mundo (regras, animações, câmera; a voz não muda de tom) por
+	 * ArtsShoutSeconds a partir do starter de uma Art conhecida (o grito XA). O dash do Hyper / Super / Miracle / Art nova não abre
+	 * a janela: ele já é o slow do original (a luta congelada, só quem dá o dash anda, as Arts depois dele a 1/4). 1 = sem o slow.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (ClampMin = "0.1", ClampMax = "1.0"))
 	float ArtsShoutTimeDilation = 0.67f;
+
+	/** Quanto dura o slow do grito, em segundos reais, a partir do starter (a leitura da voz; o Lizard Tail do RE: ~1 s). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (ClampMin = "0.0"))
+	float ArtsShoutSeconds = 1.0f;
 
 	/** A classe de cada combatente na cena (um Blueprint filho dá efeitos, nome na cabeça...). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")

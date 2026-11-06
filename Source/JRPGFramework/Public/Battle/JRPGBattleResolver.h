@@ -299,7 +299,7 @@ private:
 	bool PlanHeroAction(const FJRPGCombatant& Hero, const FJRPGBattleCommand& Command, int32& OutTarget,
 		FJRPGArtChain& OutChain, FJRPGActionTimeline& OutTimeline);
 	bool PlanMonsterAction(FJRPGCombatant& Monster, int32& OutTarget, FJRPGActionTimeline& OutTimeline);
-	void AppendArtSteps(const FJRPGCombatant& Hero, int32 Entry, FName ArtKey, TArray<FPlanStep>& Steps) const;
+	void AppendArtSteps(const FJRPGCombatant& Hero, int32 Entry, FName ArtKey, TArray<FPlanStep>& Steps, bool bNewlyLearned = false) const;
 	void ExpandSequenceStep(const FJRPGCombatant& Hero, int32 Entry, FName Step, FName SelfKey, const FJRPGArtData& Self,
 		int32 Depth, TArray<FPlanStep>& Steps) const;
 	/** O turno de Spirit: um passo só (o clip Spirit, na velocidade normal, sem caminhada nem golpe) e o AP que ele rende no fim. */

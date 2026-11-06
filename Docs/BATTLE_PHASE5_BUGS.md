@@ -561,6 +561,24 @@ tables of 1c first.
     each light flinch falls back to the other when absent, and a missing knockdown reuses the light flinch. **Fixed:**
     `AJRPGBattlePawn::FindRoleClip` (and `RoleMotion`) do the same fallbacks.
 
+#### PIE pass 9 (2026-11-06) — fixed, re-test
+
+41. **Miracle too slow (a doubled slow); the Art after a Hyper slow too.** The shout slow of 37 was applied to every Art clip, on
+    top of the original's own rate law (RE `battle-actor-rendering.md`, the `+0x21D` byte): the dash freezes the fight, and while
+    the starter's latch is up every Art plays the whole fight at 1/4 (a Miracle's six Arts, an Art right after a Hyper); a plain
+    Art at 1/2. **Fixed:** the shout slow is now a window of `ArtsShoutSeconds` (1 s real time) from a known Art's starter only, the
+    CD read of its voice; the dash and the Art clips keep the original's rates, not doubled. Checked against the RE: Hyper / Super /
+    Miracle = dash (others frozen) then Arts at 1/4; Regular = starter at full speed then the Art at 1/2. Ours plays the dasher
+    itself at 1/2 where the original's 0x1A arm sets 1/4 (`JRPGBattleResolver` "SpecialStarter: 4"); left as is, to change on
+    request.
+42. **A newly discovered Art had no special starter.** RE (`battle-action-helpers.md`, the Arts shout): an Art learned on this use
+    is staged behind `0x1A` (the SpecialStarter: the dash, the fight frozen, the "NEW" banner), not `0x19`. **Fixed:**
+    `FJRPGBattleResolver::AppendArtSteps` uses the SpecialStarter clip and kind for an entry with `bNewlyLearned`.
+43. **Taking a hit gave no AP.** RE (`battle-formulas.md`, "Spirit-gauge fill on damage taken", `FUN_801EC3E4`): every hit that
+    connects on a hero adds `max(1, damage * 100 / MaxHP)` AP (+1/4 with AP Boost, +1/10 with passive `0x100`), capped. **Fixed:**
+    `FJRPGBattleResolver::ResolveHit` adds it and emits `APChanged` for the hero (the passives are a TODO until accessories carry
+    them). `JRPG.Battle.Spirit` now expects the AP of the hits taken on top of the 32.
+
 #### Backlog (2026-11-05) — noted for later, not started
 
 32. **Full RE sweep of the fight, to make it identical.** Go through the RE inch by inch and list what every piece of the battle

@@ -141,6 +141,9 @@ private:
 	/** Põe a dilatação do tempo do mundo do slow das Arts (1 = normal); só mexe quando muda. */
 	void SetShoutDilation(float Dilation);
 	float ShoutDilation = 1.0f;
+	/** A janela do slow em curso (tempo real) e o starter que a abriu (ação << 32 | quadro do passo). */
+	double ShoutUntilRealTime = 0.0;
+	int64 ShoutStepKey = -1;
 
 	/** O make-way: os outros saem da linha entre Attacker e Target. */
 	void MakeWay(const AJRPGBattlePawn* Attacker, const AJRPGBattlePawn* Target, int32 Frame);

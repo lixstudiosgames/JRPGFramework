@@ -351,6 +351,7 @@ void UJRPGBattleSceneSubsystem::HandleBattleStarted(const FJRPGBattleSetup& Setu
 void UJRPGBattleSceneSubsystem::HandleBattleEnded(EJRPGBattleResult Result)
 {
 	// A luta acabou no meio de uma Art: o tempo volta ao normal antes do fade (ele anda no tempo do mundo)
+	ShoutUntilRealTime = 0.0;
 	SetShoutDilation(1.0f);
 	FTimerManager& Timers = GetWorld()->GetTimerManager();
 	if (Phase == EPhase::Entering)
@@ -648,20 +649,26 @@ void UJRPGBattleSceneSubsystem::HandleLogicFrame(int32 Frame)
 			break;
 		}
 	}
-	// O slow do grito das Arts (AJRPGBattleArena::ArtsShoutTimeDilation): o starter, o dash e o clip de uma Art de herói
-	float Dilation = 1.0f;
+	// O slow do grito das Arts (AJRPGBattleArena::ArtsShoutTimeDilation / ArtsShoutSeconds): a leitura da voz no CD começa no
+	// starter de uma Art conhecida e dura um tempo, não a Art inteira. O dash (Hyper / Super / Miracle / Art nova) e os clips das
+	// Arts já têm a velocidade do original (o resto congelado, 1/4, 1/2): o slow ali seria em dobro
 	if (Acting && Acting->GetCombatant().Side == EJRPGBattleSide::Party)
 	{
 		FJRPGActionStep Step;
 		float ClipSeconds = 0.0f;
 		float ClipLength = 0.0f;
-		if (Acting->GetPlayingStep(Step, ClipSeconds, ClipLength) && (Step.Kind == EJRPGActionStepKind::ArtStarter
-			|| Step.Kind == EJRPGActionStepKind::SpecialStarter || Step.Kind == EJRPGActionStepKind::Art))
+		if (Acting->GetPlayingStep(Step, ClipSeconds, ClipLength) && Step.Kind == EJRPGActionStepKind::ArtStarter)
 		{
-			Dilation = FMath::Clamp(Current->ArtsShoutTimeDilation, 0.1f, 1.0f);
+			const int64 Key = (static_cast<int64>(Acting->GetActiveActionIndex()) << 32) | static_cast<uint32>(Step.StartFrame);
+			if (Key != ShoutStepKey)
+			{
+				ShoutStepKey = Key;
+				ShoutUntilRealTime = GetWorld()->GetRealTimeSeconds() + FMath::Max(Current->ArtsShoutSeconds, 0.0f);
+			}
 		}
 	}
-	SetShoutDilation(Dilation);
+	const bool bShouting = GetWorld()->GetRealTimeSeconds() < ShoutUntilRealTime;
+	SetShoutDilation(bShouting ? FMath::Clamp(Current->ArtsShoutTimeDilation, 0.1f, 1.0f) : 1.0f);
 
 	for (AJRPGBattlePawn* Pawn : Current->GetBattlePawns())
 	{
@@ -743,6 +750,7 @@ void UJRPGBattleSceneSubsystem::EnterBattleScene()
 
 void UJRPGBattleSceneSubsystem::LeaveBattleScene()
 {
+	ShoutUntilRealTime = 0.0;
 	SetShoutDilation(1.0f);
 	if (AJRPGBattleArena* Current = Arena.Get())
 	{

@@ -113,7 +113,8 @@ A combatant without a model appears as its capsule only, and the arena says why 
 | `CameraPreset` | `BattleWide` | The still framing (`bUseBattleCamera` off). |
 | `CameraPadding` | 1.15 | Room around the combatants (still framing). |
 | `bCameraBehindParty` | true | Still framing behind the heroes looking at the enemies; off = the other way. |
-| `ArtsShoutTimeDilation` | 0.67 | The original's Arts "slow": the whole fight (rules, animations, camera) runs at this rate while a hero plays an Art's starter, the Super / Miracle / new-Art dash, or the Art clip (on the PS1 the CD read of the shout stretched the frames). 1 = off. |
+| `ArtsShoutTimeDilation` | 0.67 | The original's Arts "slow": on the PS1 the CD read of a known Art's voice shout stretched the frames. The whole fight (rules, animations, camera) runs at this rate for `ArtsShoutSeconds` from a known Art's starter. The dash (Hyper / Super / Miracle / a new Art) does not open it: it already is the original's slow-motion (the fight frozen, Arts after it at 1/4). 1 = off. |
+| `ArtsShoutSeconds` | 1.0 | How long that slow lasts, in real seconds, from the starter. |
 | `TransitionTime` | 0.35 | Fade to black in and out; the scene changes with the screen fully black. 0 = hard cut. |
 | `TransitionColor` | black | |
 | `PawnClass` | `AJRPGBattlePawn` | A Blueprint child for entry effects, a name over the head… |

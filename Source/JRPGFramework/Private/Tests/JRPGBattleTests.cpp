@@ -2385,7 +2385,18 @@ bool FJRPGBattleSpiritTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("o turno do Spirit é um passo só, sem golpe nem caminhada"), bSawSpirit);
 	TestTrue(TEXT("a postura vale a rodada inteira"), bGuardedAllRound);
-	TestEqual(TEXT("o Spirit rende 32 de AP"), Fight.GetCombatants()[0].AP, 42);
+	// O AP: 10 + 32 do Spirit + o de cada golpe que ele tomou do monstro na rodada (max(1, dano x 100 / HP máx), o "spirit gauge
+	// fill" do original)
+	int32 DamageAP = 0;
+	for (const FJRPGBattleEvent& Event : Fight.GetEvents())
+	{
+		if (Event.Type == EJRPGBattleEventType::Damage && Event.TargetSlot == 0 && Event.Value > 0)
+		{
+			DamageAP += FMath::Max(1, static_cast<int32>(static_cast<int64>(Event.Value) * 100 / Fight.GetCombatants()[0].MaxHP));
+		}
+	}
+	TestEqual(TEXT("o Spirit rende 32 de AP (mais o dos golpes tomados)"), Fight.GetCombatants()[0].AP,
+		FMath::Min(42 + DamageAP, Fight.GetCombatants()[0].MaxAP));
 	TestEqual(TEXT("a rodada 2 começou"), Fight.GetState().Round, 2);
 	TestFalse(TEXT("a postura acabou na virada"), Fight.GetCombatants()[0].bGuarding);
 	TestEqual(TEXT("o gauge estendido na rodada seguinte"), Fight.GetCombatants()[0].CommandGauge, 232);
