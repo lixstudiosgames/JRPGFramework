@@ -734,6 +734,13 @@ FJRPGBattleMenuResult FJRPGBattleMenu::PressAttack(EJRPGBattleMenuKey Key)
 				: Key == EJRPGBattleMenuKey::Up ? EJRPGPadButton::Up
 				: Key == EJRPGBattleMenuKey::Right ? EJRPGPadButton::Right : EJRPGPadButton::Down;
 			const EJRPGArtButton Pressed = UJRPGArtsRules::ButtonForPad(Hero->bLeftHanded, Pad);
+			// A cadeia da rodada anterior ainda intocada: o primeiro direcional a troca pelo comando novo (repetir é só confirmar)
+			if (PrefillCount > 0 && Buttons.Num() == PrefillCount)
+			{
+				Buttons.Reset();
+				PrefillCount = 0;
+				GaugeLeft = Hero->Gauge;
+			}
 			if (Buttons.Num() >= UJRPGArtsRules::MaxChainButtons)
 			{
 				Refusal = TEXT("The chain is full.");

@@ -109,7 +109,8 @@ page, and the pages stop at the first / last (no wrap); the d-pad keeps typing w
 Colours (the original's): names Miracle red, Hyper orange, Super yellow, Regular white; arrows are the purple / yellow
 SVG arrows (`#ar-<dir>-p` / `#ar-<dir>-y` in `95_battle.html`): purple, the **last** arrow of every Art yellow, every
 arrow of a Hyper yellow. The Attack screen also opens with the hero's last chain of this fight already typed
-(`FJRPGBattleMenu::PrefillButtons`, cut to what fits this round's gauge); Cancel clears that prefilled chain **all at
+(`FJRPGBattleMenu::PrefillButtons`, cut to what fits this round's gauge; Confirm repeats it, the first direction pressed
+replaces it with the new input); Cancel clears that prefilled chain **all at
 once**, while buttons typed by hand afterwards come off one at a time.
 
 `dpad.*.enabled` false = drawn dimmed with an **X over the button** and not selectable. The game rules

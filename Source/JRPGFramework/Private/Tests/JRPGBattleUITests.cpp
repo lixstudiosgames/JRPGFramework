@@ -237,12 +237,22 @@ namespace JRPGBattleUITests
 		// O Vahn já mandou um Arms nesta luta: a janela de entrada abre com ele digitado (repetir é só confirmar)
 		Menu.Press(EKey::Left);
 		TestTrue(TEXT("a janela abre com a última cadeia do Vahn"), Menu.GetButtons() == TArray<EJRPGArtButton>({ Ar }));
-		// O Cancel: o botão digitado à mão sai sozinho; a cadeia que veio preenchida sai inteira de uma vez (bug 34)
-		Menu.Press(EKey::Up);      // High, à mão
+		// Um direcional sobre a cadeia preenchida a troca pelo comando novo (não soma no fim); daí em diante os botões somam
+		Menu.Press(EKey::Up);      // High
+		TestTrue(TEXT("o direcional trocou a cadeia preenchida pelo High"), Menu.GetButtons() == TArray<EJRPGArtButton>({ Hi }));
+		Menu.Press(EKey::Left);    // Arms
+		TestTrue(TEXT("o seguinte soma: High, Arms"), Menu.GetButtons() == TArray<EJRPGArtButton>({ Hi, Ar }));
+		// O Cancel tira o digitado um por um; vazio, volta ao menu do herói
 		Menu.Press(EKey::Cancel);
-		TestTrue(TEXT("o Cancel tirou só o High digitado"), Menu.GetButtons() == TArray<EJRPGArtButton>({ Ar }));
 		Menu.Press(EKey::Cancel);
-		TestTrue(TEXT("o Cancel seguinte apagou a cadeia preenchida"), Menu.GetButtons().IsEmpty());
+		TestTrue(TEXT("o Cancel tirou os dois"), Menu.GetButtons().IsEmpty());
+		Menu.Press(EKey::Cancel);
+		TestEqual(TEXT("vazio, o Cancel volta ao menu do herói"), AsInt(Menu.GetScreen()), AsInt(EScreen::Command));
+		// Reabre com a cadeia preenchida: o Cancel a apaga inteira de uma vez e fica na janela (bug 34)
+		Menu.Press(EKey::Left);    // Attack
+		TestTrue(TEXT("reabre com a cadeia preenchida"), Menu.GetButtons() == TArray<EJRPGArtButton>({ Ar }));
+		Menu.Press(EKey::Cancel);
+		TestTrue(TEXT("o Cancel apagou a cadeia preenchida"), Menu.GetButtons().IsEmpty());
 		TestEqual(TEXT("e continua na janela de entrada"), AsInt(Menu.GetScreen()), AsInt(EScreen::Attack));
 		Menu.Press(EKey::Left);    // Arms de novo
 		Menu.Press(EKey::Confirm);

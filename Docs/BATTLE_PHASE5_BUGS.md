@@ -583,6 +583,8 @@ tables of 1c first.
   with the **last** one yellow, all yellow on a Hyper; the panel uses the user's gradient (`#1B1E75 -> #121558 -> #0C0E45`) and a
   2 px `#B88A44` border. **Miracle is always first** in the list (then Hyper, Super, Regular). Cancel on a prefilled chain clears
   it at once (`PrefillCount`); buttons typed by hand after it still come off one at a time. Tests in `JRPGBattleUITests.cpp`.
+- **34b (2026-11-06, user):** the first direction pressed on an untouched prefilled chain replaces it with the new input instead
+  of adding to its end (`PressAttack`); Confirm still repeats it. Test updated.
   `shell.html` rebuilt (`Extras/build_webui.py`).
 
 26. **Too many blocks.** The block roll misses the RE's two approach terms (`hits.rs` `roll_block`, `block.rs` `block_roll`), spent
