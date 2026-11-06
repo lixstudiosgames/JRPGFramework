@@ -6,6 +6,8 @@
 
 class USoundBase;
 class UAudioComponent;
+class USoundCue;
+class USoundWave;
 
 /**
  * UAudioSubsystem
@@ -58,6 +60,14 @@ public:
 	/** O BGM atual é persistente entre mapas? (use na checagem do teleporte) */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Audio")
 	bool IsBGMPersistent() const { return bBGMPersistent; }
+
+	/**
+	 * Uma música de introdução + laço: Intro toca uma vez e Loop entra em seguida, em laço, sem emenda (um SoundCue montado em
+	 * memória: Concatenator(Intro, Loop em loop)). Sem Intro, devolve o Loop. Mesmo par = o mesmo som (o PlayBGM reconhece a
+	 * música que já toca). Loop que não é SoundWave: devolve o Loop (sem a introdução).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Audio")
+	USoundBase* GetIntroLoopSound(USoundWave* Intro, USoundBase* Loop);
 
 	/** A música que está tocando (nullptr se nenhuma). */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Audio")
@@ -129,6 +139,10 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<USoundBase> CurrentBGM;
+
+	/** Os SoundCues de introdução + laço já montados (GetIntroLoopSound), por par. */
+	UPROPERTY()
+	TMap<FString, TObjectPtr<USoundCue>> IntroLoopSounds;
 
 	bool bBGMPersistent = false;
 

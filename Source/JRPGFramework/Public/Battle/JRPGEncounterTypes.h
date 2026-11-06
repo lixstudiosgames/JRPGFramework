@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Battle/EnemyData.h"
+#include "Battle/BossFightData.h"
 #include "JRPGEncounterTypes.generated.h"
 
 /**
@@ -109,6 +110,13 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Encounter")
 	static bool ResolveScriptedFight(const TArray<FJRPGEncounterCombatant>& Enemies);
+
+	/**
+	 * A linha do DT_Bosses desta luta: a que tem exatamente estes inimigos (em qualquer ordem). Falso se nenhum é chefe
+	 * (bIsBoss), ou se nenhuma linha casa.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Encounter")
+	static bool FindBossFight(const TArray<FJRPGEncounterCombatant>& Enemies, FJRPGBossData& OutBoss);
 
 	/** A linha do DT_Enemies. False se a tabela ou a key não existem. */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Encounter")

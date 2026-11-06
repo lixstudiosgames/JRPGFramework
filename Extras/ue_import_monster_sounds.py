@@ -37,6 +37,7 @@ PARTY_ROOT = "/Game/Legaia/Battle/Party"
 COMMON_DEST = "/Game/Legaia/Battle/Sounds/Common"
 TRACK = "Sounds"
 CHAIN_TRACK = "Chain"
+LOOP_TRACK = "Loop"
 COMMON_DONE = set()   # comuns já importados nesta execução
 
 def apply_sound_settings(paths):
@@ -74,7 +75,7 @@ def apply_clips(root, clips):
     """Herói: cada clip do .glb ganha o nome do que é (AS_Vahn_Battle_Beatdunk -> _FireBlow) e o
     RateScale da velocidade do jogo (Extras/ps1_party_sounds.py). Já renomeado, só acerta a escala."""
     lib = unreal.EditorAssetLibrary
-    renamed = scaled = cuts = 0
+    renamed = scaled = cuts = loops = 0
     for c in clips:
         old, new = "%s/%s" % (root, c["glb"]), "%s/%s" % (root, c["clip"])
         if old != new and lib.does_asset_exist(old) and not lib.does_asset_exist(new):
@@ -89,10 +90,12 @@ def apply_clips(root, clips):
             scaled += 1
         if "chain_cut" in c and set_chain_cut(anim, c["chain_cut"]):
             cuts += 1
+        if set_loop_window(anim, c.get("loop")):
+            loops += 1
         lib.save_loaded_asset(anim)
     if clips:
-        unreal.log("ue_import_monster_sounds: %d clip(s) renomeado(s), %d com RateScale novo, %d com Chain Cut"
-                   % (renamed, scaled, cuts))
+        unreal.log("ue_import_monster_sounds: %d clip(s) renomeado(s), %d com RateScale novo, %d com Chain Cut, %d com Loop Window"
+                   % (renamed, scaled, cuts, loops))
 
 
 def set_chain_cut(anim, seconds):
@@ -114,6 +117,33 @@ def set_chain_cut(anim, seconds):
     if CHAIN_TRACK not in tracks:
         lib.add_animation_notify_track(anim, CHAIN_TRACK, unreal.LinearColor(0.2, 0.6, 1.0, 1.0))
     lib.add_animation_notify_event(anim, CHAIN_TRACK, float(seconds), notify_class)
+    return True
+
+
+def set_loop_window(anim, loop):
+    """Refaz a trilha "Loop": um UJRPGAnimNotify_LoopWindow sobre o trecho que o jogo repete antes de seguir (loop = {count, start,
+    end} em segundos do asset; None = o clip não repete nada). Precisa da classe do plugin (o build com ela)."""
+    notify_class = getattr(unreal, "JRPGAnimNotify_LoopWindow", None)
+    lib = unreal.AnimationLibrary
+    tracks = [str(t) for t in lib.get_animation_notify_track_names(anim)]
+    if LOOP_TRACK in tracks:
+        lib.remove_animation_notify_events_by_track(anim, LOOP_TRACK)
+    if not loop:
+        if LOOP_TRACK in tracks and len(tracks) > 1:
+            lib.remove_animation_notify_track(anim, LOOP_TRACK)
+        return False
+    if notify_class is None:
+        unreal.log_warning("ue_import_monster_sounds: JRPGAnimNotify_LoopWindow não existe (falta o build); Loop Window ficou de fora")
+        return False
+    start = min(float(loop["start"]), anim.get_play_length())
+    duration = max(min(float(loop["end"]), anim.get_play_length()) - start, 0.0)
+    if duration <= 0.0:
+        return False
+    if LOOP_TRACK not in tracks:
+        lib.add_animation_notify_track(anim, LOOP_TRACK, unreal.LinearColor(0.3, 0.9, 0.4, 1.0))
+    state = lib.add_animation_notify_state_event(anim, LOOP_TRACK, start, duration, notify_class)
+    if state:
+        state.set_editor_property("loops", int(loop["count"]))
     return True
 
 

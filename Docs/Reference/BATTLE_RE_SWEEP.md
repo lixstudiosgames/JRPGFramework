@@ -368,7 +368,7 @@ the every-pass re-face during strike / recovery, and body pairs.
 ### 5.7 Formation moves
 
 - **Action seed recentre** (`0x0C`, `FUN_801EFE44`): the attack's target to the stage origin, the rest with it. **Round start**
-  (`FUN_801DB318`) recentres the whole formation. Ours: `PlanFormationShift` (off by default with the fixed camera; see bugs 21-26).
+  (`FUN_801DB318`) recentres the whole formation. Ours: `PlanFormationShift` (on by default since 2026-11-06, the battle camera follows it; off for a fixed camera, bugs 21-26).
 - **Make-way step** (`0x14` and the SM tail): bystanders step aside out of a walking attacker's lane, about `class * 8` units over
   about `class` vsyncs. Ours: `MakeWay`, same numbers.
 - **Separation** (`FUN_80050BB8`): every pair closer than `(r1 + r2) / 6` (radius `0x280` hero, `0x400` Terra, `class << 5`
@@ -613,7 +613,7 @@ per-art camera; only Close runs case 7's pull-in and case 8's dead / live re-aim
 
 `AJRPGBattleArena` points one camera at the start of the fight: a hand-placed `BattleCamera`, or `UCameraSubsystem::FrameGroup`
 over every combatant with the `BattleWide` preset (`CameraPadding` 1.15, `bCameraBehindParty`), and leaves it there. Formation
-recentre is off by default *because* the camera is fixed (bugs 21-26; `OnFormationShifted` exists for future action cameras).
+recentre was off by default *because* the camera was fixed (bugs 21-26); since 2026-11-06 it is on, the battle camera following `OnFormationShifted`.
 
 **Done so far (camera pass, 2026-11-05):** `AJRPGBattleCamera` (`Docs/Guides/BATTLE_STAGE.md` "The battle camera"), spawned by
 the arena when there is no `BattleCamera` (`bUseBattleCamera`). Part a: the pose model and units of 7.1, the ease-out of 7.4, the
@@ -655,10 +655,10 @@ Source: `battle-actor-rendering.md` "Tint and blend", "The after-image ghost wal
 | **After-image ghosts** -> **aura** (decision) | ring id `> 0x10`: a party **Special starter dash** and **chained** Arts (not an ordinary Art swing); a monster only on clips whose record has `+0x77 != 0` or the solo byte `+0x87 == 1` | original: two additive copies of the mesh at the poses `step` and `2 * step` frames back (`step = 8 / rate`) | per-character colour: Vahn red `0x60/0x30/0x30`, Noa green, Gala blue, monsters olive `0x50/0x50/0x30` | **not ported**: the user's own aura effect (a glow around the body, Solo Leveling style), improved, switched on at these same moments; the per-character colours above are a good default tint for it |
 | **Weapon trail** | while the committed clip's `+0x77` matches: Vahn `0x29`, Noa `0x1E` / `0x2A`, Gala `0x64` (ordinary Arts swings) | an untextured gouraud ribbon over 3 bones of the weapon chain, up to 16 steps back (2 display frames a step), white-to-grey head then the tint fading to black | tints Vahn `0x802040`, Noa `0x80FFC0` / `0x208040`, Gala `0x204080`; bones from object `0x0C` (Vahn), `0x04` / `0x0A` (Noa), `0x06` (Gala) | Niagara ribbon (or `UTrail`-style anim notify state) on the weapon bones, keyed by clip |
 | **Move-FX streak / ribbon** | a staged move-FX scene (casts and monster specials; a plain swing never) | a shrinking textured billboard while the streak counter is `>= 0x281` (party), then a jittered vertical ribbon of textured quads | trail texture id from the move-power record `+0x0B`, texpage `0x27`, CLUT `0x7700 + id` | Niagara; mostly magic / monster specials (later) |
-| **Monster defeat fade + sink** | the killed monster's knockdown has ended | drawn additive, colour lanes `0x100 -> 0` (8 a pass), sinking `(size class * step) >> 2` a pass and clipped by the floor plane | `+0x21C = 2`, arm 2 of the tint SM | **have** (`BeginDeathFade`); the darkening needs `JRPGDeathFade` on the materials (bug list, pass 2) |
+| **Monster defeat fade + sink** | the killed monster's knockdown has ended | drawn additive, colour lanes `0x100 -> 0` (8 a pass), sinking `(size class * step) >> 2` a pass and clipped by the floor plane | `+0x21C = 2`, arm 2 of the tint SM | **have** (`BeginDeathFade`); `JRPGDeathFade` is on `M_PS1Monster` since 2026-11-06 (a dithered opacity, not the original's additive darkening) |
 | **Distance fade** | always, when no blend runs | far bodies pushed toward a darker copy of themselves (brighter on 13 outdoor stages) | view depth vs radius / 2 | optional; fog / post-process does the same job |
 | **Status colours** | status `0x1` / `0x2` / `0x380` | tint `0xFF2020` / `0xFF0420` / `0xF020F0` at half weight; Stone = grey palette, three others blue | `+0x16E` | with Phase 7 statuses |
-| **Near-camera ghost** | a body (not the actor or its target) within `dist / 4` of a point on the view axis, during actions | the body drawn faint additive (`B + F/4`) so it does not block the view; never during a run or a pre-emptive round | `FUN_8004DC68`, every battle frame | camera occlusion fade on the pawn materials, driven by the scene |
+| **Near-camera ghost** | a body (not the actor or its target) within `dist / 4` of a point on the view axis, during actions | the body drawn faint additive (`B + F/4`) so it does not block the view; never during a run or a pre-emptive round | `FUN_8004DC68`, every battle frame | **have** (bugs 49, 54): `UJRPGBattleSceneSubsystem::UpdateCameraGhost`; translucent material swap (`CameraGhostMaterial`), dither fallback; also in the menus (ours, `bCameraGhostInMenus`); the run / pre-emptive exceptions are not modelled |
 | **Target cursor dim** | target selection | the monsters not pointed at are darkened | `+0x21C == 0xC8` | WebUI cursor today; optional dim on the pawns |
 
 ### 8.2 Where battle effects come from: the clip's own effect script
@@ -777,14 +777,14 @@ Only **one CD-XA voice** plays at a time: a new request replaces the one soundin
 | # | Sound | Trigger | Data | Ours |
 |---|---|---|---|---|
 | 1 | **Clip cue track** (whoosh, impacts, footsteps, knockdown thud, party grunts and the per-clip voice lines) | each action entry's 8 `(frame, cue)` pairs at `+0x54`, walked every frame from a cursor `+0x1F6`; a repeated cue right after itself does not sound twice | per clip | **have**: `Extras/ps1_monster_sounds.py` / `ps1_party_sounds.py` -> notifies; the impact sound gated by the hit result (bug 20); a **blocked** hit skips one cue (the impact) |
-| 2 | **Arts shout** | the anim commit of an Art: when the byte before the queue cursor is the known-art starter `0x19` (or under the solo latch); **not** for an Art learned this turn | `FUN_8004C140(char, action constant)` picks a channel from the Art's candidate pool, **random, never the same twice in a row**; banks XA2 (Vahn) / XA4 (Noa) / XA6 (Gala), 16 channels each | **missing** (these are not on the clip cue track) |
-| 3 | **Starter fanfare** | the Special starter's commit (`0x1A`), with the banner | Miracle / Super / NEW: fixed `0x101` / `0x111` / `0x121` per character (XA1 / XA3 / XA5 channel 1; two if both marks); Hyper: by the Art byte `0x1C` / `0x1D` / `0x1E`, a coin flip between two channels, other Arts none (`legaia_art::hyper_fanfare`) | **missing** |
-| 4 | **Block grunt** | a melee strike that commits the defender's **block** entry (and the CD voice level is below 2) | XA30 (`clip 0x1D`), channel / duration by the **attacker's** character: Vahn `(0, 0x26)`, Noa `(4, 0x2E)`, Gala `(6, 0x1A)` vsyncs | **missing**. An ordinary landed swing makes no sound here (only the clip cues) |
+| 2 | **Arts shout** | the anim commit of an Art: when the byte before the queue cursor is the known-art starter `0x19` (or under the solo latch); **not** for an Art learned this turn | `FUN_8004C140(char, action constant)` picks a channel from the Art's candidate pool, **random, never the same twice in a row**; banks XA2 (Vahn) / XA4 (Noa) / XA6 (Gala), 16 channels each | **have** (step 4): `FJRPGBattleVoices::CommitStep`, the three pool variants and the finisher table in `DT_ArtVoices`, the latch from the clips' `+0x87` (SpecialStarter 1, Super finishers 2) |
+| 3 | **Starter fanfare** | the Special starter's commit (`0x1A`), with the banner | Miracle / Super / NEW: fixed `0x101` / `0x111` / `0x121` per character (XA1 / XA3 / XA5 channel 1; two if both marks); Hyper: by the Art byte `0x1C` / `0x1D` / `0x1E`, a coin flip between two channels, other Arts none (`legaia_art::hyper_fanfare`) | **have** (step 4): generic channel 1 for Super / Miracle / an Art learned this turn, the Hyper pair otherwise; dropped while the drive is busy |
+| 4 | **Block grunt** | a melee strike that commits the defender's **block** entry (and the CD voice level is below 2) | XA30 (`clip 0x1D`), channel / duration by the **attacker's** character: Vahn `(0, 0x26)`, Noa `(4, 0x2E)`, Gala `(6, 0x1A)` vsyncs | **have** (step 4): on a `Block` event with a hero striking. The `_DAT_8007BC20 < 2` gate is read as "the drive is free" (not confirmed). An ordinary landed swing makes no sound here (only the clip cues) |
 | 5 | Melee sting `0x10C` (XA27 ch 4 on a party target, ring `0x2A8` in the monster's bank on a monster) | only while an effect handle is live (Cort's Mystic Shield) | - | out of scope |
-| 6 | **Menu blips** | every press of the command flow | dispatcher `0x21` commit, `0x22` cursor step, `0x23` cancel / refused (ring ids `0x20` / `0x21` / `0x22`, static table, **system bank 0868**); the item / magic list windows use the list kernel's own (`0x21` step, `0x20` confirm, `0x23` disabled row, `0x37` cancel); the press that exhausts the arts gauge is silent | **partial**: `96_battle.js` plays the generic WebUI `SFX_*` files; replace with the three battle cues |
+| 6 | **Menu blips** | every press of the command flow | dispatcher `0x21` commit, `0x22` cursor step, `0x23` cancel / refused (ring ids `0x20` / `0x21` / `0x22`, static table, **system bank 0868**); the item / magic list windows use the list kernel's own (`0x21` step, `0x20` confirm, `0x23` disabled row, `0x37` cancel); the press that exhausts the arts gauge is silent | **have**: `96_battle.js` plays the WebUI `SFX_*` files, which already are the original's sounds (user, 2026-11-06) |
 | 7 | **Victory voice** | the results frame (+80), the leader's win pose | the tail clips of `monster.snd` (Vahn `0xB8..0xBC`, Gala `0xBD..0xC3`, Noa `0xC4..0xCB`), picked by the pose: SCUS `0x80078867 + action + char * 8`, clip = byte - 1; plays as cue `0xA1` on the pose clip's track | **exported** (`SW_<Name>_VictoryVoice<clip>` on the pose clips) but nothing plays the win pose yet (4.6) |
 | 8 | **Level-up jingle** | the results frame, when someone levels: level-up window `0x44 + mask` + cue `0x50` | bank PROT 0889 (category 11, "reward"), loaded at the signal | check the WebUI results; **missing** as the original's cue |
-| 9 | **Battle music** | the battle intro's completion arm | the field script's sound set `_DAT_8007B880` (op `0x35` sub-op 7): `N >= 0` loads bundle `0x36F + N` (extraction `877 + N`) and starts its score (`0..9` = tracks `2026, 2027, 2028, 2030, 2032, 2031, 2051, 2067, 2061, 2073`); `-1` = no swap, the event's theme (boss) keeps playing; reset to 0 on every scene entry. **Hard cut**, not a crossfade | **check**: battle music is the arena / setup's choice; add a per-encounter "sound set" (or a BGM override) and restore the field track after |
+| 9 | **Battle music** | the battle intro's completion arm | the field script's sound set `_DAT_8007B880` (op `0x35` sub-op 7): `N >= 0` loads bundle `0x36F + N` (extraction `877 + N`) and starts its score (`0..9` = tracks `2026, 2027, 2028, 2030, 2032, 2031, 2051, 2067, 2061, 2073`); `-1` = no swap, the event's theme (boss) keeps playing; reset to 0 on every scene entry. **Hard cut**, not a crossfade | **have** (step 4): `AJRPGBattleArena::BattleMusic`, `FJRPGBattleSetup::BattleMusic` / `bKeepCurrentMusic` (also on `AJRPGFieldEnemy` and `AJRPGBattleWaves`), hard cut when the scene opens, the field track back on exit. Starts at the scene's open, not yet at the intro's end (step 5). The 9 bank tracks the fights use are extracted as Intro + Loop (`DT_BattleMusic`, `Extras/ps1_battle_music.py`); picked by setup → `DT_Bosses::Music` (disc census of the `3E FF` records) → arena (`Battle1`) |
 | 10 | Victory music | **NOT FOUND** in the RE text read: the results sequencer loads the level-up bank and the voice, but no separate victory BGM start is described | - | keep ours until found |
 | 11 | Monster sounds outside the clips | none found: a monster's voice and impacts are its clip cues in its own bank | - | **have** |
 | 12 | Escape, Spirit, item | Spirit / item: the cast audio-cue dispatcher `FUN_801F3990` at `0x3D` (and the item / Spirit voice lines seen in the spar capture); Run: no cue named in `0x64..0x66` | - | with Spirit (Phase 7) |
@@ -798,8 +798,8 @@ Only **one CD-XA voice** plays at a time: a new request replaces the one soundin
 3. A pawn-side **voice channel**: one voice at a time per fight (a new one stops the old), random pick avoiding the last channel.
    Shout on the Art clip's start (only for Arts known before the turn); fanfare with the Special starter; block grunt on a
    `Block` event, keyed by the attacker.
-4. **Menu blips**: export cues `0x20` / `0x21` / `0x22` from the system bank and play them from the battle menu (commit / step /
-   cancel), silent on the press that empties the gauge.
+4. ~~**Menu blips**~~: not needed, the WebUI's sounds already are the original's (user, 2026-11-06). Only the silent press that
+   empties the gauge is left to check.
 5. **Battle music** per encounter: a sound-set / BGM field on `FJRPGBattleSetup` (`-1` = keep the current track), hard cut in,
    restore the field track on exit.
 6. Level-up cue `0x50` and the victory voice with the win pose (after section 6.6 item 3).
@@ -869,7 +869,7 @@ original's HUD look (ours is our own design).
 | 1. Movement | **Done** (1a-1f + Codex review). User (2026-11-06): the remaining glitch was the missing flinch (bug 40, fixed); no movement bug since. Once Noa sprinted much too fast on her run, not reproduced (bug 44, watch). |
 | 2. Spirit | **Done**, tested OK in PIE. |
 | 3. Cameras | **Done** (2a-2e), tested OK in PIE: far + orbit, menu close-ups, action 6 / 7 / 8, per-Art camera (`DT_ArtCamera` imported), Battle Camera option in Options > Game. |
-| 4. Remaining sounds | **Next.** |
+| 4. Remaining sounds | **Done, to build and test** (2026-11-06): the Arts shout, the starter fanfare and the block grunt (`FJRPGBattleVoices`, `DT_BattleVoices` + `DT_ArtVoices` from `Extras/ps1_battle_voices.py`), battle music from the disc (`DT_BattleMusic`, picked per boss / arena). Menu blips dropped: the WebUI's `SFX_*` already are the original's sounds (user). Level-up cue and victory voice go with step 6. |
 | 5. Battle start | To do. |
 | 6. Battle end | To do. |
 
@@ -883,7 +883,7 @@ Open items that are not a step of their own (details in `Docs/BATTLE_PHASE5_BUGS
 - **The dasher's speed** in the SpecialStarter is now the original's 1/4 (scale 2, the `0x1A` arm; user, 2026-11-06); it was 1/2.
   Re-test the Hyper / Super / Miracle / new-Art starters.
 - **Formation recentre** (`AJRPGBattleArena::bRecentreFormation`): the camera now follows `OnFormationShifted`, so turning it on
-  is the original's behaviour. User (2026-11-06): the fight works well with it off; still to be tried on in PIE to compare.
+  is the original's behaviour. On by default since 2026-11-06 (bug 55), to test in PIE.
 - **Per-Art camera approximations:** the dash arm's loop count is estimated from the clip's progress (`StarterLoopCount`); Lightning
   Storm's roll is not applied.
 - **AP on damage:** the AP Boost / passive `0x100` bonuses wait for accessory passives (step 8).
@@ -931,6 +931,26 @@ user. Data generators are listed where a step needs disc numbers (outside the re
          camera, fades out (dithered opacity) so it does not block the view. Some monsters cover the screen in the action shots.
        - **Monster death:** today it fades and sinks (`bDeathSink`); try a **dissolve into the ground** or the **mesh turning to
          dust** (particles from the mesh surface).
+       - **User (2026-11-06), our addition:** the **Seru absorb** turns the monster to dust that flies to the hero who killed it
+         (the Ra-Seru taking it in); an ordinary death turns to dust and vanishes.
+       - **User's plan (2026-11-06), later:** a **VFX subsystem in C++** (shaders + custom Niagara), instead of authoring
+         everything in Niagara through the editor (the Unreal MCP is still weak at building Niagara graphs). See the note below.
+
+     **VFX subsystem - first notes (2026-11-06, not started).** One `UWorldSubsystem` that owns the battle's effects and is
+     driven by the events, like the rest of the presentation (`Death`, `Block`, the Seru absorb, the starter aura):
+       - **A few generic Niagara systems, parametrised from C++**, rather than one hand-built system per effect: a
+         "mesh to dust" system (Skeletal Mesh data interface: spawn on the surface of the pawn's mesh and pieces, colour sampled
+         from the body's texture by UV, a user `Target` vector the particles are pulled to: the killer for the absorb, the floor
+         for a death), an aura, a hit burst. C++ sets the user parameters (mesh, colour, target, counts, lifetimes) per event.
+       - **Custom logic in HLSL** where Niagara's stock modules fall short: Niagara's Custom HLSL module / a scratch-pad module
+         for forces (the swirl into the Ra-Seru), and, if needed, a custom Niagara Data Interface in C++ (it can hand the
+         particles the PS1 body pair, the mesh's per-piece transforms, or the camera ghost point).
+       - **Materials** stay small and parameter-driven like `M_PS1Monster`: a dissolve (noise threshold with a lit edge,
+         `JRPGDissolve`) for the body while the dust leaves it, so the mesh does not just pop out.
+       - **Shaders:** the plugin already maps `Shaders/` to `/Plugin/JRPGFramework` (the Ultralight blit), so global / compute
+         shaders for something Niagara cannot do (a GPU pass over the mesh) can live there too; Niagara first, raw RDG only if
+         needed.
+       - Randomness from a cosmetic stream, never the fight's `Rng` (rule of the effects pass).
    - Run as an action (4.5);
    - command-flow details (3.2): Reselect one member back, target ring, commit log.
 8. Later, with their phases: accessory passives (counter-attack with the Warrior Icon, AP Boost), statuses (idle rules, palette

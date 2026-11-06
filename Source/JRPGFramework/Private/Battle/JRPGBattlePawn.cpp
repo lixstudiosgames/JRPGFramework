@@ -9,6 +9,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Animation/AnimSequence.h"
+#include "Animation/AnimNotifies/AnimNotify_PlaySound.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/DataTable.h"
 #include "Engine/SkeletalMesh.h"
@@ -16,6 +17,8 @@
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Engine/Texture.h"
 
 namespace
 {
@@ -90,7 +93,9 @@ namespace
 
 AJRPGBattlePawn::AJRPGBattlePawn()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	// O Tick só anda o deslize entre os quadros lógicos (o resto anda no OnLogicFrame)
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = true;
 	AutoPossessAI = EAutoPossessAI::Disabled;
 	AIControllerClass = nullptr;
 
@@ -926,12 +931,169 @@ float AJRPGBattlePawn::WalkSpeedCm() const
 	return FMath::Max(Units * UnitsToCm, 1.0f);
 }
 
+void AJRPGBattlePawn::SetCameraGhost(float Opacity, UMaterialInterface* GhostMaterial)
+{
+	Opacity = FMath::Clamp(Opacity, 0.0f, 1.0f);
+	if (FMath::IsNearlyEqual(Opacity, CameraGhostOpacity, 0.001f))
+	{
+		return;
+	}
+	CameraGhostOpacity = Opacity;
+	if (GhostMaterial || GhostMaterials.Num() > 0)
+	{
+		// O fantasma translúcido (o original desenha o corpo aditivo e fraco, B + F/4: vê-se através dele)
+		if (Opacity >= 0.999f)
+		{
+			EndGhostMaterials();
+			return;
+		}
+		if (GhostMaterials.Num() == 0 && GhostMaterial)
+		{
+			BeginGhostMaterials(GhostMaterial);
+		}
+		for (UMaterialInstanceDynamic* Ghost : GhostMaterials)
+		{
+			if (Ghost)
+			{
+				Ghost->SetScalarParameterValue(TEXT("Opacity"), Opacity);
+			}
+		}
+		return;
+	}
+	if (CameraGhostParameter.IsNone())
+	{
+		return;
+	}
+	Mesh->SetScalarParameterValueOnMaterials(CameraGhostParameter, Opacity);
+	for (USkeletalMeshComponent* Piece : PieceComponents)
+	{
+		if (Piece)
+		{
+			Piece->SetScalarParameterValueOnMaterials(CameraGhostParameter, Opacity);
+		}
+	}
+}
+
+void AJRPGBattlePawn::SetTargetHighlight(float Strength)
+{
+	Strength = FMath::Max(Strength, 0.0f);
+	if (TargetHighlightParameter.IsNone() || FMath::IsNearlyEqual(Strength, TargetHighlight, 0.001f))
+	{
+		return;
+	}
+	TargetHighlight = Strength;
+	Mesh->SetScalarParameterValueOnMaterials(TargetHighlightParameter, Strength);
+	for (USkeletalMeshComponent* Piece : PieceComponents)
+	{
+		if (Piece)
+		{
+			Piece->SetScalarParameterValueOnMaterials(TargetHighlightParameter, Strength);
+		}
+	}
+}
+
+void AJRPGBattlePawn::BeginGhostMaterials(UMaterialInterface* GhostMaterial)
+{
+	TArray<UMeshComponent*> Components;
+	Components.Add(Mesh);
+	for (USkeletalMeshComponent* Piece : PieceComponents)
+	{
+		Components.Add(Piece);
+	}
+	static const FName BaseTexture(TEXT("BaseTexture"));
+	static const FName EmissiveStrength(TEXT("EmissiveStrength"));
+	for (UMeshComponent* Component : Components)
+	{
+		if (!Component)
+		{
+			continue;
+		}
+		for (int32 Slot = 0; Slot < Component->GetNumMaterials(); ++Slot)
+		{
+			UMaterialInterface* Original = Component->GetMaterial(Slot);
+			UMaterialInstanceDynamic* Ghost = UMaterialInstanceDynamic::Create(GhostMaterial, this);
+			if (!Ghost)
+			{
+				continue;
+			}
+			// A textura e o brilho do corpo passam para o fantasma (os mesmos parâmetros do M_PS1Monster)
+			UTexture* Texture = nullptr;
+			if (Original && Original->GetTextureParameterValue(FHashedMaterialParameterInfo(BaseTexture), Texture) && Texture)
+			{
+				Ghost->SetTextureParameterValue(BaseTexture, Texture);
+			}
+			float Emissive = 0.0f;
+			if (Original && Original->GetScalarParameterValue(FHashedMaterialParameterInfo(EmissiveStrength), Emissive))
+			{
+				Ghost->SetScalarParameterValue(EmissiveStrength, Emissive);
+			}
+			GhostSavedComponents.Add(Component);
+			GhostSavedSlots.Add(Slot);
+			GhostSavedMaterials.Add(Original);
+			GhostMaterials.Add(Ghost);
+			Component->SetMaterial(Slot, Ghost);
+		}
+	}
+}
+
+void AJRPGBattlePawn::EndGhostMaterials()
+{
+	for (int32 i = 0; i < GhostSavedComponents.Num(); ++i)
+	{
+		if (UMeshComponent* Component = GhostSavedComponents[i])
+		{
+			Component->SetMaterial(GhostSavedSlots[i], GhostSavedMaterials[i]);
+		}
+	}
+	GhostSavedComponents.Reset();
+	GhostSavedSlots.Reset();
+	GhostSavedMaterials.Reset();
+	GhostMaterials.Reset();
+}
+
 void AJRPGBattlePawn::BeginDeathFade(int32 LogicFrame)
 {
+	// O fantasma sai antes do fade (o fade mexe nos materiais do corpo)
+	if (GhostMaterials.Num() > 0)
+	{
+		CameraGhostOpacity = 1.0f;
+		EndGhostMaterials();
+	}
 	bDeathFadeQueued = false;
 	bDeathFading = true;
 	DeathFadeStartFrame = LogicFrame;
 	DeathFadeBaseZ = GetActorLocation().Z;
+	if (bReplayKnockdownSoundsOnDeath)
+	{
+		// A trilha do knockdown de novo, inteira e de uma vez (o original reinstala o clip parado no último quadro com o cursor da
+		// trilha em 0); o mesmo som duas vezes seguidas soa uma só, como no roteador
+		float Rate = 1.0f;
+		if (const UAnimSequence* Knockdown = FindRoleClip(RoleKnockdown, Rate))
+		{
+			TArray<const FAnimNotifyEvent*> Events;
+			for (const FAnimNotifyEvent& Event : Knockdown->Notifies)
+			{
+				Events.Add(&Event);
+			}
+			Events.StableSort([](const FAnimNotifyEvent& A, const FAnimNotifyEvent& B) { return A.GetTriggerTime() < B.GetTriggerTime(); });
+			const USoundBase* Last = nullptr;
+			for (const FAnimNotifyEvent* Event : Events)
+			{
+				const UAnimNotify_PlaySound* Play = Cast<UAnimNotify_PlaySound>(Event->Notify);
+				USoundBase* Sound = Play ? Play->Sound.Get() : nullptr;
+				if (!Sound || Sound == Last)
+				{
+					continue;
+				}
+				Last = Sound;
+				PlayNotifySound(Mesh, Sound, Play->VolumeMultiplier, Play->PitchMultiplier, false, NAME_None);
+			}
+		}
+	}
+	if (USoundBase* Sound = DeathFadeSound.IsNull() ? nullptr : DeathFadeSound.LoadSynchronous())
+	{
+		PlayNotifySound(Mesh, Sound, 1.0f, 1.0f, false, NAME_None);
+	}
 }
 
 void AJRPGBattlePawn::UpdateDeathFade(int32 LogicFrame)
@@ -978,6 +1140,22 @@ void AJRPGBattlePawn::StartSlide(const FVector& To, int32 LogicFrame, int32 Fram
 	SlideStartFrame = LogicFrame;
 	SlideFrames = FMath::Max(Frames, 1);
 	bSliding = true;
+}
+
+void AJRPGBattlePawn::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	if (!bSliding || !GetWorld())
+	{
+		return;
+	}
+	// A fração do quadro lógico em curso, no tempo do mundo; o fim do deslize continua com o UpdateSlide (o quadro lógico)
+	const double Fraction = FMath::Clamp((GetWorld()->GetTimeSeconds() - LastLogicFrameTime) * static_cast<double>(UBattleFormulas::StepsPerSecond), 0.0, 1.0);
+	const float Alpha = FMath::Clamp((static_cast<float>(LastLogicFrame - SlideStartFrame) + static_cast<float>(Fraction)) / static_cast<float>(SlideFrames), 0.0f, 1.0f);
+	if (Alpha < 1.0f)
+	{
+		SetActorLocation(FMath::Lerp(SlideFrom, SlideTo, Alpha));
+	}
 }
 
 void AJRPGBattlePawn::UpdateSlide(int32 LogicFrame)
@@ -1373,6 +1551,12 @@ bool AJRPGBattlePawn::GetPlayingStep(FJRPGActionStep& OutStep, float& OutClipSec
 	return true;
 }
 
+bool AJRPGBattlePawn::GetPlayingClipCursor(float& OutSeconds, int32& OutLoopsLeft, bool& bOutHasLoopWindow) const
+{
+	const UJRPGFieldEnemyAnimInstance* Anim = Mesh ? Cast<UJRPGFieldEnemyAnimInstance>(Mesh->GetAnimInstance()) : nullptr;
+	return Anim && Anim->GetCurrentClipCursor(Anim->GetRequestedClip(), OutSeconds, OutLoopsLeft, bOutHasLoopWindow);
+}
+
 bool AJRPGBattlePawn::IsOnKnockdown() const
 {
 	return ReactionRole == RoleKnockdown || ReactionRole == RoleGetUp || ReactionRole == RoleDying || ReactionRole == RoleDown;
@@ -1418,6 +1602,11 @@ void AJRPGBattlePawn::PlayStep(const FJRPGActionStep& Step)
 		if (Clip && Clip->RateScale > KINDA_SMALL_NUMBER)
 		{
 			Rate = Step.GameSpeed / (4.0f * Clip->RateScale);
+			// O asset de uma Art gravado noutra velocidade que a do disco (o HurricaneKick3): mais rápido, para durar o do original
+			if (Step.Kind == EJRPGActionStepKind::Art)
+			{
+				Rate *= UJRPGArtSequenceLibrary::AssetRateCorrection(Clip, UJRPGArtSequenceLibrary::ArtDiscRate(Step.ArtKey));
+			}
 		}
 	}
 	if (Clip)
@@ -1448,6 +1637,7 @@ void AJRPGBattlePawn::PlayStep(const FJRPGActionStep& Step)
 void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 {
 	LastLogicFrame = LogicFrame;
+	LastLogicFrameTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0;
 	// A pose do idle, medida uma vez quando ele já toca sozinho (a mistura de entrada acabou): a referência do passo do fim do clip
 	if (!bHasNeutralCentroid && IdleSinceFrame != INDEX_NONE && !bActionActive
 		&& ++IdleFramesSeen > FMath::CeilToInt(AnimBlendTime * static_cast<float>(UBattleFormulas::StepsPerSecond)) + 4)

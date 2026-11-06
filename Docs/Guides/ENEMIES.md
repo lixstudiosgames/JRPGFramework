@@ -177,6 +177,8 @@ into `/Game/Data/` with it.
 | `RecommendedLevel` | `"6-7"`, `"27"` |
 | `Tournament` | `Expert` / `Master` for the Muscle Dome fights; empty in the story |
 | `Notes` | Special rules (Koru's four-turn kill, Cort's shield, Jette's clones) |
+| `Music` | The fight's track, a `DT_BattleMusic` row (`Boss1`, `Songi`, `Cort2`...); empty = the arena's. From a disc census of the scripted-battle records ([AUDIO.md › Battle music](AUDIO.md#battle-music)); kept on regeneration if set by hand |
+| `bKeepCurrentMusic` | The fight leaves the music alone (Lu Delilas) |
 
 **30 rows:** 22 story fights (the Delilas trio is three rows, one per sibling — each has its own
 reward), Lapis, and 7 Muscle Dome tournament fights.
@@ -187,7 +189,7 @@ python Extras/generate_bosses_csv.py
 
 From `Docs/Data/gamedata/bosses.toml` (legend-of-legaia-re). `Enemies` is found by name
 (`"Songi (1st)"` → `songi_1st`, the `(Expert)` / `(Master)` suffix goes to `Tournament`, `x2` repeats
-the row); anything that does not match is reported. Regenerating keeps an `Enemies` fixed by hand
+the row); anything that does not match is reported. Regenerating keeps an `Enemies` or a `Music` fixed by hand
 and fights created in LegaiaStudio; the old CSV is backed up first.
 
 

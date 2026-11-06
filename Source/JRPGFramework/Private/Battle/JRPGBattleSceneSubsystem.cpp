@@ -1,10 +1,19 @@
 #include "Battle/JRPGBattleSceneSubsystem.h"
 #include "Arts/ArtsSubsystem.h"
 #include "Arts/JRPGArtsRules.h"
+#include "Audio/AudioSubsystem.h"
+#include "Audio/BattleMusicData.h"
+#include "Battle/JRPGEncounterTypes.h"
+#include "Core/CoreSubsystem.h"
+#include "Engine/DataTable.h"
+#include "Materials/MaterialInterface.h"
+#include "Sound/SoundWave.h"
 #include "Battle/BattleFormulas.h"
 #include "Battle/BattleSubsystem.h"
 #include "Battle/JRPGBattleArena.h"
 #include "Battle/JRPGBattlePawn.h"
+#include "Battle/JRPGBattleCamera.h"
+#include "Battle/JRPGBattleUISubsystem.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
@@ -300,6 +309,9 @@ void UJRPGBattleSceneSubsystem::Deinitialize()
 		}
 	}
 	SetShoutDilation(1.0f);
+	Voices.End();
+	FieldMusic = nullptr;
+	bBattleMusicStarted = false;
 	Arena = nullptr;
 	Phase = EPhase::Idle;
 	Super::Deinitialize();
@@ -522,6 +534,11 @@ void UJRPGBattleSceneSubsystem::HandleBattleEvent(const FJRPGBattleEvent& Event)
 		if (AJRPGBattlePawn* Striker = PawnOf(Event.SlotIndex))
 		{
 			Striker->NoteHitResult(Event);
+			// O golpe de um herói que o defensor bloqueou: o grunhido dele (XA30)
+			if (Striker->GetCombatant().Side == EJRPGBattleSide::Party)
+			{
+				Voices.NoteBlocked(GetWorld(), Striker->GetCombatant().Key);
+			}
 		}
 		if (AJRPGBattlePawn* Target = PawnOf(Event.TargetSlot))
 		{
@@ -649,24 +666,7 @@ void UJRPGBattleSceneSubsystem::HandleLogicFrame(int32 Frame)
 			break;
 		}
 	}
-	// O slow do grito das Arts (AJRPGBattleArena::ArtsShoutTimeDilation / ArtsShoutSeconds): a leitura da voz no CD começa no
-	// starter de uma Art conhecida e dura um tempo, não a Art inteira. O dash (Hyper / Super / Miracle / Art nova) e os clips das
-	// Arts já têm a velocidade do original (o resto congelado, 1/4, 1/2): o slow ali seria em dobro
-	if (Acting && Acting->GetCombatant().Side == EJRPGBattleSide::Party)
-	{
-		FJRPGActionStep Step;
-		float ClipSeconds = 0.0f;
-		float ClipLength = 0.0f;
-		if (Acting->GetPlayingStep(Step, ClipSeconds, ClipLength) && Step.Kind == EJRPGActionStepKind::ArtStarter)
-		{
-			const int64 Key = (static_cast<int64>(Acting->GetActiveActionIndex()) << 32) | static_cast<uint32>(Step.StartFrame);
-			if (Key != ShoutStepKey)
-			{
-				ShoutStepKey = Key;
-				ShoutUntilRealTime = GetWorld()->GetRealTimeSeconds() + FMath::Max(Current->ArtsShoutSeconds, 0.0f);
-			}
-		}
-	}
+	Voices.Tick(GetWorld());
 	const bool bShouting = GetWorld()->GetRealTimeSeconds() < ShoutUntilRealTime;
 	SetShoutDilation(bShouting ? FMath::Clamp(Current->ArtsShoutTimeDilation, 0.1f, 1.0f) : 1.0f);
 
@@ -692,6 +692,274 @@ void UJRPGBattleSceneSubsystem::HandleLogicFrame(int32 Frame)
 			Pawn->UpdatePlayback(Frame);
 		}
 	}
+	// Os commits de quem age (o grito, a fanfarra, o slow do grito) depois do pawn andar o quadro: o passo que começou AGORA já
+	// conta (lido antes, a voz saía um quadro lógico depois do clip)
+	if (Acting && Battle && Acting->GetCombatant().Side == EJRPGBattleSide::Party)
+	{
+		CommitActingSteps(*Battle, *Acting);
+		if (GetWorld()->GetRealTimeSeconds() < ShoutUntilRealTime)
+		{
+			SetShoutDilation(FMath::Clamp(Current->ArtsShoutTimeDilation, 0.1f, 1.0f));
+		}
+	}
+	UpdateCameraGhost(Battle, Acting);
+	UpdateTargetHighlight();
+}
+
+void UJRPGBattleSceneSubsystem::UpdateTargetHighlight()
+{
+	AJRPGBattleArena* Current = Arena.Get();
+	if (!Current)
+	{
+		return;
+	}
+	// O original (FUN_801DA6B4) clareia o monstro apontado enquanto o cursor de alvo está de pé e solta todos quando ele sai
+	int32 TargetSlot = INDEX_NONE;
+	const UJRPGBattleUISubsystem* UI = GetWorld()->GetSubsystem<UJRPGBattleUISubsystem>();
+	if (UI && UI->IsMenuUp() && UI->GetMenu().GetScreen() == EJRPGBattleMenuScreen::Target)
+	{
+		TargetSlot = UI->GetMenu().GetTargetCursorSlot();
+	}
+	for (AJRPGBattlePawn* Pawn : Current->GetBattlePawns())
+	{
+		if (!IsValid(Pawn))
+		{
+			continue;
+		}
+		const bool bLit = TargetSlot != INDEX_NONE && Pawn->GetCombatant().SlotIndex == TargetSlot && !Pawn->IsDefeated();
+		Pawn->SetTargetHighlight(bLit ? Current->TargetHighlightStrength : 0.0f);
+	}
+}
+
+void UJRPGBattleSceneSubsystem::UpdateCameraGhost(const UBattleSubsystem* Battle, const AJRPGBattlePawn* Acting)
+{
+	AJRPGBattleArena* Current = Arena.Get();
+	if (!Current)
+	{
+		return;
+	}
+	// Dois testes, um corpo vira fantasma se qualquer um pega:
+	//  - o do original (FUN_8004DC68), durante as ações: o ponto da mira puxada para a câmera por dist * 25 / 128 no plano, e quem
+	//    está a menos de dist / 4 dele;
+	//  - o de oclusão (nosso): a caixa do corpo cruza a linha da câmera até a mira, entre as duas, ou guarda a câmera. Pega o monstro
+	//    grande cujo centro fica longe do ponto do original. Vale nas ações, nos menus do herói e do cursor de alvo (no Begin /
+	//    Escape / Reselect, a tomada de longe, ninguém some) e na câmera própria da Art.
+	// Quem age nunca some; o alvo da ação e quem a tomada enquadra também não, menos na câmera da Art (o dash agachado da Hyper / da
+	// Art nova mira o herói, e o inimigo na frente da lente some)
+	const AJRPGBattleCamera* Camera = Current->GetBattleCameraActor();
+	const EJRPGBattleShot Shot = Camera ? Camera->GetShot() : EJRPGBattleShot::Far;
+	const bool bMenuShot = Shot == EJRPGBattleShot::Member || Shot == EJRPGBattleShot::TargetEnemy;
+	const bool bMenuTest = Acting == nullptr && Current->bCameraGhostInMenus && bMenuShot;
+	const bool bArtShot = Acting != nullptr && Shot == EJRPGBattleShot::Art;
+	const bool bOriginalTest = Acting != nullptr;
+	bool bTest = Current->bCameraGhost && Camera && (bOriginalTest || bMenuTest);
+
+	FVector Eye = FVector::ZeroVector;
+	FVector Focus = FVector::ZeroVector;
+	FVector2D Point = FVector2D::ZeroVector;
+	float Radius = 0.0f;
+	bool bOcclusion = false;
+	const AJRPGBattlePawn* ActionTarget = nullptr;
+	const AJRPGBattlePawn* ShotPawn = Camera ? Current->GetPawnForSlot(Camera->GetShotSlot()) : nullptr;
+	const AJRPGBattlePawn* ShotTarget = Camera ? Current->GetPawnForSlot(Camera->GetShotTargetSlot()) : nullptr;
+	if (bTest)
+	{
+		const FJRPGBattleCameraPose Pose = Camera->GetLivePose();
+		const float Distance = FMath::Abs(Pose.Offset.Z);
+		const FVector2D Toward = -FVector2D(FMath::Cos(FMath::DegreesToRadians(Pose.Yaw)), FMath::Sin(FMath::DegreesToRadians(Pose.Yaw)));
+		Point = FVector2D(Pose.Focus.X, Pose.Focus.Y) + Toward * Distance * Current->CameraGhostPullBack;
+		Radius = Distance * Current->CameraGhostRadius;
+		Focus = Pose.Focus;
+		const APlayerController* PC = GetWorld()->GetFirstPlayerController();
+		const APlayerCameraManager* View = PC ? PC->PlayerCameraManager.Get() : nullptr;
+		if (View)
+		{
+			Eye = View->GetCameraLocation();
+			bOcclusion = true;
+		}
+		if (Battle && Acting)
+		{
+			ActionTarget = Current->GetPawnForSlot(Battle->GetState().Action.TargetSlot);
+		}
+	}
+	// Um passo por quadro lógico (1/60 s)
+	const float Step = Current->CameraGhostFadeSeconds > 0.0f
+		? 1.0f / (static_cast<float>(UBattleFormulas::StepsPerSecond) * Current->CameraGhostFadeSeconds) : 1.0f;
+	const double Now = GetWorld()->GetRealTimeSeconds();
+	for (AJRPGBattlePawn* Pawn : Current->GetBattlePawns())
+	{
+		if (!IsValid(Pawn))
+		{
+			continue;
+		}
+		double& HoldUntil = GhostHoldUntil.FindOrAdd(Pawn, 0.0);
+		const bool bWasGhost = Now < HoldUntil || GhostOpacity.FindRef(Pawn) < 0.999f;
+		// Já fantasma, os limites para sair são um pouco mais largos (sem o pisca de quem fica na borda)
+		const float Slack = bWasGhost ? 1.15f : 1.0f;
+		const bool bSpared = bArtShot ? Pawn == Acting
+			: (Pawn == Acting || Pawn == ActionTarget || Pawn == ShotPawn || Pawn == ShotTarget);
+		bool bGhost = false;
+		if (bTest && !bSpared && !Pawn->IsHidden() && !Pawn->IsDefeated())
+		{
+			if (bOriginalTest && !bArtShot)
+			{
+				const FVector Body = Pawn->GetBodyLocation();
+				bGhost = FVector2D::Distance(FVector2D(Body.X, Body.Y), Point) < Radius * Slack;
+			}
+			if (!bGhost && bOcclusion)
+			{
+				FVector Origin, Extent;
+				Pawn->GetActorBounds(true, Origin, Extent);
+				const float BodyRadius = FMath::Max(Extent.X, Extent.Y) * Current->CameraGhostMenuBodyScale * Slack;
+				const FVector Line = Focus - Eye;
+				const float Length2 = Line.SizeSquared();
+				const float T = Length2 > KINDA_SMALL_NUMBER ? FVector::DotProduct(Origin - Eye, Line) / Length2 : 0.0f;
+				const FVector Closest = Eye + Line * FMath::Clamp(T, 0.0f, 1.0f);
+				bGhost = FVector::Dist(Origin, Eye) < BodyRadius || (T > 0.0f && T < 0.98f && FVector::Dist(Origin, Closest) < BodyRadius);
+			}
+		}
+		// Uma vez fantasma, segura um mínimo (o corpo que balança na borda do teste não pisca)
+		if (bGhost)
+		{
+			HoldUntil = Now + FMath::Max(Current->CameraGhostHoldSeconds, 0.0f);
+		}
+		else if (!bTest || bSpared || Pawn->IsDefeated())
+		{
+			HoldUntil = 0.0;   // saiu do teste (outra tomada, virou o alvo): volta já
+		}
+		const bool bShow = bGhost || Now < HoldUntil;
+		const float Goal = bShow ? FMath::Clamp(Current->CameraGhostOpacity, 0.0f, 1.0f) : 1.0f;
+		float& Opacity = GhostOpacity.FindOrAdd(Pawn, 1.0f);
+		Opacity = FMath::Abs(Goal - Opacity) <= Step ? Goal : Opacity + FMath::Sign(Goal - Opacity) * Step;
+		Pawn->SetCameraGhost(Opacity, GhostMaterial);
+	}
+}
+
+void UJRPGBattleSceneSubsystem::CommitActingSteps(const UBattleSubsystem& Battle, const AJRPGBattlePawn& Acting)
+{
+	const int32 ActionIndex = Acting.GetActiveActionIndex();
+	const FJRPGActionTimeline* Live = Battle.FindTimeline(ActionIndex);
+	FJRPGActionStep Playing;
+	float ClipSeconds = 0.0f;
+	float ClipLength = 0.0f;
+	if (!Live || !Acting.GetPlayingStep(Playing, ClipSeconds, ClipLength))
+	{
+		return;
+	}
+	const int32 StepIndex = Live->Steps.IndexOfByPredicate([&Playing](const FJRPGActionStep& Step)
+	{
+		return Step.StartFrame == Playing.StartFrame && Step.Kind == Playing.Kind;
+	});
+	const bool bSameAction = ActionIndex == VoiceActionIndex;
+	if (StepIndex == INDEX_NONE || (bSameAction && StepIndex <= VoiceStepIndex))
+	{
+		return;
+	}
+	const AJRPGBattleArena* Current = Arena.Get();
+	for (int32 i = bSameAction ? VoiceStepIndex + 1 : 0; i <= StepIndex; ++i)
+	{
+		EJRPGBattleVoiceSlow Slow = EJRPGBattleVoiceSlow::None;
+		const float ShoutSeconds = Voices.CommitStep(GetWorld(), Acting.GetCombatant().Key, *Live, i, Slow);
+		bool bOpensSlow = false;
+		if (Current)
+		{
+			switch (Slow)
+			{
+			case EJRPGBattleVoiceSlow::KnownArt:     bOpensSlow = Current->bShoutSlowKnownArt; break;
+			case EJRPGBattleVoiceSlow::NewArt:       bOpensSlow = Current->bShoutSlowNewArt; break;
+			case EJRPGBattleVoiceSlow::Hyper:        bOpensSlow = Current->bShoutSlowHyper; break;
+			case EJRPGBattleVoiceSlow::SuperMiracle: bOpensSlow = Current->bShoutSlowSuperMiracle; break;
+			default: break;
+			}
+		}
+		// O slow do grito das Arts (AJRPGBattleArena::ArtsShoutTimeDilation): o original fica lento enquanto o CD lê uma voz, pelo
+		// trecho dela, não a Art inteira. Que vozes abrem: AJRPGBattleArena::bShoutSlow* (a Art conhecida, a nova, a fanfarra da
+		// Hyper; a da Super / Miracle desligada, bug 41). Sem vozes para o herói, ArtsShoutSeconds no starter comum
+		const bool bStarterFallback = ShoutSeconds < 0.0f && Live->Steps[i].Kind == EJRPGActionStepKind::ArtStarter;
+		if ((bOpensSlow || bStarterFallback) && Current)
+		{
+			const float Seconds = ShoutSeconds < 0.0f ? Current->ArtsShoutSeconds : ShoutSeconds;
+			if (Seconds > 0.0f)
+			{
+				ShoutUntilRealTime = GetWorld()->GetRealTimeSeconds() + Voices.VoiceLatencySeconds + Seconds;
+			}
+		}
+	}
+	VoiceActionIndex = ActionIndex;
+	VoiceStepIndex = StepIndex;
+}
+
+void UJRPGBattleSceneSubsystem::StartBattleMusic(const FJRPGBattleSetup& Setup)
+{
+	bBattleMusicStarted = false;
+	UAudioSubsystem* Audio = GetWorld()->GetGameInstance() ? GetWorld()->GetGameInstance()->GetSubsystem<UAudioSubsystem>() : nullptr;
+	if (Setup.bKeepCurrentMusic || !Audio)
+	{
+		return;
+	}
+	// Qual: a do setup; senão a do chefe (DT_Bosses); senão a da arena. O chefe que mantém a música (o -1 do original) não troca
+	const AJRPGBattleArena* Current = Arena.Get();
+	FName Key = Setup.BattleMusic;
+	if (Key.IsNone())
+	{
+		FJRPGBossData Boss;
+		if (UJRPGEncounterLibrary::FindBossFight(Setup.Enemies, Boss))
+		{
+			if (Boss.bKeepCurrentMusic)
+			{
+				return;
+			}
+			Key = Boss.Music;
+		}
+	}
+	if (Key.IsNone() && Current && !Current->bKeepFieldMusic)
+	{
+		Key = Current->BattleMusic;
+	}
+	if (Key.IsNone())
+	{
+		return;
+	}
+	const UDataTable* Table = UCoreSubsystem::ResolveDataTable(TEXT("DT_BattleMusic"));
+	const FJRPGBattleMusicData* Row = Table ? Table->FindRow<FJRPGBattleMusicData>(Key, TEXT("BattleMusic"), false) : nullptr;
+	if (!Row)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("BattleScene: a música %s não está no DT_BattleMusic (Extras/ps1_battle_music.py) — a luta não troca a música"),
+			*Key.ToString());
+		return;
+	}
+	USoundBase* Track = Audio->GetIntroLoopSound(Row->Intro.LoadSynchronous(), Row->Loop.LoadSynchronous());
+	if (!Track)
+	{
+		return;
+	}
+	// O original troca em corte seco (o fim da entrada da luta carrega o bundle do sound set e começa a partitura)
+	FieldMusic = Audio->GetCurrentBGM();
+	bFieldMusicPersistent = Audio->IsBGMPersistent();
+	Audio->PlayBGM(Track, false, 0.0f);
+	bBattleMusicStarted = true;
+}
+
+void UJRPGBattleSceneSubsystem::RestoreFieldMusic()
+{
+	if (!bBattleMusicStarted)
+	{
+		return;
+	}
+	bBattleMusicStarted = false;
+	UAudioSubsystem* Audio = GetWorld() && GetWorld()->GetGameInstance() ? GetWorld()->GetGameInstance()->GetSubsystem<UAudioSubsystem>() : nullptr;
+	if (Audio)
+	{
+		if (FieldMusic)
+		{
+			Audio->PlayBGM(FieldMusic, bFieldMusicPersistent, 0.0f);
+		}
+		else
+		{
+			Audio->StopBGM(0.0f);
+		}
+	}
+	FieldMusic = nullptr;
 }
 
 void UJRPGBattleSceneSubsystem::SetShoutDilation(float Dilation)
@@ -715,7 +983,14 @@ void UJRPGBattleSceneSubsystem::EnterBattleScene()
 	if (AJRPGBattleArena* Current = Arena.Get())
 	{
 		Current->AssembleBattle(PendingSetup, PendingCombatants);
+		Voices.VoiceLatencySeconds = Current->VoiceLatencySeconds;
 	}
+	Voices.Begin();
+	// O material do fantasma: uma vez por luta (o caminho que não existe não é procurado de novo a cada quadro)
+	GhostMaterial = Arena.IsValid() && !Arena->CameraGhostMaterial.IsNull() ? Arena->CameraGhostMaterial.LoadSynchronous() : nullptr;
+	VoiceActionIndex = INDEX_NONE;
+	VoiceStepIndex = INDEX_NONE;
+	StartBattleMusic(PendingSetup);
 	Phase = EPhase::Assembled;
 	if (GetTransitionTime() > 0.0f)
 	{
@@ -752,6 +1027,11 @@ void UJRPGBattleSceneSubsystem::LeaveBattleScene()
 {
 	ShoutUntilRealTime = 0.0;
 	SetShoutDilation(1.0f);
+	Voices.End();
+	RestoreFieldMusic();
+	GhostOpacity.Reset();
+	GhostHoldUntil.Reset();
+	GhostMaterial = nullptr;
 	if (AJRPGBattleArena* Current = Arena.Get())
 	{
 		Current->TeardownBattle();

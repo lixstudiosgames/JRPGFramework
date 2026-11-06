@@ -321,5 +321,7 @@ content across once and remain for reference.
 | `Extras/generate_*.py` | TOML → CSV importers (one-way) — except `generate_enemies_csv.py`, which keeps manual columns and rows |
 | `Extras/generate_enemy_actions_csv.py`, `generate_hero_battle_csv.py`, `monster_block.py` | Disc → CSV (the monsters' action entries, the Ra-Seru tiers and the weapon costs), through the RE's `asset.exe`; `monster_block.py` reads a decoded monster block. See [`Guides/ENEMIES.md`](Guides/ENEMIES.md) |
 | `Extras/generate_art_camera_csv.py` | Disc → `DT_ArtCamera.csv` (the 20 rows of the per-Art camera table, PROT 0898), read straight from `extracted/PROT`. See [`Guides/BATTLE_STAGE.md`](Guides/BATTLE_STAGE.md) |
+| `Extras/ps1_battle_voices.py` + `ue_import_battle_voices.py` | Disc → the battle voices outside the clips (Arts shout, starter fanfare, block grunt) as WAVs outside the repo, plus `DT_BattleVoices.csv` / `DT_ArtVoices.csv` (numbers and asset paths only). See [`Guides/AUDIO.md`](Guides/AUDIO.md#4-battle-voices-and-battle-music) |
+| `Extras/ps1_battle_music.py` + `ue_import_battle_music.py` | Disc → the 9 battle-bank tracks the fights use as Intro + Loop WAVs (outside the repo), rendered by the RE engine, plus `DT_BattleMusic.csv`. See [`Guides/AUDIO.md`](Guides/AUDIO.md#battle-music) |
 | `Extras/legaia_toml.py` | What the generators share: `tomllib` (Python 3.11+) + the Unreal CSV helpers |
 | `Extras/download_fonts.py` | Verifies/downloads the WebUI's local fonts |

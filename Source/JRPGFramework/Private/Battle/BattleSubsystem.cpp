@@ -1,4 +1,5 @@
 #include "Battle/BattleSubsystem.h"
+#include "Battle/JRPGAnimNotify_LoopWindow.h"
 #include "Battle/BattleFormulas.h"
 #include "Battle/EnemyData.h"
 #include "Battle/HeroBattleData.h"
@@ -636,13 +637,26 @@ bool UBattleSubsystem::BeginBattle(const FJRPGBattleSetup& Setup)
 			return false;
 		}
 		const FFrameRate ClipRate = Clip->GetSamplingFrameRate();
-		OutTiming.Frames = SecondsToSteps(Clip->GetPlayLength(), ClipRate, Query.GameSpeed);
+		// O clip mais as voltas do trecho de laço dele (UJRPGAnimNotify_LoopWindow: o "agachado" do SpecialStarter do Vahn repete
+		// 5 vezes); o 255 (até trocar de clip, as poses de vitória) não conta aqui
+		double PlaySeconds = Clip->GetPlayLength();
+		float LoopStart = 0.0f;
+		float LoopEnd = 0.0f;
+		int32 Loops = 0;
+		if (UJRPGAnimNotify_LoopWindow::FindLoopWindow(Clip, LoopStart, LoopEnd, Loops) && Loops < UJRPGAnimNotify_LoopWindow::Forever)
+		{
+			PlaySeconds += static_cast<double>(Loops) * static_cast<double>(LoopEnd - LoopStart);
+		}
+		// O asset de uma Art gravado noutra velocidade que a do disco (o HurricaneKick3) toca mais rápido para durar o do original
+		const double AssetFix = Query.Kind == EJRPGActionStepKind::Art
+			? UJRPGArtSequenceLibrary::AssetRateCorrection(Clip, UJRPGArtSequenceLibrary::ArtDiscRate(Query.ArtKey)) : 1.0;
+		OutTiming.Frames = SecondsToSteps(PlaySeconds / AssetFix, ClipRate, Query.GameSpeed);
 		const TArray<float> Hits = UJRPGAnimNotify_Hit::FindHitTimes(Clip);
 		if (Hits.Num() == Query.ExpectedHits)
 		{
 			for (const float Time : Hits)
 			{
-				OutTiming.HitFrames.Add(SecondsToSteps(Time, ClipRate, Query.GameSpeed));
+				OutTiming.HitFrames.Add(SecondsToSteps(Time / AssetFix, ClipRate, Query.GameSpeed));
 			}
 		}
 		else

@@ -3,11 +3,14 @@
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Battle/BattleTypes.h"
+#include "Battle/JRPGBattleVoices.h"
 #include "JRPGBattleSceneSubsystem.generated.h"
 
 class AJRPGBattleArena;
 class AJRPGBattlePawn;
 class UBattleSubsystem;
+class USoundBase;
+class UMaterialInterface;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnJRPGBattleSceneEvent);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnJRPGBattleSceneAssembled, AJRPGBattleArena*, Arena, const TArray<AJRPGBattlePawn*>&, Pawns);
@@ -141,9 +144,41 @@ private:
 	/** Põe a dilatação do tempo do mundo do slow das Arts (1 = normal); só mexe quando muda. */
 	void SetShoutDilation(float Dilation);
 	float ShoutDilation = 1.0f;
-	/** A janela do slow em curso (tempo real) e o starter que a abriu (ação << 32 | quadro do passo). */
+	/** A janela do slow em curso (tempo real). */
 	double ShoutUntilRealTime = 0.0;
-	int64 ShoutStepKey = -1;
+
+	/**
+	 * Os commits do herói que age (o passo que ele começou): o grito, a fanfarra e a janela do slow saem daqui. Anda os passos da
+	 * timeline das regras do último visto (VoiceActionIndex / VoiceStepIndex) até o que toca agora, nenhum pulado.
+	 */
+	void CommitActingSteps(const UBattleSubsystem& Battle, const AJRPGBattlePawn& Acting);
+	int32 VoiceActionIndex = INDEX_NONE;
+	int32 VoiceStepIndex = INDEX_NONE;
+
+	/** O clarão do alvo do cursor (AJRPGBattleArena::TargetHighlightStrength), um quadro. */
+	void UpdateTargetHighlight();
+
+	/** O fantasma perto da câmera (AJRPGBattleArena::bCameraGhost), um quadro. */
+	void UpdateCameraGhost(const UBattleSubsystem* Battle, const AJRPGBattlePawn* Acting);
+	/** A opacidade de agora de cada pawn (anda até o alvo em CameraGhostFadeSeconds). */
+	TMap<TWeakObjectPtr<AJRPGBattlePawn>, float> GhostOpacity;
+	/** Até quando cada pawn segura o fantasma depois do teste o pegar (tempo real; AJRPGBattleArena::CameraGhostHoldSeconds). */
+	TMap<TWeakObjectPtr<AJRPGBattlePawn>, double> GhostHoldUntil;
+	/** O material do fantasma da arena da luta, carregado uma vez quando a cena abre (nulo = o dither). */
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> GhostMaterial;
+
+	/** O canal de voz da luta (grito, fanfarra, grunhido do block). */
+	UPROPERTY()
+	FJRPGBattleVoices Voices;
+
+	/** A música da luta entra (corte seco), guardando a do Field; sai e devolve a do Field. */
+	void StartBattleMusic(const FJRPGBattleSetup& Setup);
+	void RestoreFieldMusic();
+	UPROPERTY()
+	TObjectPtr<USoundBase> FieldMusic;
+	bool bFieldMusicPersistent = false;
+	bool bBattleMusicStarted = false;
 
 	/** O make-way: os outros saem da linha entre Attacker e Target. */
 	void MakeWay(const AJRPGBattlePawn* Attacker, const AJRPGBattlePawn* Target, int32 Frame);

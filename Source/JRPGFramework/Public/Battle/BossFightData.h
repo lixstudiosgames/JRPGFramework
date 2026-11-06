@@ -86,4 +86,16 @@ struct JRPGFRAMEWORK_API FJRPGBossData : public FTableRowBase
 	/** Como a luta funciona (regras especiais, fraquezas). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boss")
 	FString Notes;
+
+	/**
+	 * A música da luta: o RowName no DT_BattleMusic ("Boss1", "Songi", "Cort2"...). None = a escolha das lutas comuns (a da
+	 * arena). No original é o "sound set" que o script do evento escolhe antes do 3E FF da luta (Extras/generate_bosses_csv.py
+	 * traz o levantamento do disco).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boss|Music")
+	FName Music;
+
+	/** A luta não troca a música: a que toca segue (o -1 do original, quando o evento já pôs o tema dele). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boss|Music")
+	bool bKeepCurrentMusic = false;
 };

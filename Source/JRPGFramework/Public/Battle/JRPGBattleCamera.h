@@ -114,6 +114,10 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Camera")
 	FJRPGBattleCameraPose GetTargetPose() const { return Target; }
 
+	/** O slot que a tomada de agora enquadra (o herói do menu, quem age) e o alvo dela (o cursor, o golpe); INDEX_NONE se nenhum. */
+	int32 GetShotSlot() const { return ShotSlot; }
+	int32 GetShotTargetSlot() const { return ShotTargetSlot; }
+
 	/** Vai direto para a pose alvo de agora, sem o ease-out (um corte). */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Battle Camera")
 	void SnapToTarget();

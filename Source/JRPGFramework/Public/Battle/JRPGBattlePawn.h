@@ -11,6 +11,9 @@
 class AJRPGBattleArena;
 class UCapsuleComponent;
 class UAudioComponent;
+class UMaterialInterface;
+class UMaterialInstanceDynamic;
+class UMeshComponent;
 class USkeletalMeshComponent;
 class UStaticMeshComponent;
 class UAnimSequence;
@@ -345,6 +348,12 @@ public:
 	 */
 	bool GetPlayingStep(FJRPGActionStep& OutStep, float& OutClipSeconds, float& OutClipLength) const;
 
+	/**
+	 * O cursor real do clip do passo que toca (segundos do asset, com as voltas do trecho de laço) e as voltas que faltam; falso se o
+	 * clip não é o que a animação toca agora. A câmera própria das Arts lê o contador do dash daqui.
+	 */
+	bool GetPlayingClipCursor(float& OutSeconds, int32& OutLoopsLeft, bool& bOutHasLoopWindow) const;
+
 	/** A fase mudou (Blueprint: câmera, som, efeito). */
 	UFUNCTION(BlueprintImplementableEvent, Category = "JRPG|Battle")
 	void OnActionPhaseChanged(EJRPGActionPhase NewPhase);
@@ -506,6 +515,59 @@ public:
 	/** O monstro derrotado afunda durante o fade, como no original ((classe de tamanho * passo) >> 2 unidades por passo). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Death")
 	bool bDeathSink = true;
+
+	/**
+	 * O som da morte do monstro: quando ele começa a desbotar e afundar, os sons do clip de knockdown tocam de novo, todos de uma vez.
+	 * No original, o braço de morte do commit (FUN_8004AD80, 0x8004B094..0x8004B6A0) reinstala a entrada do knockdown parada no
+	 * último quadro, e todo commit zera o cursor da trilha de sons (+0x1F6, 0x8004AFD0): no quadro seguinte o andador da trilha
+	 * (FUN_800508DC) dispara toda pista que o quadro já passou, ou seja, a trilha inteira (o grito e o baque). O roteador só pula o
+	 * som igual ao último, e o primeiro da trilha não é o último dela. Leitura do código, sem captura. Desligado: no teste o usuário
+	 * ouviu que o som do original é outro (um som de "sugar para o chão", ainda não achado; o DeathFadeSound o toca quando for).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Death")
+	bool bReplayKnockdownSoundsOnDeath = false;
+
+	/**
+	 * O som do monstro derrotado sendo "sugado" para o chão: toca quando ele começa a desbotar e afundar. O do original é a linha
+	 * 0x0D da tabela estática de sons (o som 0x0E, banco de luta): achado de ouvido pelo usuário (o RE não registra quem o toca).
+	 * O padrão é o SW_Battle_Cue0E do projeto Legaia; vazio = nenhum.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Death")
+	TSoftObjectPtr<USoundBase> DeathFadeSound = TSoftObjectPtr<USoundBase>(
+		FSoftObjectPath(TEXT("/Game/Legaia/Battle/Sounds/Common/SW_Battle_Cue0E.SW_Battle_Cue0E")));
+
+	/**
+	 * O fantasma perto da câmera (FUN_8004DC68 do original; quem decide é o UJRPGBattleSceneSubsystem): o parâmetro escalar do
+	 * material que leva a opacidade do corpo, 1 = inteiro. No M_PS1Monster ele entra, junto do JRPGDeathFade, num dither da máscara
+	 * de opacidade. None desliga.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Camera")
+	FName CameraGhostParameter = TEXT("JRPGCameraGhost");
+
+	/**
+	 * O clarão do alvo do cursor (FUN_801DA6B4 do original: o monstro apontado leva a cor 0x200 por canal, o dobro do neutro, com o
+	 * peso cheio: a textura dele fica duas vezes mais clara): o parâmetro escalar do material, 0 = normal. No M_PS1Monster ele soma
+	 * a cor do corpo à emissão. Quem decide é o UJRPGBattleSceneSubsystem. None desliga.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Camera")
+	FName TargetHighlightParameter = TEXT("JRPGHighlight");
+
+	/** O clarão do alvo do cursor (0 = normal); só mexe nos materiais quando muda. */
+	void SetTargetHighlight(float Strength);
+
+	/**
+	 * A opacidade do fantasma perto da câmera (1 = inteiro); só mexe nos materiais quando muda. Com GhostMaterial (translúcido, com
+	 * os parâmetros BaseTexture e Opacity), o corpo troca para ele enquanto estiver abaixo de 1 e volta aos materiais dele depois:
+	 * dá para ver através. Sem, a opacidade vai no CameraGhostParameter (o dither do M_PS1Monster).
+	 */
+	void SetCameraGhost(float Opacity, UMaterialInterface* GhostMaterial = nullptr);
+
+	/**
+	 * Entre dois quadros lógicos: o deslize (o passo do fim de um clip na volta ao idle, o reach snap) anda no tempo do mundo, que é
+	 * o relógio da mistura das poses. Só quadro a quadro lógico (60 Hz, mais grosso ainda com o slow das Arts), o corpo andava em
+	 * degraus enquanto a pose misturava liso: a tremidinha depois do flinch, que o motion blur realça.
+	 */
+	virtual void Tick(float DeltaSeconds) override;
 
 	/** Quanto tempo o texto de um evento fica em cima da cabeça, em segundos. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn", meta = (ClampMin = "0.0"))
@@ -765,6 +827,20 @@ private:
 
 	/** O monstro derrotado: o fade (e o afundar) começa quando o knockdown dele acaba. */
 	bool bDeathFadeQueued = false;
+	/** A opacidade do fantasma perto da câmera posta por último nos materiais. */
+	float CameraGhostOpacity = 1.0f;
+	/** O clarão do alvo posto por último nos materiais. */
+	float TargetHighlight = 0.0f;
+	/** O fantasma translúcido: os materiais trocados (componente, slot, o material de antes) e os dinâmicos do fantasma. */
+	void BeginGhostMaterials(UMaterialInterface* GhostMaterial);
+	void EndGhostMaterials();
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMeshComponent>> GhostSavedComponents;
+	TArray<int32> GhostSavedSlots;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMaterialInterface>> GhostSavedMaterials;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> GhostMaterials;
 	bool bDeathFading = false;
 	int32 DeathFadeFrames = 32;
 	int32 DeathFadeStartFrame = 0;
@@ -806,4 +882,6 @@ private:
 	FVector SlideTo = FVector::ZeroVector;
 	int32 SlideStartFrame = 0;
 	int32 SlideFrames = 1;
+	/** O tempo do mundo (já dilatado) do último quadro lógico: o deslize anda entre um quadro e o próximo no Tick. */
+	double LastLogicFrameTime = 0.0;
 };

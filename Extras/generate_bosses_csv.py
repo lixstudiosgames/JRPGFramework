@@ -38,9 +38,9 @@ for _stream in (sys.stdout, sys.stderr):
 TABLE = "DT_Bosses"
 COLUMNS = ["Key", "DisplayName", "Location", "FightCode", "Enemies", "bScriptedFight", "HP", "MP",
            "SpecialAttacks", "SpecialAttackMP", "EXP", "Gold", "RewardItem", "RecommendedLevel",
-           "Tournament", "Notes"]
+           "Tournament", "Notes", "Music", "bKeepCurrentMusic"]
 # Corrigidos à mão: mantidos numa regeneração
-MANUAL_COLUMNS = ["Enemies", "bScriptedFight"]
+MANUAL_COLUMNS = ["Enemies", "bScriptedFight", "Music"]
 
 # A flag de luta roteirizada do original (ctx+0x287) é da FORMAÇÃO, não do chefe: o byte de cabeçalho da
 # linha do encontro. Todo chefe da história a liga (perfil de stats B, sem fuga, sem vantagem de
@@ -49,6 +49,39 @@ MANUAL_COLUMNS = ["Enemies", "bScriptedFight"]
 # encontro aleatório. O treino NÃO está no bosses.toml (a Lapis sim): a luta dele é montada com
 # FJRPGBattleSetup::bScriptedFight = false à mão. As lutas da Muscle Dome seguem os chefes que reusam.
 NOT_SCRIPTED = {"lapis"}
+
+# A música de cada luta (RowName no DT_BattleMusic), do levantamento do disco (2026-11-06): todo `3E FF <linha>` dos scripts das
+# cenas (legaia-engine man-scripts --disasm-record), o op 0x35 sub-op 7 (o "sound set" do banco de luta) que o mesmo registro roda
+# antes, e a linha da formação (os ids do monster archive -> DT_Enemies). Sound set 0..8 = Battle1 Battle2 Boss1 Songi Boss2 Cort1
+# Koru2 VanSaryu Cort2. Sem sub-op 7 no registro, vale o da cena (0 = Battle1). O -1 (mantém a música) depois do evento pôr o 2028
+# vira Boss1 aqui (o jogo não tem o evento tocando o tema antes). Fora do levantamento: Van Saryu (a luta não sai por 3E FF; a faixa
+# 7 do banco é a "Vahn-Saryu" e nenhuma outra luta a usa) e as da Muscle Dome (ficam com a escolha comum).
+MUSIC = {
+    "caruban": "Boss1",          # rikuroa linha 17, set 2
+    "vigurox2": "Battle1",       # vozz linha 10: o evento põe 2033, sem sub-op 7 -> o da cena (0)
+    "songi_1st": "Songi",        # garmel linha 8, set 3
+    "zeto": "Boss2",             # garmel linha 9, set 4
+    "berserker": "Boss1",        # teien linha 0, set 2
+    "xain": "Boss1",             # tunnelc linha 10, set 2
+    "songi_2nd": "Songi",        # retona linha 11, set 3
+    "van_saryu": "VanSaryu",     # inferido (ver acima)
+    "dohati": "Boss2",           # dohaty linha 10, set 4
+    "gaza": "Boss1",             # kor5 linha 14: 2028 e -1
+    "gaza_sim_seru": "Boss1",    # korb3 linha 15: 2028 e -1
+    "che_delilas": "Boss1",      # nilboa linha 29: 2028 e -1
+    "gi_delilas": "Boss2",       # nilboa linha 31, set 4
+    "koru": "Koru2",             # nilboa linha 32, set 6
+    "zora": "Boss2",             # taiku linha 9, set 4
+    "rogue": "Boss2",            # rugi linha 6, set 4
+    "jette": "Boss2",            # chitei2 linha 12, set 4
+    "cort": "Cort1",             # chitei2 linha 13, set 5
+    "tetsu_rematch": "Battle1",  # town0d linha 4, sem sub-op 7
+    "songi_3rd": "Songi",        # noaru linha 4, set 3
+    "cort_juggernaut": "Cort2",  # jouine linha 21, set 8
+    "lapis": "Boss1",            # deene linha 11, set 2
+}
+# O -1 sem tema de evento antes: a luta segue na música que já toca (a do duelo anterior)
+KEEP_MUSIC = {"lu_delilas"}       # nilboa linha 30
 
 
 def snake(text):
@@ -102,6 +135,7 @@ def main():
             "EXP": b.get("exp_reward") or 0, "Gold": b.get("gold_reward") or 0, "RewardItem": item,
             "RecommendedLevel": b.get("recommended_level") or "", "Tournament": tournament or "",
             "Notes": b.get("notes", ""),
+            "Music": MUSIC.get(key, ""), "bKeepCurrentMusic": lt.ue_bool(key in KEEP_MUSIC),
         })
 
     # Trabalho manual sobrevive à regeneração

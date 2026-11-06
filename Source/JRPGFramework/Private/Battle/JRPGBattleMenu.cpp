@@ -325,6 +325,99 @@ TArray<EJRPGArtButton> JRPGBattleTactics::LongestAffordableChain(const FJRPGBatt
 	return Chain;
 }
 
+namespace
+{
+	int32 ChainCost(const FJRPGBattleMenuHero& Hero, const TArray<EJRPGArtButton>& Buttons)
+	{
+		int32 Cost = 0;
+		for (const EJRPGArtButton Button : Buttons)
+		{
+			Cost += Hero.CostOf(Button);
+		}
+		return Cost;
+	}
+
+	/** Põe Arts Regulares conhecidas atrás de Chain enquanto couberem no gauge (a mais longa primeiro) e completa com o mais barato. */
+	void FillWithRegularArts(const FJRPGBattleMenuHero& Hero, TArray<EJRPGArtButton>& Chain)
+	{
+		int32 Left = Hero.Gauge - ChainCost(Hero, Chain);
+		for (;;)
+		{
+			const TArray<EJRPGArtButton>* Best = nullptr;
+			int32 BestCost = 0;
+			for (const TArray<EJRPGArtButton>& ArtCommand : Hero.KnownArtCommands)
+			{
+				if (ArtCommand.IsEmpty() || Chain.Num() + ArtCommand.Num() > UJRPGArtsRules::MaxChainButtons)
+				{
+					continue;
+				}
+				const int32 Cost = ChainCost(Hero, ArtCommand);
+				if (Cost > Left)
+				{
+					continue;
+				}
+				if (!Best || ArtCommand.Num() > Best->Num() || (ArtCommand.Num() == Best->Num() && Cost > BestCost))
+				{
+					Best = &ArtCommand;
+					BestCost = Cost;
+				}
+			}
+			if (!Best)
+			{
+				break;
+			}
+			Chain.Append(*Best);
+			Left -= BestCost;
+		}
+		EJRPGArtButton Cheapest = EJRPGArtButton::Arms;
+		const int32 CheapestButtonCost = CheapestCost(Hero, Cheapest);
+		while (Chain.Num() < UJRPGArtsRules::MaxChainButtons && CheapestButtonCost > 0 && Left >= CheapestButtonCost)
+		{
+			Chain.Add(Cheapest);
+			Left -= CheapestButtonCost;
+		}
+	}
+}
+
+TArray<EJRPGArtButton> JRPGBattleTactics::StandardChain(const FJRPGBattleMenuHero& Hero)
+{
+	TArray<EJRPGArtButton> Chain;
+	if (Hero.Gauge > 0)
+	{
+		FillWithRegularArts(Hero, Chain);
+	}
+	return Chain;
+}
+
+TArray<EJRPGArtButton> JRPGBattleTactics::AggressiveChain(const FJRPGBattleMenuHero& Hero)
+{
+	if (Hero.Gauge <= 0)
+	{
+		return TArray<EJRPGArtButton>();
+	}
+	// A Hyper / Super de mais AP que o AP e o gauge pagam
+	const FJRPGBattleMenuArt* Best = nullptr;
+	for (const FJRPGBattleMenuArt& Art : Hero.ArtList)
+	{
+		if ((Art.Kind != EJRPGArtKind::Hyper && Art.Kind != EJRPGArtKind::Super) || Art.Buttons.IsEmpty()
+			|| Art.Buttons.Num() > UJRPGArtsRules::MaxChainButtons || Art.AP > Hero.AP || ChainCost(Hero, Art.Buttons) > Hero.Gauge)
+		{
+			continue;
+		}
+		if (!Best || Art.AP > Best->AP)
+		{
+			Best = &Art;
+		}
+	}
+	TArray<EJRPGArtButton> Chain;
+	if (Best)
+	{
+		Chain = Best->Buttons;
+	}
+	FillWithRegularArts(Hero, Chain);
+	return Chain;
+}
+
 FJRPGBattleCommand JRPGBattleTactics::MakeChainCommand(const FJRPGBattleMenuHero& Hero, const TArray<EJRPGArtButton>& Buttons, int32 TargetSlot, int32 PlayerIndex)
 {
 	FJRPGBattleCommand Chosen;
@@ -360,7 +453,7 @@ FJRPGBattleCommand JRPGBattleTactics::ChooseCommand(EJRPGBattleTactic Tactic, co
 	{
 	case EJRPGBattleTactic::Aggressive:
 		{
-			const TArray<EJRPGArtButton> Chain = LongestAffordableChain(Hero);
+			const TArray<EJRPGArtButton> Chain = AggressiveChain(Hero);
 			if (!Chain.IsEmpty())
 			{
 				return MakeChainCommand(Hero, Chain, TargetSlot, PlayerIndex);
@@ -372,7 +465,14 @@ FJRPGBattleCommand JRPGBattleTactics::ChooseCommand(EJRPGBattleTactic Tactic, co
 		return MakeSpiritCommand(Hero, TargetSlot, PlayerIndex);
 	case EJRPGBattleTactic::Standard:
 	default:
-		break;
+		{
+			const TArray<EJRPGArtButton> Chain = StandardChain(Hero);
+			if (!Chain.IsEmpty())
+			{
+				return MakeChainCommand(Hero, Chain, TargetSlot, PlayerIndex);
+			}
+			break;
+		}
 	}
 	return MakeChainCommand(Hero, { EJRPGArtButton::Arms }, TargetSlot, PlayerIndex);
 }
@@ -492,13 +592,9 @@ FJRPGBattleMenuResult FJRPGBattleMenu::PressStart(EJRPGBattleMenuKey Key)
 {
 	if (bAutoPending)
 	{
-		// Na contagem do auto só o Cancel vale: desliga e a Start fica no manual
-		if (Key == EJRPGBattleMenuKey::Cancel)
-		{
-			TurnAutoOff();
-			return Changed(TEXT("Cancel"), EJRPGBattleMenuRequest::AutoOff);
-		}
-		return FJRPGBattleMenuResult();
+		// Na contagem do auto qualquer tecla (as direções, o confirmar, o Cancel) o desliga, e a Start fica no manual
+		TurnAutoOff();
+		return Changed(TEXT("Cancel"), EJRPGBattleMenuRequest::AutoOff);
 	}
 
 	switch (Key)

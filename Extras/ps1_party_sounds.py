@@ -153,7 +153,9 @@ def clips_of(name, player_path, tools, scus):
     def add(label, new, anim_id, rate_scale, buf, entry):
         clips.append({"glb": label, "clip": new, "id": anim_id, "rate_scale": rate_scale,
                       "rate": buf[entry + 0x78], "cues": cue_track(buf, entry),
-                      "beat": buf[entry + 0x10], "lock": buf[entry + 0x76]})
+                      "beat": buf[entry + 0x10], "lock": buf[entry + 0x76],
+                      # O trecho de laço (+0x84 voltas da janela [+0x85, +0x86]; RE battle-action.md)
+                      "loop": (buf[entry + 0x84], buf[entry + 0x85], buf[entry + 0x86])})
 
     for slot, off in enumerate(struct.unpack_from("<12I", record0, 0)):
         if slot in ACTIONS and off:
@@ -301,8 +303,15 @@ def main():
             # Chain Cut: com outra ação na fila, o jogo corta o clip quando o quadro passa do 1º beat
             # + 2 (trava +0x76 em 0; FUN_80047430). Os golpes de direção: beat 7, corte no quadro 10.
             chain_cut = round((c["beat"] + 3) * seconds_per_frame, 4) if not c["lock"] else None
-            manifest["clips"].append({"glb": glb_asset, "clip": clip, "id": "0x%02X" % c["id"],
-                                      "rate_scale": c["rate_scale"], "chain_cut": chain_cut})
+            entry_clip = {"glb": glb_asset, "clip": clip, "id": "0x%02X" % c["id"],
+                          "rate_scale": c["rate_scale"], "chain_cut": chain_cut}
+            # O trecho que o tick repete antes de seguir (FUN_80047430): o cursor que chega a +0x86 volta a +0x85, +0x84 vezes.
+            # Vai como UJRPGAnimNotify_LoopWindow (ue_import_monster_sounds.py); em segundos do asset, como os notifies
+            count, first, last = c["loop"]
+            if count and last > first:
+                entry_clip["loop"] = {"count": count, "start": round(first * seconds_per_frame, 4),
+                                      "end": round(last * seconds_per_frame, 4)}
+            manifest["clips"].append(entry_clip)
             notes = []
 
             is_victory = SPIRIT < c["id"] < ART_STARTER

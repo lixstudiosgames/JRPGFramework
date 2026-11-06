@@ -413,9 +413,10 @@ namespace JRPGBattleUITests
 	{
 		FJRPGBattleMenuHero Hero = MakeHero(0, TEXT("Vahn"), false, 160);
 
-		// Standard: um golpe de Arms (o que o JRPG.Battle.Auto faz)
+		// Standard: o gauge cheio (sem Arts conhecidas, o botão mais barato: 160 / 30 = 5)
 		FJRPGBattleCommand Standard = JRPGBattleTactics::ChooseCommand(EJRPGBattleTactic::Standard, Hero, 3, 0);
-		TestEqual(TEXT("Standard ataca"), AsInt(Standard.Kind), AsInt(EJRPGBattleCommandKind::Attack));
+		TestEqual(TEXT("Standard vai como Arts"), AsInt(Standard.Kind), AsInt(EJRPGBattleCommandKind::Arts));
+		TestEqual(TEXT("com o gauge cheio"), Standard.ArtBytes.Num(), 5);
 		TestEqual(TEXT("no alvo dado"), Standard.TargetSlot, 3);
 		TestEqual(TEXT("do slot dele"), Standard.Slot, 0);
 		TestEqual(TEXT("com o jogador que mandou"), Standard.PlayerIndex, 0);
@@ -455,6 +456,26 @@ namespace JRPGBattleUITests
 		TestTrue(TEXT("sem gauge o auto não inventa uma cadeia sem limite"), JRPGBattleTactics::LongestAffordableChain(Hero).IsEmpty());
 		Hero.Gauge = 1000;
 		TestEqual(TEXT("o teto é de 16 botões"), JRPGBattleTactics::LongestAffordableChain(Hero).Num(), UJRPGArtsRules::MaxChainButtons);
+
+		// A Standard põe várias Arts Regulares: 102 + nada de 72 no que sobra (58), e um Arms
+		Hero.Gauge = 160;
+		TestTrue(TEXT("Standard: a Art mais longa e o resto"), JRPGBattleTactics::StandardChain(Hero) == TArray<EJRPGArtButton>({ Ar, Ar, Se, Ar }));
+		Hero.Gauge = 240;
+		TestTrue(TEXT("Standard com mais gauge: duas Arts (102 + 102) e um Arms"),
+			JRPGBattleTactics::StandardChain(Hero) == TArray<EJRPGArtButton>({ Ar, Ar, Se, Ar, Ar, Se, Ar }));
+		// A Aggressive: a Hyper / Super de mais AP que o AP paga, depois a Standard
+		FJRPGBattleMenuArt Hyper;
+		Hyper.Kind = EJRPGArtKind::Hyper;
+		Hyper.AP = 30;
+		Hyper.bCost = true;
+		Hyper.Buttons = { Se, Se, Ar };
+		Hero.ArtList.Add(Hyper);
+		Hero.AP = 10;
+		TestTrue(TEXT("sem AP para a Hyper, a Aggressive é a Standard"), JRPGBattleTactics::AggressiveChain(Hero) == JRPGBattleTactics::StandardChain(Hero));
+		Hero.AP = 50;
+		const TArray<EJRPGArtButton> Aggro = JRPGBattleTactics::AggressiveChain(Hero);
+		TestTrue(TEXT("a Hyper primeiro"), Aggro.Num() >= 3 && Aggro[0] == Se && Aggro[1] == Se && Aggro[2] == Ar);
+		Hero.Gauge = 1000;
 
 		// Um botão só: Arms é o Attack do núcleo; qualquer outro é Arts
 		TestEqual(TEXT("Arms sozinho é Attack"), AsInt(JRPGBattleTactics::MakeChainCommand(Hero, { Ar }, 3, 0).Kind), AsInt(EJRPGBattleCommandKind::Attack));
@@ -514,7 +535,7 @@ namespace JRPGBattleUITests
 		TestTrue(TEXT("completo"), Plan.IsComplete());
 		TestEqual(TEXT("Vahn: a Art conhecida mais Arms"), AsInt(Plan.Entries[0].Kind), AsInt(EJRPGBattleCommandKind::Arts));
 		TestTrue(TEXT("Arms, Arms, Ra-Seru, Arms"), Plan.Entries[0].ArtBytes == UJRPGArtsRules::EncodeArtBytes({ Ar, Ar, Se, Ar }));
-		TestEqual(TEXT("Noa: Standard ataca"), AsInt(Plan.Entries[1].Kind), AsInt(EJRPGBattleCommandKind::Attack));
+		TestEqual(TEXT("Noa: Standard enche o gauge"), AsInt(Plan.Entries[1].Kind), AsInt(EJRPGBattleCommandKind::Arts));
 		TestEqual(TEXT("Gala: Defensive faz Spirit"), AsInt(Plan.Entries[2].Kind), AsInt(EJRPGBattleCommandKind::Guard));
 		for (const FJRPGBattleCommand& Entry : Plan.Entries)
 		{
@@ -522,7 +543,7 @@ namespace JRPGBattleUITests
 			TestEqual(TEXT("com o jogador local"), Entry.PlayerIndex, 0);
 		}
 
-		// A próxima rodada: as táticas e o auto PERSISTEM; a Start mostra a contagem e só o Cancel vale nela
+		// A próxima rodada: as táticas e o auto PERSISTEM; a Start mostra a contagem
 		FJRPGBattleMenuContext Next = Ctx;
 		Next.Round = 2;
 		Next.Enemies[0].bAlive = false;   // a Frog A caiu: o alvo do auto passa a ser a B
@@ -531,17 +552,14 @@ namespace JRPGBattleUITests
 		TestTrue(TEXT("e na contagem"), Menu.IsAutoPending());
 		TestEqual(TEXT("a tática persistiu"), static_cast<int32>(Menu.GetTactic(FName("Vahn"))), static_cast<int32>(EJRPGBattleTactic::Aggressive));
 		TestTrue(TEXT("a view mostra a contagem"), Menu.BuildViewJS(TEXT("")).Contains(TEXT("autobattle:{on:true,pending:true}")));
-		Menu.Press(EKey::Left);
-		TestEqual(TEXT("na contagem o Begin não vale"), AsInt(Menu.GetScreen()), AsInt(EScreen::Start));
-		TestEqual(TEXT("nem o Escape"), AsInt(Menu.Press(EKey::Right).Request), AsInt(EJRPGBattleMenuRequest::None));
-		TestTrue(TEXT("o plano segue vazio de escolhas"), !Menu.GetPlan().IsComplete());
 		TestTrue(TEXT("o auto da rodada 2"), Menu.PlanAuto());
 		TestEqual(TEXT("agora na Frog B (slot 4)"), Menu.GetPlan().Entries[1].TargetSlot, 4);
 
-		// O Cancel na contagem desliga o auto e deixa a Start no manual, com as táticas guardadas
+		// Qualquer tecla na contagem (uma direção também) desliga o auto e deixa a Start no manual, com as táticas guardadas
 		Menu.BeginRound(Next);
 		TestTrue(TEXT("na contagem de novo"), Menu.IsAutoPending());
-		TestEqual(TEXT("o Cancel desliga o auto"), AsInt(Menu.Press(EKey::Cancel).Request), AsInt(EJRPGBattleMenuRequest::AutoOff));
+		TestEqual(TEXT("uma direção desliga o auto"), AsInt(Menu.Press(EKey::Right).Request), AsInt(EJRPGBattleMenuRequest::AutoOff));
+		TestEqual(TEXT("e fica na Start"), AsInt(Menu.GetScreen()), AsInt(EScreen::Start));
 		TestFalse(TEXT("auto desligado"), Menu.IsAutoOn());
 		TestFalse(TEXT("sem contagem"), Menu.IsAutoPending());
 		TestEqual(TEXT("as táticas ficaram para a próxima vez"), static_cast<int32>(Menu.GetTactic(FName("Vahn"))), static_cast<int32>(EJRPGBattleTactic::Aggressive));

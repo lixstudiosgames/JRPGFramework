@@ -5,6 +5,8 @@
 #include "Arts/ArtsData.h"
 #include "HeroBattleData.generated.h"
 
+class USoundBase;
+
 /**
  * FJRPGRaSeruTierData
  * O ATK do Ra-Seru de um herói, por tier (linha da DataTable DT_RaSeruTiers, gerada por
@@ -254,4 +256,97 @@ struct JRPGFRAMEWORK_API FJRPGArtCameraTrackData : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Camera")
 	int32 Value1 = 0;
+};
+
+/**
+ * Uma linha do DT_BattleVoices (Extras/ps1_battle_voices.py, do disco do usuário): os bancos de voz de CD-XA de um herói na
+ * luta, fora da trilha de som dos clips. RowName = o herói ("Vahn", o do DT_Characters). O índice de cada array é o canal do
+ * XA: o grito das Arts (XA2 / XA4 / XA6, 16 canais), a fanfarra do SpecialStarter (XA1 / XA3 / XA5, 8 canais). Os Seconds são
+ * o trecho que o drive do original lê para aquele canal (a conta da SCUS, dur / 60 s): o tempo em que a voz ocupa o drive e o
+ * slow do grito dura. Quem toca e quando: FJRPGBattleVoices (Docs/Guides/AUDIO.md › Battle voices).
+ */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGBattleVoiceBankData : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Battle Voices")
+	FName Character;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Battle Voices")
+	TArray<TSoftObjectPtr<USoundBase>> Shouts;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Battle Voices")
+	TArray<float> ShoutSeconds;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Battle Voices")
+	TArray<TSoftObjectPtr<USoundBase>> Fanfares;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Battle Voices")
+	TArray<float> FanfareSeconds;
+
+	/** O canal da fanfarra da Super, da Miracle e da Art nova (o 0x101 / 0x111 / 0x121 do original: canal 1). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Battle Voices", meta = (ClampMin = "0"))
+	int32 GenericFanfareChannel = 1;
+
+	/** O grunhido do herói quando o golpe dele é bloqueado (XA30). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Battle Voices")
+	TSoftObjectPtr<USoundBase> BlockGrunt;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Battle Voices")
+	float BlockGruntSeconds = 0.5f;
+
+	/**
+	 * O som que uma finalização de Super com outra coisa depois toca no lugar do grito (FUN_8004C140 com flag != 0 na segunda
+	 * metade: Vahn 0x51, Noa 0xAD, Gala 0x58). Um efeito comum, não voz: não ocupa o drive.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Battle Voices")
+	TSoftObjectPtr<USoundBase> FinisherCue;
+
+	/** O clip do SpecialStarter liga a trava do grito (o byte +0x87 dele): a Art seguinte grita com os candidatos ShoutLatched. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Battle Voices")
+	bool bSpecialStarterLatch = true;
+};
+
+/**
+ * Uma linha do DT_ArtVoices (Extras/ps1_battle_voices.py): os canais candidatos do grito de uma Art e o par da fanfarra da
+ * Hyper. RowName = a Art (a do DT_Arts). O original sorteia um canal da lista, sem repetir o último que saiu (de qualquer herói).
+ * A lista depende do que vem em volta: ShoutLatched com a trava ligada (o clip antes era o SpecialStarter ou uma finalização),
+ * ShoutFollowed com outra coisa depois da Art na fila do turno, Shout quando ela fecha a fila. Lista vazia = não grita.
+ */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGArtVoiceData : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Voices")
+	FName Character;
+
+	/** A constante da Art no original (a do DT_Arts), só para referência. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Voices")
+	int32 ActionConstant = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Voices")
+	TArray<int32> Shout;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Voices")
+	TArray<int32> ShoutFollowed;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Voices")
+	TArray<int32> ShoutLatched;
+
+	/**
+	 * A tabela das finalizações das Supers (a segunda metade do original): uma só lista (Shout), sem variante pela trava; com
+	 * outra coisa depois da Art, toca o FinisherCue do herói no lugar do grito.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Voices")
+	bool bFinisherTable = false;
+
+	/** O clip desta Art liga a trava do grito para o commit seguinte (o byte +0x87: as finalizações das Supers). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Voices")
+	bool bRaisesLatch = false;
+
+	/** Hyper: os dois canais da fanfarra do SpecialStarter, um cara ou coroa a cada vez (sem memória). Vazio = nenhuma. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Voices")
+	TArray<int32> Fanfare;
 };

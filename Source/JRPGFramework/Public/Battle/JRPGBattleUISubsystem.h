@@ -26,7 +26,7 @@ class UWebUISubsystem;
  * jogador dá o Begin da tela Final, uma a uma, em ordem, COM O JOGADOR LOCAL (regra 22: o núcleo confere o dono do slot).
  *
  * Auto-battle: o menu guarda uma tática por herói pela luta toda. Com o auto ligado, cada fase de comandos mostra a tela Start
- * com a contagem de AutoStartDelay segundos; passada ela, a rodada sai pelas táticas. O Cancel na contagem desliga o auto.
+ * com a contagem de AutoStartDelay segundos; passada ela, a rodada sai pelas táticas. Qualquer tecla na contagem desliga o auto.
  *
  * O prompt de debug na tela (e os comandos JRPG.Battle.*) continuam funcionando: o prompt só é escondido enquanto a UI está
  * de pé (UJRPGBattleSceneSubsystem::SetDebugPromptSuppressed). Docs/Guides/BATTLE.md › Battle UI.
@@ -56,9 +56,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle UI")
 	int32 LocalPlayerIndex = 0;
 
-	/** Segundos da contagem do auto na tela Start antes de a rodada sair sozinha (dá tempo de cancelar). */
+	/** Segundos da contagem do auto na tela Start antes de a rodada sair sozinha (dá tempo de cancelar com qualquer tecla). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle UI", meta = (ClampMin = "0.0"))
-	float AutoStartDelay = 1.2f;
+	float AutoStartDelay = 3.0f;
 
 protected:
 	virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;

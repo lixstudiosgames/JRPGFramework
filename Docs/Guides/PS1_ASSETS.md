@@ -286,7 +286,9 @@ py "<repo>/Extras/ue_import_monster_sounds.py" "<...>/exports/sounds/Sounds" Vah
 ```
 
 `Party/<Name>/sounds.json` carries, besides the notifies, a `clips` list the editor script
-applies first: each clip gets **the name of what it is** and the **game's speed**.
+applies first: each clip gets **the name of what it is** and the **game's speed**, its Chain Cut and,
+when the disc entry has one, its **loop window** (`+0x84` loops of frames `[+0x85, +0x86]`, as a
+`UJRPGAnimNotify_LoopWindow` on the track "Loop": the SpecialStarter's crouch hold, the win poses).
 
 | Record | Name | RateScale |
 |---|---|---|
@@ -316,7 +318,36 @@ Sounds (`FUN_8004FE5C` on a party slot):
   the table at SCUS `0x80078867 + action + character·8` gives (clip = byte − 1), and the pose's
   `0xA1` plays it — `SW_<Name>_VictoryVoice<clip>`, at that frame.
 - Not on the clips: the voice and fanfare an Art's execution picks (`FUN_8004C140`), and the
-  Spirit flourish (`0x10` → `0x11`) playing `0xA1` from the monster's bank.
+  Spirit flourish (`0x10` → `0x11`) playing `0xA1` from the monster's bank. The first two come
+  from `ps1_battle_voices.py`, below.
+
+### The battle voices (Arts shout, starter fanfare, block grunt)
+
+The CD-XA voices the fight picks at run time, outside the clips' cue tracks. Same `exports/xa`
+demux:
+
+```bash
+python Extras/ps1_battle_voices.py --extracted extracted --tools <tools> --xa exports/xa --out exports/sounds/Sounds
+```
+
+```
+py "<repo>/Extras/ue_import_battle_voices.py" "<...>/exports/sounds/Sounds"
+```
+
+Then import `Docs/Data/DT_BattleVoices.csv` (Row Struct `FJRPGBattleVoiceBankData`) and
+`Docs/Data/DT_ArtVoices.csv` (`FJRPGArtVoiceData`) into `/Game/Data/`.
+
+| Asset | Source | What |
+|---|---|---|
+| `Party/<Name>/Voices/SW_<Name>_Shout00..15` | XA2 / XA4 / XA6, 16 mono channels | the Arts shout bank |
+| `Party/<Name>/Voices/SW_<Name>_Fanfare0..7` | XA1 / XA3 / XA5, 8 stereo channels | the SpecialStarter fanfare (channel 1 = Super / Miracle / new Art; Hypers use a pair) |
+| `Party/<Name>/Voices/SW_<Name>_BlockGrunt` | XA30 channel 0 / 4 / 6 | the hero's grunt when their strike is blocked |
+| `Battle/Sounds/Common/SW_Battle_Cue51` / `CueAD` / `Cue58` | static table / `bse.dat` | what a Super finisher plays instead of a shout when something follows it |
+
+Each WAV is cut at the span the original's drive reads for that channel (the SCUS duration tables,
+`dur / 60` s), which is also the `Seconds` column the fight uses. `DT_ArtVoices` has one row per Art
+(keyed like `DT_Arts`): the shout's candidate channels in three variants and the Hyper's fanfare
+pair. How they are used: [`AUDIO.md` › Battle voices](AUDIO.md#4-battle-voices-and-battle-music).
 
 ---
 

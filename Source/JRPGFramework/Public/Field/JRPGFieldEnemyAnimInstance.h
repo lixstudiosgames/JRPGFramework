@@ -35,6 +35,10 @@ struct FJRPGCrossfadeLayer
 	bool bLooping = true;
 	/** O número do pedido que o pôs a tocar (UJRPGFieldEnemyAnimInstance::GetRequestSerial): o mesmo clip pedido de novo recomeça. */
 	int32 Serial = 0;
+	/** O trecho que o clip repete antes de seguir (UJRPGAnimNotify_LoopWindow): começo, fim (segundos) e voltas que faltam (0 = nenhuma). */
+	float LoopStart = 0.0f;
+	float LoopEnd = 0.0f;
+	int32 LoopsLeft = 0;
 	FMarkerTickRecord Marker;
 	FDeltaTimeRecord DeltaRecord;
 };
@@ -89,6 +93,12 @@ public:
 	float GetRequestedBlendTime() const { return RequestedBlendTime; }
 	bool GetRequestedLooping() const { return bRequestedLooping; }
 	int32 GetRequestSerial() const { return RequestSerial; }
+
+	/**
+	 * O clip que toca agora: o tempo dele (segundos do asset, já com as voltas do trecho de laço) e as voltas que faltam (o +0x21B do
+	 * original, que a câmera própria das Arts lê). Falso sem clip.
+	 */
+	bool GetCurrentClipCursor(const UAnimSequence* Clip, float& OutSeconds, int32& OutLoopsLeft, bool& bOutHasLoopWindow) const;
 
 protected:
 	virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override;

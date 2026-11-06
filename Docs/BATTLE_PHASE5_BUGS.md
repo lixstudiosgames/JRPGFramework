@@ -584,6 +584,162 @@ tables of 1c first.
 44. **Noa sprinted much too fast on her approach run, once.** Not reproduced. Watch: note the Art / command, the target and whether
     the formation recentre or the make-way ran at the same moment (a slide added to the walk would look like a sprint).
 
+#### Pass 10 (2026-11-06) — after the sounds step (4)
+
+45. **Vahn shakes a little after a flinch** (clearer with motion blur). Cause found: at the flinch's end the end step (Vahn high flinch
+    `-159` units) slides during the blend to the idle; the slide moved once per logic frame (60 Hz, coarser in the Arts slow) while the
+    pose blend moves every rendered frame, so the body stepped against a smooth blend. **Fixed:** `AJRPGBattlePawn::Tick` moves the
+    slide between logic frames on world time (the blend's clock).
+46. **Battle music: another part of the track seems to play underneath.** Not found: one BGM component plays at a time (log), the
+    cue is `Concatenator(Intro, Loop)` (one child at a time in the engine source), and the render's reverb is the original's Studio C
+    (short). **To check:** play `BGM_2026_Battle1_Intro` and `_Loop` alone in the Content Browser: if one of them has it, it is the
+    render (the RE engine's sequencer); if not, it is the cue.
+47. **Hyper: the voice comes after the animation.** Cause: the XA channels open with ~0.15 s of silence (the CD wait) and the fanfares
+    up to 0.31 s, and `FJRPGBattleVoices` added its own 0.15 s on top. **Fixed:** `ps1_battle_voices.py` trims the leading silence (10 ms
+    kept), `VoiceLatencySeconds` is 0.05 (tune it on the arena).
+48. **A dying monster fades out with no sound.** The RE knows no sound of its own there (the knockdown clip's cry and thud are the
+    death sound, and they are notifies). Our addition: `AJRPGBattlePawn::DeathFadeSound` (optional, empty). The fade itself now shows:
+    `M_PS1Monster` had no `JRPGDeathFade`, so the body only sank; the material now dithers its opacity mask by it.
+49. **Combatants near the camera block the shot.** **Done:** the original's near-camera ghost (`FUN_8004DC68`) in
+    `UJRPGBattleSceneSubsystem::UpdateCameraGhost`: during an action, a body (not the actor nor its target) within `dist / 4` of the
+    point `dist * 25 / 128` in front of the focus fades to `CameraGhostOpacity` (0.3) through `JRPGCameraGhost` on `M_PS1Monster`
+    (dithered mask). Arena: `bCameraGhost`, `CameraGhostOpacity`, `CameraGhostPullBack`, `CameraGhostRadius`, `CameraGhostFadeSeconds`.
+
+- **User re-test (2026-11-06, pass 10):** 45 fixed; the known-Art shout, the block grunt, the field music coming back, the death fade
+  (48) all work. 46: the "beats underneath" are in Battle theme 1 only, and the original has them too.
+
+#### Pass 11 (2026-11-06)
+
+50. **Battle music from the user's album** (`D:\JOGOS\PROJETO LEGAIA\AUDIO\MUSIC\OG`, fuller than the game's sequencer). **Done:**
+    `ps1_battle_music.py --ost <folder>` takes the album WAV of each track (its number is the sound-test index), finds the loop on it
+    (the score's loop start / length, refined by the envelope correlation: the album runs up to ~0.4 % off the score's clock) and
+    crossfades the Loop's last 50 ms into what precedes its start (a recording does not repeat sample for sample).
+    `DT_BattleMusic` points at `BGM_OST_<id>_<Name>_Intro / _Loop`; the rendered ones were deleted. Found on the way: the loop length
+    was converted from ms with the 44-sample envelope hop instead of 44.1, so every rendered loop was 0.23 % short (~120 ms on Battle
+    theme 1), a jump at each seam. Fixed for both modes.
+51. **Hyper voice still a little late.** The step commit was read before the pawn played the logic frame (the voice started one
+    logic frame after the clip). **Fixed:** `CommitActingSteps` runs after `UpdatePlayback`; `VoiceLatencySeconds` is 0 by default.
+52. **New Art: after the starter the Art plays too fast, and the starter itself was a little slower in the original.** In the original
+    the whole fight slows while the CD reads any voice: on a new Art that is the starter's fanfare and the Art's own shout right
+    after it (under the latch). **Fixed:** for a newly learned Regular Art both open the shout slow for their read span. Super,
+    Miracle and Hyper still do not (bug 41).
+53. **The dying monster makes a sound as it fades into the ground in the original; ours is silent** (user correction: not the
+    Seru absorb). Cause, read from the RE (no capture): the monster-death arm of the commit (`FUN_8004AD80`, `0x8004B094..0x8004B6A0`)
+    re-installs the knockdown entry held on its last frame, and every commit zeroes the cue cursor `+0x1F6` (`0x8004AFD0`), so the
+    next frame's cue walk fires the whole knockdown track at once (the cry and the thud) as the fade starts. **Fixed:**
+    `AJRPGBattlePawn::bReplayKnockdownSoundsOnDeath` (on) replays the knockdown clip's `PlaySound` notifies at `BeginDeathFade`,
+    skipping a sound equal to the one before it (the router's rule). `DeathFadeSound` stays as an optional extra.
+54. **The camera ghost should be see-through, not dithered,** and it should also work on the command / Attack / Spirit screens when
+    the camera stands beside an enemy. **Fixed:** with `AJRPGBattleArena::CameraGhostMaterial` set (`M_PS1MonsterTranslucent`), the
+    ghosting body swaps its materials to translucent copies (texture and emissive carried over, `Opacity` driven) and gets its own
+    back after; without it, the dither stays. `CameraGhostMaterial` is a soft reference whose C++ default is the project's
+    `M_PS1MonsterTranslucent`, so every arena (placed or the provisional one) has it; a project without that asset gets the dither. `bCameraGhostInMenus` (on by default, ours): the ghost also runs outside actions,
+    sparing whoever the shot frames and the cursor's target (`AJRPGBattleCamera::GetShotSlot` / `GetShotTargetSlot`).
+55. **Formation recentre on** (`bRecentreFormation` defaults to true): the battle camera follows `OnFormationShifted`. To test.
+56. **The monster under the target cursor is not lit.** The original (`FUN_801DA6B4`, target-select cursor tint) stamps the pointed
+    monster's colour word `0x20080200` (lanes `0x200`, twice the neutral `0x100`) at full blend `0x1000` while the cursor is up: its
+    texture draws twice as bright, a whitish highlight; the others get blend 0 (unchanged); leaving the cursor clears it. **Done:**
+    `JRPGHighlight` on `M_PS1Monster` adds `body colour x value` to the emissive; `UJRPGBattleSceneSubsystem::UpdateTargetHighlight`
+    sets it on the menu's target-cursor slot (`UJRPGBattleUISubsystem`, screen `Target`) at `AJRPGBattleArena::TargetHighlightStrength`
+    (0.8), 0 on everyone else.
+
+- **User re-test (2026-11-06, pass 11):** the album music is right; the see-through ghost works; the recentre is unnoticeable
+  (good). 53's knockdown replay is **not** the sound: the original plays a different "sucked into the ground" sound as the body sinks.
+
+#### Pass 12 (2026-11-06)
+
+57. **Death sound: still not the original's.** The RE documents no sound in the defeat fade (the engine port only releases the
+    sustained cues there), so it is not identified yet. `bReplayKnockdownSoundsOnDeath` is now off. Every common sound (the
+    static table and the battle bank `bse.dat`) was rendered to `LegaiaRE/exports/sounds/Audition/` (`Static_<id>`,
+    `BattleBank_cue<id>`) for the user to find it. **Found by ear:** static table row `0x0D` (sound id `0x0E`, battle bank),
+    imported as `/Game/Legaia/Battle/Sounds/Common/SW_Battle_Cue0E`; `AJRPGBattlePawn::DeathFadeSound` is now a soft reference
+    with that sound as its C++ default, played as the body starts to fade and sink. Who rings it in the original is still unknown.
+58. **The ghost shows on Begin / Escape / Reselect.** **Fixed:** outside actions it only runs on the hero's menu shots (Command,
+    Attack, Spirit: `Member`) and the target cursor (`TargetEnemy`); the far shot of Begin / Escape / Reselect never ghosts.
+59. **The ghost misses a big monster in front of the camera on Attack / Spirit** (screenshot: the command close-up with a monster
+    between the camera and Vahn). The original's test (a point on the view axis, `dist / 4`) uses the body centre, far from that
+    point while the mesh covers the screen. **Fixed (ours, menus only):** an occlusion test: the body's bounds (largest planar
+    extent x `CameraGhostMenuBodyScale`, 0.8) cross the eye-to-focus line between the two, or hold the eye. Actions keep the
+    original's rule.
+60. **Hyper alone: the Art after the starter runs ahead and the voice lags** (inside a chain it looked right). Reading: in the
+    original the whole fight slows while the CD reads a voice, and a Hyper fanfare reads 5 to 7 s; ours opened no slow for it, so
+    the dash and the Art ran at full speed under a voice timed for the slowed game. **Fixed:** which voices open the shout slow is
+    per kind on the arena: `bShoutSlowKnownArt`, `bShoutSlowNewArt`, `bShoutSlowHyper` (on) and `bShoutSlowSuperMiracle` (off, bug 41).
+
+- **User re-test (2026-11-06, pass 12):** the death sound (`SW_Battle_Cue0E`) is right.
+
+#### Pass 13 (2026-11-06)
+
+61. **The SpecialStarter dash holds longer in the original before the Art starts** (measured side by side from recordings: Tornado
+    Flame started a little early in ours). Cause: every action entry has a **loop window** (RE battle-action.md: `+0x84` = loop
+    count, `[+0x85, +0x86]` = the frames; the anim tick `FUN_80047430` rewinds the cursor from `+0x86` to `+0x85` that many times).
+    Vahn's SpecialStarter repeats frames 13..14 **5 times** (the crouch hold), Noa's 7..8 twice, Gala's none; also Burning Flare
+    (5), Super Tempest and Neo Static Raising (2), UseItem (10), the win poses (255 = until the clip changes). Our clips played once.
+    **Fixed:** `UJRPGAnimNotify_LoopWindow` (notify state over the window, `Loops`), exported by `ps1_party_sounds.py` (`loop` in
+    the clip list) and placed by `ue_import_monster_sounds.py` (track "Loop"); `UJRPGFieldEnemyAnimInstance` rewinds the window
+    (overshoot kept, as the original); the battle `ClipTiming` adds the loops to the step's length (255 not counted). Monster
+    entries are not read yet.
+62. **The dash camera stood on the other side** (Tornado Flame starter: right of Vahn in the original, left in ours). The per-Art
+    camera's dash arm picks its framing by the loop counter (`+0x21B`, `Select`): ours estimated it from the clip's progress, since
+    the clip did not loop. **Fixed:** it reads the real loops left and the real cursor (`AJRPGBattlePawn::GetPlayingClipCursor`).
+    Note: the arm also has two variants by a per-action coin flip (the `DT_ArtCamera` column), so the side can differ between two
+    runs of the original too.
+63. **AGL grows too slowly** (Vahn 209 at level 56 set from the dev menu; the max arts blocks should come by ~54-59 without Spirit).
+    Cause: AGL divides by `0x18C0` (6336), not `0x24C0` like the other stats (RE level-up.md, `0x801E98C8..0x801E9980`; three retail
+    anchors, Vahn 115 / 130 / 145 at levels 6 / 11 / 16, match it), so it grows ~1.5x its span and stops at the 280 cap long before
+    99. Also the jitter is added before the `max(1, ...)` floor, not after. **Fixed** in `UCoreSubsystem::GetStatGainRaw` /
+    `RollStatGain`: Vahn 262 at 56 (cap at 74), Noa caps at 54, Gala 251 at 56, Terra caps at 69. Stats already stored in a save
+    keep their old values until levelled again.
+
+- **User re-test (2026-11-06, pass 13):** with the loop window the dash now holds as long as the original, but the starter and the
+  Art after it (Hyper and a new Art) became far too slow. The extra slows of bugs 52 and 60 were the wrong fix for what the loop
+  window explains: `bShoutSlowNewArt` and `bShoutSlowHyper` are now **off** by default (only the known-Art shout slow stays on), back
+  to the pacing the user had found right, plus the loop window.
+
+- **User re-test (2026-11-06, slows off):** Frost Breath, Tornado Flame and Gala's Hypers are right; Vulture Blade, Hurricane Kick
+  and Burning Flare still have the voice a little off.
+
+#### Pass 14 (2026-11-06)
+
+64. **The special latch held for every Art after the SpecialStarter.** The `0x1A` raises `ctx[+0x243]` (its clip's `+0x87`), and
+    the Art commit halves the speed while it is set; but every commit rewrites the latch with its own clip's `+0x87`, which is 0
+    for an ordinary Art and 2 only for a Super finisher. So only the **first** Art after the starter runs at 2, the next back at 4,
+    unless the one before was a finisher. Ours kept 2 for all: Hurricane Kick's second kick (`1E`) ran at half speed. **Fixed** in
+    the resolver and `UJRPGArtSequenceLibrary::ApplyGameSpeeds` (`RaisesSpecialLatch`, from `DT_ArtVoices::bRaisesLatch`, Parts as
+    the fallback); a swing or an ArtStarter drops the latch too. **Also changes the Miracle:** its inner Arts after the first now
+    run at 4, as the RE reads; to check by ear.
+65. **`AS_Noa_Battle_HurricaneKick3` was baked at rate 2, the disc says 3** (1.133 s = 25.5 disc frames at rate 3, 17 at rate 2):
+    it played 1.5x too slow. **Fixed:** `UJRPGArtSequenceLibrary::AssetRateCorrection` (the rate at which the asset length is a whole
+    number of disc frames) speeds the clip up in the pawn and shortens it in `ClipTiming`. The other Hypers' assets match the disc.
+66. **Vulture Blade and Burning Flare: voice still a little off.** Nothing found in the data: their assets match the disc rate,
+    Vulture Blade has no loop window, Burning Flare's (5 loops of frames 9..10) is the disc's. To re-test after 64 / 65; if still
+    off, say whether the voice is early or late and by how much (a recording is enough), and which voice (the starter's fanfare
+    or a shout inside the Art).
+67. **During the crouch of a new Art / Hyper, the enemy in front of the lens is not ghosted** (the target never ghosts in the
+    original's rule). **Fixed (ours):** while the per-Art camera runs, the menus' occlusion test runs too and spares only the actor:
+    the target between the lens and the hero fades as well.
+
+- **User re-test (2026-11-06, pass 14):** 29 was the missing flinch, closed (fixed by 40). 36 and 44 have not happened again: kept
+  to watch. Vulture Blade and Burning Flare are right now. Hurricane Kick is still slow (the voice ahead of it). The Miracle's Arts
+  after the dash became far too fast for all three heroes (the dash itself is right).
+
+#### Pass 15 (2026-11-06)
+
+68. **Miracle too fast after 64.** The RE reading (the latch drops after the first Art) made every inner Art run at 4. **Reverted:**
+    every Art after the SpecialStarter runs at 2 again, as the user had found right; `RaisesSpecialLatch` stays unused.
+69. **Hurricane Kick still slow.** With its second kick already sped up (65) and the latch reverted, the slow part is the first kick
+    (`0x1D`, `AS_Noa_Battle_HurricaneKick2`). Its length is a whole number of disc frames at both rate 2 and rate 3, so a bake at
+    the wrong rate (like `HurricaneKick3`) cannot be detected from the length. **Data fix:** `noa_hurricane_kick.SpeedScale = 3` in
+    `DT_Arts` (2 x 1.5, the same effective speed as the corrected third kick). Tunable in the editor without a build.
+70. **Ghost misses some enemies and flickers on and off.** **Fixed:** the occlusion test (the body's bounds on the eye-to-focus line)
+    now also runs during actions, beside the original's point test, so a big monster whose centre is far from that point still
+    ghosts; a body that enters the ghost stays at least `CameraGhostHoldSeconds` (0.6 s), and the test to leave is 15 % wider.
+71. **Tactics: Standard gave one strike per hero; Aggressive should go for Hypers and Supers.** **Done:** Standard fills the gauge with
+    known Regular Arts one after another (the longest that fits first), then the cheapest button; Aggressive first takes the Hyper /
+    Super of most AP that the hero's AP and gauge pay for, then fills like Standard. Defensive is still Spirit.
+72. **Auto-battle: the countdown was too short to cancel, and only clicking the button cancelled it** (the directions did nothing,
+    so it looped for ever). **Fixed:** any key in the countdown turns the auto off (back to the manual Start); `AutoStartDelay` is 3 s.
+
 #### Backlog (2026-11-05) — noted for later, not started
 
 32. **Full RE sweep of the fight, to make it identical.** Go through the RE inch by inch and list what every piece of the battle

@@ -846,6 +846,8 @@ void AJRPGFieldEnemy::TriggerEncounter()
 	Setup.Enemies = Enemies;
 	// Um inimigo de chefe no Field é uma luta de chefe: a flag vem do DT_Bosses (ver ResolveScriptedFight)
 	Setup.bScriptedFight = UJRPGEncounterLibrary::ResolveScriptedFight(Enemies);
+	Setup.BattleMusic = BattleMusic;
+	Setup.bKeepCurrentMusic = bKeepCurrentMusic;
 	Setup.Location = Info.ContactLocation;
 	// Sem arena, a party olha de quem encostou para o inimigo
 	const APawn* Player = GetPlayerPawn();

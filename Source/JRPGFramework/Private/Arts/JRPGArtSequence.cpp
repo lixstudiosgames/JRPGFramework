@@ -1,4 +1,5 @@
 #include "Arts/JRPGArtSequence.h"
+#include "Battle/HeroBattleData.h"
 #include "Battle/JRPGAnimNotify_ChainCut.h"
 #include "Party/CharacterData.h"
 #include "Core/CoreSubsystem.h"
@@ -189,6 +190,52 @@ bool UJRPGArtSequenceLibrary::AppendArtSteps(FName ArtKey, bool bLeftHanded, boo
 	AddStep(Steps, TEXT("ArtStarter"), LoadHeroClip(Hero, TEXT("ArtStarter")), EJRPGArtStepKind::ArtStarter, ArtKey);
 	AddStep(Steps, Row->DisplayName.ToString(), Row->Anim.LoadSynchronous(), EJRPGArtStepKind::Art, ArtKey);
 	return true;
+}
+
+bool UJRPGArtSequenceLibrary::RaisesSpecialLatch(FName ArtKey)
+{
+	if (const UDataTable* Voices = UCoreSubsystem::ResolveDataTable(TEXT("DT_ArtVoices")))
+	{
+		if (Voices->GetRowStruct() == FJRPGArtVoiceData::StaticStruct())
+		{
+			const FJRPGArtVoiceData* Row = Voices->FindRow<FJRPGArtVoiceData>(ArtKey, TEXT("ArtSequence"), false);
+			return Row && Row->bRaisesLatch;
+		}
+	}
+	const FJRPGArtData* Art = FindArt(ArtKey);
+	return Art && Art->Kind == EJRPGArtKind::Part;
+}
+
+int32 UJRPGArtSequenceLibrary::ArtDiscRate(FName ArtKey)
+{
+	const UDataTable* Hits = UCoreSubsystem::ResolveDataTable(TEXT("DT_ArtHits"));
+	const FJRPGArtHitData* Row = Hits ? Hits->FindRow<FJRPGArtHitData>(ArtKey, TEXT("ArtSequence"), false) : nullptr;
+	return Row ? FMath::Max(Row->Rate, 1) : 0;
+}
+
+float UJRPGArtSequenceLibrary::AssetRateCorrection(const UAnimSequenceBase* Clip, int32 DiscRate)
+{
+	if (!Clip || DiscRate <= 0)
+	{
+		return 1.0f;
+	}
+	auto Whole = [Clip](int32 Rate)
+	{
+		const double Frames = static_cast<double>(Clip->GetPlayLength()) * 7.5 * static_cast<double>(Rate);
+		return FMath::Abs(Frames - FMath::RoundToDouble(Frames)) <= 0.05;
+	};
+	if (Whole(DiscRate))
+	{
+		return 1.0f;
+	}
+	for (int32 Rate = 1; Rate <= 7; ++Rate)
+	{
+		if (Rate != DiscRate && Whole(Rate))
+		{
+			return static_cast<float>(DiscRate) / static_cast<float>(Rate);
+		}
+	}
+	return 1.0f;
 }
 
 void UJRPGArtSequenceLibrary::ApplyGameSpeeds(TArray<FJRPGArtStep>& Steps)

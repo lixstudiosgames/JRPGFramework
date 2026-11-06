@@ -29,9 +29,9 @@
 /** Como um herói luta sozinho no auto-battle (a tela Tactics). Standard é o 0: um herói sem escolha é Standard. */
 enum class EJRPGBattleTactic : uint8
 {
-	/** O que o JRPG.Battle.Auto faz: um golpe de Arms no inimigo vivo de menor slot. */
+	/** Enche o gauge de Arts Regulares conhecidas (várias, a mais longa que couber primeiro), o resto com o botão mais barato. */
 	Standard,
-	/** Gasta o gauge na cadeia mais longa que cabe (uma Art conhecida, completada com o botão mais barato). */
+	/** A Hyper / Super de mais AP que o AP e o gauge pagam, e o resto como a Standard. Sem nenhuma, a Standard. */
 	Aggressive,
 	/** Seguro: o Spirit (Guard): defesa x3 nesta rodada, gauge estendido na próxima, AP. */
 	Defensive
@@ -221,8 +221,9 @@ namespace JRPGBattleTactics
 	JRPGFRAMEWORK_API const TCHAR* Name(EJRPGBattleTactic Tactic);
 
 	/**
-	 * O comando que um herói dá com esta tática. Standard: um golpe de Arms no alvo. Aggressive: a cadeia mais longa que cabe
-	 * no gauge (ver LongestAffordableChain). Defensive: o Spirit (MakeSpiritCommand).
+	 * O comando que um herói dá com esta tática. Standard: o gauge cheio de Arts Regulares (StandardChain). Aggressive: a Hyper /
+	 * Super que paga, e o resto como a Standard (AggressiveChain). Defensive: o Spirit (MakeSpiritCommand). Sem gauge (ou sem pagar
+	 * nem um botão), um golpe de Arms.
 	 */
 	JRPGFRAMEWORK_API FJRPGBattleCommand ChooseCommand(EJRPGBattleTactic Tactic, const FJRPGBattleMenuHero& Hero, int32 TargetSlot, int32 PlayerIndex);
 
@@ -233,6 +234,18 @@ namespace JRPGBattleTactics
 	 * TODO: as Hyper / Super / Miracle (gastam AP) entram quando o auto souber conferir o AP da cadeia.
 	 */
 	JRPGFRAMEWORK_API TArray<EJRPGArtButton> LongestAffordableChain(const FJRPGBattleMenuHero& Hero);
+
+	/**
+	 * A Standard: Arts Regulares conhecidas uma atrás da outra (a mais longa que cabe no gauge que sobra; empate, a que gasta mais),
+	 * enquanto couberem, e o resto com o botão mais barato; até 16 botões. Vazia sem gauge.
+	 */
+	JRPGFRAMEWORK_API TArray<EJRPGArtButton> StandardChain(const FJRPGBattleMenuHero& Hero);
+
+	/**
+	 * A Aggressive: a Hyper / Super conhecida de mais AP que o AP do herói e o gauge pagam, seguida do que a Standard põe no gauge
+	 * que sobra. Sem nenhuma que pague, a Standard.
+	 */
+	JRPGFRAMEWORK_API TArray<EJRPGArtButton> AggressiveChain(const FJRPGBattleMenuHero& Hero);
 
 	/**
 	 * Os botões como comando: um Arms sozinho é o Attack do núcleo (o golpe de Arms); qualquer outra coisa é Arts com os

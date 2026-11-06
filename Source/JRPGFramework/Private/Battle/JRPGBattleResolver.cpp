@@ -2,6 +2,7 @@
 #include "Battle/BattleFormulas.h"
 #include "Arts/JRPGArtsRules.h"
 #include "Arts/ArtsData.h"
+#include "Arts/JRPGArtSequence.h"
 #include "Engine/DataTable.h"
 
 namespace
@@ -1059,6 +1060,8 @@ void FJRPGBattleResolver::ComposeHeroTimeline(const FJRPGCombatant& Hero, const 
 			break;
 		case EJRPGActionStepKind::Art:
 		{
+			// Depois do SpecialStarter, toda Art a 2. (A leitura do RE de que a trava cai no commit seguinte, só a primeira Art a 2,
+			// deixou a Miracle rápida demais no teste do usuário: a regra de antes volta; o SpeedScale da linha afina uma Art só)
 			Step.Speed = bSpecialMode ? 2 : 4;
 			const FJRPGArtData* Row = ArtsTable ? ArtsTable->FindRow<FJRPGArtData>(Step.ArtKey, TEXT("BattleResolver"), false) : nullptr;
 			if (Row && Row->SpeedScale > 0)

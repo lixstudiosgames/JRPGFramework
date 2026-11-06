@@ -573,6 +573,18 @@ struct JRPGFRAMEWORK_API FJRPGBattleSetup
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
 	int32 FormationAdvantage = 0;
+
+	/**
+	 * A música desta luta: o RowName no DT_BattleMusic ("Battle1", "Boss1"...). None = a escolha automática: a do chefe
+	 * (FJRPGBossData::Music), senão a da arena (AJRPGBattleArena::BattleMusic). O original escolhe pelo "sound set" da cena
+	 * (o op 0x35 sub-op 7 do script do Field); -1 mantém o tema que já toca (bKeepCurrentMusic).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	FName BattleMusic;
+
+	/** A luta não mexe na música: a que toca (o tema de um evento, de um chefe) continua (o -1 do original). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	bool bKeepCurrentMusic = false;
 };
 
 /** Um comando, um ponto de entrada: conferido contra quem é dono do slot, nunca confiado (regra 22). */

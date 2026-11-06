@@ -172,6 +172,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy")
 	bool bStartBattle = true;
 
+	/** A música da luta deste inimigo (RowName no DT_BattleMusic; FJRPGBattleSetup::BattleMusic). None = a automática. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Sound")
+	FName BattleMusic;
+
+	/** A luta mantém a música que toca (o tema de um chefe ou evento; FJRPGBattleSetup::bKeepCurrentMusic). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Sound")
+	bool bKeepCurrentMusic = false;
+
 	/**
 	 * Grupo misto: vários inimigos, pesos, quantidades. Preenchido, substitui o Enemy acima (o
 	 * modelo passa a ser o do inimigo principal daqui).

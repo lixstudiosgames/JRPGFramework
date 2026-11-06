@@ -110,7 +110,9 @@ JRPGFramework/
 │   │   │
 │   │   ├── Audio/ ✅                            ← AUDIO COMPLETE
 │   │   │   ├── AudioSubsystem.h ✅              ← BGM persisting across maps with crossfade +
-│   │   │   │                                       4 volume channels (with effective getters)
+│   │   │   │                                       4 volume channels (with effective getters),
+│   │   │   │                                       intro + loop music (GetIntroLoopSound)
+│   │   │   ├── BattleMusicData.h 🟡             ← FJRPGBattleMusicData (DT_BattleMusic: the battle tracks)
 │   │   │   └── JRPGSettingsSave.h ✅            ← settings USaveGame (slot "JRPGSettings")
 │   │   │
 │   │   ├── Party/ ✅
@@ -169,7 +171,9 @@ JRPGFramework/
 │   │       │                                       hit frames, power bytes, AGL cost, rate)
 │   │       ├── HeroBattleData.h ✅              ← FJRPGRaSeruTierData (DT_RaSeruTiers), FJRPGWeaponCostData
 │   │       │                                       (DT_WeaponCosts), FJRPGHeroSwingData (DT_HeroSwings),
-│   │       │                                       FJRPGHeroReactionData (DT_HeroReactions)
+│   │       │                                       FJRPGHeroReactionData (DT_HeroReactions), FJRPGArtCameraTrackData
+│   │       │                                       (DT_ArtCamera), FJRPGBattleVoiceBankData (DT_BattleVoices),
+│   │       │                                       FJRPGArtVoiceData (DT_ArtVoices)
 │   │       ├── JRPGBattleArena.h ✅             ← where on the map a fight is assembled, and who
 │   │       │                                       assembles it: formation preview + ground check,
 │   │       │                                       hand-drawn area, FindArenaFor, AssembleBattle /
@@ -177,7 +181,9 @@ JRPGFramework/
 │   │       ├── JRPGBattleCamera.h 🟡            ← the battle camera (the original's framing cases, ease-out,
 │   │       │                                       orbit), spawned by the arena. Guides/BATTLE_STAGE.md
 │   │       ├── JRPGBattleSceneSubsystem.h ✅    ← world subsystem: picks the arena, fade, OnFieldHidden /
-│   │       │                                       OnFieldShown, console commands. Guides/BATTLE_STAGE.md
+│   │       │                                       OnFieldShown, console commands, battle music. Guides/BATTLE_STAGE.md
+│   │       ├── JRPGBattleVoices.h 🟡            ← the fight's voice channel: Arts shout, starter fanfare,
+│   │       │                                       block grunt (Guides/AUDIO.md › Battle voices)
 │   │       ├── JRPGBattleMenu.h 🟡              ← the battle command menu's state machine (no UObject, no
 │   │       │                                       WebUI): FJRPGBattleMenu (Start / Tactics / Command /
 │   │       │                                       Attack / Target / Final), FJRPGBattleCommandPlan (the
@@ -187,6 +193,8 @@ JRPGFramework/
 │   │       │                                       (Guides/BATTLE.md › Battle UI)
 │   │       ├── JRPGAnimNotify_ChainCut.h ✅     ← marker on a clip: where the game cuts it when another
 │   │       │                                       action is queued (swings chain at frame 10)
+│   │       ├── JRPGAnimNotify_LoopWindow.h 🟡   ← notify state: the stretch of a clip the original repeats
+│   │       │                                       (+0x84 loops of [+0x85, +0x86]: the SpecialStarter's crouch)
 │   │       ├── JRPGAnimNotify_Hit.h ✅          ← marker on a clip: one per hit, in HitPower order (the
 │   │       │                                       fight reads the frames as data; not on the clips yet)
 │   │       ├── JRPGAnimNotify_HitSound.h ✅     ← opt-in marker: the impact sound plays only if the hit
@@ -242,7 +250,8 @@ JRPGFramework/
 │                           JRPGBattleMenu.cpp 🟡, JRPGBattleUISubsystem.cpp 🟡,
 │                           JRPGBattleArena.cpp ✅, JRPGBattleCamera.cpp 🟡, JRPGBattleSceneSubsystem.cpp ✅,
 │                           JRPGBattlePawn.cpp ✅, JRPGBattleWaves.cpp ✅, JRPGBattleRules.cpp ✅,
-│                           JRPGAnimNotify_Hit.cpp ✅, JRPGAnimNotify_HitSound.cpp ✅)
+│                           JRPGAnimNotify_Hit.cpp ✅, JRPGAnimNotify_HitSound.cpp ✅, JRPGBattleVoices.cpp 🟡,
+│                           JRPGAnimNotify_LoopWindow.cpp 🟡)
 │
 ├── Shaders/ ✅                                  ← mapped to /Plugin/JRPGFramework
 │   ├── UltralightBlitShader.usf ✅              ← full-screen blit of the Ultralight texture (JRPGWebBrowser)

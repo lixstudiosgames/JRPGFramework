@@ -708,10 +708,23 @@ bool AJRPGBattleCamera::BuildArtPose(FJRPGBattleCameraPose& OutPose, float& OutS
 	}
 
 	// O cursor do clip em 1/16 de keyframe do disco (o asset vem a 7,5 x rate keyframes por segundo); a contagem de loops do dash
-	// sai do progresso (o original repete o clip; o nosso toca uma vez)
-	const int32 Cursor = FMath::FloorToInt(ClipSeconds * 7.5f * static_cast<float>(DiscRate) * 16.0f);
-	const float Progress = ClipLength > 0.0f ? FMath::Clamp(ClipSeconds / ClipLength, 0.0f, 1.0f) : 0.0f;
-	const int32 Select = FMath::CeilToInt((1.0f - Progress) * static_cast<float>(StarterLoopCount));
+	// sai do trecho de laço real do clip (UJRPGAnimNotify_LoopWindow: as voltas que faltam, o +0x21B do original, e o cursor já com as
+	// voltas); num clip importado antes do trecho de laço, do progresso pela timeline
+	float CursorSeconds = ClipSeconds;
+	int32 Select = 0;
+	int32 LoopsLeft = 0;
+	bool bHasLoopWindow = false;
+	if (Actor->GetPlayingClipCursor(CursorSeconds, LoopsLeft, bHasLoopWindow) && bHasLoopWindow)
+	{
+		Select = LoopsLeft;
+	}
+	else
+	{
+		CursorSeconds = ClipSeconds;
+		const float Progress = ClipLength > 0.0f ? FMath::Clamp(ClipSeconds / ClipLength, 0.0f, 1.0f) : 0.0f;
+		Select = FMath::CeilToInt((1.0f - Progress) * static_cast<float>(StarterLoopCount));
+	}
+	const int32 Cursor = FMath::FloorToInt(CursorSeconds * 7.5f * static_cast<float>(DiscRate) * 16.0f);
 
 	// A pose semente (0x801D7230): pitch 0, o giro preso à frente, TR (0, 0x400, 0x400) (0x600 de altura no Gala), olhando o herói
 	int32 Rot[3] = { 0, 0, 0 };

@@ -1,6 +1,7 @@
 #include "Field/JRPGFieldEnemyAnimInstance.h"
 #include "Field/JRPGFieldEnemy.h"
 #include "Battle/JRPGBattlePawn.h"
+#include "Battle/JRPGAnimNotify_LoopWindow.h"
 #include "Animation/AnimNotifies/AnimNotify_PlaySound.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimSyncScope.h"
@@ -34,6 +35,19 @@ FAnimInstanceProxy* UJRPGFieldEnemyAnimInstance::CreateAnimInstanceProxy()
 void UJRPGFieldEnemyAnimInstance::DestroyAnimInstanceProxy(FAnimInstanceProxy* InProxy)
 {
 	delete static_cast<FJRPGFieldEnemyAnimProxy*>(InProxy);
+}
+
+bool UJRPGFieldEnemyAnimInstance::GetCurrentClipCursor(const UAnimSequence* Clip, float& OutSeconds, int32& OutLoopsLeft, bool& bOutHasLoopWindow) const
+{
+	const FJRPGFieldEnemyAnimProxy& Proxy = GetProxyOnGameThread<FJRPGFieldEnemyAnimProxy>();
+	if (!Clip || Proxy.Current.Sequence != Clip)
+	{
+		return false;
+	}
+	OutSeconds = Proxy.Current.Time;
+	OutLoopsLeft = Proxy.Current.LoopsLeft;
+	bOutHasLoopWindow = Proxy.Current.LoopEnd > Proxy.Current.LoopStart;
+	return true;
 }
 
 bool UJRPGFieldEnemyAnimInstance::HandleNotify(const FAnimNotifyEvent& AnimNotifyEvent)
@@ -109,6 +123,33 @@ void FJRPGFieldEnemyAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float De
 	}
 	Current.PlayRate = Instance->GetRequestedRate();
 	Current.bLooping = Instance->GetRequestedLooping();
+
+	// O trecho de laço (UJRPGAnimNotify_LoopWindow): lido quando o clip entra; o cursor que passou do fim do trecho volta o tamanho
+	// dele e gasta uma volta (FUN_80047430: o vão é tirado do CURSOR, então o que passou do fim fica)
+	if (Current.Sequence && Current.Time == 0.0f && Current.LoopsLeft == 0 && Current.LoopEnd <= 0.0f)
+	{
+		float Start = 0.0f;
+		float End = 0.0f;
+		int32 Loops = 0;
+		if (UJRPGAnimNotify_LoopWindow::FindLoopWindow(Current.Sequence, Start, End, Loops))
+		{
+			Current.LoopStart = Start;
+			Current.LoopEnd = End;
+			Current.LoopsLeft = Loops;
+		}
+		else
+		{
+			Current.LoopEnd = -1.0f;   // lido: o clip não tem trecho
+		}
+	}
+	if (Current.LoopsLeft > 0 && Current.LoopEnd > Current.LoopStart && Current.Time >= Current.LoopEnd - KINDA_SMALL_NUMBER)
+	{
+		Current.Time -= Current.LoopEnd - Current.LoopStart;
+		if (Current.LoopsLeft != UJRPGAnimNotify_LoopWindow::Forever)
+		{
+			--Current.LoopsLeft;
+		}
+	}
 
 	if (BlendAlpha < 1.0f)
 	{

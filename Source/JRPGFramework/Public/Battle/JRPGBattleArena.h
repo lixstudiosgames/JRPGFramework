@@ -15,6 +15,7 @@ class USkeletalMeshComponent;
 class AJRPGBattlePawn;
 class AJRPGBattleCamera;
 class APlayerController;
+class UMaterialInterface;
 
 /** De onde saem os lugares da formação automática. */
 UENUM(BlueprintType)
@@ -143,11 +144,11 @@ public:
 	 * arena, e uma formação mais larga que FormationSpanLimitUnits num eixo é comprimida. É o que impede a luta de ir parar
 	 * na borda (o chefe empurrado até o fim da arena, com a party amontoada em cima dele). A cena avisa as câmeras
 	 * (UJRPGBattleSceneSubsystem::OnFormationShifted) para andarem junto, como o foco da câmera do original.
-	 * Desligado por padrão (bugs 21-26: com a câmera parada o salto aparece). A câmera da luta (bUseBattleCamera) já segue o evento,
-	 * andando o foco no mesmo quadro; com ela, ligar isto é o comportamento do original.
+	 * Ligado por padrão desde 2026-11-06: a câmera da luta (bUseBattleCamera) segue o evento, andando o foco no mesmo quadro, então é
+	 * o comportamento do original. Com uma câmera parada o salto aparece (bugs 21-26): desligue, ou use RecentreFrames.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation")
-	bool bRecentreFormation = false;
+	bool bRecentreFormation = true;
 
 	/**
 	 * 0 = de uma vez, como o original (a câmera anda junto no mesmo quadro e ninguém vê; com a câmera fixa o salto aparece).
@@ -280,16 +281,123 @@ public:
 	 * O "slow" das Arts do original: enquanto o grito da Art é lido do CD (a voz XA no starter de uma Art conhecida, a fanfarra no
 	 * dash de uma Art nova / Super / Miracle), o PS1 fica sem fôlego e o jogo INTEIRO anda mais devagar — o clip do starter do Lizard
 	 * Tail dura 32 vsyncs em vez de 22, o da Art 61 em vez de 40 (docs/subsystems/battle-action-helpers.md, "Retail frames stretch
-	 * while a shout streams"). Aqui é a dilatação do tempo do mundo (regras, animações, câmera; a voz não muda de tom) por
-	 * ArtsShoutSeconds a partir do starter de uma Art conhecida (o grito XA). O dash do Hyper / Super / Miracle / Art nova não abre
-	 * a janela: ele já é o slow do original (a luta congelada, só quem dá o dash anda, as Arts depois dele a 1/4). 1 = sem o slow.
+	 * while a shout streams"). Aqui é a dilatação do tempo do mundo (regras, animações, câmera; a voz não muda de tom) a partir do
+	 * starter de uma Art conhecida, pelo tempo que o drive lê o grito que saiu (DT_BattleVoices::ShoutSeconds; ArtsShoutSeconds
+	 * sem as tabelas de voz). O dash do Hyper / Super / Miracle / Art nova não abre a janela: ele já é o slow do original (a luta
+	 * congelada, só quem dá o dash anda, as Arts depois dele a 1/4). 1 = sem o slow.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (ClampMin = "0.1", ClampMax = "1.0"))
 	float ArtsShoutTimeDilation = 0.67f;
 
-	/** Quanto dura o slow do grito, em segundos reais, a partir do starter (a leitura da voz; o Lizard Tail do RE: ~1 s). */
+	/**
+	 * Quanto dura o slow do grito, em segundos reais, a partir do starter, quando a luta não tem as vozes (sem DT_BattleVoices /
+	 * DT_ArtVoices). Com elas, a janela é a leitura do grito sorteado (o Lizard Tail do RE: ~1 s).
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (ClampMin = "0.0"))
 	float ArtsShoutSeconds = 1.0f;
+
+	/**
+	 * Que vozes abrem o slow do grito (o original fica lento enquanto o CD lê qualquer voz; aqui, por tipo, para afinar pelo olho):
+	 * o grito de uma Art conhecida (ligado), a Art nova (a fanfarra do starter e o grito dela), a fanfarra da Hyper, a fanfarra da
+	 * Super / Miracle. Só o primeiro ligado: com o trecho de laço do SpecialStarter (UJRPGAnimNotify_LoopWindow) o dash já segura o
+	 * tempo do original, e o slow por cima deixava o starter e a Art lentos demais (teste do usuário, 2026-11-06; o bug 41 antes).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
+	bool bShoutSlowKnownArt = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
+	bool bShoutSlowNewArt = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
+	bool bShoutSlowHyper = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
+	bool bShoutSlowSuperMiracle = false;
+
+	/**
+	 * O atraso das vozes da luta (grito, fanfarra, grunhido) depois do pedido: no original, a busca no CD (~150 ms) faz a voz sair
+	 * um pouco depois do clip começar. 0 = na hora.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Sound", meta = (ClampMin = "0.0"))
+	float VoiceLatencySeconds = 0.0f;
+
+	/**
+	 * O fantasma perto da câmera do original (FUN_8004DC68): durante uma ação, quem está perto do ponto do eixo da vista que fica
+	 * CameraGhostPullBack da distância da câmera antes da mira (dentro de CameraGhostRadius dessa distância) fica translúcido, para
+	 * não tapar a tomada. Quem age e o alvo dele nunca. No original é um fantasma aditivo fraco (B + F/4); aqui, um dither da
+	 * opacidade (AJRPGBattlePawn::CameraGhostParameter).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera")
+	bool bCameraGhost = true;
+
+	/**
+	 * O fantasma também nos menus (comando, Attack, Spirit, o cursor de alvo), com a câmera ao lado de um inimigo: nosso, o original
+	 * só o faz durante as ações. Quem o menu enquadra e o alvo do cursor nunca.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera")
+	bool bCameraGhostInMenus = true;
+
+	/**
+	 * Nos menus o teste é de oclusão (nosso): o corpo some quando a caixa dele (o maior lado no plano x este fator) cruza a linha da
+	 * câmera até a mira, entre as duas, ou quando a câmera está dentro dela. Só nas tomadas do herói (Command, Attack, Spirit) e do
+	 * cursor de alvo; no Begin, no Escape e no Reselect (a tomada de longe) ninguém some.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera", meta = (ClampMin = "0.0"))
+	float CameraGhostMenuBodyScale = 0.8f;
+
+	/**
+	 * O mínimo, em segundos reais, que um corpo fica fantasma depois do teste o pegar (o que balança na borda do teste não pisca); o
+	 * teste para sair também é 15 % mais largo que o de entrar.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera", meta = (ClampMin = "0.0"))
+	float CameraGhostHoldSeconds = 0.6f;
+
+	/**
+	 * O clarão do monstro apontado pelo cursor de alvo (FUN_801DA6B4: o original dobra a cor dele enquanto o cursor está nele): a força
+	 * no AJRPGBattlePawn::TargetHighlightParameter (o M_PS1Monster soma cor do corpo x isto à emissão). 0 desliga.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera", meta = (ClampMin = "0.0"))
+	float TargetHighlightStrength = 0.8f;
+
+	/**
+	 * O material translúcido do fantasma (parâmetros BaseTexture, EmissiveStrength e Opacity): o corpo troca para ele e dá para ver
+	 * através. O padrão é o M_PS1MonsterTranslucent do projeto Legaia, para toda arena (a do mapa e a provisória) já vir pronta; num
+	 * projeto sem ele, ou vazio, fica o dither do JRPGCameraGhost no material do corpo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera")
+	TSoftObjectPtr<UMaterialInterface> CameraGhostMaterial = TSoftObjectPtr<UMaterialInterface>(
+		FSoftObjectPath(TEXT("/Game/Legaia/Battle/Materials/M_PS1MonsterTranslucent.M_PS1MonsterTranslucent")));
+
+	/** A opacidade do corpo fantasma (0 some, 1 inteiro). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float CameraGhostOpacity = 0.3f;
+
+	/** Quanto o ponto do teste sai da mira em direção à câmera, em fração da distância (o original: 25 / 128). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float CameraGhostPullBack = 25.0f / 128.0f;
+
+	/** O raio do teste, em fração da distância da câmera à mira (o original: 1 / 4), no plano. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera", meta = (ClampMin = "0.0"))
+	float CameraGhostRadius = 0.25f;
+
+	/** Segundos para entrar e sair do fantasma (o original troca na hora; um pouco de transição evita o pisca). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera", meta = (ClampMin = "0.0"))
+	float CameraGhostFadeSeconds = 0.12f;
+
+	/**
+	 * A música das lutas comuns desta arena: o RowName no DT_BattleMusic. "Battle1" é o tema dos encontros do original em quase
+	 * todo o jogo; "Battle2" é o das regiões que o trocam. Um chefe usa a dele (FJRPGBossData::Music). Entra em corte seco quando
+	 * a cena da luta abre e a do Field volta na saída. None = a luta comum não mexe na música.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Sound")
+	FName BattleMusic = TEXT("Battle1");
+
+	/**
+	 * As lutas comuns desta arena mantêm a música do Field (as cenas do original que guardam -1 na entrada: algumas masmorras). Um
+	 * chefe com música própria troca mesmo assim.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Sound")
+	bool bKeepFieldMusic = false;
 
 	/** A classe de cada combatente na cena (um Blueprint filho dá efeitos, nome na cabeça...). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
