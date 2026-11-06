@@ -862,6 +862,34 @@ original's HUD look (ours is our own design).
 
 ### 10.3 Implementation order (user's, 2026-11-05)
 
+**Status (2026-11-06, end of session) - where to pick up:**
+
+| Step | State |
+|---|---|
+| 1. Movement | **Done** (1a-1f + Codex review). User: ~95% right; a few hit / movement glitches left, to be listed with repros. |
+| 2. Spirit | **Done**, tested OK in PIE. |
+| 3. Cameras | **Done** (2a-2e), tested OK in PIE: far + orbit, menu close-ups, action 6 / 7 / 8, per-Art camera (`DT_ArtCamera` imported), Battle Camera option in Options > Game. |
+| 4. Remaining sounds | **Next.** |
+| 5. Battle start | To do. |
+| 6. Battle end | To do. |
+
+Open items that are not a step of their own (details in `Docs/BATTLE_PHASE5_BUGS.md`):
+
+- **Re-test after the next build:** bugs 37-43 (Arts shout slow window, loop sounds, camera long arc, flinch / knockdown
+  fallbacks, the doubled slow on Miracle, a new Art entering by the SpecialStarter, AP on damage taken) and 34b (a direction
+  replaces the prefilled chain).
+- **Bug 29** (some hits do not land): diagnostics in (1d); still open until a repro is matched to a cause. Bug 40 (missing
+  low flinch on Gimard) may have been part of it.
+- **Bug 36** (a long wait before round 2 once): not investigated.
+- **Decision for the user:** the dasher's own speed in the SpecialStarter. The original's `0x1A` arm sets the acting actor to 1/4;
+  ours plays it at 1/2 (`FJRPGBattleResolver::ComposeHeroTimeline`, "SpecialStarter: 4"). Left as is (the user found the Super's
+  pace right).
+- **Formation recentre** (`AJRPGBattleArena::bRecentreFormation`): the camera now follows `OnFormationShifted`, so turning it on
+  is the original's behaviour; still off by default, to be tried in PIE.
+- **Per-Art camera approximations:** the dash arm's loop count is estimated from the clip's progress (`StarterLoopCount`); Lightning
+  Storm's roll is not applied.
+- **AP on damage:** the AP Boost / passive `0x100` bonuses wait for accessory passives (step 8).
+
 Each step is split into parts of the usual size: implemented by Claude, pausing after each part; built and tested in PIE by the
 user. Data generators are listed where a step needs disc numbers (outside the repo, rule 48).
 
@@ -895,5 +923,5 @@ user. Data generators are listed where a step needs disc numbers (outside the re
      aura** at the Special starter dash and chained Arts, weapon trail, damage numbers, Arts banner;
    - Run as an action (4.5);
    - command-flow details (3.2): Reselect one member back, target ring, commit log.
-8. Later, with their phases: accessory passives (counter-attack with the Warrior Icon), statuses (idle rules, palette recolour,
-   badges), boss hooks, the Battle Camera option, magic / summons / capture.
+8. Later, with their phases: accessory passives (counter-attack with the Warrior Icon, AP Boost), statuses (idle rules, palette
+   recolour, badges), boss hooks, magic / summons / capture. (The Battle Camera option was done with step 3.)
