@@ -530,6 +530,15 @@ tables of 1c first.
   damage and are blocked more; the hero's AP goes up by 32; next round the Attack window's gauge is longer (Vahn 160 -> 232);
   the round after, normal again. Tune on `UBattleSubsystem::TimelineDefaults`: `SpiritAPGain`, `SpiritFrames`.
 
+#### PIE pass 7 (2026-11-05) — open, not looked at yet
+
+36. **Long wait before round 2.** Once, the fight took noticeably longer than usual to go from the end of round 1 to round 2's
+    command phase; every animation played normally, only the gap was long. Not investigated. Suspects: the rules' reaction hold
+    computed at the hit's (slow-motion) speed after an Art (`BATTLE_TIMING.md` 9, item 14: the next action can wait longer than the
+    body needs); the idle hand-off wait of the last clip (`MaxIdleHandoffWait`); a monster's death fade holding the round end; the
+    approach stall (`StallResolver`) of an action that did not walk. Note which hero / Art ended round 1 and whether a monster died.
+- Movement: about 95% right after step 1 (user, 2026-11-05); a few hit / movement glitches remain, to be listed with repros.
+
 #### Backlog (2026-11-05) — noted for later, not started
 
 32. **Full RE sweep of the fight, to make it identical.** Go through the RE inch by inch and list what every piece of the battle

@@ -307,6 +307,26 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle")
 	bool IsDown() const { return bDown; }
 
+	// --- O que a câmera da luta lê ---------------------------------------------------------------
+
+	/** A timeline da ação em curso (nula fora de ação). */
+	const FJRPGActionTimeline* GetActiveTimeline() const { return bActionActive ? &Action : nullptr; }
+
+	/** Derrotado nesta luta (HP 0): o herói caído, o monstro caindo ou desbotando. */
+	bool IsDefeated() const { return bDown || bDeathFadeQueued || bDeathFading; }
+
+	/** No knockdown, no levantar ou caído (o clip do original é o knockdown / get-up dele): a câmera do fim da ação fecha nele. */
+	bool IsOnKnockdown() const;
+
+	/** Derrotado e o corpo ainda caindo (o clip da queda ainda toca; depois ele segura o último quadro ou repete o caído). */
+	bool IsFallingDead() const { return IsDefeated() && ReactionEndFrame != INDEX_NONE; }
+
+	/** Tocando algo que não é o idle: uma ação ou uma reação. */
+	bool IsAnimating() const { return bActionActive || ReactionEndFrame != INDEX_NONE; }
+
+	/** A altura do modelo em cm (a "display height" +0x3E do original), medida da malha no InitCombatant. */
+	float GetDisplayHeightCm() const { return DisplayHeightCm; }
+
 	/** A fase mudou (Blueprint: câmera, som, efeito). */
 	UFUNCTION(BlueprintImplementableEvent, Category = "JRPG|Battle")
 	void OnActionPhaseChanged(EJRPGActionPhase NewPhase);
@@ -715,6 +735,10 @@ private:
 
 	/** A cadeia da reação em curso: os papéis que faltam tocar depois do que toca agora, e o quadro lógico em que o que toca acaba. */
 	TArray<FReactionStep> ReactionQueue;
+	/** O papel da reação que toca (ou ficou: o knockdown segurado, o caído em loop); None no idle e na ação. */
+	FName ReactionRole = NAME_None;
+	/** A altura do modelo, em cm (GetDisplayHeightCm). */
+	float DisplayHeightCm = 0.0f;
 	EReactionEnd ReactionLastEnd = EReactionEnd::Idle;
 	int32 ReactionEndFrame = INDEX_NONE;
 	int32 ReactionGameSpeed = 8;

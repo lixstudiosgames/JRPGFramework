@@ -134,9 +134,15 @@ void AJRPGBattlePawn::InitCombatant(const FJRPGCombatant& InCombatant, const FJR
 		const float Radius = FMath::Clamp(FMath::Max(Bounds.BoxExtent.X, Bounds.BoxExtent.Y) * Visual.Scale * 0.6f, 20.0f, 150.0f);
 		Half = FMath::Max(Height * 0.5f, Radius);
 		Capsule->SetCapsuleSize(Radius, Half);
+		DisplayHeightCm = Height;
 		Mesh->SetRelativeLocation(FVector(0.0f, 0.0f, -Half - MinZ));
 	}
 	SetActorLocationAndRotation(FeetTransform.GetLocation() + FVector(0.0f, 0.0f, Half), FeetTransform.GetRotation());
+	if (!LoadedMesh)
+	{
+		DisplayHeightCm = Half * 2.0f;
+	}
+	ReactionRole = NAME_None;
 
 	BuildPieces(Visual);
 
@@ -441,6 +447,7 @@ void AJRPGBattlePawn::AdvanceReaction(int32 LogicFrame)
 			continue;
 		}
 		ReactionLastEnd = Step.End;
+		ReactionRole = Step.Role;
 		// Com a câmera lenta para todos, a reação toca na velocidade normal e a do mundo a desacelera (GlobalAnimRateScale e os prazos
 		// em AdvanceWorldTime): volta a 8 quando o clip da Art acaba, como no original. Sem ela, toca na velocidade do golpe
 		const int32 ClipSpeed = bSlowWorldDuringArts ? UBattleFormulas::NormalGameSpeed : ReactionGameSpeed;
@@ -510,6 +517,10 @@ void AJRPGBattlePawn::OnReactionEnded(int32 LogicFrame)
 
 void AJRPGBattlePawn::ReturnToIdle()
 {
+	if (!bDown)
+	{
+		ReactionRole = NAME_None;   // a reação acabou (ou a ação dele a cortou)
+	}
 	if (bDown || bActionActive)
 	{
 		return;
@@ -1313,8 +1324,17 @@ void AJRPGBattlePawn::BeginAction(const FJRPGActionTimeline& Timeline, AJRPGBatt
 	}
 }
 
+bool AJRPGBattlePawn::IsOnKnockdown() const
+{
+	return ReactionRole == RoleKnockdown || ReactionRole == RoleGetUp || ReactionRole == RoleDying || ReactionRole == RoleDown;
+}
+
 void AJRPGBattlePawn::PlayStep(const FJRPGActionStep& Step)
 {
+	if (!bDown)
+	{
+		ReactionRole = NAME_None;   // o golpe dele corta a reação
+	}
 	UAnimSequence* Clip = nullptr;
 	float Rate = 1.0f;
 	if (Combatant.Type == EJRPGCombatantType::Enemy)

@@ -619,7 +619,13 @@ recentre is off by default *because* the camera is fixed (bugs 21-26; `OnFormati
 the arena when there is no `BattleCamera` (`bUseBattleCamera`). Part a: the pose model and units of 7.1, the ease-out of 7.4, the
 lens, case 9 with the orbit of 7.5, and the focus moving with `OnFormationShifted`. Part b: the menu framings, case 0 on the
 Command and Attack screens and case 1 on the Target screen (`FJRPGBattleMenu::GetFocusHeroSlot` / `GetTargetCursorSlot`); case 3
-waits for the ally cursor (items, magic).
+waits for the ally cursor (items, magic). Part c: the action framings 6 / 7 / 8 (pawn phase -> case: `Windup` / `Advance` 6, `Strike` / `Chain` 7,
+`Recovery` 7 or 8 on a knocked-down / dead target, the Done band 8 for a hit action else 6, held `DoneHoldSeconds`), the yaw
+ladder with its seeds and drift, the style variant, the action depth from the size class (Spirit `0x800`), case 7's one-way
+unwrap (chosen when the case is entered), and the Battle Camera option (`EJRPGBattleCameraOption`, Normal by default) with
+case 7's pull-in and case 8's dead / live arms on Close. Not carried: the formation-specific case 8 depths (`0xB4` / `0xA2` /
+`0xA7` / `0x1F..0x21`), Terra's case-6 override, the Done band's `0x96` seed. Pawn accessors added for it: `GetActiveTimeline`,
+`IsDefeated`, `IsOnKnockdown`, `IsFallingDead`, `IsAnimating`, `GetDisplayHeightCm`.
 
 **Gap: the whole battle camera.** Suggested shape (implementation pass): a `UJRPGBattleCameraDirector` owned by the scene subsystem
 that, every logic frame, picks the case from the battle stage + the acting pawn's phase + the menu screen, builds the target pose

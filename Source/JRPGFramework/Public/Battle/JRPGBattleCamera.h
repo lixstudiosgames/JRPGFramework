@@ -34,6 +34,25 @@ struct JRPGFRAMEWORK_API FJRPGBattleCameraPose
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera")
 	FVector Offset = FVector::ZeroVector;
+
+	/**
+	 * O giro só anda num sentido (o "unwrap" dos casos 7 e 8 do original: nunca o arco curto de volta), a menos que falte pouco
+	 * (OneWaySlackDegrees) no sentido contrário.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera")
+	bool bOneWayYaw = false;
+};
+
+/** A opção Battle Camera do original (Close / Normal / Far): não é distância, é o quanto as tomadas da ação se mexem. */
+UENUM(BlueprintType)
+enum class EJRPGBattleCameraOption : uint8
+{
+	/** Tudo: o close do caso 7 (pull-in), a queda e a re-mira do caso 8. */
+	Close,
+	/** O padrão: sem o pull-in e sem os ajustes do caso 8. */
+	Normal,
+	/** O mais calmo: sem o giro lento da ação, o caso 8 fica no giro em que está, sem a câmera própria das Arts. */
+	Far
 };
 
 /** O enquadramento que a câmera da luta está seguindo agora (os casos de FUN_801D5854). */
@@ -45,7 +64,13 @@ enum class EJRPGBattleShot : uint8
 	/** Caso 0: o close do herói comandado (o menu dele e a entrada das Arts), de frente, um pouco de lado. */
 	Member,
 	/** Caso 1: o cursor de alvo num inimigo: por trás e acima do herói, olhando o inimigo. */
-	TargetEnemy
+	TargetEnemy,
+	/** Caso 6: quem age (a preparação, a caminhada, o Spirit), no chão, a uma distância pelo tamanho do monstro. */
+	Action,
+	/** Caso 7: os dois (o meio entre atacante e alvo) durante os golpes, girando para o outro lado sem voltar pelo arco curto. */
+	TwoShot,
+	/** Caso 8: o alvo, no fim da ação ou no knockdown dele (e a queda de quem morreu, com a opção Close). */
+	OnTarget
 };
 
 /**
@@ -207,6 +232,76 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Menu", meta = (ClampMin = "0.0"))
 	float TargetDepthUnits = 2048.0f;
 
+	// --- Ação (casos 6, 7 e 8) ---------------------------------------------------------------------
+
+	/** Usar as tomadas da ação. Desligado, a ação fica no plano geral. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action")
+	bool bActionShots = true;
+
+	/** A opção Battle Camera do original (o padrão dele é Normal). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action")
+	EJRPGBattleCameraOption CameraOption = EJRPGBattleCameraOption::Normal;
+
+	/** O TR.y das tomadas da ação (0x500: o olho uns 139 cm acima do chão). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action")
+	float ActionLiftUnits = 1280.0f;
+
+	/**
+	 * A distância da ação vem do tamanho do monstro (FUN_801F0348): clamp(classe << 7, ActionMinDepthUnits, ActionMaxDepthUnits),
+	 * a classe do alvo quando um herói ataca, a do próprio monstro quando ele ataca. 0xC00 = uns 532 cm, 0x1400 = uns 887 cm.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action", meta = (ClampMin = "0.0"))
+	float ActionMinDepthUnits = 3072.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action", meta = (ClampMin = "0.0"))
+	float ActionMaxDepthUnits = 5120.0f;
+
+	/** A distância do Spirit (0x800: o close do estado 0x46). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action", meta = (ClampMin = "0.0"))
+	float SpiritDepthUnits = 2048.0f;
+
+	/**
+	 * Os quatro ângulos de cada ação (o byte ctx[+0xD], sorteado no começo dela): o bit 0 filma do outro lado (meia volta), o bit 1
+	 * de baixo (a inclinação + StylePitchUnits e o olho em StyleLiftUnits). O herói que golpeia volta ao ângulo 0 no primeiro golpe.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action")
+	bool bRandomStyle = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action")
+	float StylePitchUnits = 128.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action")
+	float StyleLiftUnits = 1024.0f;
+
+	/**
+	 * O giro da ação (a escada ctx[+0x6DA], "ângulo - frente de quem age"): 0x800 no começo (de frente), 0x200 numa ação de golpe
+	 * (três quartos por trás), e no primeiro golpe de um herói 0x280 ou 0xA80 (um dos dois lados, sorteado). Depois anda sozinho.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action")
+	float SeedYawUnits = 2048.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action")
+	float AttackYawUnits = 512.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action")
+	float SwingYawUnits = 640.0f;
+
+	/** O giro lento de toda ação (o original: + max(1, 4 * passo / 3) por passada, uns 60 por segundo, 5 graus/s). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action")
+	float DriftUnitsPerSecond = 60.0f;
+
+	/** O que os casos 7 e 8 tiram do giro da ação (0x700: a câmera passa para o outro lado, pelo arco longo). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action")
+	float TwoShotYawUnits = 1792.0f;
+
+	/** Folga do giro de um sentido só: menos que isto no sentido contrário anda pelo caminho curto (não dá a volta inteira). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action", meta = (ClampMin = "0.0", ClampMax = "180.0"))
+	float OneWaySlackDegrees = 20.0f;
+
+	/** Quanto a tomada do fim da ação fica depois que ela acaba (o timer 0x3C do done band: 60 quadros). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action", meta = (ClampMin = "0.0"))
+	float DoneHoldSeconds = 1.0f;
+
 	/** Mostrar na tela o enquadramento e a pose (debug no PIE). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Debug")
 	bool bPrintDebug = false;
@@ -225,6 +320,19 @@ protected:
 	bool BuildMemberPose(FJRPGBattleCameraPose& OutPose) const;
 	/** Caso 1: do herói ShotSlot para o inimigo ShotTargetSlot. */
 	bool BuildTargetEnemyPose(FJRPGBattleCameraPose& OutPose) const;
+	/** Caso 6: quem age. */
+	bool BuildActionPose(FJRPGBattleCameraPose& OutPose) const;
+	/** Caso 7: o meio entre quem age e o alvo. */
+	bool BuildTwoShotPose(FJRPGBattleCameraPose& OutPose) const;
+	/** Caso 8: o alvo (o ramp da queda anda com DeltaSeconds). */
+	bool BuildOnTargetPose(float DeltaSeconds, FJRPGBattleCameraPose& OutPose);
+
+	/** A ação de agora: quem age, o começo de uma ação nova (o sorteio do ângulo, a escada, a distância), o primeiro golpe, o fim. */
+	void UpdateActionState(float DeltaSeconds);
+	/** O giro da ação (escada + ângulo sorteado + Extra), preso à frente de quem age. */
+	float ActionYaw(const AJRPGBattlePawn* Actor, float ExtraUnits) const;
+	/** O TR e a inclinação base da ação (o ângulo de baixo do bit 1). */
+	void ApplyActionBase(FJRPGBattleCameraPose& OutPose) const;
 
 	/**
 	 * O giro do original preso à frente de um personagem ("ângulo - frente do personagem", em unidades) como o Yaw de mundo da
@@ -252,8 +360,11 @@ private:
 	UFUNCTION()
 	void HandleFormationShifted(FVector Translation, int32 Frames);
 
-	/** Anda Live até Target com o ease-out (Steps = os passos de 30 Hz; 0 = corte). */
-	void Chase(float DeltaSeconds, float Steps);
+	/**
+	 * Anda Live até Target com o ease-out (Steps = os passos de 30 Hz; 0 = corte). bShotChanged: o enquadramento acabou de trocar
+	 * (é quando um giro de sentido único escolhe o arco longo; depois ele segue pelo caminho curto quando chega a menos de meia volta).
+	 */
+	void Chase(float DeltaSeconds, float Steps, bool bShotChanged);
 	/** Põe o ator na pose Live. */
 	void ApplyLivePose();
 	void ApplyLens();
@@ -262,8 +373,26 @@ private:
 	FJRPGBattleCameraPose Live;
 	FJRPGBattleCameraPose Target;
 	EJRPGBattleShot Shot = EJRPGBattleShot::Far;
+	/** O enquadramento do quadro anterior, e o giro de sentido único indo pelo arco longo. */
+	EJRPGBattleShot PrevShot = EJRPGBattleShot::Far;
+	bool bYawLongWay = false;
 	/** De quem é o enquadramento de agora e o alvo dele (INDEX_NONE quando não há). */
 	int32 ShotSlot = INDEX_NONE;
 	int32 ShotTargetSlot = INDEX_NONE;
 	bool bHasPose = false;
+
+	// O estado da ação (UpdateActionState): quem age e o alvo, a ação (pelo índice), o tipo, a escada do giro, o ângulo sorteado,
+	// a distância, o primeiro golpe, a faixa do fim e o ramp da queda
+	TWeakObjectPtr<AJRPGBattlePawn> ActionActor;
+	TWeakObjectPtr<AJRPGBattlePawn> ActionTarget;
+	int32 ActionIndex = INDEX_NONE;
+	bool bInAction = false;
+	bool bActionMelee = false;
+	bool bActionSpirit = false;
+	bool bActionStruck = false;
+	float LadderUnits = 0.0f;
+	int32 Style = 0;
+	float ActionDepthUnits = 3072.0f;
+	float DoneTimeLeft = 0.0f;
+	float DeathRamp = 0.0f;
 };

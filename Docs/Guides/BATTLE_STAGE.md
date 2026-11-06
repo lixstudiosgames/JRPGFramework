@@ -137,9 +137,21 @@ The original's battle camera, from the RE (`Docs/Reference/BATTLE_RE_SWEEP.md` s
 
 | Shot | When | Pose |
 |---|---|---|
-| **Far** (case 9) | Menu Start / Tactics / Escape / Final screens; no menu (console commands); during actions, for now (the action shots come next) | The whole formation's box centre on the floor; distance `prescale(max(width * 3, 0x800))` (1 v 1: ~831 cm), eye ~139 cm up, tilt 2.8°. The yaw is passed through (it keeps the direction of the shot before) and **orbits** at -10.5°/s (`bOrbit`). |
+| **Far** (case 9) | Menu Start / Tactics / Escape / Final screens; no menu (console commands); between actions (after the end hold) | The whole formation's box centre on the floor; distance `prescale(max(width * 3, 0x800))` (1 v 1: ~831 cm), eye ~139 cm up, tilt 2.8°. The yaw is passed through (it keeps the direction of the shot before) and **orbits** at -10.5°/s (`bOrbit`). |
 | **Member** (case 0) | Menu Command and Attack (arts entry) screens | Close-up of the hero being commanded: focus on his feet, looking at him from the front 21° to one side (`0x8F0 - facing`), shifted so he sits left of centre (`TR.x -0x200`), ~266 cm away, eye at his row of the original's height table (Vahn 1152 ≈ 125 cm, Noa 960, Gala 1408; `MemberLiftUnits`), tilt 2.8°. |
 | **TargetEnemy** (case 1) | Menu Target screen | Behind and above the hero, looking from the camera's focus to the enemy under the cursor (`0x800 - bearing`): focus on the hero, ~355 cm away, eye ~166 cm up, tilt 22.5°. Moving the cursor swings the camera to the next enemy. |
+| **Action** (case 6) | The actor's wind-up and walk (`Windup` / `Advance`), a Spirit turn; the end hold of an action without a hit | The actor's live position on the floor (the camera walks with him), the action yaw, level, eye ~139 cm up; distance from the monster's size class `clamp(class << 7, 0xC00, 0x1400)` (~532..887 cm; the target's class when a hero attacks, the monster's own when it attacks), Spirit `0x800` (~355 cm). |
+| **TwoShot** (case 7) | The strikes (`Strike` / `Chain`, and anything after the first strike); `Recovery` with the target standing | Midpoint of the two bodies on the floor; the action yaw minus `0x700`, reached **one way only**: on entering, if the short arc goes back it takes the long arc (the camera swings around to the other side). Close option: level, eye `+0x40`, 3/5 of the distance. |
+| **OnTarget** (case 8) | `Recovery` with the target on its knockdown / get-up or dead; the end hold (`DoneHoldSeconds`, 1 s) of a hit action | The target's body on the floor (the actor if the target is gone); yaw as case 7 (Far option: the yaw it has). **Close option only:** a dead target is framed falling (eye drops, levels and pushes in over ~0.4 s, then a flat pose once it lands), a standing one is re-aimed by its height (party: eye at its full height while animating, the close-up height minus `0x140` idle; monster: 7/8 of its height while animating, held while idle), with eye floors `0x280` / `0x300` turning the rest into tilt. |
+
+**The action yaw** (the original's ladder `ctx[+0x6DA]`, "angle - actor facing"): `0x800` at the start of any action (from the
+front), `0x200` for an action with a hit (three-quarters from behind), and at a hero's first strike `0x280` or `0xA80` (one
+of two sides, coin flip). It then drifts on its own (`DriftUnitsPerSecond`, ~5°/s). **Four angles per action** (`ctx[+0xD]`,
+rolled at the start, `bRandomStyle`): bit 0 films from the other side (half turn), bit 1 from low (tilt `+0x80`, eye `0x400`); a
+hero's first strike resets it to 0, Spirit only rolls the low angle.
+
+**`CameraOption`** (the original's Battle Camera option; Normal by default, as in the original): Close adds case 7's pull-in and
+case 8's fall / re-aim; Far drops the yaw drift and keeps the yaw it has on case 8 (and, later, skips the per-Art camera).
 
 "Facing-relative" yaws (case 0, and the action shots) are the original's `angle - facing`: the camera looks along the
 character's front turned by `-angle` (0 = from behind, `0x800` = at his face). The original's world is Y-down, so the side
@@ -147,7 +159,8 @@ could come out mirrored: `bMirrorYaw` swaps it.
 
 Tuning on the class: `DistanceScale` (every eye distance; 1 = the original's), `ChaseSteps` / `FarChaseSteps` (0 = hard
 cut), `StartYaw` (relative to the arena; the original opens at 0, both rows in line; 20° by default), `OrbitDegreesPerSecond`,
-`bMirrorYaw`, `bMenuShots` (off = the menu stays on the far shot), the `Member*` / `Target*` numbers, `FieldOfView43`,
+`bMirrorYaw`, `bMenuShots` (off = the menu stays on the far shot), the `Member*` / `Target*` numbers, `bActionShots`,
+`CameraOption`, `bRandomStyle`, the `Action*` / `Style*` / `*YawUnits` numbers, `DoneHoldSeconds`, `FieldOfView43`,
 `bPrintDebug` (shot, slots and pose on screen).
 
 **Field enemies:** `bStartBattle` (default on) — off, contact only announces the encounter, as

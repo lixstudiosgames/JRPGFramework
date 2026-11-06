@@ -58,6 +58,12 @@ void AJRPGBattleCamera::InitForArena(AJRPGBattleArena* InArena)
 	bHasPose = false;
 	Shot = EJRPGBattleShot::Far;
 	ShotSlot = ShotTargetSlot = INDEX_NONE;
+	ActionActor = nullptr;
+	ActionTarget = nullptr;
+	ActionIndex = INDEX_NONE;
+	bInAction = bActionMelee = bActionSpirit = bActionStruck = false;
+	DoneTimeLeft = 0.0f;
+	DeathRamp = 0.0f;
 	if (BuildShotPose(Shot, 0.0f, Target))
 	{
 		SnapToTarget();
@@ -80,6 +86,7 @@ void AJRPGBattleCamera::Tick(float DeltaSeconds)
 	}
 
 	// Re-armado todo quadro, como o original: a pose alvo sai dos combatentes de agora
+	UpdateActionState(DeltaSeconds);
 	Shot = ChooseShot(ShotSlot, ShotTargetSlot);
 	FJRPGBattleCameraPose NewTarget;
 	if (!BuildShotPose(Shot, DeltaSeconds, NewTarget))
@@ -97,18 +104,20 @@ void AJRPGBattleCamera::Tick(float DeltaSeconds)
 	if (!bHasPose)
 	{
 		SnapToTarget();
+		PrevShot = Shot;
 	}
 	else
 	{
-		Chase(DeltaSeconds, Shot == EJRPGBattleShot::Far ? FarChaseSteps : ChaseSteps);
+		Chase(DeltaSeconds, Shot == EJRPGBattleShot::Far ? FarChaseSteps : ChaseSteps, Shot != PrevShot);
 		ApplyLivePose();
+		PrevShot = Shot;
 	}
 
 	if (bPrintDebug && GEngine)
 	{
 		GEngine->AddOnScreenDebugMessage(DebugMessageKey, 0.0f, FColor(150, 220, 255), FString::Printf(
-			TEXT("BattleCamera %s (slot %d -> %d) | yaw %.1f pitch %.1f | TR (%.0f, %.0f, %.0f) cm | focus %s"),
-			*StaticEnum<EJRPGBattleShot>()->GetNameStringByValue(static_cast<int64>(Shot)), ShotSlot, ShotTargetSlot,
+			TEXT("BattleCamera %s (slot %d -> %d, style %d, ladder %.0f) | yaw %.1f pitch %.1f | TR (%.0f, %.0f, %.0f) cm | focus %s"),
+			*StaticEnum<EJRPGBattleShot>()->GetNameStringByValue(static_cast<int64>(Shot)), ShotSlot, ShotTargetSlot, Style, LadderUnits,
 			Live.Yaw, Live.Pitch, Live.Offset.X, Live.Offset.Y, Live.Offset.Z, *Live.Focus.ToCompactString()));
 	}
 }
@@ -153,7 +162,321 @@ EJRPGBattleShot AJRPGBattleCamera::ChooseShot(int32& OutSlot, int32& OutTargetSl
 		}
 		OutSlot = OutTargetSlot = INDEX_NONE;
 	}
+
+	// A ação (a máquina de estados FUN_801E295C): quem age na preparação e na caminhada (6), os dois nos golpes (7), o alvo no
+	// knockdown / na queda e no fim (8)
+	if (bActionShots)
+	{
+		const AJRPGBattlePawn* Actor = ActionActor.Get();
+		const AJRPGBattlePawn* Victim = ActionTarget.Get();
+		if (Actor && (bInAction || DoneTimeLeft > 0.0f))
+		{
+			OutSlot = Actor->GetCombatant().SlotIndex;
+			OutTargetSlot = Victim ? Victim->GetCombatant().SlotIndex : INDEX_NONE;
+			if (bInAction)
+			{
+				if (bActionSpirit || !Victim)
+				{
+					return EJRPGBattleShot::Action;
+				}
+				switch (Actor->GetPhase())
+				{
+				case EJRPGActionPhase::Strike:
+				case EJRPGActionPhase::Chain:
+					return EJRPGBattleShot::TwoShot;   // o laço dos golpes (0x1E): sempre o 7
+				case EJRPGActionPhase::Recovery:
+					// A espera do fim (0x1F / 0x20): o 7, ou o 8 com o alvo no knockdown / levantar ou caindo morto
+					return (Victim->IsOnKnockdown() || Victim->IsDefeated()) ? EJRPGBattleShot::OnTarget : EJRPGBattleShot::TwoShot;
+				default:
+					// A preparação e a caminhada (0x14..0x19); um starter de Art no meio da combo continua no laço dos golpes
+					return bActionStruck ? EJRPGBattleShot::TwoShot : EJRPGBattleShot::Action;
+				}
+			}
+			// O done band (0x50 / 0x51): uma ação de golpe fica no alvo, um herói alvo caído também; o resto em quem agiu
+			if (Victim && (bActionMelee || (Victim->GetCombatant().Side == EJRPGBattleSide::Party && Victim->IsDefeated())))
+			{
+				return EJRPGBattleShot::OnTarget;
+			}
+			return EJRPGBattleShot::Action;
+		}
+		OutSlot = OutTargetSlot = INDEX_NONE;
+	}
 	return EJRPGBattleShot::Far;
+}
+
+void AJRPGBattleCamera::UpdateActionState(float DeltaSeconds)
+{
+	AJRPGBattlePawn* Acting = nullptr;
+	if (const AJRPGBattleArena* CurrentArena = Arena.Get())
+	{
+		for (AJRPGBattlePawn* Pawn : CurrentArena->GetBattlePawns())
+		{
+			if (IsValid(Pawn) && Pawn->GetActiveActionIndex() != INDEX_NONE)
+			{
+				Acting = Pawn;
+				break;
+			}
+		}
+	}
+
+	if (Acting)
+	{
+		AJRPGBattlePawn* Victim = Acting->GetActionTarget();
+		if (Victim == Acting)
+		{
+			Victim = nullptr;
+		}
+		const int32 Index = Acting->GetActiveActionIndex();
+		if (!bInAction || ActionActor.Get() != Acting || ActionIndex != Index)
+		{
+			// O começo da ação (o estado 0x0C): a escada de frente (0x800), 0x200 numa ação de golpe, um dos quatro ângulos, e a
+			// distância pelo tamanho do monstro (o Spirit: 0x800, e só o ângulo de baixo ou não)
+			ActionActor = Acting;
+			ActionIndex = Index;
+			ActionTarget = Victim;
+			bInAction = true;
+			bActionStruck = false;
+			DoneTimeLeft = 0.0f;
+			const FJRPGActionTimeline* Timeline = Acting->GetActiveTimeline();
+			bActionSpirit = Timeline && Timeline->Steps.ContainsByPredicate([](const FJRPGActionStep& Step)
+			{
+				return Step.Kind == EJRPGActionStepKind::Spirit;
+			});
+			bActionMelee = Victim && !bActionSpirit;
+			LadderUnits = bActionMelee ? AttackYawUnits : SeedYawUnits;
+			Style = !bRandomStyle ? 0 : (bActionSpirit ? FMath::RandRange(0, 1) * 2 : FMath::RandRange(0, 3));
+			if (bActionSpirit)
+			{
+				ActionDepthUnits = SpiritDepthUnits;
+			}
+			else
+			{
+				// FUN_801F0348: a classe do alvo quando um herói ataca; a do próprio monstro quando ele ataca
+				int32 SizeClass = 0;
+				if (Acting->GetCombatant().Side == EJRPGBattleSide::Enemy)
+				{
+					SizeClass = Acting->GetSizeClass();
+				}
+				else if (Victim && Victim->GetCombatant().Side == EJRPGBattleSide::Enemy)
+				{
+					SizeClass = Victim->GetSizeClass();
+				}
+				ActionDepthUnits = FMath::Clamp(static_cast<float>(SizeClass << 7), ActionMinDepthUnits, FMath::Max(ActionMinDepthUnits, ActionMaxDepthUnits));
+			}
+		}
+		else if (Victim)
+		{
+			ActionTarget = Victim;
+		}
+
+		const EJRPGActionPhase Phase = Acting->GetPhase();
+		if (!bActionStruck && (Phase == EJRPGActionPhase::Strike || Phase == EJRPGActionPhase::Chain))
+		{
+			bActionStruck = true;
+			// O primeiro clip de golpe de um herói (FUN_8004E13C): três quartos de um dos dois lados, sem o ângulo sorteado
+			if (Acting->GetCombatant().Side == EJRPGBattleSide::Party && !bActionSpirit)
+			{
+				LadderUnits = static_cast<float>(FMath::RandRange(0, 1) * 2048) + SwingYawUnits;
+				Style = 0;
+			}
+		}
+	}
+	else if (bInAction)
+	{
+		// Acabou: o done band segura a tomada (o timer 0x3C), depois o plano geral volta
+		bInAction = false;
+		DoneTimeLeft = DoneHoldSeconds;
+	}
+	else if (DoneTimeLeft > 0.0f)
+	{
+		DoneTimeLeft = FMath::Max(0.0f, DoneTimeLeft - DeltaSeconds);
+	}
+
+	// O giro lento de toda ação (o prólogo da máquina de estados; a opção Far o pula)
+	if (CameraOption != EJRPGBattleCameraOption::Far && (bInAction || DoneTimeLeft > 0.0f))
+	{
+		LadderUnits = FMath::Fmod(LadderUnits + DriftUnitsPerSecond * DeltaSeconds, 4096.0f);
+	}
+}
+
+float AJRPGBattleCamera::ActionYaw(const AJRPGBattlePawn* Actor, float ExtraUnits) const
+{
+	// O bit 0 do ângulo sorteado filma do outro lado
+	return FacingRelativeYaw(Actor, LadderUnits + ((Style & 1) ? 2048.0f : 0.0f) + ExtraUnits);
+}
+
+void AJRPGBattleCamera::ApplyActionBase(FJRPGBattleCameraPose& OutPose) const
+{
+	// O bit 1 do ângulo sorteado: de baixo (a inclinação sobe 0x80 e o olho desce para 0x400)
+	const bool bLow = (Style & 2) != 0;
+	OutPose.Pitch = UnitsToDegrees(bLow ? StylePitchUnits : 0.0f);
+	OutPose.Offset = FVector(0.0, CameraUnitsToCm(bLow ? StyleLiftUnits : ActionLiftUnits),
+		CameraUnitsToCm(Prescale(ActionDepthUnits)) * DistanceScale);
+}
+
+bool AJRPGBattleCamera::BuildActionPose(FJRPGBattleCameraPose& OutPose) const
+{
+	const AJRPGBattlePawn* Actor = ActionActor.Get();
+	if (!IsValid(Actor) || Actor->IsHidden())
+	{
+		return false;
+	}
+	// O caso 6: a posição viva de quem age (ela anda na caminhada e a câmera vai junto), o foco no chão
+	OutPose.Focus = FeetOf(Actor);
+	OutPose.Yaw = ActionYaw(Actor, 0.0f);
+	ApplyActionBase(OutPose);
+	return true;
+}
+
+bool AJRPGBattleCamera::BuildTwoShotPose(FJRPGBattleCameraPose& OutPose) const
+{
+	const AJRPGBattlePawn* Actor = ActionActor.Get();
+	const AJRPGBattlePawn* Victim = ActionTarget.Get();
+	if (!IsValid(Actor) || Actor->IsHidden())
+	{
+		return false;
+	}
+	if (!IsValid(Victim) || Victim->IsHidden())
+	{
+		return BuildActionPose(OutPose);
+	}
+	// O caso 7: o meio dos dois corpos (os body pairs), no chão; o giro do 6 menos 0x700, sempre no mesmo sentido
+	OutPose.Focus = (Actor->GetBodyLocation() + Victim->GetBodyLocation()) * 0.5;
+	OutPose.Focus.Z = (FeetOf(Actor).Z + FeetOf(Victim).Z) * 0.5;
+	OutPose.Yaw = ActionYaw(Actor, -TwoShotYawUnits);
+	OutPose.bOneWayYaw = true;
+	ApplyActionBase(OutPose);
+	if (CameraOption == EJRPGBattleCameraOption::Close)
+	{
+		// O pull-in da opção Close: nivelado, o olho 0x40 mais alto, 3/5 da distância
+		OutPose.Pitch = 0.0f;
+		OutPose.Offset.Y += CameraUnitsToCm(64.0f);
+		OutPose.Offset.Z *= 0.6;
+	}
+	return true;
+}
+
+bool AJRPGBattleCamera::BuildOnTargetPose(float DeltaSeconds, FJRPGBattleCameraPose& OutPose)
+{
+	const AJRPGBattlePawn* Actor = ActionActor.Get();
+	const AJRPGBattlePawn* Victim = ActionTarget.Get();
+	if (!IsValid(Actor))
+	{
+		return false;
+	}
+	const bool bHasVictim = IsValid(Victim) && !Victim->IsHidden();
+	// O caso 8: o corpo do alvo, no chão; sem ele (sumiu), quem agiu
+	if (bHasVictim)
+	{
+		OutPose.Focus = Victim->GetBodyLocation();
+		OutPose.Focus.Z = FeetOf(Victim).Z;
+	}
+	else if (!Actor->IsHidden())
+	{
+		OutPose.Focus = FeetOf(Actor);
+	}
+	else
+	{
+		return false;
+	}
+
+	const bool bClose = CameraOption == EJRPGBattleCameraOption::Close;
+	if (bClose && bHasVictim && Victim->IsDefeated())
+	{
+		// A queda (opção Close): a escada zera (a tomada da morte não herda o giro dos golpes)
+		LadderUnits = 0.0f;
+	}
+	ApplyActionBase(OutPose);
+	if (CameraOption == EJRPGBattleCameraOption::Far)
+	{
+		OutPose.Yaw = Live.Yaw;   // a opção Far não monta o giro do 8: fica onde está
+	}
+	else
+	{
+		OutPose.Yaw = ActionYaw(Actor, -TwoShotYawUnits);
+		OutPose.bOneWayYaw = true;
+	}
+	if (!bClose || !bHasVictim)
+	{
+		return true;
+	}
+
+	if (Victim->IsDefeated())
+	{
+		if (Victim->IsFallingDead())
+		{
+			// O corpo ainda cai: o ramp (8 por quadro de tela, até 0xC8) desce o olho, nivela e chega perto
+			DeathRamp = FMath::Min(DeathRamp + 480.0f * DeltaSeconds, 200.0f);
+			OutPose.Offset.Z = CameraUnitsToCm(Prescale(FMath::Max(ActionDepthUnits - 4.0f * DeathRamp, 0.0f))) * DistanceScale;
+			OutPose.Offset.Y = CameraUnitsToCm(768.0f - DeathRamp);
+			OutPose.Pitch = UnitsToDegrees(384.0f - 1.5f * DeathRamp);
+		}
+		else
+		{
+			// No chão: a pose plana
+			DeathRamp = 0.0f;
+			OutPose.Offset.Z = CameraUnitsToCm(Prescale(ActionDepthUnits)) * DistanceScale;
+			OutPose.Offset.Y = CameraUnitsToCm(768.0f);
+			OutPose.Pitch = UnitsToDegrees(320.0f);
+		}
+		return true;
+	}
+
+	// De pé (0x801D6BFC): a re-mira pela altura do alvo (y = a altura do modelo, em unidades)
+	const AJRPGBattleArena* CurrentArena = Arena.Get();
+	const float CmPerUnit = CurrentArena ? FMath::Max(CurrentArena->OriginalCmPerUnit, KINDA_SMALL_NUMBER) : 0.433005f;
+	const float Height = Victim->GetDisplayHeightCm() / CmPerUnit;
+	const bool bTilted = (Style & 2) != 0;
+	float Lift = 0.0f;
+	float Floor = 0.0f;
+	float DepthRaw = 0.0f;
+	bool bHold = false;
+	if (Victim->GetCombatant().Side == EJRPGBattleSide::Party)
+	{
+		DepthRaw = 1536.0f;
+		Floor = 640.0f;
+		if (Victim->IsAnimating())
+		{
+			Lift = Height * (bTilted ? 3.5f : 4.0f);
+		}
+		else
+		{
+			const float* MemberLift = MemberLiftUnits.Find(Victim->GetCombatant().Key);
+			Lift = (MemberLift ? *MemberLift : MemberDefaultLiftUnits) - (bTilted ? 192.0f : 320.0f);
+		}
+	}
+	else
+	{
+		DepthRaw = ActionDepthUnits * 0.7f;
+		Floor = 768.0f;
+		if (Victim->IsAnimating())
+		{
+			Lift = Height * (bTilted ? 3.0f : 3.5f);
+		}
+		else
+		{
+			bHold = true;   // o monstro parado: a altura e a inclinação de agora ficam
+		}
+	}
+	OutPose.Offset.Z = CameraUnitsToCm(Prescale(DepthRaw)) * DistanceScale;
+	if (bHold)
+	{
+		OutPose.Offset.Y = Live.Offset.Y;
+		OutPose.Pitch = Live.Pitch;
+	}
+	else
+	{
+		// Abaixo do piso, o olho fica no piso e um quarto do que faltava vira inclinação (a câmera olha para baixo em vez de afundar)
+		float PitchUnits = bTilted ? StylePitchUnits : 0.0f;
+		if (Lift < Floor)
+		{
+			PitchUnits += (Floor - Lift) * 0.25f;
+			Lift = Floor;
+		}
+		OutPose.Offset.Y = CameraUnitsToCm(Lift);
+		OutPose.Pitch = UnitsToDegrees(PitchUnits);
+	}
+	return true;
 }
 
 bool AJRPGBattleCamera::BuildShotPose(EJRPGBattleShot InShot, float DeltaSeconds, FJRPGBattleCameraPose& OutPose)
@@ -164,6 +487,12 @@ bool AJRPGBattleCamera::BuildShotPose(EJRPGBattleShot InShot, float DeltaSeconds
 		return BuildMemberPose(OutPose);
 	case EJRPGBattleShot::TargetEnemy:
 		return BuildTargetEnemyPose(OutPose);
+	case EJRPGBattleShot::Action:
+		return BuildActionPose(OutPose);
+	case EJRPGBattleShot::TwoShot:
+		return BuildTwoShotPose(OutPose);
+	case EJRPGBattleShot::OnTarget:
+		return BuildOnTargetPose(DeltaSeconds, OutPose);
 	case EJRPGBattleShot::Far:
 	default:
 		return BuildFarPose(DeltaSeconds, OutPose);
@@ -310,11 +639,12 @@ void AJRPGBattleCamera::HandleFormationShifted(FVector Translation, int32 Frames
 	}
 }
 
-void AJRPGBattleCamera::Chase(float DeltaSeconds, float Steps)
+void AJRPGBattleCamera::Chase(float DeltaSeconds, float Steps, bool bShotChanged)
 {
 	if (Steps <= 1.0f)
 	{
 		Live = Target;
+		bYawLongWay = false;
 		return;
 	}
 	// Cada passo de 30 Hz cobre 1/Steps do que falta: em DeltaSeconds, sobra (1 - 1/Steps)^(passos)
@@ -323,8 +653,32 @@ void AJRPGBattleCamera::Chase(float DeltaSeconds, float Steps)
 	Live.Focus = FMath::Lerp(Live.Focus, Target.Focus, Alpha);
 	Live.Offset = FMath::Lerp(Live.Offset, Target.Offset, Alpha);
 	Live.Pitch = FMath::Lerp(Live.Pitch, Target.Pitch, Alpha);
-	// O giro pelo caminho mais curto
-	Live.Yaw = static_cast<float>(FRotator::NormalizeAxis(Live.Yaw + FMath::FindDeltaAngleDegrees(Live.Yaw, Target.Yaw) * Alpha));
+	// O giro pelo caminho mais curto; nos casos 7 e 8, só no sentido em que o giro do original cresce (o arco longo, se for ele)
+	float YawDelta = FMath::FindDeltaAngleDegrees(Live.Yaw, Target.Yaw);
+	// O giro do original sobe; o olhar da câmera anda ao contrário dele (FacingRelativeYaw)
+	const float Forward = bMirrorYaw ? 1.0f : -1.0f;
+	if (!Target.bOneWayYaw)
+	{
+		bYawLongWay = false;
+	}
+	else if (bShotChanged)
+	{
+		// Escolhido na entrada do caso: o arco longo se o curto for para trás (mais que a folga); um alvo que vira depois não faz a
+		// câmera dar a volta inteira
+		bYawLongWay = YawDelta * Forward < 0.0f && FMath::Abs(YawDelta) > OneWaySlackDegrees;
+	}
+	if (bYawLongWay)
+	{
+		if (YawDelta * Forward < 0.0f)
+		{
+			YawDelta += Forward * 360.0f;
+		}
+		else
+		{
+			bYawLongWay = false;   // passou da meia volta: daqui o caminho curto é o mesmo sentido
+		}
+	}
+	Live.Yaw = static_cast<float>(FRotator::NormalizeAxis(Live.Yaw + YawDelta * Alpha));
 }
 
 void AJRPGBattleCamera::ApplyLivePose()
