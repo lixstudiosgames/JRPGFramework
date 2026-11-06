@@ -579,6 +579,11 @@ tables of 1c first.
     `FJRPGBattleResolver::ResolveHit` adds it and emits `APChanged` for the hero (the passives are a TODO until accessories carry
     them). `JRPG.Battle.Spirit` now expects the AP of the hits taken on top of the 32.
 
+- **User re-test (2026-11-06):** 34b works; 40 works (it was the "movement" glitch: the missing flinch); no movement bug since.
+  The rest of pass 8 / 9 is waiting for the next build.
+44. **Noa sprinted much too fast on her approach run, once.** Not reproduced. Watch: note the Art / command, the target and whether
+    the formation recentre or the make-way ran at the same moment (a slide added to the walk would look like a sprint).
+
 #### Backlog (2026-11-05) — noted for later, not started
 
 32. **Full RE sweep of the fight, to make it identical.** Go through the RE inch by inch and list what every piece of the battle

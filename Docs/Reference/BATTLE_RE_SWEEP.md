@@ -866,7 +866,7 @@ original's HUD look (ours is our own design).
 
 | Step | State |
 |---|---|
-| 1. Movement | **Done** (1a-1f + Codex review). User: ~95% right; a few hit / movement glitches left, to be listed with repros. |
+| 1. Movement | **Done** (1a-1f + Codex review). User (2026-11-06): the remaining glitch was the missing flinch (bug 40, fixed); no movement bug since. Once Noa sprinted much too fast on her run, not reproduced (bug 44, watch). |
 | 2. Spirit | **Done**, tested OK in PIE. |
 | 3. Cameras | **Done** (2a-2e), tested OK in PIE: far + orbit, menu close-ups, action 6 / 7 / 8, per-Art camera (`DT_ArtCamera` imported), Battle Camera option in Options > Game. |
 | 4. Remaining sounds | **Next.** |
@@ -875,17 +875,16 @@ original's HUD look (ours is our own design).
 
 Open items that are not a step of their own (details in `Docs/BATTLE_PHASE5_BUGS.md`):
 
-- **Re-test after the next build:** bugs 37-43 (Arts shout slow window, loop sounds, camera long arc, flinch / knockdown
-  fallbacks, the doubled slow on Miracle, a new Art entering by the SpecialStarter, AP on damage taken) and 34b (a direction
-  replaces the prefilled chain).
+- **Re-test after the next build:** bugs 37-39 and 41-43 (Arts shout slow window, loop sounds, camera long arc, the doubled slow
+  on Miracle, a new Art entering by the SpecialStarter, AP on damage taken). 34b and 40 confirmed working by the user.
 - **Bug 29** (some hits do not land): diagnostics in (1d); still open until a repro is matched to a cause. Bug 40 (missing
   low flinch on Gimard) may have been part of it.
 - **Bug 36** (a long wait before round 2 once): not investigated.
 - **Decision for the user:** the dasher's own speed in the SpecialStarter. The original's `0x1A` arm sets the acting actor to 1/4;
-  ours plays it at 1/2 (`FJRPGBattleResolver::ComposeHeroTimeline`, "SpecialStarter: 4"). Left as is (the user found the Super's
-  pace right).
+  ours plays it at 1/2, so our starter is **twice as fast** as the original's (`FJRPGBattleResolver::ComposeHeroTimeline`,
+  "SpecialStarter: 4"). Left as is (the user found the Super's pace right).
 - **Formation recentre** (`AJRPGBattleArena::bRecentreFormation`): the camera now follows `OnFormationShifted`, so turning it on
-  is the original's behaviour; still off by default, to be tried in PIE.
+  is the original's behaviour. User (2026-11-06): the fight works well with it off; still to be tried on in PIE to compare.
 - **Per-Art camera approximations:** the dash arm's loop count is estimated from the clip's progress (`StarterLoopCount`); Lightning
   Storm's roll is not applied.
 - **AP on damage:** the AP Boost / passive `0x100` bonuses wait for accessory passives (step 8).
@@ -915,12 +914,24 @@ user. Data generators are listed where a step needs disc numbers (outside the re
 5. **Battle start** (2.1): the camera **on the enemies** with their **names and count** (`Killer Bee * 3`) and the formation line
    (back attack / pre-emptive), the 90 / 120 hold, then the entry sweep to the first prompt; back attack loses the party's round
    1. Transition styles optional.
+   - **User's experiment (2026-11-06), not in the original - to try here:** a different opening camera, and an **entry animation
+     for the heroes like the victory poses**, then idle.
+   - **User's idea (same day), our addition:** when an **enemy dies**, the hero who killed it plays a short victory pose and a
+     voice line, with the camera on him; as soon as the camera moves to another hero or enemy, he goes back to idle. (Decide
+     when it plays so it does not hold the fight: probably over the Done band, and only on a kill.)
 6. **Battle end** (4.6): the loop window per clip (6.2), the leader's **win pose** held through the 256 hold, the victory camera
    (7.8), the victory voice and level-up cue (9.2), the result / loss screens (our design).
 7. After that, order to decide:
    - our HUD (10.1) with the **enemy HP bars**, replacing the debug text;
    - effects (8.5): the per-clip effect notifies and `DT_BattleEffects`, hit burst, dust, Spirit aura, hit tint, **the user's
      aura** at the Special starter dash and chained Arts, weapon trail, damage numbers, Arts banner;
+     - **User's notes (2026-11-06) for the effects pass:**
+       - **Starter:** the hero **absorbs energy from around him in his own colour** (an aura being drawn in) during the starter;
+         coming out of the dash he **keeps an aura around him until the last hit** of the chain.
+       - **Camera occlusion fade:** a combatant (enemy or party) between the camera and what it frames, or too close to the
+         camera, fades out (dithered opacity) so it does not block the view. Some monsters cover the screen in the action shots.
+       - **Monster death:** today it fades and sinks (`bDeathSink`); try a **dissolve into the ground** or the **mesh turning to
+         dust** (particles from the mesh surface).
    - Run as an action (4.5);
    - command-flow details (3.2): Reselect one member back, target ring, commit log.
 8. Later, with their phases: accessory passives (counter-attack with the Warrior Icon, AP Boost), statuses (idle rules, palette
