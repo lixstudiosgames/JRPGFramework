@@ -1,4 +1,5 @@
 #include "Battle/JRPGBattlePawn.h"
+#include "Components/AudioComponent.h"
 #include "Arts/JRPGArtSequence.h"
 #include "Battle/BattleFormulas.h"
 #include "Battle/JRPGBattleArena.h"
@@ -324,6 +325,7 @@ void AJRPGBattlePawn::PlayClipBlended(UAnimSequence* Clip, bool bLoop, float Pla
 			Anim = Cast<UJRPGFieldEnemyAnimInstance>(Mesh->GetAnimInstance());
 		}
 	}
+	bClipLooping = bLoop;
 	if (Anim)
 	{
 		Anim->PlayClip(Clip, PlayRate, BlendTime, bLoop);
@@ -363,6 +365,31 @@ const FJRPGEnemyActionData* AJRPGBattlePawn::FindEnemyActionByTag(int32 Tag) con
 }
 
 UAnimSequence* AJRPGBattlePawn::FindRoleClip(FName ClipRole, float& OutPlayRate) const
+{
+	UAnimSequence* Clip = FindRoleClipExact(ClipRole, OutPlayRate);
+	if (Clip || Combatant.Type != EJRPGCombatantType::Enemy)
+	{
+		return Clip;
+	}
+	// O monstro sem o clip do papel: o original troca um flinch leve pelo outro (0x801EDE18..0x801EDEBC: o Gimard só tem a tag 2,
+	// e o golpe baixo pedia a 3, então nada tocava) e o knockdown que falta pelo flinch leve (0x80055428)
+	if (ClipRole == RoleFlinch2)
+	{
+		return FindRoleClipExact(RoleFlinch1, OutPlayRate);
+	}
+	if (ClipRole == RoleFlinch1)
+	{
+		return FindRoleClipExact(RoleFlinch2, OutPlayRate);
+	}
+	if (ClipRole == RoleKnockdown)
+	{
+		Clip = FindRoleClipExact(RoleFlinch1, OutPlayRate);
+		return Clip ? Clip : FindRoleClipExact(RoleFlinch2, OutPlayRate);
+	}
+	return nullptr;
+}
+
+UAnimSequence* AJRPGBattlePawn::FindRoleClipExact(FName ClipRole, float& OutPlayRate) const
 {
 	OutPlayRate = 1.0f;
 	if (Combatant.Type == EJRPGCombatantType::Enemy)
@@ -591,6 +618,15 @@ AJRPGBattlePawn::FClipMotion AJRPGBattlePawn::RoleMotion(FName ClipRole) const
 	{
 		const int32 Tag = TagForRole(ClipRole);
 		const FJRPGEnemyActionData* Row = bEnemyHasMotionData && Tag >= 0 ? FindEnemyActionByTag(Tag) : nullptr;
+		// As mesmas trocas do FindRoleClip: o movimento é o do clip que de fato toca
+		if (!Row && bEnemyHasMotionData && (ClipRole == RoleFlinch1 || ClipRole == RoleFlinch2 || ClipRole == RoleKnockdown))
+		{
+			Row = FindEnemyActionByTag(ClipRole == RoleFlinch1 ? 3 : 2);
+			if (!Row && ClipRole == RoleKnockdown)
+			{
+				Row = FindEnemyActionByTag(3);
+			}
+		}
 		if (Row)
 		{
 			Motion.RootSpeed = Row->RootSpeed;
@@ -1656,26 +1692,28 @@ void AJRPGBattlePawn::ShowEvent(const FJRPGBattleEvent& Event, const FString& Te
 
 void AJRPGBattlePawn::PlayNotifySound(USkeletalMeshComponent* MeshComp, USoundBase* Sound, float VolumeMultiplier, float PitchMultiplier, bool bFollow, FName AttachName)
 {
+	SpawnNotifySound(MeshComp, Sound, VolumeMultiplier, PitchMultiplier, bFollow, AttachName);
+}
+
+UAudioComponent* AJRPGBattlePawn::SpawnNotifySound(USkeletalMeshComponent* MeshComp, USoundBase* Sound, float VolumeMultiplier, float PitchMultiplier, bool bFollow, FName AttachName)
+{
 	// O mesmo que o UAnimNotify_PlaySound::Notify da engine faz (o som preso à malha ou ao bone, ou solto no ponto dela), para o
 	// som que o pawn segurou tocar igual ao que tocaria sem a regra
 	if (!Sound || !MeshComp)
 	{
-		return;
+		return nullptr;
 	}
 	if (!Sound->IsOneShot())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("BattlePawn: o som %s de um clip não é um one-shot — não toca (vazaria uma instância por notify)"), *GetNameSafe(Sound));
-		return;
+		return nullptr;
 	}
 	// Como no UE 5.8: só prende ao bone / à malha com bFollow ligado; sem ele o AttachName é ignorado e o som toca solto no ponto
 	if (bFollow)
 	{
-		UGameplayStatics::SpawnSoundAttached(Sound, MeshComp, AttachName, FVector(ForceInit), EAttachLocation::SnapToTarget, false, VolumeMultiplier, PitchMultiplier);
+		return UGameplayStatics::SpawnSoundAttached(Sound, MeshComp, AttachName, FVector(ForceInit), EAttachLocation::SnapToTarget, false, VolumeMultiplier, PitchMultiplier);
 	}
-	else
-	{
-		UGameplayStatics::PlaySoundAtLocation(MeshComp->GetWorld(), Sound, MeshComp->GetComponentLocation(), VolumeMultiplier, PitchMultiplier);
-	}
+	return UGameplayStatics::SpawnSoundAtLocation(MeshComp, Sound, MeshComp->GetComponentLocation(), FRotator::ZeroRotator, VolumeMultiplier, PitchMultiplier);
 }
 
 void AJRPGBattlePawn::NoteHitResult(const FJRPGBattleEvent& Event)
@@ -1758,6 +1796,19 @@ void AJRPGBattlePawn::HandleClipSound(const FJRPGBattleSoundSpec& Spec)
 	if (HitIndex == INDEX_NONE)
 	{
 		// Não é o som de nenhum golpe (a voz, o passo, uma reação, o idle): toca como o notify manda
+		if (bClipLooping && bLoopSoundsWaitToFinish)
+		{
+			// Um clip em loop (o andar) dispara o som de novo a cada ciclo, como o original (a trilha de cues recomeça a cada
+			// re-commit); um ciclo mais curto que o som empilhava instâncias (o andar do Slime: 8 quadros, meio segundo). Como uma
+			// voz do PS1 por som: o mesmo som deste pawn espera o anterior acabar
+			TWeakObjectPtr<UAudioComponent>& Voice = LoopVoices.FindOrAdd(TWeakObjectPtr<USoundBase>(Spec.HitSound.Get()));
+			if (Voice.IsValid() && Voice->IsPlaying())
+			{
+				return;
+			}
+			Voice = SpawnNotifySound(Mesh, Spec.HitSound, Spec.VolumeMultiplier, Spec.PitchMultiplier, Spec.bFollow, Spec.AttachName);
+			return;
+		}
 		PlayNotifySound(Mesh, Spec.HitSound, Spec.VolumeMultiplier, Spec.PitchMultiplier, Spec.bFollow, Spec.AttachName);
 		return;
 	}

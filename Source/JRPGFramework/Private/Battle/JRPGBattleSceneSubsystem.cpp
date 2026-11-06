@@ -11,6 +11,7 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
+#include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 
 namespace
@@ -298,6 +299,7 @@ void UJRPGBattleSceneSubsystem::Deinitialize()
 			Battle->EndBattle(EJRPGBattleResult::Aborted);
 		}
 	}
+	SetShoutDilation(1.0f);
 	Arena = nullptr;
 	Phase = EPhase::Idle;
 	Super::Deinitialize();
@@ -348,6 +350,8 @@ void UJRPGBattleSceneSubsystem::HandleBattleStarted(const FJRPGBattleSetup& Setu
 
 void UJRPGBattleSceneSubsystem::HandleBattleEnded(EJRPGBattleResult Result)
 {
+	// A luta acabou no meio de uma Art: o tempo volta ao normal antes do fade (ele anda no tempo do mundo)
+	SetShoutDilation(1.0f);
 	FTimerManager& Timers = GetWorld()->GetTimerManager();
 	if (Phase == EPhase::Entering)
 	{
@@ -644,6 +648,21 @@ void UJRPGBattleSceneSubsystem::HandleLogicFrame(int32 Frame)
 			break;
 		}
 	}
+	// O slow do grito das Arts (AJRPGBattleArena::ArtsShoutTimeDilation): o starter, o dash e o clip de uma Art de herói
+	float Dilation = 1.0f;
+	if (Acting && Acting->GetCombatant().Side == EJRPGBattleSide::Party)
+	{
+		FJRPGActionStep Step;
+		float ClipSeconds = 0.0f;
+		float ClipLength = 0.0f;
+		if (Acting->GetPlayingStep(Step, ClipSeconds, ClipLength) && (Step.Kind == EJRPGActionStepKind::ArtStarter
+			|| Step.Kind == EJRPGActionStepKind::SpecialStarter || Step.Kind == EJRPGActionStepKind::Art))
+		{
+			Dilation = FMath::Clamp(Current->ArtsShoutTimeDilation, 0.1f, 1.0f);
+		}
+	}
+	SetShoutDilation(Dilation);
+
 	for (AJRPGBattlePawn* Pawn : Current->GetBattlePawns())
 	{
 		if (IsValid(Pawn))
@@ -665,6 +684,19 @@ void UJRPGBattleSceneSubsystem::HandleLogicFrame(int32 Frame)
 			}
 			Pawn->UpdatePlayback(Frame);
 		}
+	}
+}
+
+void UJRPGBattleSceneSubsystem::SetShoutDilation(float Dilation)
+{
+	if (FMath::IsNearlyEqual(Dilation, ShoutDilation))
+	{
+		return;
+	}
+	ShoutDilation = Dilation;
+	if (UWorld* World = GetWorld())
+	{
+		UGameplayStatics::SetGlobalTimeDilation(World, Dilation);
 	}
 }
 
@@ -711,6 +743,7 @@ void UJRPGBattleSceneSubsystem::EnterBattleScene()
 
 void UJRPGBattleSceneSubsystem::LeaveBattleScene()
 {
+	SetShoutDilation(1.0f);
 	if (AJRPGBattleArena* Current = Arena.Get())
 	{
 		Current->TeardownBattle();

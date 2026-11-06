@@ -539,6 +539,28 @@ tables of 1c first.
     approach stall (`StallResolver`) of an action that did not walk. Note which hero / Art ended round 1 and whether a monster died.
 - Movement: about 95% right after step 1 (user, 2026-11-05); a few hit / movement glitches remain, to be listed with repros.
 
+#### PIE pass 8 (2026-11-06) — cameras done; fixed, re-test
+
+37. **The per-Art camera cuts too fast; the original has a "slow" on the starter (new Art, Hyper).** RE
+    (`battle-action-helpers.md`, "Retail frames stretch while a shout streams"): while the Art's voice is read from the CD (the
+    XA shout on a known Art's starter, the fanfare on a new Art / Super / Miracle dash) the PS1's frames stretch and the whole game
+    runs about a third slower (Lizard Tail's starter 32 vsyncs instead of 22, the Art 61 instead of 40); camera cuts are in frames,
+    so they slow too. **Fixed:** `AJRPGBattleArena::ArtsShoutTimeDilation` (0.67; 1 = off): the scene sets the world's time
+    dilation while a hero plays an `ArtStarter`, `SpecialStarter` or `Art` step (rules, animations, camera; voices keep their
+    pitch), back to 1 after the step, at battle end and on teardown.
+38. **Slime walk sound repeats too fast (overlapping).** The original fires a looping clip's cues every cycle too (each loop is a
+    re-commit), but a PS1 voice does not stack; the Slime's walk is 8 keyframes (~0.5 s), shorter than its sound. **Fixed:**
+    `AJRPGBattlePawn::bLoopSoundsWaitToFinish` (on): during a looping clip, the same sound from the same pawn waits for the previous
+    one to end. One-shot clips (swings, reactions) always play.
+39. **The action camera sometimes changes side too often.** Case 7's one-way long arc was re-armed at every shot change, so a combo
+    that cut between an Art's own camera and case 7 swung the camera round each time. **Fixed:** the long arc is chosen only when
+    the strikes begin (case 6 -> 7 / 8); coming back from an Art's camera, or 7 <-> 8, takes the short way. The per-action side
+    flip (the style's half turn, the hero's first-swing coin flip) is the original's and stays.
+40. **Fast hits: some miss the enemy's flinch (Vahn on Gimard, Noa too).** The low-hit flinch is tag 3, and Gimard (like many
+    monsters) only has tag 2: the reaction found no clip and played nothing. RE (`monster-animation.md`, the `+0x1EF` map):
+    each light flinch falls back to the other when absent, and a missing knockdown reuses the light flinch. **Fixed:**
+    `AJRPGBattlePawn::FindRoleClip` (and `RoleMotion`) do the same fallbacks.
+
 #### Backlog (2026-11-05) — noted for later, not started
 
 32. **Full RE sweep of the fight, to make it identical.** Go through the RE inch by inch and list what every piece of the battle

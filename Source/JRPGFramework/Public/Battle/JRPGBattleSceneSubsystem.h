@@ -138,6 +138,10 @@ private:
 	/** Anda o recentrar em curso pela fração dada (0..1) do total de cada um; o destino de quem caminha anda com o alvo dele. */
 	void ApplyFormationShift(float Fraction);
 
+	/** Põe a dilatação do tempo do mundo do slow das Arts (1 = normal); só mexe quando muda. */
+	void SetShoutDilation(float Dilation);
+	float ShoutDilation = 1.0f;
+
 	/** O make-way: os outros saem da linha entre Attacker e Target. */
 	void MakeWay(const AJRPGBattlePawn* Attacker, const AJRPGBattlePawn* Target, int32 Frame);
 

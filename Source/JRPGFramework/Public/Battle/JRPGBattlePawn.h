@@ -10,6 +10,7 @@
 
 class AJRPGBattleArena;
 class UCapsuleComponent;
+class UAudioComponent;
 class USkeletalMeshComponent;
 class UStaticMeshComponent;
 class UAnimSequence;
@@ -228,6 +229,17 @@ public:
 
 	/** Toca um som como o AnimNotify_PlaySound da engine toca (preso à malha ou ao bone, ou solto no ponto da malha). */
 	static void PlayNotifySound(USkeletalMeshComponent* MeshComp, USoundBase* Sound, float VolumeMultiplier, float PitchMultiplier, bool bFollow, FName AttachName);
+
+	/** PlayNotifySound que devolve o som tocando (nulo se não tocou). */
+	static UAudioComponent* SpawnNotifySound(USkeletalMeshComponent* MeshComp, USoundBase* Sound, float VolumeMultiplier, float PitchMultiplier, bool bFollow, FName AttachName);
+
+	/**
+	 * Num clip em loop (o andar, o idle), o mesmo som deste pawn só toca de novo depois que o anterior acabou (uma voz por som,
+	 * como no PS1). Sem isto um ciclo mais curto que o som empilha instâncias (o andar do Slime). Os sons de clips de uma vez só
+	 * (golpes, reações) tocam sempre.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Sound")
+	bool bLoopSoundsWaitToFinish = true;
 
 	/**
 	 * Mostra um evento que as regras já resolveram. bAsTarget: este pawn é quem sofre (Damage, Miss, Block) ou quem
@@ -514,6 +526,8 @@ private:
 
 	/** Um clip de reação / pose do papel (Idle, Walk, Flinch1, Flinch2, Knockdown, Block, Dying...) e o play rate dele. */
 	UAnimSequence* FindRoleClip(FName ClipRole, float& OutPlayRate) const;
+	/** FindRoleClip sem as trocas do original (o flinch que falta pelo outro, o knockdown que falta pelo flinch). */
+	UAnimSequence* FindRoleClipExact(FName ClipRole, float& OutPlayRate) const;
 
 	/** O que o último clip de uma cadeia de reações faz ao acabar. */
 	enum class EReactionEnd : uint8
@@ -755,6 +769,10 @@ private:
 	int32 DeathFadeFrames = 32;
 	int32 DeathFadeStartFrame = 0;
 	float DeathFadeBaseZ = 0.0f;
+
+	/** O clip que toca agora é um loop (PlayClipBlended), e o som que cada som de clip em loop deixou tocando. */
+	bool bClipLooping = false;
+	TMap<TWeakObjectPtr<USoundBase>, TWeakObjectPtr<UAudioComponent>> LoopVoices;
 
 	/** O clip do passo que toca: o quadro lógico em que começou, a velocidade (play rate x RateScale) e a duração do asset. */
 	int32 StepClipStartFrame = INDEX_NONE;

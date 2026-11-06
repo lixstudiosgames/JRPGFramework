@@ -149,7 +149,9 @@ void AJRPGBattleCamera::Tick(float DeltaSeconds)
 	}
 	else
 	{
-		Chase(DeltaSeconds, Steps, Shot != PrevShot);
+		// O arco longo do caso 7 só na entrada dos golpes (vindo da tomada de quem age): voltando da câmera de uma Art, ou trocando
+		// entre 7 e 8, o caminho curto (senão a câmera dava a volta a cada corte de uma combo e trocava de lado o tempo todo)
+		Chase(DeltaSeconds, Steps, Shot != PrevShot && PrevShot == EJRPGBattleShot::Action);
 		ApplyLivePose();
 		PrevShot = Shot;
 	}

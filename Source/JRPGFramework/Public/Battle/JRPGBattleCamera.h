@@ -407,8 +407,9 @@ private:
 	void HandleFormationShifted(FVector Translation, int32 Frames);
 
 	/**
-	 * Anda Live até Target com o ease-out (Steps = os passos de 30 Hz; 0 = corte). bShotChanged: o enquadramento acabou de trocar
-	 * (é quando um giro de sentido único escolhe o arco longo; depois ele segue pelo caminho curto quando chega a menos de meia volta).
+	 * Anda Live até Target com o ease-out (Steps = os passos de 30 Hz; 0 = corte). bShotChanged: o golpe acabou de começar (a tomada
+	 * de quem age virou 7 / 8): é quando um giro de sentido único escolhe o arco longo; depois ele segue pelo caminho curto quando
+	 * chega a menos de meia volta. As outras trocas (da câmera da Art de volta, 7 <-> 8) vão pelo caminho curto.
 	 */
 	void Chase(float DeltaSeconds, float Steps, bool bShotChanged);
 	/** Põe o ator na pose Live. */

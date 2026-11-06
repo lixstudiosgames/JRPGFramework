@@ -113,6 +113,7 @@ A combatant without a model appears as its capsule only, and the arena says why 
 | `CameraPreset` | `BattleWide` | The still framing (`bUseBattleCamera` off). |
 | `CameraPadding` | 1.15 | Room around the combatants (still framing). |
 | `bCameraBehindParty` | true | Still framing behind the heroes looking at the enemies; off = the other way. |
+| `ArtsShoutTimeDilation` | 0.67 | The original's Arts "slow": the whole fight (rules, animations, camera) runs at this rate while a hero plays an Art's starter, the Super / Miracle / new-Art dash, or the Art clip (on the PS1 the CD read of the shout stretched the frames). 1 = off. |
 | `TransitionTime` | 0.35 | Fade to black in and out; the scene changes with the screen fully black. 0 = hard cut. |
 | `TransitionColor` | black | |
 | `PawnClass` | `AJRPGBattlePawn` | A Blueprint child for entry effects, a name over the head… |
@@ -141,7 +142,7 @@ The original's battle camera, from the RE (`Docs/Reference/BATTLE_RE_SWEEP.md` s
 | **Member** (case 0) | Menu Command and Attack (arts entry) screens | Close-up of the hero being commanded: focus on his feet, looking at him from the front 21° to one side (`0x8F0 - facing`), shifted so he sits left of centre (`TR.x -0x200`), ~266 cm away, eye at his row of the original's height table (Vahn 1152 ≈ 125 cm, Noa 960, Gala 1408; `MemberLiftUnits`), tilt 2.8°. |
 | **TargetEnemy** (case 1) | Menu Target screen | Behind and above the hero, looking from the camera's focus to the enemy under the cursor (`0x800 - bearing`): focus on the hero, ~355 cm away, eye ~166 cm up, tilt 22.5°. Moving the cursor swings the camera to the next enemy. |
 | **Action** (case 6) | The actor's wind-up and walk (`Windup` / `Advance`), a Spirit turn; the end hold of an action without a hit | The actor's live position on the floor (the camera walks with him), the action yaw, level, eye ~139 cm up; distance from the monster's size class `clamp(class << 7, 0xC00, 0x1400)` (~532..887 cm; the target's class when a hero attacks, the monster's own when it attacks), Spirit `0x800` (~355 cm). |
-| **TwoShot** (case 7) | The strikes (`Strike` / `Chain`, and anything after the first strike); `Recovery` with the target standing | Midpoint of the two bodies on the floor; the action yaw minus `0x700`, reached **one way only**: on entering, if the short arc goes back it takes the long arc (the camera swings around to the other side). Close option: level, eye `+0x40`, 3/5 of the distance. |
+| **TwoShot** (case 7) | The strikes (`Strike` / `Chain`, and anything after the first strike); `Recovery` with the target standing | Midpoint of the two bodies on the floor; the action yaw minus `0x700`, reached **one way only** when the strikes begin (from case 6): if the short arc goes back it takes the long arc (the camera swings around to the other side); back from an Art's camera, or between 7 and 8, it takes the short arc. Close option: level, eye `+0x40`, 3/5 of the distance. |
 | **OnTarget** (case 8) | `Recovery` with the target on its knockdown / get-up or dead; the end hold (`DoneHoldSeconds`, 1 s) of a hit action | The target's body on the floor (the actor if the target is gone); yaw as case 7 (Far option: the yaw it has). **Close option only:** a dead target is framed falling (eye drops, levels and pushes in over ~0.4 s, then a flat pose once it lands), a standing one is re-aimed by its height (party: eye at its full height while animating, the close-up height minus `0x140` idle; monster: 7/8 of its height while animating, held while idle), with eye floors `0x280` / `0x300` turning the rest into tilt. |
 | **Art** (the per-Art camera) | Over 6 / 7 / 8 while a hero plays an Art (or the Super / Miracle dash) that has an "arm" in the original, the target alive, option not Far | The original's 13 arms (`FUN_801D71B8`): seeded on the hero (TR `(0, 0x400, 0x400)`, `0x600` high for Gala), each arm cuts between framings by the clip's cursor and adds rows of **`DT_ArtCamera`** plus two ramps; much quicker eases (1, 3 or 6 display frames: 1 is a cut). |
 
@@ -160,7 +161,8 @@ Get/SetBattleCameraOption`) and the camera follows it (`bFollowGameOption`; off 
 (`0x1E`, and its Miracle part `0x2A`); Noa - the dash, Hurricane Kick (`0x1D`) and its third part (`0x1E`), Vulture Blade
 (`0x1F`), Frost Breath (`0x20`), Jurassic Blow 1 / 2 (`0x2C` / `0x2D`); Gala - the dash, Explosive Fist (`0x1C`), Lightning Storm
 (`0x1D`), Thunder Punch (`0x1E`, Miracle part `0x2A`). The id is the Art's `ActionConstant` (`DT_Arts`); every other Art keeps
-the action shot, as in the original. The table column is a coin flip per action (Gala always column 0), so the same Art is
+the action shot, as in the original. The cuts run in the world's time, so the arena's `ArtsShoutTimeDilation` slows them with
+the Art, as the original's frame stretch did. The table column is a coin flip per action (Gala always column 0), so the same Art is
 filmed two ways. The clip cursor is the asset time x 7.5 x the disc rate (`DT_ArtHits.Rate`) in sixteenths of a keyframe.
 Approximations: the dash's arm picks its framing by the clip's loop count, which the original repeats and ours plays once, so
 the count runs down from `StarterLoopCount` (5) over the clip; the roll of Lightning Storm's arm is not applied; the pitch is
