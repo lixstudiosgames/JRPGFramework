@@ -6,6 +6,7 @@
 #include "Battle/JRPGAnimNotify_Hit.h"
 #include "Battle/JRPGBattleRules.h"
 #include "Arts/ArtsSubsystem.h"
+#include "Audio/JRPGSettingsSave.h"
 #include "Arts/JRPGArtSequence.h"
 #include "Core/CoreSubsystem.h"
 #include "Inventory/InventorySubsystem.h"
@@ -75,6 +76,31 @@ void UBattleSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 	// Um UObject só começa a ser tickado depois de construído (e nunca o CDO): ver o comentário de Tickable.h
 	SetTickableTickType(ETickableTickType::Conditional);
+
+	// A opção Battle Camera salva nas configurações (Normal sem o slot)
+	if (const UJRPGSettingsSave* Settings = UJRPGSettingsSave::LoadOrCreate())
+	{
+		BattleCameraOption = static_cast<EJRPGBattleCameraOption>(FMath::Min<int32>(Settings->BattleCameraOption,
+			static_cast<int32>(EJRPGBattleCameraOption::Far)));
+	}
+}
+
+void UBattleSubsystem::SetBattleCameraOption(EJRPGBattleCameraOption Option)
+{
+	if (Option == BattleCameraOption)
+	{
+		return;
+	}
+	BattleCameraOption = Option;
+	// Grava só este campo: o resto do "JRPGSettings" (os volumes) fica como está
+	if (UJRPGSettingsSave* Settings = UJRPGSettingsSave::LoadOrCreate())
+	{
+		Settings->BattleCameraOption = static_cast<uint8>(Option);
+		if (!UJRPGSettingsSave::Store(Settings))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("BattleSubsystem: falha ao gravar a opção Battle Camera no JRPGSettings"));
+		}
+	}
 }
 
 void UBattleSubsystem::Deinitialize()

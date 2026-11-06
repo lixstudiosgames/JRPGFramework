@@ -207,20 +207,19 @@ void UAudioSubsystem::ApplyBGMVolume()
 
 void UAudioSubsystem::SaveSettings() const
 {
-	UJRPGSettingsSave* Settings = Cast<UJRPGSettingsSave>(
-		UGameplayStatics::CreateSaveGameObject(UJRPGSettingsSave::StaticClass()));
+	// Parte do que já está salvo (a opção da câmera da luta e o que mais vier): só os volumes mudam aqui
+	UJRPGSettingsSave* Settings = UJRPGSettingsSave::LoadOrCreate();
 	if (!Settings)
 	{
 		return;
 	}
 
-	Settings->SettingsVersion = UJRPGSettingsSave::CurrentSettingsVersion;
 	Settings->MasterVolume = MasterVolume;
 	Settings->MusicVolume = MusicVolume;
 	Settings->SFXVolume = SFXVolume;
 	Settings->AmbientVolume = AmbientVolume;
 
-	if (!UGameplayStatics::SaveGameToSlot(Settings, SettingsSlotName, 0))
+	if (!UJRPGSettingsSave::Store(Settings))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("AudioSubsystem: Falha ao gravar o JRPGSettings em disco."));
 	}

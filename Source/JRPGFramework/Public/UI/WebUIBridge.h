@@ -61,6 +61,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "JRPG|WebUI")
 	void OnSetDifficulty(int32 DifficultyIndex);
 
+	/** O JS trocou a opção Battle Camera (bridge.onsetbattlecamera): 0 Close, 1 Normal, 2 Far (EJRPGBattleCameraOption). */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|WebUI")
+	void OnSetBattleCamera(int32 OptionIndex);
+
 	UFUNCTION(BlueprintCallable, Category = "JRPG|WebUI")
 	void PlaySFX(const FString& SoundName);
 

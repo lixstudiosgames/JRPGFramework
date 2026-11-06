@@ -8,6 +8,7 @@
 #include "Battle/BattleTypes.h"
 #include "Battle/JRPGBattleResolver.h"
 #include "Battle/EnemyActionData.h"
+#include "Battle/JRPGBattleCamera.h"
 #include "Core/ProgressionTypes.h"
 #include "BattleSubsystem.generated.h"
 
@@ -217,6 +218,16 @@ public:
 	bool bWaitForApproachInput = false;
 
 	/**
+	 * A opção Battle Camera do jogo (Close / Normal / Far; a tela de opções, aba Game): a câmera da luta a segue
+	 * (AJRPGBattleCamera::bFollowGameOption). Salva no slot de configurações "JRPGSettings", não no save da partida.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle")
+	EJRPGBattleCameraOption GetBattleCameraOption() const { return BattleCameraOption; }
+
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Battle")
+	void SetBattleCameraOption(EJRPGBattleCameraOption Option);
+
+	/**
 	 * Esta máquina mede a aproximação e a manda (a cena chama SubmitApproach no ActionStart). No PvP só a autoridade mede; a
 	 * outra recebe a medida pela rede e a aplica com SubmitApproach, e a cena dela não manda a sua (seria aceita no lugar da
 	 * da autoridade e as duas lutas divergiriam).
@@ -354,6 +365,9 @@ public:
 	FOnJRPGLogicFrame OnLogicFrame;
 
 private:
+	/** A opção Battle Camera (lida do "JRPGSettings" no Initialize). */
+	EJRPGBattleCameraOption BattleCameraOption = EJRPGBattleCameraOption::Normal;
+
 	/** A foto dos combatentes (heróis pelo Party / Status / Inventory, inimigos pelo DT_Enemies e DT_EnemyActions). */
 	bool BuildSnapshot(const FJRPGBattleSetup& Setup, TArray<FJRPGCombatant>& OutCombatants) const;
 	FJRPGCombatant MakeHeroCombatant(FName Key, int32 SideIndex) const;

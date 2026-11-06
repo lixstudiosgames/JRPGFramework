@@ -236,3 +236,22 @@ struct JRPGFRAMEWORK_API FJRPGArtHitData : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Hits")
 	int32 EndStep = 0;
 };
+
+/**
+ * Uma linha do DT_ArtCamera (Extras/generate_art_camera_csv.py, do disco do usuário): a tabela de offsets da câmera própria das
+ * Arts do original (0x801F4E10, PROT 0898; docs/formats/battle-attack-camera-table.md do legend-of-legaia-re). Vinte linhas,
+ * RowName Row00..Row19; cada uma tem dois valores alternativos, e a coluna é sorteada a cada ação (a mesma Art filmada de dois
+ * jeitos). Em unidades do original: pitch / giro em 4096 por volta, distâncias na escala da câmera. Quais linhas cada Art lê e
+ * onde soma é código (AJRPGBattleCamera).
+ */
+USTRUCT(BlueprintType)
+struct JRPGFRAMEWORK_API FJRPGArtCameraTrackData : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Camera")
+	int32 Value0 = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Art Camera")
+	int32 Value1 = 0;
+};

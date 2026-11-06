@@ -193,5 +193,7 @@ does the `OpenLevel`) · `onshopbuy` / `onshopsell` ·
 `onpartytoggle(key, activate)` · `onitemdiscard(id, qty)` · `onsetdifficulty(value)` (the
 `EJRPGDifficulty` **value** — 0 Normal, 1 Hard, 2 Juggernaut, 3 Easy — not the position on
 screen; `JRPGOptions.setDifficulty(value)` is the C++→JS side) ·
+`onsetbattlecamera(value)` (the Battle Camera option: 0 Close, 1 Normal, 2 Far = `EJRPGBattleCameraOption`;
+`JRPGOptions.setBattleCamera(value)` is the C++→JS side, sent when the options open) ·
 `ondevcommand(line)` · `onbattleinput(action, a, b)` (the battle command menu: the six semantic
 actions plus `'pick'`; see [Battle command menu](#battle-command-menu)).

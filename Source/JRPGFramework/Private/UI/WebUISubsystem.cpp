@@ -408,6 +408,11 @@ void UWebUISubsystem::OpenOptions()
 		DispatchJS(FString::Printf(TEXT("JRPGOptions.setDifficulty(%d);"),
 			static_cast<int32>(Core->GetDifficulty())));
 	}
+	// E a opção Battle Camera (0 Close, 1 Normal, 2 Far)
+	if (const UBattleSubsystem* Battle = GetGameInstance()->GetSubsystem<UBattleSubsystem>())
+	{
+		DispatchJS(FString::Printf(TEXT("JRPGOptions.setBattleCamera(%d);"), static_cast<int32>(Battle->GetBattleCameraOption())));
+	}
 
 	// O JS revalida via UIState.canOpen (defesa em profundidade)
 	DispatchJS(FString::Printf(TEXT("openOptionsScreen('%s');"), Origin));
@@ -569,6 +574,21 @@ void UWebUISubsystem::SetDifficultyFromUI(int32 DifficultyIndex)
 	}
 
 	Core->SetDifficulty(static_cast<EJRPGDifficulty>(DifficultyIndex));
+}
+
+void UWebUISubsystem::SetBattleCameraFromUI(int32 OptionIndex)
+{
+	UBattleSubsystem* Battle = GetGameInstance()->GetSubsystem<UBattleSubsystem>();
+	if (!Battle)
+	{
+		return;
+	}
+	if (OptionIndex < 0 || OptionIndex > static_cast<int32>(EJRPGBattleCameraOption::Far))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("WebUISubsystem: opção Battle Camera %d fora do intervalo — ignorada."), OptionIndex);
+		return;
+	}
+	Battle->SetBattleCameraOption(static_cast<EJRPGBattleCameraOption>(OptionIndex));
 }
 
 void UWebUISubsystem::SetUICursorVisible(bool bVisible)

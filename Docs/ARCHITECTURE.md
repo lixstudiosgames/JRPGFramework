@@ -320,5 +320,6 @@ content across once and remain for reference.
 | `Extras/ps1_glb_to_fbx.py` | Runs in headless Blender: a PS1 battle model `.glb` (monster or party) → rigged FBX for Unreal. See [`Guides/PS1_ASSETS.md`](Guides/PS1_ASSETS.md) |
 | `Extras/generate_*.py` | TOML → CSV importers (one-way) — except `generate_enemies_csv.py`, which keeps manual columns and rows |
 | `Extras/generate_enemy_actions_csv.py`, `generate_hero_battle_csv.py`, `monster_block.py` | Disc → CSV (the monsters' action entries, the Ra-Seru tiers and the weapon costs), through the RE's `asset.exe`; `monster_block.py` reads a decoded monster block. See [`Guides/ENEMIES.md`](Guides/ENEMIES.md) |
+| `Extras/generate_art_camera_csv.py` | Disc → `DT_ArtCamera.csv` (the 20 rows of the per-Art camera table, PROT 0898), read straight from `extracted/PROT`. See [`Guides/BATTLE_STAGE.md`](Guides/BATTLE_STAGE.md) |
 | `Extras/legaia_toml.py` | What the generators share: `tomllib` (Python 3.11+) + the Unreal CSV helpers |
 | `Extras/download_fonts.py` | Verifies/downloads the WebUI's local fonts |

@@ -327,6 +327,12 @@ public:
 	/** A altura do modelo em cm (a "display height" +0x3E do original), medida da malha no InitCombatant. */
 	float GetDisplayHeightCm() const { return DisplayHeightCm; }
 
+	/**
+	 * O passo da ação que toca agora e o cursor do clip dele: quantos segundos do asset já tocaram e quanto o asset dura (o
+	 * cursor de animação +0x22C[+0x68] do original, que a câmera de cada Art lê). Falso fora de ação ou antes do primeiro passo.
+	 */
+	bool GetPlayingStep(FJRPGActionStep& OutStep, float& OutClipSeconds, float& OutClipLength) const;
+
 	/** A fase mudou (Blueprint: câmera, som, efeito). */
 	UFUNCTION(BlueprintImplementableEvent, Category = "JRPG|Battle")
 	void OnActionPhaseChanged(EJRPGActionPhase NewPhase);
@@ -749,6 +755,11 @@ private:
 	int32 DeathFadeFrames = 32;
 	int32 DeathFadeStartFrame = 0;
 	float DeathFadeBaseZ = 0.0f;
+
+	/** O clip do passo que toca: o quadro lógico em que começou, a velocidade (play rate x RateScale) e a duração do asset. */
+	int32 StepClipStartFrame = INDEX_NONE;
+	float StepClipSpeed = 1.0f;
+	float StepClipLength = 0.0f;
 
 	/** O último clip de golpe tocado: de onde a ação sabe quando ele de fato acaba (o log do idle, a espera do idle). */
 	FName StepClipName = NAME_None;

@@ -70,7 +70,12 @@ enum class EJRPGBattleShot : uint8
 	/** Caso 7: os dois (o meio entre atacante e alvo) durante os golpes, girando para o outro lado sem voltar pelo arco curto. */
 	TwoShot,
 	/** Caso 8: o alvo, no fim da ação ou no knockdown dele (e a queda de quem morreu, com a opção Close). */
-	OnTarget
+	OnTarget,
+	/**
+	 * A câmera própria de uma Art (FUN_801D71B8): por cima de 6 / 7 / 8, enquanto um herói toca uma Art (ou o dash do Super /
+	 * Miracle) que tem um "braço" no original; cortes rápidos (1, 3 ou 6 quadros) por trechos do clip.
+	 */
+	Art
 };
 
 /**
@@ -298,6 +303,32 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action", meta = (ClampMin = "0.0", ClampMax = "180.0"))
 	float OneWaySlackDegrees = 20.0f;
 
+	/**
+	 * A câmera própria das Arts (o override FUN_801D71B8): 13 "braços" por herói / Art (Vahn, Noa, Gala), cada um com trechos
+	 * pelo cursor do clip, somando valores do DT_ArtCamera (Extras/generate_art_camera_csv.py) e rampas. A opção Far a desliga, e
+	 * ela não roda com o alvo morto. Sem o DT_ArtCamera os braços rodam com as linhas em 0 (e um aviso no log).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Arts")
+	bool bArtShots = true;
+
+	/**
+	 * O braço do dash do Super / Miracle (o clip 0x1A) escolhe o enquadramento pela contagem de loops do clip, que o original
+	 * repete; o nosso toca uma vez, então a contagem sai do progresso: começa em StarterLoopCount e desce até 0 no fim do clip.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Arts", meta = (ClampMin = "1"))
+	int32 StarterLoopCount = 5;
+
+	/** O rate do disco do clip do dash (o das Arts vem do DT_ArtHits): o cursor do clip é segundos x 7,5 x rate keyframes. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Arts", meta = (ClampMin = "1"))
+	int32 StarterDiscRate = 2;
+
+	/**
+	 * Seguir a opção Battle Camera do jogo (a tela de opções, UBattleSubsystem::GetBattleCameraOption) em vez de CameraOption.
+	 * Desligado, vale o CameraOption desta câmera.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action")
+	bool bFollowGameOption = true;
+
 	/** Quanto a tomada do fim da ação fica depois que ela acaba (o timer 0x3C do done band: 60 quadros). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action", meta = (ClampMin = "0.0"))
 	float DoneHoldSeconds = 1.0f;
@@ -326,6 +357,21 @@ protected:
 	bool BuildTwoShotPose(FJRPGBattleCameraPose& OutPose) const;
 	/** Caso 8: o alvo (o ramp da queda anda com DeltaSeconds). */
 	bool BuildOnTargetPose(float DeltaSeconds, FJRPGBattleCameraPose& OutPose);
+
+	/**
+	 * A câmera própria da Art que toca (o override do original): monta a pose do braço dela e devolve os passos do ease-out dele
+	 * (a duração do original / 2). Falso sem braço (a tomada da ação fica).
+	 */
+	bool BuildArtPose(FJRPGBattleCameraPose& OutPose, float& OutSteps);
+	/**
+	 * Um braço do original sobre a pose crua (pitch / giro / roll em unidades, TR x / y / z na escala da câmera, z cru): Character
+	 * 1 Vahn, 2 Noa, 3 Gala; ArtId o clip latched (0x1A dash, 0x1B..0x32 Arts); Select a contagem de loops; Cursor o cursor do
+	 * clip em 1/16 de keyframe. Falso sem braço.
+	 */
+	bool RunArtArm(int32 Character, int32 ArtId, int32 Select, int32 Cursor, int32 (&Rot)[3], int32 (&Dist)[3], int32& OutDuration);
+	/** O valor de uma linha do DT_ArtCamera na coluna dada (0 sem a tabela). */
+	int32 ArtTrack(int32 Row, int32 Column) const;
+	void LoadArtTracks();
 
 	/** A ação de agora: quem age, o começo de uma ação nova (o sorteio do ângulo, a escada, a distância), o primeiro golpe, o fim. */
 	void UpdateActionState(float DeltaSeconds);
@@ -395,4 +441,14 @@ private:
 	float ActionDepthUnits = 3072.0f;
 	float DoneTimeLeft = 0.0f;
 	float DeathRamp = 0.0f;
+
+	// A câmera das Arts: a coluna sorteada da ação (ctx[+0x26D]), a rampa (ctx[+0x26E], 0..0xC8), o acumulador (ctx[+0x87C]) e a
+	// trava das zeradas (ctx[+0x26F]); as rampas andam 8 por quadro de tela (480/s)
+	int32 ArtColumn = 0;
+	float ArtRamp = 0.0f;
+	double ArtAccum = 0.0;
+	int32 ArtLatch = 0;
+	/** O DT_ArtCamera lido (20 x 2), e se já tentou ler. */
+	TArray<FIntPoint> ArtTracks;
+	bool bArtTracksLoaded = false;
 };

@@ -261,6 +261,19 @@ static JSValueRef JSC_OnSetDifficulty(JSContextRef ctx, JSObjectRef, JSObjectRef
 	return JSValueMakeUndefined(ctx);
 }
 
+static JSValueRef JSC_OnSetBattleCamera(JSContextRef ctx, JSObjectRef, JSObjectRef, size_t argc, const JSValueRef argv[], JSValueRef*)
+{
+	if (argc > 0)
+	{
+		const int32 Index = JSValToInt32(ctx, argv[0]);
+		ExecuteOnGameThread([Index](UWebUIBridge* Bridge)
+		{
+			Bridge->OnSetBattleCamera(Index);
+		});
+	}
+	return JSValueMakeUndefined(ctx);
+}
+
 static JSValueRef JSC_SetCursorVisible(JSContextRef ctx, JSObjectRef, JSObjectRef, size_t argc, const JSValueRef argv[], JSValueRef*)
 {
 	if (argc > 0)
@@ -364,6 +377,7 @@ void UWebUIBridge::BindNativeFunctions(void* RawView)
 	AttachFn("onuistatechanged",     JSC_OnUIStateChanged);
 	AttachFn("setcursorvisible",     JSC_SetCursorVisible);
 	AttachFn("onsetdifficulty",      JSC_OnSetDifficulty);
+	AttachFn("onsetbattlecamera",    JSC_OnSetBattleCamera);
 	AttachFn("openurl",              JSC_OpenURL);
 	AttachFn("ondevcommand",         JSC_OnDevCommand);
 	AttachFn("onpartytoggle",        JSC_OnPartyToggle);
@@ -493,6 +507,14 @@ void UWebUIBridge::OnSetDifficulty(int32 DifficultyIndex)
 	if (WebUISubsystem)
 	{
 		WebUISubsystem->SetDifficultyFromUI(DifficultyIndex);
+	}
+}
+
+void UWebUIBridge::OnSetBattleCamera(int32 OptionIndex)
+{
+	if (WebUISubsystem)
+	{
+		WebUISubsystem->SetBattleCameraFromUI(OptionIndex);
 	}
 }
 

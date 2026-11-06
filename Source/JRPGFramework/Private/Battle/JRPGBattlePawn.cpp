@@ -1324,6 +1324,19 @@ void AJRPGBattlePawn::BeginAction(const FJRPGActionTimeline& Timeline, AJRPGBatt
 	}
 }
 
+bool AJRPGBattlePawn::GetPlayingStep(FJRPGActionStep& OutStep, float& OutClipSeconds, float& OutClipLength) const
+{
+	if (!bActionActive || !Action.Steps.IsValidIndex(PlayedStep) || StepClipStartFrame == INDEX_NONE || StepClipLength <= 0.0f)
+	{
+		return false;
+	}
+	OutStep = Action.Steps[PlayedStep];
+	OutClipLength = StepClipLength;
+	const float Elapsed = static_cast<float>(FMath::Max(LastLogicFrame - StepClipStartFrame, 0)) / static_cast<float>(UBattleFormulas::StepsPerSecond);
+	OutClipSeconds = FMath::Min(Elapsed * StepClipSpeed, StepClipLength);
+	return true;
+}
+
 bool AJRPGBattlePawn::IsOnKnockdown() const
 {
 	return ReactionRole == RoleKnockdown || ReactionRole == RoleGetUp || ReactionRole == RoleDying || ReactionRole == RoleDown;
@@ -1380,6 +1393,9 @@ void AJRPGBattlePawn::PlayStep(const FJRPGActionStep& Step)
 		const int32 ClipFrames = FMath::Max(FMath::CeilToInt(Clip->GetPlayLength() / Speed * static_cast<float>(UBattleFormulas::StepsPerSecond)), 1);
 		StepClipName = Clip->GetFName();
 		StepClipEndFrame = Action.StartFrame + Step.StartFrame + ClipFrames;
+		StepClipStartFrame = Action.StartFrame + Step.StartFrame;
+		StepClipSpeed = Speed;
+		StepClipLength = Clip->GetPlayLength();
 		// O clip do passo move o ator enquanto toca (o Slash Kick recua 7 por vsync) e anda o passo do fim dele (534 à frente)
 		BeginClipMotion(StepMotion(Step), Action.StartFrame + Step.StartFrame, StepClipEndFrame, Step.GameSpeed, true);
 	}
@@ -1387,6 +1403,8 @@ void AJRPGBattlePawn::PlayStep(const FJRPGActionStep& Step)
 	{
 		StepClipName = NAME_None;
 		StepClipEndFrame = INDEX_NONE;
+		StepClipStartFrame = INDEX_NONE;
+		StepClipLength = 0.0f;
 		BeginClipMotion(FClipMotion(), Action.StartFrame + Step.StartFrame, INDEX_NONE, Step.GameSpeed, true);
 	}
 }

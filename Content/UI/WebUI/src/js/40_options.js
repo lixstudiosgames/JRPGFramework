@@ -155,6 +155,13 @@ window.JRPGOptions = (function () {
                             desc: 'Easy plays by the Japanese original\'s rules: enemies without the American version\'s boost, full EXP and more Gold. Normal is the American original. Hard and Juggernaut make the ENEMIES tougher (more HP, attack and defense) and give a little more EXP and Gold. Your characters grow the same on every difficulty.'
                         },
                         {
+                            // A opção do original: não é distância, é o quanto as tomadas da ação se mexem. Vai a posição
+                            // (0 Close, 1 Normal, 2 Far = EJRPGBattleCameraOption)
+                            id: 'battlecamera', type: 'cycler', label: 'Battle Camera', index: 1,
+                            values: ['Close', 'Normal', 'Far'],
+                            desc: 'How much the camera moves during attacks. Normal is the original\'s default: it follows each action and gives the Arts their own shots. Close also moves in on the blows and follows a defeated enemy as it falls. Far keeps the camera calm: no slow turn and no special shots for the Arts.'
+                        },
+                        {
                             id: 'language', type: 'cycler', label: 'Language', index: 0,
                             values: ['English', 'Português (BR)'],
                             desc: 'Language used for menus, dialogue and item names.'
@@ -517,6 +524,18 @@ window.JRPGOptions = (function () {
             return;
         }
 
+        // A câmera da luta: vai a posição (= EJRPGBattleCameraOption)
+        if (def.id === 'battlecamera') {
+            const bridge = getBridge();
+            if (bridge && typeof bridge.onsetbattlecamera === 'function') {
+                bridge.onsetbattlecamera(def.index);
+                log(`Options: battle camera = ${def.values[def.index]}.`);
+            } else {
+                log(`Options: battle camera = ${def.values[def.index]} (ponte offline).`);
+            }
+            return;
+        }
+
         // TODO(apply): aplicar no jogo (UGameUserSettings / idioma) quando a
         // rodada de "opções funcionais" chegar.
         log(`Options: ${def.id} = ${def.values[def.index]} (visual apenas).`);
@@ -700,6 +719,19 @@ window.JRPGOptions = (function () {
             const pos = def.enumValues.indexOf(value | 0);
             def.index = pos >= 0 ? pos : def.enumValues.indexOf(0);
 
+            const entry = findRowEntry(def);
+            if (entry) {
+                const valueEl = entry.el.querySelector('.opt-value');
+                if (valueEl) valueEl.textContent = def.values[def.index];
+            }
+        },
+
+        /** C++: sincroniza a opção Battle Camera mostrada (0 Close, 1 Normal, 2 Far). Chamado no OpenOptions. */
+        setBattleCamera(value) {
+            const def = findRowDef('battlecamera');
+            if (!def) return;
+            const v = value | 0;
+            def.index = v >= 0 && v < def.values.length ? v : 1;
             const entry = findRowEntry(def);
             if (entry) {
                 const valueEl = entry.el.querySelector('.opt-value');

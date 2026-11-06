@@ -35,4 +35,22 @@ public:
 
 	UPROPERTY()
 	float AmbientVolume = 1.0f;
+
+	// --- Luta ---
+
+	/** A opção Battle Camera (EJRPGBattleCameraOption: 0 Close, 1 Normal, 2 Far); Normal, como o original. */
+	UPROPERTY()
+	uint8 BattleCameraOption = 1;
+
+	/**
+	 * O save das configurações do slot "JRPGSettings", ou um novo (sem o slot, ou de versão incompatível). Quem grava muda só os
+	 * campos dele e chama Store: o resto que estava salvo fica.
+	 */
+	static UJRPGSettingsSave* LoadOrCreate();
+
+	/** Grava no slot "JRPGSettings". */
+	static bool Store(UJRPGSettingsSave* Settings);
+
+	/** O nome do slot. */
+	static const TCHAR* SlotName;
 };

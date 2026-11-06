@@ -625,7 +625,11 @@ ladder with its seeds and drift, the style variant, the action depth from the si
 unwrap (chosen when the case is entered), and the Battle Camera option (`EJRPGBattleCameraOption`, Normal by default) with
 case 7's pull-in and case 8's dead / live arms on Close. Not carried: the formation-specific case 8 depths (`0xB4` / `0xA2` /
 `0xA7` / `0x1F..0x21`), Terra's case-6 override, the Done band's `0x96` seed. Pawn accessors added for it: `GetActiveTimeline`,
-`IsDefeated`, `IsOnKnockdown`, `IsFallingDead`, `IsAnimating`, `GetDisplayHeightCm`.
+`IsDefeated`, `IsOnKnockdown`, `IsFallingDead`, `IsAnimating`, `GetDisplayHeightCm`. Part d: the per-art camera 7.6, all 13 arms with
+their cursor cascades, latch resets and ramps (`AJRPGBattleCamera::RunArtArm`, from the RE port `battle_attack_camera`), the
+20-row table as `DT_ArtCamera` (`Extras/generate_art_camera_csv.py`, PROT 0898 `+0x265F8`), the clip cursor from
+`AJRPGBattlePawn::GetPlayingStep`. Part e: the option 7.7 in the game's Options (Game tab), saved in `JRPGSettings`; the Spirit
+close-up of 7.8 was part c. Camera pass done; the victory camera of 7.8 belongs to the battle-end step.
 
 **Gap: the whole battle camera.** Suggested shape (implementation pass): a `UJRPGBattleCameraDirector` owned by the scene subsystem
 that, every logic frame, picks the case from the battle stage + the acting pawn's phase + the menu screen, builds the target pose

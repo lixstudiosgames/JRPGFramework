@@ -143,6 +143,7 @@ The original's battle camera, from the RE (`Docs/Reference/BATTLE_RE_SWEEP.md` s
 | **Action** (case 6) | The actor's wind-up and walk (`Windup` / `Advance`), a Spirit turn; the end hold of an action without a hit | The actor's live position on the floor (the camera walks with him), the action yaw, level, eye ~139 cm up; distance from the monster's size class `clamp(class << 7, 0xC00, 0x1400)` (~532..887 cm; the target's class when a hero attacks, the monster's own when it attacks), Spirit `0x800` (~355 cm). |
 | **TwoShot** (case 7) | The strikes (`Strike` / `Chain`, and anything after the first strike); `Recovery` with the target standing | Midpoint of the two bodies on the floor; the action yaw minus `0x700`, reached **one way only**: on entering, if the short arc goes back it takes the long arc (the camera swings around to the other side). Close option: level, eye `+0x40`, 3/5 of the distance. |
 | **OnTarget** (case 8) | `Recovery` with the target on its knockdown / get-up or dead; the end hold (`DoneHoldSeconds`, 1 s) of a hit action | The target's body on the floor (the actor if the target is gone); yaw as case 7 (Far option: the yaw it has). **Close option only:** a dead target is framed falling (eye drops, levels and pushes in over ~0.4 s, then a flat pose once it lands), a standing one is re-aimed by its height (party: eye at its full height while animating, the close-up height minus `0x140` idle; monster: 7/8 of its height while animating, held while idle), with eye floors `0x280` / `0x300` turning the rest into tilt. |
+| **Art** (the per-Art camera) | Over 6 / 7 / 8 while a hero plays an Art (or the Super / Miracle dash) that has an "arm" in the original, the target alive, option not Far | The original's 13 arms (`FUN_801D71B8`): seeded on the hero (TR `(0, 0x400, 0x400)`, `0x600` high for Gala), each arm cuts between framings by the clip's cursor and adds rows of **`DT_ArtCamera`** plus two ramps; much quicker eases (1, 3 or 6 display frames: 1 is a cut). |
 
 **The action yaw** (the original's ladder `ctx[+0x6DA]`, "angle - actor facing"): `0x800` at the start of any action (from the
 front), `0x200` for an action with a hit (three-quarters from behind), and at a hero's first strike `0x280` or `0xA80` (one
@@ -151,7 +152,21 @@ rolled at the start, `bRandomStyle`): bit 0 films from the other side (half turn
 hero's first strike resets it to 0, Spirit only rolls the low angle.
 
 **`CameraOption`** (the original's Battle Camera option; Normal by default, as in the original): Close adds case 7's pull-in and
-case 8's fall / re-aim; Far drops the yaw drift and keeps the yaw it has on case 8 (and, later, skips the per-Art camera).
+case 8's fall / re-aim; Far drops the yaw drift, keeps the yaw it has on case 8 and skips the per-Art camera. The player sets
+it in **Options > Game > Battle Camera**; it is saved in the settings slot `JRPGSettings` (`UBattleSubsystem::
+Get/SetBattleCameraOption`) and the camera follows it (`bFollowGameOption`; off = the camera's own `CameraOption`).
+
+**The per-Art camera.** Which arm runs: Vahn - the dash (`0x1A`), Burning Flare (`0x1C`), Fire Blow (`0x1D`), Tornado Flame
+(`0x1E`, and its Miracle part `0x2A`); Noa - the dash, Hurricane Kick (`0x1D`) and its third part (`0x1E`), Vulture Blade
+(`0x1F`), Frost Breath (`0x20`), Jurassic Blow 1 / 2 (`0x2C` / `0x2D`); Gala - the dash, Explosive Fist (`0x1C`), Lightning Storm
+(`0x1D`), Thunder Punch (`0x1E`, Miracle part `0x2A`). The id is the Art's `ActionConstant` (`DT_Arts`); every other Art keeps
+the action shot, as in the original. The table column is a coin flip per action (Gala always column 0), so the same Art is
+filmed two ways. The clip cursor is the asset time x 7.5 x the disc rate (`DT_ArtHits.Rate`) in sixteenths of a keyframe.
+Approximations: the dash's arm picks its framing by the clip's loop count, which the original repeats and ours plays once, so
+the count runs down from `StarterLoopCount` (5) over the clip; the roll of Lightning Storm's arm is not applied; the pitch is
+kept within ±89°. **`DT_ArtCamera`**: `python Extras/generate_art_camera_csv.py --extracted <LegaiaRE/extracted>` (20 rows of
+two numbers from PROT 0898), import in `/Game/Data/` as a DataTable of `FJRPGArtCameraTrackData`. Without it the arms run with
+the rows at 0 (a warning in the log).
 
 "Facing-relative" yaws (case 0, and the action shots) are the original's `angle - facing`: the camera looks along the
 character's front turned by `-angle` (0 = from behind, `0x800` = at his face). The original's world is Y-down, so the side
@@ -160,7 +175,8 @@ could come out mirrored: `bMirrorYaw` swaps it.
 Tuning on the class: `DistanceScale` (every eye distance; 1 = the original's), `ChaseSteps` / `FarChaseSteps` (0 = hard
 cut), `StartYaw` (relative to the arena; the original opens at 0, both rows in line; 20° by default), `OrbitDegreesPerSecond`,
 `bMirrorYaw`, `bMenuShots` (off = the menu stays on the far shot), the `Member*` / `Target*` numbers, `bActionShots`,
-`CameraOption`, `bRandomStyle`, the `Action*` / `Style*` / `*YawUnits` numbers, `DoneHoldSeconds`, `FieldOfView43`,
+`CameraOption`, `bFollowGameOption`, `bRandomStyle`, the `Action*` / `Style*` / `*YawUnits` numbers, `DoneHoldSeconds`,
+`bArtShots`, `StarterLoopCount`, `StarterDiscRate`, `FieldOfView43`,
 `bPrintDebug` (shot, slots and pose on screen).
 
 **Field enemies:** `bStartBattle` (default on) — off, contact only announces the encounter, as

@@ -215,6 +215,9 @@ public:
 	 */
 	void SetDifficultyFromUI(int32 DifficultyIndex);
 
+	/** Aplica a opção Battle Camera da tela de opções (0 Close, 1 Normal, 2 Far: EJRPGBattleCameraOption). */
+	void SetBattleCameraFromUI(int32 OptionIndex);
+
 	/** Mapa carregado por QuitToMainMenu (sem extensão). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|WebUI")
 	FName MainMenuLevelName = TEXT("MainMenu");
