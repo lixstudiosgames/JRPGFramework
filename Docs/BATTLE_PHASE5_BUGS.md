@@ -546,6 +546,13 @@ tables of 1c first.
       name is coloured by kind: **Miracle red, Hyper orange, Super yellowish** (Regular stays white).
 34. **Prefilled chain + Escape:** when the input window opens with the previous round's chain already typed, Escape / Cancel must
     clear **all** of it at once, not one button at a time (one at a time still applies to buttons typed by hand this time).
+- **33 and 34 fixed (2026-11-05, re-test).** The Arts panel is in the view only on the Attack screen (`FJRPGBattleMenu::BuildViewJS`);
+  L1 / R1 stop at the first / last page (`pageArtList`); each Art carries its `kind`: names Miracle red, Hyper orange, Super
+  yellow; the arrows are the user's SVG arrows (`95_battle.html`, purple `#8C88EC` / yellow `#F4B41A` with a dark shadow), purple
+  with the **last** one yellow, all yellow on a Hyper; the panel uses the user's gradient (`#1B1E75 -> #121558 -> #0C0E45`) and a
+  2 px `#B88A44` border. **Miracle is always first** in the list (then Hyper, Super, Regular). Cancel on a prefilled chain clears
+  it at once (`PrefillCount`); buttons typed by hand after it still come off one at a time. Tests in `JRPGBattleUITests.cpp`.
+  `shell.html` rebuilt (`Extras/build_webui.py`).
 
 26. **Too many blocks.** The block roll misses the RE's two approach terms (`hits.rs` `roll_block`, `block.rs` `block_roll`), spent
     by the **first** hit of each action: `attack_ramp` = how far the defender is from facing the attacker (0 face-on .. `0x800` from

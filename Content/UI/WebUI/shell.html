@@ -5606,8 +5606,8 @@ html.kbd-mode #screen-dev * {
     align-items: center;
     gap: 12px;
     padding: 8px 22px;
-    background: linear-gradient(180deg, #34389a 0%, #1b1e75 100%);
-    border: 3px solid var(--border-gold);
+    background: linear-gradient(180deg, #1B1E75 0%, #121558 50%, #0C0E45 100%);
+    border: 2px solid #B88A44;
     border-radius: 10px;
     font-size: 26px;
     font-weight: 600;
@@ -5623,15 +5623,15 @@ html.kbd-mode #screen-dev * {
 .bt-al-panel {
     width: 640px;
     padding: 14px 22px 12px;
-    background: linear-gradient(180deg, #2a2f9a 0%, #161a6e 100%);
-    border: 4px solid #c9a35a;
+    background: linear-gradient(180deg, #1B1E75 0%, #121558 50%, #0C0E45 100%);
+    border: 2px solid #B88A44;
     border-radius: 12px;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
 }
 
 .bt-al-row {
     padding: 8px 0 10px;
-    border-bottom: 1px solid rgba(201, 163, 90, 0.25);
+    border-bottom: 1px solid rgba(184, 138, 68, 0.25);
 }
 
 .bt-al-row:last-of-type {
@@ -5651,6 +5651,11 @@ html.kbd-mode #screen-dev * {
     text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
 }
 
+/* O nome pela cor do tipo, como o original: Miracle vermelha, Hyper laranja, Super amarelada, Regular branca */
+.bt-al-row.miracle .bt-al-name { color: #FF4A3D; }
+.bt-al-row.hyper .bt-al-name   { color: #FF9A2E; }
+.bt-al-row.super .bt-al-name   { color: #F4D35E; }
+
 .bt-al-ap {
     font-size: 34px;
     font-weight: 700;
@@ -5666,11 +5671,15 @@ html.kbd-mode #screen-dev * {
 .bt-al-dirs {
     display: flex;
     justify-content: flex-end;
-    gap: 6px;
+    gap: 4px;
     margin-top: 4px;
-    font-size: 30px;
-    color: #9fb0ff;
-    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+}
+
+/* As setas SVG (95_battle.html, #ar-<dir>-p / -y): a sombra já vem no símbolo */
+.bt-al-arrow {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
 }
 
 .bt-al-foot {
@@ -6718,6 +6727,45 @@ html.kbd-mode #screen-dev * {
         <!-- A lista de consulta das Arts (o painel do Triângulo do original): abre e fecha com Triângulo / E, L1 / R1 (Q / R)
              trocam a página. Só desenha o que a view traz (view.artlist); o direcional continua digitando com ela aberta. -->
         <div id="bt-artlist"></div>
+
+        <!-- As setas do painel de Arts: roxa (#8C88EC) e amarela (#F4B41A), com a sombra escura embaixo à direita, nas quatro
+             direções (a mesma seta girada em volta do centro; a sombra fica sempre do mesmo lado). Uso: <use href="#ar-up-y"/> -->
+        <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+            <defs>
+                <symbol id="ar-up-y" viewBox="0 0 20 20">
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#111111" transform="translate(2,2)"/>
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#F4B41A"/>
+                </symbol>
+                <symbol id="ar-up-p" viewBox="0 0 20 20">
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#111111" transform="translate(2,2)"/>
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#8C88EC"/>
+                </symbol>
+                <symbol id="ar-right-y" viewBox="0 0 20 20">
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#111111" transform="translate(2,2) rotate(90 8 8)"/>
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#F4B41A" transform="rotate(90 8 8)"/>
+                </symbol>
+                <symbol id="ar-right-p" viewBox="0 0 20 20">
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#111111" transform="translate(2,2) rotate(90 8 8)"/>
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#8C88EC" transform="rotate(90 8 8)"/>
+                </symbol>
+                <symbol id="ar-down-y" viewBox="0 0 20 20">
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#111111" transform="translate(2,2) rotate(180 8 8)"/>
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#F4B41A" transform="rotate(180 8 8)"/>
+                </symbol>
+                <symbol id="ar-down-p" viewBox="0 0 20 20">
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#111111" transform="translate(2,2) rotate(180 8 8)"/>
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#8C88EC" transform="rotate(180 8 8)"/>
+                </symbol>
+                <symbol id="ar-left-y" viewBox="0 0 20 20">
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#111111" transform="translate(2,2) rotate(270 8 8)"/>
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#F4B41A" transform="rotate(270 8 8)"/>
+                </symbol>
+                <symbol id="ar-left-p" viewBox="0 0 20 20">
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#111111" transform="translate(2,2) rotate(270 8 8)"/>
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#8C88EC" transform="rotate(270 8 8)"/>
+                </symbol>
+            </defs>
+        </svg>
 
         <div id="bt-refusal"></div>
         <div id="bt-art"></div>
@@ -11831,6 +11879,7 @@ window.JRPGBattleDpad = (function () {
 //       targets: {list:[{name}], cursor} | null,
 //       tactics: {rows:[{name,pick}], options:[...], row, confirmRow, confirm} | null,
 //       summary: [{who,what,target}],         (a tela Final)
+//       artlist: [{name,kind,ap,cost,dirs}] | null,   (só na tela Attack: o painel do Triângulo, já na ordem)
 //       autobattle: {on, pending} }
 //   JRPGBattle.close()        esconde a seção (o C++ já devolveu o input ao jogo)
 // JS -> C++
@@ -12010,7 +12059,16 @@ window.JRPGBattle = (function () {
             `<span class="bt-final-what">${esc(s.what)}</span><span class="bt-final-target">${esc(s.target)}</span></div>`).join('');
     }
 
-    const ARROWS = { left: '&#9664;', up: '&#9650;', right: '&#9654;', down: '&#9660;' };
+    const ARROW_DIRS = { left: 1, up: 1, right: 1, down: 1 };
+
+    /**
+     * Uma seta do painel (os símbolos #ar-<dir>-p / -y de 95_battle.html). As cores do original: roxa, a ÚLTIMA de cada Art
+     * amarela, e todas amarelas numa Hyper.
+     */
+    function arrowSvg(dir, yellow) {
+        const d = ARROW_DIRS[dir] ? dir : 'up';
+        return `<svg class="bt-al-arrow" viewBox="0 0 20 20"><use href="#ar-${d}-${yellow ? 'y' : 'p'}" xlink:href="#ar-${d}-${yellow ? 'y' : 'p'}"/></svg>`;
+    }
 
     function drawArtList(v) {
         const box = el('bt-artlist');
@@ -12030,8 +12088,10 @@ window.JRPGBattle = (function () {
             const rows = list.slice(listPage * ARTS_PER_PAGE, (listPage + 1) * ARTS_PER_PAGE).map(a => {
                 // O original: a Art que tira AP leva o "-"; a que dá fica só com o número
                 const ap = a.cost ? `-${a.ap}` : `${a.ap}`;
-                const dirs = (a.dirs || []).map(d => `<span>${ARROWS[d] || '?'}</span>`).join('');
-                return `<div class="bt-al-row">
+                const kind = ['miracle', 'hyper', 'super'].includes(a.kind) ? a.kind : 'regular';
+                const seq = a.dirs || [];
+                const dirs = seq.map((d, i) => arrowSvg(d, kind === 'hyper' || i === seq.length - 1)).join('');
+                return `<div class="bt-al-row ${kind}">
                     <div class="bt-al-line"><span class="bt-al-name">${esc(a.name)}</span>
                         <span class="bt-al-ap${a.cost ? ' cost' : ''}">${ap}</span></div>
                     <div class="bt-al-dirs">${dirs}</div>
@@ -12063,7 +12123,10 @@ window.JRPGBattle = (function () {
     function pageArtList(delta) {
         if (!listOpen || !view || !view.artlist) return;
         const pages = Math.max(1, Math.ceil(view.artlist.length / ARTS_PER_PAGE));
-        listPage = (listPage + delta + pages) % pages;
+        // Sem dar a volta: o L1 sobe e o R1 desce, e os dois param na primeira / na última página
+        const next = Math.max(0, Math.min(pages - 1, listPage + delta));
+        if (next === listPage) return;
+        listPage = next;
         drawArtList(view);
         if (typeof kickUIRepaint === 'function') kickUIRepaint();
     }
@@ -12199,18 +12262,19 @@ window.JRPGBattle = (function () {
                 dpad: pad(null, null, null, null)
             };
             const sampleArts = [
-                { name: 'Tornado Flame', ap: 30, cost: true, dirs: ['right', 'right', 'left'] },
-                { name: "Vahn's Craze", ap: 100, cost: true, dirs: ['right', 'down', 'left', 'up', 'left', 'down', 'right'] },
-                { name: 'Slash Kick', ap: 12, cost: false, dirs: ['down', 'up', 'right'] },
-                { name: 'Hyper Elbow', ap: 9, cost: false, dirs: ['left', 'right', 'left'] },
-                { name: 'Somersault', ap: 8, cost: false, dirs: ['up', 'down', 'up'] },
-                { name: 'Power Punch', ap: 6, cost: false, dirs: ['left', 'left', 'up'] }
+                { name: 'Miracle Art', kind: 'miracle', ap: 100, cost: true, dirs: ['right', 'down', 'left', 'up', 'left', 'down', 'right', 'up'] },
+                { name: 'Tornado Flame', kind: 'hyper', ap: 30, cost: true, dirs: ['right', 'right', 'left'] },
+                { name: "Vahn's Craze", kind: 'super', ap: 60, cost: true, dirs: ['right', 'down', 'left', 'up', 'left', 'down', 'right'] },
+                { name: 'Slash Kick', kind: 'regular', ap: 12, cost: false, dirs: ['down', 'up', 'right'] },
+                { name: 'Hyper Elbow', kind: 'regular', ap: 9, cost: false, dirs: ['left', 'right', 'left'] },
+                { name: 'Somersault', kind: 'regular', ap: 8, cost: false, dirs: ['up', 'down', 'up'] },
+                { name: 'Power Punch', kind: 'regular', ap: 6, cost: false, dirs: ['left', 'left', 'up'] }
             ];
             const screens = {
                 start: { screen: 'start', dpad: pad(b('Begin', true), b('Tactics', true), b('Escape', true), null) },
                 escape: { screen: 'escape', crumbs: ['Escape'], dpad: pad(b('Confirm', true), null, b('Cancel', true), null) },
                 command: {
-                    screen: 'command', crumbs: ['Begin', 'Vahn'], focus: 0, artlist: sampleArts,
+                    screen: 'command', crumbs: ['Begin', 'Vahn'], focus: 0,
                     dpad: pad(b('Attack', true), b('Item', false), b('Meta', false), b('Spirit', true))
                 },
                 attack: {

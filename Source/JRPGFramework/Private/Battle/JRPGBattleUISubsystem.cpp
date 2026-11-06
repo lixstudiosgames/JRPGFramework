@@ -334,13 +334,13 @@ FJRPGBattleMenuContext UJRPGBattleUISubsystem::BuildContext(const UBattleSubsyst
 				Entry.Buttons = Art->Command;
 			}
 		}
-		// A ordem do painel: as Hyper no topo, depois a Miracle, as Super e as Regulares; em cada grupo, mais AP primeiro
+		// A ordem do painel: a Miracle sempre no topo, depois as Hyper, as Super e as Regulares; em cada grupo, mais AP primeiro
 		auto GroupOf = [](EJRPGArtKind Kind)
 		{
 			switch (Kind)
 			{
-			case EJRPGArtKind::Hyper:   return 0;
-			case EJRPGArtKind::Miracle: return 1;
+			case EJRPGArtKind::Miracle: return 0;
+			case EJRPGArtKind::Hyper:   return 1;
 			case EJRPGArtKind::Super:   return 2;
 			default:                    return 3;
 			}

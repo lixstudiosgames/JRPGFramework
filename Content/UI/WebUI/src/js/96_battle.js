@@ -18,6 +18,7 @@
 //       targets: {list:[{name}], cursor} | null,
 //       tactics: {rows:[{name,pick}], options:[...], row, confirmRow, confirm} | null,
 //       summary: [{who,what,target}],         (a tela Final)
+//       artlist: [{name,kind,ap,cost,dirs}] | null,   (só na tela Attack: o painel do Triângulo, já na ordem)
 //       autobattle: {on, pending} }
 //   JRPGBattle.close()        esconde a seção (o C++ já devolveu o input ao jogo)
 // JS -> C++
@@ -197,7 +198,16 @@ window.JRPGBattle = (function () {
             `<span class="bt-final-what">${esc(s.what)}</span><span class="bt-final-target">${esc(s.target)}</span></div>`).join('');
     }
 
-    const ARROWS = { left: '&#9664;', up: '&#9650;', right: '&#9654;', down: '&#9660;' };
+    const ARROW_DIRS = { left: 1, up: 1, right: 1, down: 1 };
+
+    /**
+     * Uma seta do painel (os símbolos #ar-<dir>-p / -y de 95_battle.html). As cores do original: roxa, a ÚLTIMA de cada Art
+     * amarela, e todas amarelas numa Hyper.
+     */
+    function arrowSvg(dir, yellow) {
+        const d = ARROW_DIRS[dir] ? dir : 'up';
+        return `<svg class="bt-al-arrow" viewBox="0 0 20 20"><use href="#ar-${d}-${yellow ? 'y' : 'p'}" xlink:href="#ar-${d}-${yellow ? 'y' : 'p'}"/></svg>`;
+    }
 
     function drawArtList(v) {
         const box = el('bt-artlist');
@@ -217,8 +227,10 @@ window.JRPGBattle = (function () {
             const rows = list.slice(listPage * ARTS_PER_PAGE, (listPage + 1) * ARTS_PER_PAGE).map(a => {
                 // O original: a Art que tira AP leva o "-"; a que dá fica só com o número
                 const ap = a.cost ? `-${a.ap}` : `${a.ap}`;
-                const dirs = (a.dirs || []).map(d => `<span>${ARROWS[d] || '?'}</span>`).join('');
-                return `<div class="bt-al-row">
+                const kind = ['miracle', 'hyper', 'super'].includes(a.kind) ? a.kind : 'regular';
+                const seq = a.dirs || [];
+                const dirs = seq.map((d, i) => arrowSvg(d, kind === 'hyper' || i === seq.length - 1)).join('');
+                return `<div class="bt-al-row ${kind}">
                     <div class="bt-al-line"><span class="bt-al-name">${esc(a.name)}</span>
                         <span class="bt-al-ap${a.cost ? ' cost' : ''}">${ap}</span></div>
                     <div class="bt-al-dirs">${dirs}</div>
@@ -250,7 +262,10 @@ window.JRPGBattle = (function () {
     function pageArtList(delta) {
         if (!listOpen || !view || !view.artlist) return;
         const pages = Math.max(1, Math.ceil(view.artlist.length / ARTS_PER_PAGE));
-        listPage = (listPage + delta + pages) % pages;
+        // Sem dar a volta: o L1 sobe e o R1 desce, e os dois param na primeira / na última página
+        const next = Math.max(0, Math.min(pages - 1, listPage + delta));
+        if (next === listPage) return;
+        listPage = next;
         drawArtList(view);
         if (typeof kickUIRepaint === 'function') kickUIRepaint();
     }
@@ -386,18 +401,19 @@ window.JRPGBattle = (function () {
                 dpad: pad(null, null, null, null)
             };
             const sampleArts = [
-                { name: 'Tornado Flame', ap: 30, cost: true, dirs: ['right', 'right', 'left'] },
-                { name: "Vahn's Craze", ap: 100, cost: true, dirs: ['right', 'down', 'left', 'up', 'left', 'down', 'right'] },
-                { name: 'Slash Kick', ap: 12, cost: false, dirs: ['down', 'up', 'right'] },
-                { name: 'Hyper Elbow', ap: 9, cost: false, dirs: ['left', 'right', 'left'] },
-                { name: 'Somersault', ap: 8, cost: false, dirs: ['up', 'down', 'up'] },
-                { name: 'Power Punch', ap: 6, cost: false, dirs: ['left', 'left', 'up'] }
+                { name: 'Miracle Art', kind: 'miracle', ap: 100, cost: true, dirs: ['right', 'down', 'left', 'up', 'left', 'down', 'right', 'up'] },
+                { name: 'Tornado Flame', kind: 'hyper', ap: 30, cost: true, dirs: ['right', 'right', 'left'] },
+                { name: "Vahn's Craze", kind: 'super', ap: 60, cost: true, dirs: ['right', 'down', 'left', 'up', 'left', 'down', 'right'] },
+                { name: 'Slash Kick', kind: 'regular', ap: 12, cost: false, dirs: ['down', 'up', 'right'] },
+                { name: 'Hyper Elbow', kind: 'regular', ap: 9, cost: false, dirs: ['left', 'right', 'left'] },
+                { name: 'Somersault', kind: 'regular', ap: 8, cost: false, dirs: ['up', 'down', 'up'] },
+                { name: 'Power Punch', kind: 'regular', ap: 6, cost: false, dirs: ['left', 'left', 'up'] }
             ];
             const screens = {
                 start: { screen: 'start', dpad: pad(b('Begin', true), b('Tactics', true), b('Escape', true), null) },
                 escape: { screen: 'escape', crumbs: ['Escape'], dpad: pad(b('Confirm', true), null, b('Cancel', true), null) },
                 command: {
-                    screen: 'command', crumbs: ['Begin', 'Vahn'], focus: 0, artlist: sampleArts,
+                    screen: 'command', crumbs: ['Begin', 'Vahn'], focus: 0,
                     dpad: pad(b('Attack', true), b('Item', false), b('Meta', false), b('Spirit', true))
                 },
                 attack: {

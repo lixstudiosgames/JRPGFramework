@@ -197,11 +197,13 @@ namespace JRPGBattleUITests
 		TestTrue(TEXT("Spirit ligado"), CommandView.Contains(TEXT("down:{label:'Spirit',enabled:true")));
 		TestTrue(TEXT("Attack ligado"), CommandView.Contains(TEXT("left:{label:'Attack',enabled:true")));
 		TestTrue(TEXT("as migalhas: Begin > Vahn"), CommandView.Contains(TEXT("crumbs:['Begin','Vahn']")));
+		TestTrue(TEXT("a lista de Arts não aparece no menu principal"), CommandView.Contains(TEXT("artlist:null")));
 
 		// Vahn: Attack, Arms, High, o High sai com o Cancel, e confirma com um Arms só (vira o Attack do núcleo)
 		Menu.Press(EKey::Left);
 		TestEqual(TEXT("a entrada de botões"), AsInt(Menu.GetScreen()), AsInt(EScreen::Attack));
 		TestTrue(TEXT("migalhas: Begin > Vahn > Attack"), Menu.BuildViewJS(TEXT("")).Contains(TEXT("crumbs:['Begin','Vahn','Attack']")));
+		TestFalse(TEXT("a lista de Arts aparece na janela de entrada"), Menu.BuildViewJS(TEXT("")).Contains(TEXT("artlist:null")));
 		Menu.Press(EKey::Left);    // Arms (destro)
 		Menu.Press(EKey::Up);      // High
 		TestTrue(TEXT("Arms, High"), Menu.GetButtons() == TArray<EJRPGArtButton>({ Ar, Hi }));
@@ -235,6 +237,14 @@ namespace JRPGBattleUITests
 		// O Vahn já mandou um Arms nesta luta: a janela de entrada abre com ele digitado (repetir é só confirmar)
 		Menu.Press(EKey::Left);
 		TestTrue(TEXT("a janela abre com a última cadeia do Vahn"), Menu.GetButtons() == TArray<EJRPGArtButton>({ Ar }));
+		// O Cancel: o botão digitado à mão sai sozinho; a cadeia que veio preenchida sai inteira de uma vez (bug 34)
+		Menu.Press(EKey::Up);      // High, à mão
+		Menu.Press(EKey::Cancel);
+		TestTrue(TEXT("o Cancel tirou só o High digitado"), Menu.GetButtons() == TArray<EJRPGArtButton>({ Ar }));
+		Menu.Press(EKey::Cancel);
+		TestTrue(TEXT("o Cancel seguinte apagou a cadeia preenchida"), Menu.GetButtons().IsEmpty());
+		TestEqual(TEXT("e continua na janela de entrada"), AsInt(Menu.GetScreen()), AsInt(EScreen::Attack));
+		Menu.Press(EKey::Left);    // Arms de novo
 		Menu.Press(EKey::Confirm);
 		Menu.Press(EKey::Confirm);
 		TestEqual(TEXT("Noa"), Menu.GetPlan().CurrentSlot(), 1);

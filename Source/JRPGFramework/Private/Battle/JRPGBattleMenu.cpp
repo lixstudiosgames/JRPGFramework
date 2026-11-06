@@ -391,6 +391,7 @@ void FJRPGBattleMenu::ResetFight()
 	Plan = FJRPGBattleCommandPlan();
 	Screen = EJRPGBattleMenuScreen::Start;
 	Buttons.Reset();
+	PrefillCount = 0;
 	Refusal.Reset();
 }
 
@@ -400,6 +401,7 @@ void FJRPGBattleMenu::BeginRound(const FJRPGBattleMenuContext& InContext)
 	Plan.Reset(Ctx.HeroSlotsNeedingCommand());
 	Screen = EJRPGBattleMenuScreen::Start;
 	Buttons.Reset();
+	PrefillCount = 0;
 	GaugeLeft = 0;
 	TargetCursor = 0;
 	TacticRow = 0;
@@ -686,6 +688,7 @@ FJRPGBattleMenuResult FJRPGBattleMenu::PressCommand(EJRPGBattleMenuKey Key)
 void FJRPGBattleMenu::PrefillButtons(const FJRPGBattleMenuHero& Hero)
 {
 	Buttons.Reset();
+	PrefillCount = 0;
 	GaugeLeft = Hero.Gauge;
 	const TArray<EJRPGArtButton>* Last = LastButtons.Find(Hero.Key);
 	if (!Last)
@@ -706,6 +709,8 @@ void FJRPGBattleMenu::PrefillButtons(const FJRPGBattleMenuHero& Hero)
 			GaugeLeft -= Cost;
 		}
 	}
+	// O que veio preenchido sai inteiro num Cancel só (PressAttack); o que for digitado depois sai um por um
+	PrefillCount = Buttons.Num();
 }
 
 FJRPGBattleMenuResult FJRPGBattleMenu::PressAttack(EJRPGBattleMenuKey Key)
@@ -766,14 +771,21 @@ FJRPGBattleMenuResult FJRPGBattleMenu::PressAttack(EJRPGBattleMenuKey Key)
 		return Changed(TEXT("Select"));
 	case EJRPGBattleMenuKey::Cancel:
 		Refusal.Reset();
-		if (!Buttons.IsEmpty())
+		if (Buttons.Num() > PrefillCount)
 		{
-			// Tira o último botão e devolve o custo dele
+			// Tira o último botão digitado à mão e devolve o custo dele
 			const EJRPGArtButton Removed = Buttons.Pop();
 			if (Hero->Gauge > 0)
 			{
 				GaugeLeft = FMath::Min(GaugeLeft + Hero->CostOf(Removed), Hero->Gauge);
 			}
+		}
+		else if (!Buttons.IsEmpty())
+		{
+			// Só sobrou a cadeia da rodada anterior (PrefillButtons): sai inteira de uma vez, o gauge volta cheio
+			Buttons.Reset();
+			PrefillCount = 0;
+			GaugeLeft = Hero->Gauge;
 		}
 		else
 		{
@@ -836,6 +848,7 @@ FJRPGBattleMenuResult FJRPGBattleMenu::ConfirmTarget()
 	// A cadeia que valeu fica guardada: a próxima janela de entrada dele já abre com ela
 	LastButtons.Add(Hero->Key, Buttons);
 	Buttons.Reset();
+	PrefillCount = 0;
 	GaugeLeft = 0;
 	Refusal.Reset();
 	// O próximo herói começa pelo menu principal; sem próximo, a confirmação final
@@ -857,6 +870,7 @@ FJRPGBattleMenuResult FJRPGBattleMenu::PressFinal(EJRPGBattleMenuKey Key)
 		// Reselect: as escolhas caem e volta ao primeiro herói
 		Plan.Reselect();
 		Buttons.Reset();
+		PrefillCount = 0;
 		Refusal.Reset();
 		Screen = EJRPGBattleMenuScreen::Command;
 		return Changed(TEXT("Cancel"));
@@ -1009,10 +1023,20 @@ FString FJRPGBattleMenu::BuildViewJS(const FString& Sfx) const
 		Out += TEXT("art:null,");
 	}
 
-	// A lista de consulta das Arts (o painel do Triângulo), na tela de comando e na janela de entrada: o nome, o AP que dá ou
-	// tira, e o comando como setas pela mão do herói (o Arms da Noa, canhota, é a direita)
-	if (Focus && (Screen == EJRPGBattleMenuScreen::Command || Screen == EJRPGBattleMenuScreen::Attack))
+	// A lista de consulta das Arts (o painel do Triângulo), SÓ na janela de entrada (onde os botões são digitados): o nome, o tipo
+	// (a cor do nome e das setas), o AP que dá ou tira, e o comando como setas pela mão do herói (o Arms da Noa, canhota, é a direita)
+	if (Focus && Screen == EJRPGBattleMenuScreen::Attack)
 	{
+		auto KindName = [](EJRPGArtKind Kind) -> const TCHAR*
+		{
+			switch (Kind)
+			{
+			case EJRPGArtKind::Miracle: return TEXT("miracle");
+			case EJRPGArtKind::Hyper:   return TEXT("hyper");
+			case EJRPGArtKind::Super:   return TEXT("super");
+			default:                    return TEXT("regular");
+			}
+		};
 		auto DirFor = [Focus](EJRPGArtButton Button) -> const TCHAR*
 		{
 			if (UJRPGArtsRules::ButtonForPad(Focus->bLeftHanded, EJRPGPadButton::Left) == Button)  { return TEXT("left"); }
@@ -1029,8 +1053,8 @@ FString FJRPGBattleMenu::BuildViewJS(const FString& Sfx) const
 			{
 				Dirs += FString::Printf(TEXT("%s%s"), k > 0 ? TEXT(",") : TEXT(""), *Lit(DirFor(Art.Buttons[k])));
 			}
-			Out += FString::Printf(TEXT("%s{name:%s,ap:%d,cost:%s,dirs:[%s]}"), i > 0 ? TEXT(",") : TEXT(""), *Lit(Art.Name), Art.AP,
-				Bool(Art.bCost), *Dirs);
+			Out += FString::Printf(TEXT("%s{name:%s,kind:%s,ap:%d,cost:%s,dirs:[%s]}"), i > 0 ? TEXT(",") : TEXT(""), *Lit(Art.Name),
+				*Lit(KindName(Art.Kind)), Art.AP, Bool(Art.bCost), *Dirs);
 		}
 		Out += TEXT("],");
 	}

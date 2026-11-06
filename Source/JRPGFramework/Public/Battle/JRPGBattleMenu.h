@@ -131,7 +131,7 @@ struct JRPGFRAMEWORK_API FJRPGBattleMenuHero
 	/** Os botões das Arts Regulares que ele conhece (a Aggressive escolhe entre elas). */
 	TArray<TArray<EJRPGArtButton>> KnownArtCommands;
 	/**
-	 * Todas as Arts que ele conhece, para a lista de consulta: as Hyper no topo, depois a Miracle, as Super e as Regulares; em
+	 * Todas as Arts que ele conhece, para a lista de consulta: a Miracle sempre no topo, depois as Hyper, as Super e as Regulares; em
 	 * cada grupo, a de mais AP primeiro (o painel do original).
 	 */
 	TArray<FJRPGBattleMenuArt> ArtList;
@@ -362,6 +362,8 @@ private:
 	/** Tela Attack: os botões digitados e o que sobra do gauge. */
 	TArray<EJRPGArtButton> Buttons;
 	int32 GaugeLeft = 0;
+	/** Quantos dos Buttons vieram preenchidos da rodada anterior (PrefillButtons): o Cancel apaga esses de uma vez. */
+	int32 PrefillCount = 0;
 
 	/** Tela Target: o cursor, índice na lista dos inimigos VIVOS. */
 	int32 TargetCursor = 0;

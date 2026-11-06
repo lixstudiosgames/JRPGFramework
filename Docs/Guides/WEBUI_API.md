@@ -95,18 +95,22 @@ when the round plays. The flow, the rules and the C++ side are in
   tactics: {rows:[{name, pick}], options:[…], row, confirmRow, confirm} | null,
   summary: [{who, what, target}],          // the Final screen: "Vahn | Attack | Frog A"
   autobattle: {on, pending},               // pending: the Start screen is counting down to the auto round
-  artlist: [{name, ap, cost, dirs:['left'|'up'|'right'|'down', …]}] | null
-                                           // Command / Attack screens: the hero's known Arts for the Triangle panel,
-                                           // already sorted (Hyper, Miracle, Super, Regular; more AP first); cost = the
-                                           // Art takes AP (shown "-N"), else it gives AP (shown "N"); dirs already follow
-                                           // the hero's hand
+  artlist: [{name, kind:'miracle'|'hyper'|'super'|'regular', ap, cost, dirs:['left'|'up'|'right'|'down', …]}] | null
+                                           // Attack screen only (the input window): the hero's known Arts for the Triangle
+                                           // panel, already sorted (Miracle always first, then Hyper, Super, Regular; more AP
+                                           // first); kind colours the name and arrows; cost = the Art takes AP (shown "-N"),
+                                           // else it gives AP (shown "N"); dirs already follow the hero's hand
 }
 ```
 
 The Arts panel (`#bt-artlist`) is screen-only state: Triangle (`handleUIInput('list')`, keyboard **E**) opens and
 closes it, L1 / R1 (`tab_prev` / `tab_next`, keyboard **Q / R** or PageUp / PageDown) change the page, five Arts per
-page; the d-pad keeps typing while it is open. None of it reaches C++. The Attack screen also opens with the hero's
-last chain of this fight already typed (`FJRPGBattleMenu::PrefillButtons`, cut to what fits this round's gauge).
+page, and the pages stop at the first / last (no wrap); the d-pad keeps typing while it is open. None of it reaches C++.
+Colours (the original's): names Miracle red, Hyper orange, Super yellow, Regular white; arrows are the purple / yellow
+SVG arrows (`#ar-<dir>-p` / `#ar-<dir>-y` in `95_battle.html`): purple, the **last** arrow of every Art yellow, every
+arrow of a Hyper yellow. The Attack screen also opens with the hero's last chain of this fight already typed
+(`FJRPGBattleMenu::PrefillButtons`, cut to what fits this round's gauge); Cancel clears that prefilled chain **all at
+once**, while buttons typed by hand afterwards come off one at a time.
 
 `dpad.*.enabled` false = drawn dimmed with an **X over the button** and not selectable. The game rules
 (what fits in the gauge, which direction is which button for a left-handed hero, who can be targeted,

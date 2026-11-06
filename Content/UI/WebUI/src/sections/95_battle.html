@@ -38,6 +38,45 @@
              trocam a página. Só desenha o que a view traz (view.artlist); o direcional continua digitando com ela aberta. -->
         <div id="bt-artlist"></div>
 
+        <!-- As setas do painel de Arts: roxa (#8C88EC) e amarela (#F4B41A), com a sombra escura embaixo à direita, nas quatro
+             direções (a mesma seta girada em volta do centro; a sombra fica sempre do mesmo lado). Uso: <use href="#ar-up-y"/> -->
+        <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+            <defs>
+                <symbol id="ar-up-y" viewBox="0 0 20 20">
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#111111" transform="translate(2,2)"/>
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#F4B41A"/>
+                </symbol>
+                <symbol id="ar-up-p" viewBox="0 0 20 20">
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#111111" transform="translate(2,2)"/>
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#8C88EC"/>
+                </symbol>
+                <symbol id="ar-right-y" viewBox="0 0 20 20">
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#111111" transform="translate(2,2) rotate(90 8 8)"/>
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#F4B41A" transform="rotate(90 8 8)"/>
+                </symbol>
+                <symbol id="ar-right-p" viewBox="0 0 20 20">
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#111111" transform="translate(2,2) rotate(90 8 8)"/>
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#8C88EC" transform="rotate(90 8 8)"/>
+                </symbol>
+                <symbol id="ar-down-y" viewBox="0 0 20 20">
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#111111" transform="translate(2,2) rotate(180 8 8)"/>
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#F4B41A" transform="rotate(180 8 8)"/>
+                </symbol>
+                <symbol id="ar-down-p" viewBox="0 0 20 20">
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#111111" transform="translate(2,2) rotate(180 8 8)"/>
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#8C88EC" transform="rotate(180 8 8)"/>
+                </symbol>
+                <symbol id="ar-left-y" viewBox="0 0 20 20">
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#111111" transform="translate(2,2) rotate(270 8 8)"/>
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#F4B41A" transform="rotate(270 8 8)"/>
+                </symbol>
+                <symbol id="ar-left-p" viewBox="0 0 20 20">
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#111111" transform="translate(2,2) rotate(270 8 8)"/>
+                    <path d="M 8,0 L 16,8 L 11,8 L 11,16 L 5,16 L 5,8 L 0,8 Z" fill="#8C88EC" transform="rotate(270 8 8)"/>
+                </symbol>
+            </defs>
+        </svg>
+
         <div id="bt-refusal"></div>
         <div id="bt-art"></div>
         <div id="bt-party"></div>
