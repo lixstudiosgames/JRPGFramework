@@ -193,16 +193,16 @@ bool UJRPGArtSequenceLibrary::AppendArtSteps(FName ArtKey, bool bLeftHanded, boo
 
 void UJRPGArtSequenceLibrary::ApplyGameSpeeds(TArray<FJRPGArtStep>& Steps)
 {
-	// A Art (e o starter especial) entram pelo braço de Art do commit (FUN_8004AD80), que põe 2 com
-	// o modo especial ligado e 4 sem. Golpes e o ArtStarter ficam no ritmo normal (8), também os
-	// conectores no meio de uma Super. O SpecialStarter liga o modo especial depois do próprio commit.
+	// A Art entra pelo braço de Art do commit (FUN_8004AD80), que põe 2 com o modo especial ligado e 4
+	// sem. Golpes e o ArtStarter ficam no ritmo normal (8), também os conectores no meio de uma Super.
+	// O SpecialStarter é o dash a 2 (o braço 0x1A: a luta em 0, quem age em 2) e liga o modo especial.
 	bool bSpecial = false;
 	for (FJRPGArtStep& Step : Steps)
 	{
 		switch (Step.Kind)
 		{
 		case EJRPGArtStepKind::SpecialStarter:
-			Step.GameSpeed = bSpecial ? SpeedSpecial : SpeedArt;
+			Step.GameSpeed = SpeedSpecial;
 			bSpecial = true;
 			break;
 		case EJRPGArtStepKind::Art:

@@ -880,9 +880,8 @@ Open items that are not a step of their own (details in `Docs/BATTLE_PHASE5_BUGS
 - **Bug 29** (some hits do not land): diagnostics in (1d); still open until a repro is matched to a cause. Bug 40 (missing
   low flinch on Gimard) may have been part of it.
 - **Bug 36** (a long wait before round 2 once): not investigated.
-- **Decision for the user:** the dasher's own speed in the SpecialStarter. The original's `0x1A` arm sets the acting actor to 1/4;
-  ours plays it at 1/2, so our starter is **twice as fast** as the original's (`FJRPGBattleResolver::ComposeHeroTimeline`,
-  "SpecialStarter: 4"). Left as is (the user found the Super's pace right).
+- **The dasher's speed** in the SpecialStarter is now the original's 1/4 (scale 2, the `0x1A` arm; user, 2026-11-06); it was 1/2.
+  Re-test the Hyper / Super / Miracle / new-Art starters.
 - **Formation recentre** (`AJRPGBattleArena::bRecentreFormation`): the camera now follows `OnFormationShifted`, so turning it on
   is the original's behaviour. User (2026-11-06): the fight works well with it off; still to be tried on in PIE to compare.
 - **Per-Art camera approximations:** the dash arm's loop count is estimated from the clip's progress (`StarterLoopCount`); Lightning

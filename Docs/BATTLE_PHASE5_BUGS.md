@@ -569,8 +569,8 @@ tables of 1c first.
     Art at 1/2. **Fixed:** the shout slow is now a window of `ArtsShoutSeconds` (1 s real time) from a known Art's starter only, the
     CD read of its voice; the dash and the Art clips keep the original's rates, not doubled. Checked against the RE: Hyper / Super /
     Miracle = dash (others frozen) then Arts at 1/4; Regular = starter at full speed then the Art at 1/2. Ours plays the dasher
-    itself at 1/2 where the original's 0x1A arm sets 1/4 (`JRPGBattleResolver` "SpecialStarter: 4"); left as is, to change on
-    request.
+    itself at 1/2 where the original's 0x1A arm sets 1/4 (`JRPGBattleResolver` "SpecialStarter: 4"). **Changed (user,
+    2026-11-06):** the dash now plays at scale 2 like the original (`ComposeHeroTimeline`, `UJRPGArtSequenceLibrary::ApplyGameSpeeds`).
 42. **A newly discovered Art had no special starter.** RE (`battle-action-helpers.md`, the Arts shout): an Art learned on this use
     is staged behind `0x1A` (the SpecialStarter: the dash, the fight frozen, the "NEW" banner), not `0x19`. **Fixed:**
     `FJRPGBattleResolver::AppendArtSteps` uses the SpecialStarter clip and kind for an entry with `bNewlyLearned`.

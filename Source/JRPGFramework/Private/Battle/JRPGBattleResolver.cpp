@@ -1046,14 +1046,15 @@ void FJRPGBattleResolver::ComposeHeroTimeline(const FJRPGCombatant& Hero, const 
 	FJRPGActionTimeline& Out)
 {
 	// A escala de velocidade de cada passo (UJRPGArtSequenceLibrary::ApplyGameSpeeds): 8 nos golpes e no ArtStarter,
-	// 4 numa Art, e o SpecialStarter liga o modo especial, em que as Arts vão a 2. O SpeedScale da linha troca a regra
+	// 4 numa Art, e o SpecialStarter liga o modo especial, em que as Arts vão a 2. O próprio SpecialStarter é o dash a 2 (o braço
+	// 0x1A de FUN_8004AD80 põe 0 em todos e 2 em quem age, 0x8004B728..0x8004B750). O SpeedScale da linha troca a regra
 	bool bSpecialMode = false;
 	for (FPlanStep& Step : Steps)
 	{
 		switch (Step.Kind)
 		{
 		case EJRPGActionStepKind::SpecialStarter:
-			Step.Speed = bSpecialMode ? 2 : 4;
+			Step.Speed = 2;
 			bSpecialMode = true;
 			break;
 		case EJRPGActionStepKind::Art:
