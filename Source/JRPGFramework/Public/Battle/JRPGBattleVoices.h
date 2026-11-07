@@ -31,8 +31,9 @@ enum class EJRPGBattleVoiceSlow : uint8
  * cues"). Só apresentação: os sorteios usam um stream próprio, nunca o Rng da luta. Dados: DT_BattleVoices (os bancos de cada
  * herói) e DT_ArtVoices (os candidatos de cada Art), os dois do Extras/ps1_battle_voices.py; sem as tabelas, fica mudo.
  *
- * Um drive só: uma voz nova corta a que soa (o grito e o grunhido não esperam); a fanfarra passa pelo dispatcher do original,
- * que a descarta se o drive ainda está lendo a voz anterior. A voz sai VoiceLatencySeconds depois do pedido (a busca no CD).
+ * Sem o drive de CD do original (que tem um canal só e descarta a fanfarra com outra voz lendo; bug 84): cada voz toca na hora
+ * dela. A fanfarra nova corta só a fanfarra anterior; o grito e o grunhido tocam por cima, sem cortar nada. A voz sai
+ * VoiceLatencySeconds depois do pedido.
  *
  * O UJRPGBattleSceneSubsystem chama CommitStep a cada passo que o herói que age começa, e NoteBlocked num Block.
  */
@@ -77,10 +78,11 @@ private:
 	float Fanfare(UWorld* World, const FJRPGBattleVoiceBankData& Bank, const FJRPGActionTimeline& Timeline, int32 StepIndex);
 	/** O passo é o SpecialStarter de uma Art Regular aprendida nesta ação (a que entra pelo dash, "NEW"). */
 	bool IsNewRegularStarter(const FJRPGActionTimeline& Timeline, const FJRPGActionStep* Step) const;
-	/** Pede uma voz no drive (corta a anterior). */
-	void PlayVoice(UWorld* World, const TSoftObjectPtr<USoundBase>& Sound, float Seconds);
-	void StopVoice();
-	bool IsDriveBusy(const UWorld* World) const;
+	/** Pede uma voz; bFanfare: corta a fanfarra anterior (as outras vozes não cortam nada). */
+	void PlayVoice(UWorld* World, const TSoftObjectPtr<USoundBase>& Sound, bool bFanfare);
+	void StartVoice(UWorld* World, USoundBase* Sound, bool bFanfare);
+	void StopFanfare();
+	void StopAll();
 	static float SFXVolume(const UWorld* World);
 
 	UPROPERTY()
@@ -92,16 +94,19 @@ private:
 	UPROPERTY()
 	TObjectPtr<UDataTable> Arts;
 
+	/** A fanfarra que soa (a próxima a corta). */
 	UPROPERTY()
-	TObjectPtr<UAudioComponent> Voice;
+	TObjectPtr<UAudioComponent> FanfareVoice;
 
-	/** A voz pedida que espera a latência, e quando ela sai (tempo real). */
+	/** Os gritos e grunhidos que soam (só para pará-los no fim da luta). */
 	UPROPERTY()
-	TObjectPtr<USoundBase> PendingVoice;
-	double PendingAt = 0.0;
+	TArray<TObjectPtr<UAudioComponent>> OtherVoices;
 
-	/** Até quando o drive está lendo a última voz pedida (tempo real). */
-	double BusyUntil = 0.0;
+	/** As vozes pedidas que esperam a latência: o som, quando sai (tempo real) e se é fanfarra (arrays paralelos). */
+	UPROPERTY()
+	TArray<TObjectPtr<USoundBase>> PendingSounds;
+	TArray<double> PendingTimes;
+	TArray<bool> PendingFanfare;
 
 	/** O último canal de grito sorteado (gp+0xA4A no original: um só, de qualquer herói). */
 	int32 LastShoutChannel = INDEX_NONE;

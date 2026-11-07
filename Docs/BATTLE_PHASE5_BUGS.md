@@ -867,6 +867,22 @@ tables of 1c first.
 - **Menu camera switches in 0.3 s too (ours):** `MenuEnterBlendSeconds` now also covers a switch between menu close-ups (another
   hero, the target cursor on another enemy, command to target and back), not only the entry from the far shot.
 
+#### Pass 20 (2026-11-07)
+
+- **User re-test (2026-11-07): everything above is closed.** Confirmed fixed: 2 (monsters), 9 / 18 (Noa's idle), 11 (block and
+  knockdown rates are right), 30, 31, 36, 44, 79, 80 / 82 / 83 (the two finishers' `LoopWindow` tracks removed by hand), the ghost
+  by trace. 46 (music underneath): solved by replacing every BGM with the music CD's tracks (more complete) and filling the sounds.
+84. **Two Hypers in a row: the second has no fanfare (and no voice); with three, the second is silent and the third is normal.**
+    Cause: `FJRPGBattleVoices::Fanfare` follows the original's dispatcher (`FUN_8004FCC8`), which drops a fanfare while the drive
+    still reads the previous voice (`FUN_8003DE7C(1)`). A Hyper fanfare is long (the WAVs run 5.0..6.9 s; read spans 5.3..7.05 s);
+    in the original the whole fight slows while the CD reads, so the Hyper outlasts its fanfare, but ours runs without that slow
+    (`bShoutSlowHyper` off, pass 13), so the second starter came while the first fanfare was still sounding and was dropped; the
+    third came after it ended. **Fixed (decision, user 2026-11-07: no CD drive model):** `FJRPGBattleVoices` no longer has the
+    one-channel drive nor its busy time; every voice plays when it is asked for. A new fanfare cuts only the previous fanfare;
+    shouts and the block grunt play over whatever sounds and cut nothing (nor are they dropped). The read spans
+    (`ShoutSeconds` / `FanfareSeconds`) are still used only for the length of the shout slow. Re-test: two and three Hypers in a
+    row, a Hyper right after a known Art's shout, a block during a shout.
+
 #### Backlog (2026-11-05) — noted for later, not started
 
 32. **Full RE sweep of the fight, to make it identical.** Go through the RE inch by inch and list what every piece of the battle

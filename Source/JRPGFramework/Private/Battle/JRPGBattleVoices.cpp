@@ -36,14 +36,12 @@ void FJRPGBattleVoices::Begin()
 	}
 	Random.Initialize(FMath::Rand());
 	LastShoutChannel = INDEX_NONE;
-	BusyUntil = 0.0;
-	PendingVoice = nullptr;
+	StopAll();
 }
 
 void FJRPGBattleVoices::End()
 {
-	StopVoice();
-	BusyUntil = 0.0;
+	StopAll();
 	Banks = nullptr;
 	ArtVoices = nullptr;
 	Arts = nullptr;
@@ -217,17 +215,14 @@ float FJRPGBattleVoices::Shout(UWorld* World, const FJRPGBattleVoiceBankData& Ba
 		return 0.0f;
 	}
 	const float Seconds = Bank.ShoutSeconds.IsValidIndex(Channel) ? Bank.ShoutSeconds[Channel] : 1.0f;
-	PlayVoice(World, Bank.Shouts[Channel], Seconds);
+	PlayVoice(World, Bank.Shouts[Channel], false);
 	return Seconds;
 }
 
 float FJRPGBattleVoices::Fanfare(UWorld* World, const FJRPGBattleVoiceBankData& Bank, const FJRPGActionTimeline& Timeline, int32 StepIndex)
 {
-	// A fanfarra vai pelo dispatcher (FUN_8004FCC8), que descarta o pedido com o drive ainda lendo (FUN_8003DE7C(1))
-	if (IsDriveBusy(World))
-	{
-		return 0.0f;
-	}
+	// O original descarta a fanfarra com o drive ainda lendo a voz anterior (FUN_8004FCC8 / FUN_8003DE7C(1)); aqui ela sempre toca
+	// e corta só a fanfarra anterior (bug 84: a segunda de duas Hypers seguidas ficava muda)
 	const TArray<FJRPGActionStep>& Steps = Timeline.Steps;
 	const FName StarterArt = Steps[StepIndex].ArtKey;
 
@@ -258,23 +253,22 @@ float FJRPGBattleVoices::Fanfare(UWorld* World, const FJRPGBattleVoiceBankData& 
 		return 0.0f;
 	}
 	const float Seconds = Bank.FanfareSeconds.IsValidIndex(Channel) ? Bank.FanfareSeconds[Channel] : 2.0f;
-	PlayVoice(World, Bank.Fanfares[Channel], Seconds);
+	PlayVoice(World, Bank.Fanfares[Channel], true);
 	return Seconds;
 }
 
 void FJRPGBattleVoices::NoteBlocked(UWorld* World, FName Attacker)
 {
-	// O grunhido do XA30 pelo herói que bateu (0x801EEB44); monstro não tem. O original só o toca com _DAT_8007BC20 < 2: aqui lido
-	// como o drive livre, para o grunhido não cortar um grito no meio
+	// O grunhido do XA30 pelo herói que bateu (0x801EEB44); monstro não tem. Toca por cima do que soar (sem o drive do original)
 	const FJRPGBattleVoiceBankData* Bank = World && HasData() ? FindBank(Attacker) : nullptr;
-	if (!Bank || IsDriveBusy(World))
+	if (!Bank)
 	{
 		return;
 	}
-	PlayVoice(World, Bank->BlockGrunt, Bank->BlockGruntSeconds);
+	PlayVoice(World, Bank->BlockGrunt, false);
 }
 
-void FJRPGBattleVoices::PlayVoice(UWorld* World, const TSoftObjectPtr<USoundBase>& Sound, float Seconds)
+void FJRPGBattleVoices::PlayVoice(UWorld* World, const TSoftObjectPtr<USoundBase>& Sound, bool bFanfare)
 {
 	USoundBase* Loaded = Sound.LoadSynchronous();
 	if (!Loaded)
@@ -282,43 +276,92 @@ void FJRPGBattleVoices::PlayVoice(UWorld* World, const TSoftObjectPtr<USoundBase
 		UE_LOG(LogTemp, Warning, TEXT("BattleVoices: a voz %s não está no projeto (Extras/ue_import_battle_voices.py)"), *Sound.ToString());
 		return;
 	}
-	// Um drive: o pedido novo corta a voz que soa e a que esperava a busca
-	StopVoice();
-	const double Now = World->GetRealTimeSeconds();
-	PendingVoice = Loaded;
-	PendingAt = Now + FMath::Max(VoiceLatencySeconds, 0.0f);
-	BusyUntil = PendingAt + FMath::Max(Seconds, 0.0f);
+	// A fanfarra nova corta a anterior (a que soa e a que ainda esperava a latência); grito e grunhido não cortam nada
+	if (bFanfare)
+	{
+		StopFanfare();
+	}
+	PendingSounds.Add(Loaded);
+	PendingTimes.Add(World->GetRealTimeSeconds() + FMath::Max(VoiceLatencySeconds, 0.0f));
+	PendingFanfare.Add(bFanfare);
 	Tick(World);
 }
 
 void FJRPGBattleVoices::Tick(UWorld* World)
 {
-	if (!PendingVoice || !World || World->GetRealTimeSeconds() < PendingAt)
+	if (!World || PendingSounds.Num() == 0)
 	{
 		return;
 	}
-	Voice = UGameplayStatics::CreateSound2D(World, PendingVoice, SFXVolume(World));
-	PendingVoice = nullptr;
-	if (Voice)
+	const double Now = World->GetRealTimeSeconds();
+	for (int32 i = 0; i < PendingSounds.Num();)
 	{
-		Voice->Play();
+		if (Now < PendingTimes[i])
+		{
+			++i;
+			continue;
+		}
+		USoundBase* Sound = PendingSounds[i];
+		const bool bFanfare = PendingFanfare[i];
+		PendingSounds.RemoveAt(i);
+		PendingTimes.RemoveAt(i);
+		PendingFanfare.RemoveAt(i);
+		StartVoice(World, Sound, bFanfare);
 	}
 }
 
-void FJRPGBattleVoices::StopVoice()
+void FJRPGBattleVoices::StartVoice(UWorld* World, USoundBase* Sound, bool bFanfare)
 {
-	PendingVoice = nullptr;
-	// O componente se destrói sozinho quando a voz acaba (CreateSound2D, bAutoDestroy)
-	if (IsValid(Voice))
+	UAudioComponent* Component = Sound ? UGameplayStatics::CreateSound2D(World, Sound, SFXVolume(World)) : nullptr;
+	if (!Component)
 	{
-		Voice->Stop();
+		return;
 	}
-	Voice = nullptr;
+	if (bFanfare)
+	{
+		FanfareVoice = Component;
+	}
+	else
+	{
+		// O componente se destrói sozinho quando a voz acaba (CreateSound2D, bAutoDestroy): solta os que já foram
+		OtherVoices.RemoveAll([](const TObjectPtr<UAudioComponent>& Other) { return !IsValid(Other); });
+		OtherVoices.Add(Component);
+	}
+	Component->Play();
 }
 
-bool FJRPGBattleVoices::IsDriveBusy(const UWorld* World) const
+void FJRPGBattleVoices::StopFanfare()
 {
-	return World && World->GetRealTimeSeconds() < BusyUntil;
+	for (int32 i = PendingSounds.Num() - 1; i >= 0; --i)
+	{
+		if (PendingFanfare[i])
+		{
+			PendingSounds.RemoveAt(i);
+			PendingTimes.RemoveAt(i);
+			PendingFanfare.RemoveAt(i);
+		}
+	}
+	if (IsValid(FanfareVoice))
+	{
+		FanfareVoice->Stop();
+	}
+	FanfareVoice = nullptr;
+}
+
+void FJRPGBattleVoices::StopAll()
+{
+	StopFanfare();
+	PendingSounds.Reset();
+	PendingTimes.Reset();
+	PendingFanfare.Reset();
+	for (const TObjectPtr<UAudioComponent>& Other : OtherVoices)
+	{
+		if (IsValid(Other))
+		{
+			Other->Stop();
+		}
+	}
+	OtherVoices.Reset();
 }
 
 float FJRPGBattleVoices::SFXVolume(const UWorld* World)
