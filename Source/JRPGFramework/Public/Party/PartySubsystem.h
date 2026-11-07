@@ -165,6 +165,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Party|XP")
 	int32 AwardBattleXP(int32 EnemyXPSum);
 
+	/**
+	 * A mesma divisão, para os heróis que LUTARAM (quem a luta passa em Participants) em vez da formação ativa: uma luta
+	 * pode usar uma party dada (a Muscle Dome) e guarda o HP nos combatentes, então o EndBattle grava o HP no roster e
+	 * paga a quem está vivo. Entra só quem está no roster, recrutado e vivo; sem ninguém, não paga nada. A soma é a do
+	 * EXP CRU dos derrotados; a versão e a dificuldade entram aqui dentro. Devolve o XP que cada um recebeu.
+	 * (Outro nome e não um overload: o UHT não aceita UFUNCTION sobrecarregada.)
+	 */
+	int32 AwardBattleXPToParticipants(int32 EnemyXPSum, const TArray<FName>& Participants);
+
 	/** Dá XP a um personagem específico, subindo os levels que couberem. */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Party|XP")
 	void GrantXP(FName Character, int32 Amount);
@@ -224,6 +233,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Party|Vitals")
 	void RestoreMP(FName Character, int32 Amount);
+
+	/** Tira MP (o gasto numa luta, gravado na volta); nunca abaixo de 0. */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Party|Vitals")
+	void SpendMP(FName Character, int32 Amount);
 
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Party|Vitals")
 	void SetAP(FName Character, int32 NewAP);
@@ -288,6 +301,9 @@ private:
 
 	/** Líder do Field escolhido pelo jogador (só em memória, ver SetFieldLeader). */
 	FName FieldLeader;
+
+	/** A conta do XP da luta (versão, dificuldade, divisão com teto) entre quem já foi escolhido. */
+	int32 DistributeBattleXP(int32 EnemyXPSum, const TArray<FName>& Vivos);
 
 	/** Aplica um level-up: sobe o level e sorteia o ganho dos 8 atributos. */
 	void ApplyLevelUp(FJRPGPartyMember& Member);

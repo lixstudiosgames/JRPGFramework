@@ -163,7 +163,10 @@ one line `gimard`, weight 1, count 0–1; `EnemiesPerBattle` 1–2.
 
 1. The encounter is rolled (`UJRPGEncounterLibrary::RollEncounter`).
 2. `UBattleSubsystem::TryStartEncounter` — refused if another started less than
-   `EncounterGraceTime` (3 s) ago, so two enemies touched together do not start two fights.
+   `EncounterGraceTime` (3 s) ago, so two enemies touched together do not start two fights, and for
+   `PostBattleGraceTime` (5 s) after the field is shown again from a fight (`IsInEncounterGrace`). In that grace
+   field enemies do not detect or chase the player; one that keeps touching him triggers when it ends. A zone also
+   respawns its enemies away from the player.
 3. `OnEncounterTriggered` (Blueprint event) and `OnContact` (override in `BP_FieldEnemy`: the
    place for the 90s screen shatter). `UBattleSubsystem::OnEncounterStarted` fires with the
    rolled enemies.

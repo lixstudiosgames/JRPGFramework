@@ -75,6 +75,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Waves")
 	TObjectPtr<AJRPGBattleArena> Arena;
 
+	/** A música das ondas (RowName no DT_BattleMusic; FJRPGBattleSetup::BattleMusic). None = a automática. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Waves|Sound")
+	FName BattleMusic;
+
+	/** As lutas mantêm a música que toca (FJRPGBattleSetup::bKeepCurrentMusic). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Waves|Sound")
+	bool bKeepCurrentMusic = false;
+
 	/** Começar sozinho ao dar play. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Waves")
 	bool bAutoStart = true;

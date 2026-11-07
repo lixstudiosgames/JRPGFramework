@@ -1,0 +1,84 @@
+/* ============================================================
+   97_battle_hud.css — HUD DA LUTA (camada sem input)
+
+   Os nomes da abertura e a linha de formação. Tudo dentro de #bh-stage é o canvas 1920x1080 escalado por
+   --scale-factor, como as outras telas. A camada inteira ignora o mouse (pointer-events: none) e fica por baixo
+   das telas com input (o menu da luta, o de pausa).
+
+   O original (battle-hud.md, "The battle-intro enemy-name banner"): os rótulos na moldura da janela de mensagem,
+   em y = 48 de 228, centrados no grupo; a linha de formação em (16, 12), 288 de largura. Aqui o painel azul das
+   outras telas da luta.
+   ============================================================ */
+
+#battle-hud {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+}
+
+#bh-stage {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 1920px;
+    height: 1080px;
+    transform: translate(-50%, -50%) scale(var(--scale-factor, 1));
+    transform-origin: center center;
+    font-family: 'Cinzel', Georgia, serif;
+    color: var(--text-primary);
+}
+
+/* --------------------------------------------------------- a linha de formação (topo, quase a largura toda) */
+#bh-line {
+    position: absolute;
+    left: 96px;
+    top: 48px;
+    width: 1728px;
+    padding: 14px 0;
+    text-align: center;
+    font-size: 34px;
+    font-weight: 600;
+    background: linear-gradient(180deg, #1B1E75 0%, #121558 50%, #0C0E45 100%);
+    border: 2px solid #B88A44;
+    border-radius: 10px;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+    display: none;
+}
+
+#bh-line.active {
+    display: block;
+    animation: bhIn 0.12s ease-out both;
+}
+
+/* --------------------------------------------------------- os nomes dos inimigos */
+#bh-names {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 1920px;
+    height: 1080px;
+}
+
+.bh-name {
+    position: absolute;
+    top: 228px;
+    padding: 10px 26px;
+    white-space: nowrap;
+    font-size: 30px;
+    font-weight: 600;
+    color: #ffffff;
+    background: linear-gradient(180deg, #1B1E75 0%, #121558 50%, #0C0E45 100%);
+    border: 2px solid #B88A44;
+    border-radius: 10px;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+    animation: bhIn 0.12s ease-out both;
+}
+
+@keyframes bhIn {
+    0%   { opacity: 0; }
+    100% { opacity: 1; }
+}

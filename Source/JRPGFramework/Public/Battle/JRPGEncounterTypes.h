@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Battle/EnemyData.h"
+#include "Battle/BossFightData.h"
 #include "JRPGEncounterTypes.generated.h"
 
 /**
@@ -98,6 +99,24 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "JRPG|Encounter")
 	static FJRPGEncounterSetup MakeSingleEnemyEncounter(FName EnemyKey, int32 LevelMin = 1, int32 LevelMax = 1);
+
+	/**
+	 * A flag de luta roteirizada (FJRPGBattleSetup::bScriptedFight) de uma luta pelos inimigos que entram nela. Quem
+	 * monta a luta (o AJRPGFieldEnemy, o AJRPGBattleWaves) copia isto para o Setup antes do BeginBattle:
+	 *  - nenhum inimigo é bIsBoss (DT_Enemies): encontro aleatório, falso;
+	 *  - senão, a linha do DT_Bosses cujos lutadores são exatamente estes (qualquer ordem): o bScriptedFight dela
+	 *    (a Lapis e o treino do Tetsu são lutas da história com a flag desligada);
+	 *  - chefe sem linha no DT_Bosses (ou sem a tabela): verdadeiro, o normal de uma luta de chefe (e um aviso no log).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Encounter")
+	static bool ResolveScriptedFight(const TArray<FJRPGEncounterCombatant>& Enemies);
+
+	/**
+	 * A linha do DT_Bosses desta luta: a que tem exatamente estes inimigos (em qualquer ordem). Falso se nenhum é chefe
+	 * (bIsBoss), ou se nenhuma linha casa.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Encounter")
+	static bool FindBossFight(const TArray<FJRPGEncounterCombatant>& Enemies, FJRPGBossData& OutBoss);
 
 	/** A linha do DT_Enemies. False se a tabela ou a key não existem. */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Encounter")

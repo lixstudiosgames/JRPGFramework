@@ -1,0 +1,10 @@
+---,DisplayName,SoundSet,BgmId,Intro,Loop
+Battle1,Battle theme 1,0,2026,/Game/Legaia/sounds/OST/Battle/BGM_OST_2026_Battle1_Intro.BGM_OST_2026_Battle1_Intro,/Game/Legaia/sounds/OST/Battle/BGM_OST_2026_Battle1_Loop.BGM_OST_2026_Battle1_Loop
+Battle2,Battle theme 2,1,2027,/Game/Legaia/sounds/OST/Battle/BGM_OST_2027_Battle2_Intro.BGM_OST_2027_Battle2_Intro,/Game/Legaia/sounds/OST/Battle/BGM_OST_2027_Battle2_Loop.BGM_OST_2027_Battle2_Loop
+Boss1,Boss theme 1 (Assault),2,2028,/Game/Legaia/sounds/OST/Battle/BGM_OST_2028_Boss1_Intro.BGM_OST_2028_Boss1_Intro,/Game/Legaia/sounds/OST/Battle/BGM_OST_2028_Boss1_Loop.BGM_OST_2028_Boss1_Loop
+Songi,Songi battle,3,2030,/Game/Legaia/sounds/OST/Battle/BGM_OST_2030_Songi_Intro.BGM_OST_2030_Songi_Intro,/Game/Legaia/sounds/OST/Battle/BGM_OST_2030_Songi_Loop.BGM_OST_2030_Songi_Loop
+Boss2,Boss theme 2 (Apostles of the Mist),4,2032,/Game/Legaia/sounds/OST/Battle/BGM_OST_2032_Boss2_Intro.BGM_OST_2032_Boss2_Intro,/Game/Legaia/sounds/OST/Battle/BGM_OST_2032_Boss2_Loop.BGM_OST_2032_Boss2_Loop
+Cort1,Cort battle 1,5,2031,/Game/Legaia/sounds/OST/Battle/BGM_OST_2031_Cort1_Intro.BGM_OST_2031_Cort1_Intro,/Game/Legaia/sounds/OST/Battle/BGM_OST_2031_Cort1_Loop.BGM_OST_2031_Cort1_Loop
+Koru2,Koru battle theme 2 (The Hot Heat),6,2051,/Game/Legaia/sounds/OST/Battle/BGM_OST_2051_Koru2_Intro.BGM_OST_2051_Koru2_Intro,/Game/Legaia/sounds/OST/Battle/BGM_OST_2051_Koru2_Loop.BGM_OST_2051_Koru2_Loop
+VanSaryu,Van Saryu battle (Evil Seru / Tense Presence),7,2067,/Game/Legaia/sounds/OST/Battle/BGM_OST_2067_VanSaryu_Intro.BGM_OST_2067_VanSaryu_Intro,/Game/Legaia/sounds/OST/Battle/BGM_OST_2067_VanSaryu_Loop.BGM_OST_2067_VanSaryu_Loop
+Cort2,Cort battle 2 / Juggernaut (Apocalypse),8,2061,/Game/Legaia/sounds/OST/Battle/BGM_OST_2061_Cort2_Intro.BGM_OST_2061_Cort2_Intro,/Game/Legaia/sounds/OST/Battle/BGM_OST_2061_Cort2_Loop.BGM_OST_2061_Cort2_Loop

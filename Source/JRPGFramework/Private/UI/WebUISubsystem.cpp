@@ -16,6 +16,12 @@
 #include "Field/JRPGFieldPlayerController.h"
 #include "Inventory/InventorySubsystem.h"
 #include "Arts/ArtsSubsystem.h"
+#include "Arts/ArtsData.h"
+#include "Battle/BattleSubsystem.h"
+#include "Battle/JRPGEncounterTypes.h"
+#include "Engine/DataTable.h"
+#include "Engine/World.h"
+#include "GameFramework/Pawn.h"
 #include "Blueprint/UserWidget.h"
 #include "Engine/GameInstance.h"
 #include "GameFramework/PlayerController.h"
@@ -402,6 +408,11 @@ void UWebUISubsystem::OpenOptions()
 		DispatchJS(FString::Printf(TEXT("JRPGOptions.setDifficulty(%d);"),
 			static_cast<int32>(Core->GetDifficulty())));
 	}
+	// E a opção Battle Camera (0 Close, 1 Normal, 2 Far)
+	if (const UBattleSubsystem* Battle = GetGameInstance()->GetSubsystem<UBattleSubsystem>())
+	{
+		DispatchJS(FString::Printf(TEXT("JRPGOptions.setBattleCamera(%d);"), static_cast<int32>(Battle->GetBattleCameraOption())));
+	}
 
 	// O JS revalida via UIState.canOpen (defesa em profundidade)
 	DispatchJS(FString::Printf(TEXT("openOptionsScreen('%s');"), Origin));
@@ -563,6 +574,21 @@ void UWebUISubsystem::SetDifficultyFromUI(int32 DifficultyIndex)
 	}
 
 	Core->SetDifficulty(static_cast<EJRPGDifficulty>(DifficultyIndex));
+}
+
+void UWebUISubsystem::SetBattleCameraFromUI(int32 OptionIndex)
+{
+	UBattleSubsystem* Battle = GetGameInstance()->GetSubsystem<UBattleSubsystem>();
+	if (!Battle)
+	{
+		return;
+	}
+	if (OptionIndex < 0 || OptionIndex > static_cast<int32>(EJRPGBattleCameraOption::Far))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("WebUISubsystem: opção Battle Camera %d fora do intervalo — ignorada."), OptionIndex);
+		return;
+	}
+	Battle->SetBattleCameraOption(static_cast<EJRPGBattleCameraOption>(OptionIndex));
 }
 
 void UWebUISubsystem::SetUICursorVisible(bool bVisible)
@@ -1076,6 +1102,142 @@ void UWebUISubsystem::RunDevCommand(const FString& Command)
 		const int32 Slot = DevArgInt(Args, 0, 0);
 		Out = FString::Printf(TEXT("LoadGame(%d) = %s"), Slot,
 			Save->LoadGame(Slot) ? TEXT("ok") : TEXT("FALHOU"));
+	}
+	// -------------------------------------------------------------- arts
+	// arts.learnall [Vahn|Noa|Gala|all]: todas as Arts do DT_Arts que se aprendem (as Parts não; LearnArt recusa quem não está
+	// no roster)
+	else if (Verb == TEXT("arts.learnall"))
+	{
+		UArtsSubsystem* Arts = GI ? GI->GetSubsystem<UArtsSubsystem>() : nullptr;
+		const UDataTable* Table = UCoreSubsystem::ResolveDataTable(TEXT("DT_Arts"));
+		const FString Who = DevArgStr(Args, 0, TEXT("all"));
+		if (!Arts || !Table)
+		{
+			Out = TEXT("sem o UArtsSubsystem ou sem o DT_Arts");
+		}
+		else
+		{
+			int32 Learned = 0;
+			int32 Known = 0;
+			Table->ForeachRow<FJRPGArtData>(TEXT("DevLearnAll"), [&](const FName&, const FJRPGArtData& Row)
+			{
+				if (Row.Kind == EJRPGArtKind::Part || (!Who.Equals(TEXT("all"), ESearchCase::IgnoreCase)
+					&& !Row.Character.ToString().Equals(Who, ESearchCase::IgnoreCase)))
+				{
+					return;
+				}
+				if (Arts->HasLearnedArt(Row.Character, Row.Key))
+				{
+					++Known;
+				}
+				else if (Arts->LearnArt(Row.Character, Row.Key))
+				{
+					++Learned;
+				}
+			});
+			Out = FString::Printf(TEXT("arts.learnall %s: %d aprendidas agora, %d já sabidas"), *Who, Learned, Known);
+		}
+	}
+	// -------------------------------------------------------------- luta
+	// battle.enemies [filtro]: as keys do DT_Enemies (para o campo de inimigos da aba Battle)
+	else if (Verb == TEXT("battle.enemies"))
+	{
+		const FString Filter = DevArgStr(Args, 0);
+		TArray<FString> Keys;
+		for (const FString& Key : UJRPGEncounterLibrary::GetEnemyKeyOptions())
+		{
+			if (Filter.IsEmpty() || Key.Contains(Filter))
+			{
+				Keys.Add(Key);
+			}
+		}
+		Out = FString::Printf(TEXT("%d inimigo(s)%s:\n%s"), Keys.Num(), Filter.IsEmpty() ? TEXT("") : *FString::Printf(TEXT(" com '%s'"), *Filter),
+			*FString::Join(Keys, TEXT("  ")));
+	}
+	// battle.start <key[,key...]> [quantos] [level] [roll|none|back|first] [estilo]: uma key repete "quantos" vezes; várias keys, uma
+	// de cada (até o MaxEnemySlots); depois a vantagem de formação (sorteio por padrão) e a transição (auto, shatter, scatter2...)
+	else if (Verb == TEXT("battle.start"))
+	{
+		UBattleSubsystem* Battle = GI ? GI->GetSubsystem<UBattleSubsystem>() : nullptr;
+		TArray<FString> Keys;
+		DevArgStr(Args, 0, TEXT("gimard")).ParseIntoArray(Keys, TEXT(","), true);
+		const int32 Count = FMath::Clamp(DevArgInt(Args, 1, 1), 1, 8);
+		const int32 Level = FMath::Max(DevArgInt(Args, 2, 1), 1);
+		if (!Battle || Battle->IsInBattle())
+		{
+			Out = Battle ? TEXT("já há uma luta acontecendo") : TEXT("sem o UBattleSubsystem");
+		}
+		else
+		{
+			FJRPGBattleSetup Setup;
+			Setup.FormationAdvantage = UBattleSubsystem::ParseFormationAdvantage(DevArgStr(Args, 3, TEXT("roll")));
+			Setup.TransitionStyle = UBattleSubsystem::ParseTransitionStyle(DevArgStr(Args, 4, TEXT("auto")), Setup.TransitionSubStyle);
+			for (int32 k = 0; k < Keys.Num(); ++k)
+			{
+				const int32 Copies = Keys.Num() == 1 ? Count : 1;
+				for (int32 i = 0; i < Copies; ++i)
+				{
+					FJRPGEncounterCombatant& Enemy = Setup.Enemies.AddDefaulted_GetRef();
+					// O dev menu troca espaço por "_" ("gimard, vera" chega "gimard,_vera"): as keys não começam nem acabam com "_"
+					FString Key = Keys[k].TrimStartAndEnd();
+					while (Key.StartsWith(TEXT("_")))
+					{
+						Key.RightChopInline(1);
+					}
+					Enemy.EnemyKey = FName(*Key);
+					Enemy.Level = Level;
+				}
+			}
+			UWorld* GameWorld = GI->GetWorld();
+			const APlayerController* PC = GameWorld ? GameWorld->GetFirstPlayerController() : nullptr;
+			if (const APawn* PlayerPawn = PC ? PC->GetPawn() : nullptr)
+			{
+				Setup.Location = PlayerPawn->GetActorLocation();
+				Setup.FacingYaw = PlayerPawn->GetActorRotation().Yaw;
+			}
+			// O dev menu fecha antes: a luta assume a tela
+			DispatchJS(TEXT("JRPGDev.close();"));
+			SetStateInternal(EJRPGUIState::HudOnly);
+			const bool bStarted = Battle->BeginBattle(Setup);
+			UE_LOG(LogTemp, Log, TEXT("Dev battle.start %s x%d L%d: %s"), *FString::Join(Keys, TEXT(",")), Count, Level,
+				bStarted ? TEXT("ok") : TEXT("recusada"));
+			return;
+		}
+	}
+	// battle.end [victory|defeat|escape|abort]: encerra a luta (a vitória paga todos os inimigos, como o JRPG.Battle.End)
+	else if (Verb == TEXT("battle.end"))
+	{
+		UBattleSubsystem* Battle = GI ? GI->GetSubsystem<UBattleSubsystem>() : nullptr;
+		if (!Battle || !Battle->IsInBattle())
+		{
+			Out = TEXT("nenhuma luta acontecendo");
+		}
+		else
+		{
+			const FString Word = DevArgStr(Args, 0, TEXT("victory")).ToLower();
+			EJRPGBattleResult Result = EJRPGBattleResult::Victory;
+			if (Word.StartsWith(TEXT("d")))      { Result = EJRPGBattleResult::Defeat; }
+			else if (Word.StartsWith(TEXT("e"))) { Result = EJRPGBattleResult::Escaped; }
+			else if (Word.StartsWith(TEXT("a"))) { Result = EJRPGBattleResult::Aborted; }
+			Battle->EndBattleForDebug(Result, Result == EJRPGBattleResult::Victory);
+			Out = FString::Printf(TEXT("battle.end %s"), *Word);
+		}
+	}
+	// battle.ap [on|off]: o AP de todo herói fica em 100 a cada quadro (sem argumento, alterna)
+	else if (Verb == TEXT("battle.ap"))
+	{
+		UBattleSubsystem* Battle = GI ? GI->GetSubsystem<UBattleSubsystem>() : nullptr;
+		if (!Battle)
+		{
+			Out = TEXT("sem o UBattleSubsystem");
+		}
+		else
+		{
+			const FString Word = DevArgStr(Args, 0).ToLower();
+			const bool bOn = Word.IsEmpty() ? !Battle->IsDebugFullAP() : (Word == TEXT("on") || Word == TEXT("1"));
+			Battle->SetDebugFullAP(bOn);
+			Out = FString::Printf(TEXT("battle.ap %s: AP %s"), bOn ? TEXT("on") : TEXT("off"), bOn ? TEXT("sempre no máximo") : TEXT("normal"));
+		}
 	}
 	// -------------------------------------------------------------- telas
 	else if (Verb.StartsWith(TEXT("screen.")))
@@ -1637,6 +1799,7 @@ const TCHAR* UWebUISubsystem::UIStateToJS(EJRPGUIState State)
 	case EJRPGUIState::SaveLoadOpen:   return TEXT("saveload_open");
 	case EJRPGUIState::ShopOpen:       return TEXT("shop_open");
 	case EJRPGUIState::MainMenuOpen:   return TEXT("main_menu");
+	case EJRPGUIState::BattleOpen:     return TEXT("battle_open");
 	case EJRPGUIState::HudOnly:
 	default:                           return TEXT("hud_only");
 	}
@@ -1849,6 +2012,74 @@ void UWebUISubsystem::OpenItemsScreen()
 
 	SetStateInternal(EJRPGUIState::ItemsOpen);
 	DispatchJS(FString::Printf(TEXT("JRPGItems.open(%s);"), *BuildItemsPayloadJS()));
+}
+
+// ============================================================
+// Menu de comandos da luta
+// ============================================================
+
+bool UWebUISubsystem::OpenBattleUI()
+{
+	if (CurrentState == EJRPGUIState::BattleOpen)
+	{
+		return true;
+	}
+	if (CurrentState != EJRPGUIState::HudOnly)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("WebUISubsystem: OpenBattleUI ignorado — estado atual '%s' não permite abrir o menu da luta."),
+			UIStateToJS(CurrentState));
+		return false;
+	}
+	if (!EnsureShellWidget())
+	{
+		return false;
+	}
+
+	ApplyUIFocus();
+	SetStateInternal(EJRPGUIState::BattleOpen);
+	// O JS revalida via UIState.canOpen (defesa em profundidade); a view chega em seguida, por UpdateBattleUI
+	DispatchJS(TEXT("JRPGBattle.open();"));
+	return true;
+}
+
+void UWebUISubsystem::UpdateBattleUI(const FString& ViewJS)
+{
+	if (CurrentState != EJRPGUIState::BattleOpen)
+	{
+		return;
+	}
+	// A view é um objeto literal montado no C++ (os textos já passaram por ToJSStringLiteral)
+	DispatchJS(FString::Printf(TEXT("JRPGBattle.render(%s);"), *ViewJS));
+}
+
+void UWebUISubsystem::CloseBattleUI()
+{
+	if (CurrentState != EJRPGUIState::BattleOpen)
+	{
+		return;
+	}
+	// O C++ fecha na hora (a rodada vai tocar): o JS só esconde a seção e não chama closemenu de volta
+	DispatchJS(TEXT("JRPGBattle.close();"));
+	HandleCloseRequestFromJS();
+}
+
+void UWebUISubsystem::CallBattleHUD(const FString& JSCall)
+{
+	if (JSCall.IsEmpty() || !EnsureShellWidget())
+	{
+		return;
+	}
+	DispatchJS(FString::Printf(TEXT("if (window.JRPGBattleHUD) { JRPGBattleHUD.%s; }"), *JSCall));
+}
+
+void UWebUISubsystem::HandleBattleInputFromJS(const FString& Action, int32 A, int32 B)
+{
+	if (CurrentState != EJRPGUIState::BattleOpen)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("WebUISubsystem: onbattleinput('%s') ignorado — o menu da luta não está aberto."), *Action);
+		return;
+	}
+	OnBattleUIInput.Broadcast(Action, A, B);
 }
 
 void UWebUISubsystem::HandleItemDiscard(FName ItemID, int32 Quantity)

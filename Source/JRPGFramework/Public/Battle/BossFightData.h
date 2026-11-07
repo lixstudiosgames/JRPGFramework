@@ -39,6 +39,15 @@ struct JRPGFRAMEWORK_API FJRPGBossData : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boss")
 	TArray<FName> Enemies;
 
+	/**
+	 * A flag de luta roteirizada do original (ctx+0x287), que é da FORMAÇÃO e não do chefe: a luta ganha o perfil de
+	 * stats dos chefes (UJRPGBattleRules::InstallEnemyStats), não pode ser fugida e não rola vantagem de formação.
+	 * A Lapis e o treino do Tetsu são lutas da história com a flag desligada (o perfil do encontro aleatório). Quem
+	 * monta a luta copia isto para FJRPGBattleSetup::bScriptedFight.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boss")
+	bool bScriptedFight = true;
+
 	/** HP do chefe pelo guia, para conferência (o da luta é o do DT_Enemies). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boss|Reference")
 	int32 HP = 0;
@@ -77,4 +86,16 @@ struct JRPGFRAMEWORK_API FJRPGBossData : public FTableRowBase
 	/** Como a luta funciona (regras especiais, fraquezas). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boss")
 	FString Notes;
+
+	/**
+	 * A música da luta: o RowName no DT_BattleMusic ("Boss1", "Songi", "Cort2"...). None = a escolha das lutas comuns (a da
+	 * arena). No original é o "sound set" que o script do evento escolhe antes do 3E FF da luta (Extras/generate_bosses_csv.py
+	 * traz o levantamento do disco).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boss|Music")
+	FName Music;
+
+	/** A luta não troca a música: a que toca segue (o -1 do original, quando o evento já pôs o tema dele). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Boss|Music")
+	bool bKeepCurrentMusic = false;
 };

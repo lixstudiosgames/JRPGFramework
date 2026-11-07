@@ -3,6 +3,7 @@
 generate_enemies_csv.py — gera Docs/Data/DT_Enemies.csv (Row Struct: FJRPGEnemyData).
 
     python Extras/generate_enemies_csv.py --monster-list <monster_list.txt> [--dry-run]
+        [--archive <extracted/PROT/0867_battle_data.BIN> --tool <asset.exe>]
 
 Duas fontes, cada uma com o que a outra não tem:
   - Docs/Data/gamedata/enemies.toml (do legend-of-legaia-re): nome, local, elemento, drop e
@@ -12,6 +13,14 @@ Duas fontes, cada uma com o que a outra não tem:
         asset monster-archive extracted/PROT/0867_battle_data.BIN > monster_list.txt
     Traz o id do slot (que é onde está o modelo — MonsterArchiveID), a chance do drop, o Seru
     capturável e a chance de captura, e o registro cru: stats, EXP e Gold.
+
+Com --archive e --tool (o arquivo de monstros e o asset.exe do RE), cada registro também é lido do
+bloco decodificado do monstro (`asset monster-archive --id N --dump-block`, Extras/monster_block.py)
+para a TargetClass — o byte +0x1E, a classe de altura que decide quais golpes alcançam o monstro
+(0 todo golpe alcança; 2 voando: o golpe baixo erra; 3 baixo: o golpe alto erra; BATTLE_ROADMAP.md ›
+5.0) — e para a SizeClass (o +0x1F, 14..48 no disco: a classe de tamanho que dá o alcance do golpe, a lei
+FUN_8004E2F0) — e para conferir o Element do TOML contra o +0x1D (o inimigo só do disco ganha o do
+registro). Sem eles, a TargetClass e a SizeClass que já estão no CSV são mantidas (0 = não se sabe).
 
 A tabela guarda o REGISTRO CRU do disco (stats, EXP, Gold), igual em todas as versões do
 jogo. O que cada versão faz com ele — o boost dos stats ao carregar a luta, o corte de EXP e
@@ -40,11 +49,12 @@ import re
 import sys
 
 import legaia_toml as lt
+import monster_block as mb
 
 TABLE = "DT_Enemies"
 
 COLUMNS = [
-    "Key", "DisplayName", "Location", "bIsBoss", "Element",
+    "Key", "DisplayName", "Location", "bIsBoss", "Element", "TargetClass", "SizeClass",
     "BaseHP", "BaseMP", "BaseAGL", "BaseATK", "BaseUDF", "BaseLDF", "BaseSPD", "BaseINT",
     "EXP", "Gold", "DropItem", "DropChance", "StealItem", "StealChance",
     "CaptureSeru", "CatchRate", "MonsterArchiveID", "Mesh", "Anims",
@@ -57,6 +67,10 @@ ELEMENTS = {
     None: "None", "fire": "Fire", "wind": "Wind", "thunder": "Thunder", "lightning": "Thunder",
     "water": "Water", "earth": "Earth", "light": "Light", "dark": "Dark", "evil": "Evil",
 }
+
+# O byte +0x1D do registro (0 earth, 1 water, 2 fire, 3 wind, 4 thunder, 5 light, 6 dark, 7 neutro)
+# no EJRPGElement
+RECORD_ELEMENTS = {0: "Earth", 1: "Water", 2: "Fire", 3: "Wind", 4: "Thunder", 5: "Light", 6: "Dark", 7: "None"}
 
 # stats do registro, na ordem do arquivo: AGL, ATK, UDF, LDF, INT, SPD.
 def raw_stats(rec):
@@ -129,8 +143,12 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--monster-list", required=True,
                     help="saída de `asset monster-archive <0867_battle_data.BIN>`")
+    ap.add_argument("--archive", help="extracted/PROT/0867_battle_data.BIN (para a TargetClass)")
+    ap.add_argument("--tool", help="o asset.exe do RE (para a TargetClass)")
     ap.add_argument("--dry-run", action="store_true", help="só o relatório, sem escrever o CSV")
     args = ap.parse_args()
+    if bool(args.archive) != bool(args.tool):
+        sys.exit("--archive e --tool vão juntos.")
 
     toml = lt.load("enemies")["enemy"]
     recs = parse_monster_list(args.monster_list)
@@ -241,10 +259,33 @@ def main():
     for keep, dups in duplicates.items():
         report["registros idênticos no disco (mantido o menor id)"].append("%d = %s" % (keep, dups))
 
+    # O registro do monstro: a classe de altura (+0x1E) e o elemento (+0x1D)
+    if args.archive:
+        with mb.BlockReader(args.tool, args.archive) as reader:
+            for r in rows:
+                monster_id = int(r["MonsterArchiveID"])
+                if monster_id < 0:
+                    # Sem registro no disco para ler: a TargetClass que já está no CSV, senão 0 (nunca vazia)
+                    old = old_rows.get(r["---"])
+                    r["TargetClass"] = old.get("TargetClass", 0) if old and old.get("TargetClass", "") != "" else 0
+                    r["SizeClass"] = old.get("SizeClass", 0) if old and old.get("SizeClass", "") != "" else 0
+                    continue
+                block = reader.read(monster_id)
+                r["TargetClass"] = block["target_class"]
+                r["SizeClass"] = block["size_class"]
+                disc_element = RECORD_ELEMENTS.get(block["element"], "None")
+                if r["Element"] == "None" and not r.get("Location"):
+                    r["Element"] = disc_element        # só no disco: o registro é a fonte
+                elif r["Element"] != disc_element:
+                    report["Element do TOML difere do registro (toml/disco)"].append(
+                        "%s: %s/%s" % (r["---"], r["Element"], disc_element))
     # Trabalho manual sobrevive à regeneração.
     generated = {r["---"] for r in rows}
     for r in rows:
         old = old_rows.get(r["---"])
+        if not args.archive:
+            r["TargetClass"] = old.get("TargetClass", 0) if old and old.get("TargetClass", "") != "" else 0
+            r["SizeClass"] = old.get("SizeClass", 0) if old and old.get("SizeClass", "") != "" else 0
         for c in MANUAL_COLUMNS:
             r[c] = old.get(c, "") if old else ""
         if old and int(r["MonsterArchiveID"]) == -1 and old.get("MonsterArchiveID") not in ("", "-1"):

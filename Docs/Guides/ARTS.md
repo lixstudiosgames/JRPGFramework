@@ -154,7 +154,8 @@ and no lock, so they chain at frame 10; every Art has the lock and plays whole. 
 
 **The game's speed in a turn** (RE: `FUN_8004AD80`, `ctx[+0x243]`; `battle-action-queue.md`):
 swings and the `ArtStarter` run at scale **8** — also the connector swings inside a Super; every
-Art commit sets **4**; the `SpecialStarter` turns special mode on, and every Art after it runs at
+Art commit sets **4**; the `SpecialStarter` is the dash at **2** (its `0x1A` arm freezes everyone else at 0) and turns special
+mode on, and every Art after it runs at
 **2** until the action ends. So a Miracle's or a Super finisher's clips run at half an ordinary
 Art's speed. A step whose row has `SpeedScale` other than `0` runs at that scale instead. Each
 step shows its scale (`x8` / `x4` / `x2`) next to its name.

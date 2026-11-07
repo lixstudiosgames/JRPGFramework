@@ -1,4 +1,5 @@
 #include "Battle/JRPGEncounterTypes.h"
+#include "Battle/BossFightData.h"
 #include "Core/CoreSubsystem.h"
 #include "Engine/DataTable.h"
 
@@ -99,6 +100,68 @@ bool UJRPGEncounterLibrary::GetEnemyData(FName EnemyKey, FJRPGEnemyData& OutData
 		return true;
 	}
 	return false;
+}
+
+bool UJRPGEncounterLibrary::FindBossFight(const TArray<FJRPGEncounterCombatant>& Enemies, FJRPGBossData& OutBoss)
+{
+	bool bAnyBoss = false;
+	TArray<FName> Keys;
+	for (const FJRPGEncounterCombatant& Enemy : Enemies)
+	{
+		FJRPGEnemyData Row;
+		bAnyBoss |= GetEnemyData(Enemy.EnemyKey, Row) && Row.bIsBoss;
+		Keys.Add(Enemy.EnemyKey);
+	}
+	if (!bAnyBoss)
+	{
+		return false;
+	}
+	Keys.Sort(FNameLexicalLess());
+
+	const FJRPGBossData* Found = nullptr;
+	if (const UDataTable* Bosses = UCoreSubsystem::ResolveDataTable(TEXT("DT_Bosses")))
+	{
+		Bosses->ForeachRow<FJRPGBossData>(TEXT("FindBossFight"), [&](const FName&, const FJRPGBossData& Boss)
+		{
+			if (Found || Boss.Enemies.Num() != Keys.Num())
+			{
+				return;
+			}
+			TArray<FName> BossKeys = Boss.Enemies;
+			BossKeys.Sort(FNameLexicalLess());
+			if (BossKeys == Keys)
+			{
+				Found = &Boss;
+			}
+		});
+	}
+	if (Found)
+	{
+		OutBoss = *Found;
+	}
+	return Found != nullptr;
+}
+
+bool UJRPGEncounterLibrary::ResolveScriptedFight(const TArray<FJRPGEncounterCombatant>& Enemies)
+{
+	bool bAnyBoss = false;
+	for (const FJRPGEncounterCombatant& Enemy : Enemies)
+	{
+		FJRPGEnemyData Row;
+		bAnyBoss |= GetEnemyData(Enemy.EnemyKey, Row) && Row.bIsBoss;
+	}
+	if (!bAnyBoss)
+	{
+		return false;
+	}
+	FJRPGBossData Boss;
+	if (FindBossFight(Enemies, Boss))
+	{
+		return Boss.bScriptedFight;
+	}
+	UE_LOG(LogTemp, Warning, TEXT("UJRPGEncounterLibrary: luta com chefe (%s) sem linha no DT_Bosses — luta roteirizada por padrão"),
+		*FString::JoinBy(Enemies, TEXT(", "), [](const FJRPGEncounterCombatant& Enemy) { return Enemy.EnemyKey.ToString(); }));
+	return true;
 }
 
 FJRPGEncounterSetup UJRPGEncounterLibrary::MakeSingleEnemyEncounter(FName EnemyKey, int32 LevelMin, int32 LevelMax)

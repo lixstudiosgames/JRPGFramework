@@ -35,7 +35,9 @@ enum class EJRPGUIState : uint8
 	MainMenuOpen   UMETA(DisplayName = "Main Menu Open"),
 	DevMenuOpen    UMETA(DisplayName = "Dev Menu Open"),
 	PartyOpen      UMETA(DisplayName = "Party Open"),
-	ItemsOpen      UMETA(DisplayName = "Items Open")
+	ItemsOpen      UMETA(DisplayName = "Items Open"),
+	/** O menu de comandos da luta (a fase de comandos de cada rodada). */
+	BattleOpen     UMETA(DisplayName = "Battle Open")
 };
 
 /**
@@ -56,6 +58,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnJRPGUIStateChanged, EJRPGUIState
  * chegam aqui.
  */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGMainMenuAction, const FString&, Action);
+
+/**
+ * Um aperto no menu de comandos da luta, como chegou do JS (bridge.onbattleinput): Action = 'up' 'down' 'left' 'right'
+ * 'confirm' 'cancel' ou 'pick' (um clique que escolhe por posição, com A e B). Nativo, não dinâmico: o único ouvinte é o
+ * UJRPGBattleUISubsystem, que confere tudo (regra 22) — a WebUI não conhece a luta.
+ */
+DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnJRPGBattleUIInput, const FString& /*Action*/, int32 /*A*/, int32 /*B*/);
 
 /**
  * UWebUISubsystem — dono da WebUI (Ultralight) do jogo.
@@ -206,6 +215,9 @@ public:
 	 */
 	void SetDifficultyFromUI(int32 DifficultyIndex);
 
+	/** Aplica a opção Battle Camera da tela de opções (0 Close, 1 Normal, 2 Far: EJRPGBattleCameraOption). */
+	void SetBattleCameraFromUI(int32 OptionIndex);
+
 	/** Mapa carregado por QuitToMainMenu (sem extensão). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|WebUI")
 	FName MainMenuLevelName = TEXT("MainMenu");
@@ -231,6 +243,35 @@ public:
 
 	/** O jogador jogou um item fora. Quem valida é o InventorySubsystem. */
 	void HandleItemDiscard(FName ItemID, int32 Quantity);
+
+	// ============================================================
+	// MENU DE COMANDOS DA LUTA (UJRPGBattleUISubsystem)
+	// ============================================================
+
+	/**
+	 * Abre a seção da luta e foca a UI (cursor + teclado/gamepad). Só do HudOnly: falso se outra tela está aberta (o menu de pausa,
+	 * por exemplo) ou se o shell não monta. Já aberto, devolve true sem refazer nada. Quem desenha é o UpdateBattleUI.
+	 */
+	bool OpenBattleUI();
+
+	/** Manda a view do menu (um objeto literal JS montado pelo FJRPGBattleMenu::BuildViewJS) para JRPGBattle.render. */
+	void UpdateBattleUI(const FString& ViewJS);
+
+	/** Fecha a seção da luta e devolve o input ao jogo (a rodada vai tocar; o menu volta na próxima fase de comandos). */
+	void CloseBattleUI();
+
+	/** O JS apertou algo no menu da luta (bridge.onbattleinput). */
+	void HandleBattleInputFromJS(const FString& Action, int32 A, int32 B);
+
+	/** Os apertos do menu da luta. */
+	FOnJRPGBattleUIInput OnBattleUIInput;
+
+	/**
+	 * A camada de HUD da luta (97_battle_hud.js: os nomes da abertura, depois as janelas do fim): chama JRPGBattleHUD.<JSCall> no
+	 * shell, em qualquer estado (não pega input nem muda o estado da UI). JSCall já montado com ToJSStringLiteral, ex.
+	 * TEXT("introHide()").
+	 */
+	void CallBattleHUD(const FString& JSCall);
 
 	/**
 	 * O jogador pediu para pôr/tirar alguém da formação. Quem valida é o

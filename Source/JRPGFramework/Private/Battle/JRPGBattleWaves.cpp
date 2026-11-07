@@ -250,6 +250,12 @@ bool AJRPGBattleWaves::StartWave(int32 WaveIndex)
 	FJRPGBattleSetup Setup;
 	Setup.Party = Party;
 	Setup.Enemies = UJRPGEncounterLibrary::RollEncounter(Waves[WaveIndex].Encounter);
+	// Uma onda com chefe é uma luta de chefe: a flag vem do DT_Bosses (ver ResolveScriptedFight)
+	Setup.bScriptedFight = UJRPGEncounterLibrary::ResolveScriptedFight(Setup.Enemies);
+	// A arena não tem ataque pelas costas nem surpresa: as duas formações entram de frente
+	Setup.FormationAdvantage = 0;
+	Setup.BattleMusic = BattleMusic;
+	Setup.bKeepCurrentMusic = bKeepCurrentMusic;
 	const AActor* Where = Arena ? static_cast<const AActor*>(Arena.Get()) : this;
 	Setup.Location = Where->GetActorLocation();
 	Setup.FacingYaw = Where->GetActorRotation().Yaw;

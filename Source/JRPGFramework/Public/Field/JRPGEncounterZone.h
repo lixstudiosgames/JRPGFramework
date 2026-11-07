@@ -139,6 +139,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Encounter Zone")
 	bool GetRandomFloorPoint(FVector& OutFloor) const;
 
+	/**
+	 * Um ponto do chão a pelo menos MinDistance (no plano) de Avoid: o reaparecer não cai em cima do jogador. Numa zona
+	 * pequena demais devolve o mais longe de alguns sorteios. False se a zona não achou chão.
+	 */
+	bool GetRandomFloorPointAway(const FVector& Avoid, float MinDistance, FVector& OutFloor) const;
+
 	/** 0 dentro da forma; fora, a distância (no plano) até a borda. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Encounter Zone")
 	float DistanceOutside(const FVector& Point) const;

@@ -38,7 +38,8 @@ New here? Read [`ARCHITECTURE.md`](ARCHITECTURE.md), then
 | [MIST.md](Guides/MIST.md) | Living volumetric mist: strands and swirls, flows around scenery, parts around the player |
 | [FIELD_ENEMIES.md](Guides/FIELD_ENEMIES.md) | Enemies on the map: one generic `AJRPGFieldEnemy`, sphere/box/spline encounter zones, the encounter roll, battle arenas |
 | [BATTLE_STAGE.md](Guides/BATTLE_STAGE.md) | A fight assembled over the current map by the arena and taken down: models from the DataTables, camera, field enemies going home, the Muscle Dome waves (JSON + Studio), console commands |
-| [ENEMIES.md](Guides/ENEMIES.md) | `DT_Enemies` column reference, where the numbers come from, regenerating without losing manual work; `DT_Bosses` (the boss fights) |
+| [BATTLE.md](Guides/BATTLE.md) | Basic combat (Phase 5, written - to build and test): the round, the logic timeline, one hit, the Arts and AP in a fight, the end of the fight, the console commands to play without a HUD, what to check after building |
+| [ENEMIES.md](Guides/ENEMIES.md) | `DT_Enemies` column reference, where the numbers come from, regenerating without losing manual work; `DT_Bosses` (the boss fights); `DT_EnemyActions`, `DT_RaSeruTiers`, `DT_WeaponCosts` (what the fight reads from the disc) |
 | [ARTS.md](Guides/ARTS.md) | `DT_Arts`: the Tactical Arts, their hits and sequences, making new Arts and combined ones |
 | [PS1_ASSETS.md](Guides/PS1_ASSETS.md) | The original's battle models (monsters + party) from the disc into Unreal: extraction, the Blender converter, import, scale |
 | [MENU_AND_OPTIONS.md](Guides/MENU_AND_OPTIONS.md) | Main menu and the options screen (visuals done, controls not wired) |
@@ -51,6 +52,8 @@ New here? Read [`ARCHITECTURE.md`](ARCHITECTURE.md), then
 |---|---|
 | [PROGRESSION.md](Reference/PROGRESSION.md) | XP curve, stat growth and difficulty, derived from the original disc and validated against it |
 | [ULTRALIGHT_INTEGRATION.md](Reference/ULTRALIGHT_INTEGRATION.md) | How the HTML UI actually renders: dedicated thread, custom D3D11 GPU driver, shared texture |
+| [BATTLE_RE_SWEEP.md](Reference/BATTLE_RE_SWEEP.md) | Every part of the original's fight against ours: entry, command flow, each action state, movement and spacing, animation, camera, effects, sounds, HUD; the gap list and the implementation order |
+| [BATTLE_TIMING.md](Reference/BATTLE_TIMING.md) | How the original paces a fight: the vsync clock, clip lengths, what each action waits for (target reactions, the 60-vsync Done band), death, round and victory timing, and how ours differs |
 
 ## Data
 
@@ -73,6 +76,11 @@ remain for reference.
 | [DT_EquipVisuals.csv](Data/DT_EquipVisuals.csv) | 146 | `FJRPGEquipVisualRow` |
 | [DT_Arts.csv](Data/DT_Arts.csv) | 81 | `FJRPGArtData` |
 | [DT_Bosses.csv](Data/DT_Bosses.csv) | 30 | `FJRPGBossData` |
+| [DT_EnemyActions.csv](Data/DT_EnemyActions.csv) | 1753 | `FJRPGEnemyActionData` |
+| [DT_RaSeruTiers.csv](Data/DT_RaSeruTiers.csv) | 3 | `FJRPGRaSeruTierData` |
+| [DT_WeaponCosts.csv](Data/DT_WeaponCosts.csv) | 18 | `FJRPGWeaponCostData` |
+| [DT_HeroSwings.csv](Data/DT_HeroSwings.csv) | 114 | `FJRPGHeroSwingData` |
+| [DT_HeroReactions.csv](Data/DT_HeroReactions.csv) | 4 | `FJRPGHeroReactionData` |
 
 `Data/_backup/` holds the copies LegaiaStudio makes on every save.
 

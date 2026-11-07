@@ -3,6 +3,10 @@
 #include "Components/AudioComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
+#include "Sound/SoundCue.h"
+#include "Sound/SoundNodeConcatenator.h"
+#include "Sound/SoundNodeWavePlayer.h"
+#include "Sound/SoundWave.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "UObject/UObjectGlobals.h"
@@ -207,21 +211,50 @@ void UAudioSubsystem::ApplyBGMVolume()
 
 void UAudioSubsystem::SaveSettings() const
 {
-	UJRPGSettingsSave* Settings = Cast<UJRPGSettingsSave>(
-		UGameplayStatics::CreateSaveGameObject(UJRPGSettingsSave::StaticClass()));
+	// Parte do que já está salvo (a opção da câmera da luta e o que mais vier): só os volumes mudam aqui
+	UJRPGSettingsSave* Settings = UJRPGSettingsSave::LoadOrCreate();
 	if (!Settings)
 	{
 		return;
 	}
 
-	Settings->SettingsVersion = UJRPGSettingsSave::CurrentSettingsVersion;
 	Settings->MasterVolume = MasterVolume;
 	Settings->MusicVolume = MusicVolume;
 	Settings->SFXVolume = SFXVolume;
 	Settings->AmbientVolume = AmbientVolume;
 
-	if (!UGameplayStatics::SaveGameToSlot(Settings, SettingsSlotName, 0))
+	if (!UJRPGSettingsSave::Store(Settings))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("AudioSubsystem: Falha ao gravar o JRPGSettings em disco."));
 	}
+}
+
+USoundBase* UAudioSubsystem::GetIntroLoopSound(USoundWave* Intro, USoundBase* Loop)
+{
+	USoundWave* LoopWave = Cast<USoundWave>(Loop);
+	if (!Intro || !LoopWave)
+	{
+		return Loop ? Loop : Intro;
+	}
+	const FString Key = Intro->GetPathName() + TEXT("|") + LoopWave->GetPathName();
+	if (const TObjectPtr<USoundCue>* Found = IntroLoopSounds.Find(Key))
+	{
+		return *Found;
+	}
+
+	// Concatenator(Intro, Loop): o segundo tocador fica em laço, então a música nunca acaba. As entradas vão direto nas listas (o
+	// InsertChildNode, no editor, mexe no grafo do cue, que este cue de memória não tem)
+	USoundCue* Cue = NewObject<USoundCue>(this);
+	USoundNodeWavePlayer* IntroPlayer = NewObject<USoundNodeWavePlayer>(Cue);
+	IntroPlayer->SetSoundWave(Intro);
+	USoundNodeWavePlayer* LoopPlayer = NewObject<USoundNodeWavePlayer>(Cue);
+	LoopPlayer->SetSoundWave(LoopWave);
+	LoopPlayer->bLooping = true;
+	USoundNodeConcatenator* Concatenator = NewObject<USoundNodeConcatenator>(Cue);
+	Concatenator->ChildNodes = { IntroPlayer, LoopPlayer };
+	Concatenator->InputVolume = { 1.0f, 1.0f };
+	Cue->FirstNode = Concatenator;
+	Cue->CacheAggregateValues();
+	IntroLoopSounds.Add(Key, Cue);
+	return Cue;
 }

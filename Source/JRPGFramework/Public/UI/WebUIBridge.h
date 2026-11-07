@@ -61,6 +61,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "JRPG|WebUI")
 	void OnSetDifficulty(int32 DifficultyIndex);
 
+	/** O JS trocou a opção Battle Camera (bridge.onsetbattlecamera): 0 Close, 1 Normal, 2 Far (EJRPGBattleCameraOption). */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|WebUI")
+	void OnSetBattleCamera(int32 OptionIndex);
+
 	UFUNCTION(BlueprintCallable, Category = "JRPG|WebUI")
 	void PlaySFX(const FString& SoundName);
 
@@ -118,6 +122,13 @@ public:
 	/** A tela de Itens pediu para jogar um item fora. */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|WebUI")
 	void OnItemDiscard(const FString& ItemID, int32 Quantity);
+
+	/**
+	 * O menu de comandos da luta (bridge.onbattleinput): Action = 'up' 'down' 'left' 'right' 'confirm' 'cancel' ou 'pick' (um
+	 * clique por posição, com A e B). UMA função para o menu todo: quem decide é o FJRPGBattleMenu, a ponte só repassa.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|WebUI")
+	void OnBattleInput(const FString& Action, int32 A, int32 B);
 
 private:
 	UPROPERTY()

@@ -173,6 +173,24 @@ public:
 	bool bStartBattle = true;
 
 	/**
+	 * A transição para a luta deste inimigo (FJRPGBattleSetup::TransitionStyle / TransitionSubStyle). Auto = a da arena, ou a do
+	 * original pelo inimigo. Shatter com o sub 2 é o radial das abelhas em Rim Elm / Octam e do Golem no Mt. Rikuroa.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy")
+	EJRPGBattleTransitionStyle TransitionStyle = EJRPGBattleTransitionStyle::Auto;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy", meta = (ClampMin = "-1", ClampMax = "2"))
+	int32 TransitionSubStyle = -1;
+
+	/** A música da luta deste inimigo (RowName no DT_BattleMusic; FJRPGBattleSetup::BattleMusic). None = a automática. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Sound")
+	FName BattleMusic;
+
+	/** A luta mantém a música que toca (o tema de um chefe ou evento; FJRPGBattleSetup::bKeepCurrentMusic). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Sound")
+	bool bKeepCurrentMusic = false;
+
+	/**
 	 * Grupo misto: vários inimigos, pesos, quantidades. Preenchido, substitui o Enemy acima (o
 	 * modelo passa a ser o do inimigo principal daqui).
 	 */
@@ -355,6 +373,8 @@ protected:
 
 private:
 	void Think();
+	/** Em carência depois de uma luta (UBattleSubsystem::IsInEncounterGrace): ninguém persegue nem começa encontro. */
+	bool IsEncounterGraceActive() const;
 	void EnterIdle(float WaitSeconds);
 	void StartWander();
 	void StartChase(APawn* Player);

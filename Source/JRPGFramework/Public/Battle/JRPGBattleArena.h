@@ -5,6 +5,7 @@
 #include "Core/JRPGSplineArea.h"
 #include "Battle/BattleTypes.h"
 #include "Camera/CameraData.h"
+#include "Battle/JRPGBattleCamera.h"
 #include "JRPGBattleArena.generated.h"
 
 class USplineComponent;
@@ -12,7 +13,10 @@ class UBillboardComponent;
 class USkeletalMesh;
 class USkeletalMeshComponent;
 class AJRPGBattlePawn;
+class AJRPGBattleCamera;
 class APlayerController;
+class UMaterialInterface;
+class USoundBase;
 
 /** De onde saem os lugares da formação automática. */
 UENUM(BlueprintType)
@@ -86,7 +90,7 @@ struct JRPGFRAMEWORK_API FJRPGArenaSeat
  * Na luta (AssembleBattle, chamado pelo UJRPGBattleSceneSubsystem com a tela já preta): esconde e
  * congela a party do Field e o HideDuringBattle, desliga o controle do Field, cria um
  * AJRPGBattlePawn por combatente nos lugares (o modelo de batalha vem do DT_Characters /
- * DT_Enemies) e aponta a câmera — a BattleCamera, ou FrameGroup em todos. TeardownBattle devolve
+ * DT_Enemies) e aponta a câmera — a BattleCamera, a câmera da luta (AJRPGBattleCamera) ou FrameGroup em todos. TeardownBattle devolve
  * tudo como estava. Mapa sem arena: o subsystem cria uma provisória no ponto do encontro.
  * Guia: Docs/Guides/BATTLE_STAGE.md.
  */
@@ -134,6 +138,57 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation")
 	EJRPGArenaFormation Formation = EJRPGArenaFormation::Original;
+
+	/**
+	 * O recentrar da formação do original (FUN_801EFE44 no começo de cada ação, FUN_801DB318 no começo da rodada): todo mundo
+	 * é transladado para o alvo do golpe (ou o centro de todos, numa ação sem golpe e no começo da rodada) ficar no centro da
+	 * arena, e uma formação mais larga que FormationSpanLimitUnits num eixo é comprimida. É o que impede a luta de ir parar
+	 * na borda (o chefe empurrado até o fim da arena, com a party amontoada em cima dele). A cena avisa as câmeras
+	 * (UJRPGBattleSceneSubsystem::OnFormationShifted) para andarem junto, como o foco da câmera do original.
+	 * Ligado por padrão desde 2026-11-06: a câmera da luta (bUseBattleCamera) segue o evento, andando o foco no mesmo quadro, então é
+	 * o comportamento do original. Com uma câmera parada o salto aparece (bugs 21-26): desligue, ou use RecentreFrames.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation")
+	bool bRecentreFormation = true;
+
+	/**
+	 * 0 = de uma vez, como o original (a câmera anda junto no mesmo quadro e ninguém vê; com a câmera fixa o salto aparece).
+	 * > 0 = desliza nesses quadros lógicos (para uma arena com câmera fixa que não segue o OnFormationShifted).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (ClampMin = "0", EditCondition = "bRecentreFormation"))
+	int32 RecentreFrames = 0;
+
+	/** A maior largura da formação num eixo, em unidades do PS1 (0x800 no original); mais que isso é comprimido. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (ClampMin = "0.0", EditCondition = "bRecentreFormation"))
+	float FormationSpanLimitUnits = 2048.0f;
+
+	/** O make-way do original: quem está em volta sai da linha do atacante que anda até o alvo (classe de tamanho * 8 unidades). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation")
+	bool bMakeWay = true;
+
+	/**
+	 * Só sai do caminho quem está no corredor do atacante (entre ele e o ponto onde ele para, a menos da largura do corredor), e só
+	 * o que falta para liberar. Desligado: como o original, TODO mundo de fora anda classe * 8 unidades, perto ou longe.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (EditCondition = "bMakeWay"))
+	bool bMakeWayOnlyInLane = true;
+
+	/**
+	 * A largura do corredor (de cada lado da linha do atacante) em múltiplos da distância de separação dos dois corpos,
+	 * (raio do atacante + raio do outro) / 6. 1 = o mínimo para não se encostarem; mais = sai quem passa mais longe.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (ClampMin = "0.1", EditCondition = "bMakeWay && bMakeWayOnlyInLane"))
+	float MakeWayLaneScale = 1.25f;
+
+	/**
+	 * A separação do original (FUN_80051078 a cada quadro): dois combatentes mais perto que (r1 + r2) / 6 se afastam
+	 * SeparationStepUnits por par por quadro (o raio: herói 0x280, Terra 0x400, monstro classe << 5 unidades).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation")
+	bool bSeparation = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Formation", meta = (ClampMin = "0.0", EditCondition = "bSeparation"))
+	float SeparationStepUnits = 4.0f;
 
 	/**
 	 * Original: a família alternada das linhas de inimigos (3 e 4 inimigos mudam; 1 e 2 são
@@ -190,27 +245,245 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
 	TObjectPtr<AActor> BattleCamera;
 
-	/** O enquadramento quando não há BattleCamera (gira em volta do primeiro do grupo). */
+	/**
+	 * Sem BattleCamera: a câmera da luta (AJRPGBattleCamera) segue a luta como a do original — o plano geral girando, os closes do
+	 * menu, a ação. Desligado, a câmera fica parada no enquadramento de todos (FrameGroup, CameraPreset / CameraPadding).
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
+	bool bUseBattleCamera = true;
+
+	/** A classe da câmera da luta (um Blueprint filho muda distâncias, giro, velocidade). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (EditCondition = "bUseBattleCamera"))
+	TSubclassOf<AJRPGBattleCamera> BattleCameraClass;
+
+	/** O enquadramento parado quando não há BattleCamera nem câmera da luta (gira em volta do primeiro do grupo). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (EditCondition = "!bUseBattleCamera"))
 	ECameraFramingPreset CameraPreset = ECameraFramingPreset::BattleWide;
 
 	/** Folga em volta dos combatentes (1 = encostando nas bordas da tela). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (ClampMin = "1.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (ClampMin = "1.0", EditCondition = "!bUseBattleCamera"))
 	float CameraPadding = 1.15f;
 
-	/** A câmera fica atrás da party, olhando para os inimigos. Desligado, o contrário. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
+	/** A câmera parada fica atrás da party, olhando para os inimigos. Desligado, o contrário. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (EditCondition = "!bUseBattleCamera"))
 	bool bCameraBehindParty = true;
 
 	/**
-	 * Segundos de fade para o preto ao entrar e ao sair; a cena troca com a tela toda preta.
-	 * 0 = corte seco. (A tela quebrando é a Fase 7.)
+	 * Segundos de fade ao sair da luta (para o preto) e ao entrar: com o estilo Fade, para TransitionColor e de volta; depois de
+	 * um dos cinco estilos, da cor em que ele termina (branco ou preto) para a luta. 0 = corte seco.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (ClampMin = "0.0"))
 	float TransitionTime = 0.35f;
 
+	/**
+	 * A transição do Field para as lutas desta arena quando a luta não escolhe (FJRPGBattleSetup::TransitionStyle Auto). Auto = a
+	 * escolha do original (o tile shatter na maioria). Os estilos desenham sobre a captura do último quadro do Field, 132 quadros
+	 * (2,2 s; o swirl 252), e acabam em branco ou preto. Docs/Guides/BATTLE_STAGE.md › The field-to-battle transition.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition")
+	EJRPGBattleTransitionStyle TransitionStyle = EJRPGBattleTransitionStyle::Auto;
+
+	/** O sub-estilo quando TransitionStyle não é Auto (-1 = 0). Ver FJRPGBattleSetup::TransitionSubStyle. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "-1", ClampMax = "2"))
+	int32 TransitionSubStyle = -1;
+
+	/**
+	 * Depois do efeito, a cor final (preta ou branca) fica cheia por tantos segundos, com a luta já montada embaixo (no original, a
+	 * carga da luta do CD), e abre num fade de TransitionRevealSeconds. A abertura da luta (a varredura) começa com o fade.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "0.0"))
+	float TransitionHoldSeconds = 0.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "0.0"))
+	float TransitionRevealSeconds = 0.5f;
+
+	/** A velocidade do efeito: 1 = os 60 quadros por segundo do port (2,2 s; o swirl 4,2 s). Menos = mais devagar. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "0.05", ClampMax = "4.0"))
+	float TransitionPlaybackRate = 1.0f;
+
+	/** O som do começo da luta abaixa até sumir em tantos segundos quando a luta aparece (0 = corta na hora). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "0.0"))
+	float TransitionSoundFadeSeconds = 1.5f;
+
+	/** A escala da imagem da cortina (as duas passadas em CPU): 320 x 240 vezes isto. Mais = mais nítida e mais cara. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "1", ClampMax = "6"))
+	int32 TransitionCurtainScale = 3;
+
+	/**
+	 * O som do começo da luta, no primeiro quadro da transição (o cue 0x1F da tabela estática, banco do sistema; 0x4D numa luta de
+	 * script: FUN_801CF5BC fase 0). Vazio = mudo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition")
+	TSoftObjectPtr<USoundBase> TransitionSound = TSoftObjectPtr<USoundBase>(
+		FSoftObjectPath(TEXT("/Game/Legaia/Battle/Sounds/Common/SW_Battle_Static1F.SW_Battle_Static1F")));
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition")
+	TSoftObjectPtr<USoundBase> ScriptedTransitionSound = TSoftObjectPtr<USoundBase>(
+		FSoftObjectPath(TEXT("/Game/Legaia/Battle/Sounds/Common/SW_Battle_Static4D.SW_Battle_Static4D")));
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
 	FLinearColor TransitionColor = FLinearColor::Black;
+
+	/**
+	 * A abertura do original entre a tela abrir e o primeiro prompt (UJRPGBattleSceneSubsystem::GetIntroStage): a varredura da
+	 * câmera e os nomes dos inimigos. As regras e o menu esperam por ela. Desligada, a luta anda assim que a cena monta.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Intro")
+	bool bBattleIntro = true;
+
+	/**
+	 * A varredura (FUN_80046A20, o contador de entrada): IntroDriftFrames vsyncs em que a câmera sobe e se aproxima (0x80..0xA1),
+	 * depois IntroCloseInFrames em que ela fecha no centro da arena (o caso 2, 0xA2..0xC0).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Intro", meta = (ClampMin = "0", EditCondition = "bBattleIntro"))
+	int32 IntroDriftFrames = 34;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Intro", meta = (ClampMin = "0", EditCondition = "bBattleIntro"))
+	int32 IntroCloseInFrames = 31;
+
+	/** Os nomes dos inimigos na tela (o timer ctx[+0x6D6]): 90 quadros, 120 quando há vantagem de formação (a linha dela junto). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Intro", meta = (ClampMin = "0", EditCondition = "bBattleIntro"))
+	int32 IntroNamesFrames = 90;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Intro", meta = (ClampMin = "0", EditCondition = "bBattleIntro"))
+	int32 IntroNamesAdvantageFrames = 120;
+
+	/**
+	 * O "slow" das Arts do original: enquanto o grito da Art é lido do CD (a voz XA no starter de uma Art conhecida, a fanfarra no
+	 * dash de uma Art nova / Super / Miracle), o PS1 fica sem fôlego e o jogo INTEIRO anda mais devagar — o clip do starter do Lizard
+	 * Tail dura 32 vsyncs em vez de 22, o da Art 61 em vez de 40 (docs/subsystems/battle-action-helpers.md, "Retail frames stretch
+	 * while a shout streams"). Aqui é a dilatação do tempo do mundo (regras, animações, câmera; a voz não muda de tom) a partir do
+	 * starter de uma Art conhecida, pelo tempo que o drive lê o grito que saiu (DT_BattleVoices::ShoutSeconds; ArtsShoutSeconds
+	 * sem as tabelas de voz). O dash do Hyper / Super / Miracle / Art nova não abre a janela: ele já é o slow do original (a luta
+	 * congelada, só quem dá o dash anda, as Arts depois dele a 1/4). 1 = sem o slow.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (ClampMin = "0.1", ClampMax = "1.0"))
+	float ArtsShoutTimeDilation = 0.67f;
+
+	/**
+	 * Quanto dura o slow do grito, em segundos reais, a partir do starter, quando a luta não tem as vozes (sem DT_BattleVoices /
+	 * DT_ArtVoices). Com elas, a janela é a leitura do grito sorteado (o Lizard Tail do RE: ~1 s).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (ClampMin = "0.0"))
+	float ArtsShoutSeconds = 1.0f;
+
+	/**
+	 * Que vozes abrem o slow do grito (o original fica lento enquanto o CD lê qualquer voz; aqui, por tipo, para afinar pelo olho):
+	 * o grito de uma Art conhecida (ligado), a Art nova (a fanfarra do starter e o grito dela), a fanfarra da Hyper, a fanfarra da
+	 * Super / Miracle. Só o primeiro ligado: com o trecho de laço do SpecialStarter (UJRPGAnimNotify_LoopWindow) o dash já segura o
+	 * tempo do original, e o slow por cima deixava o starter e a Art lentos demais (teste do usuário, 2026-11-06; o bug 41 antes).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
+	bool bShoutSlowKnownArt = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
+	bool bShoutSlowNewArt = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
+	bool bShoutSlowHyper = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
+	bool bShoutSlowSuperMiracle = false;
+
+	/**
+	 * O atraso das vozes da luta (grito, fanfarra, grunhido) depois do pedido: no original, a busca no CD (~150 ms) faz a voz sair
+	 * um pouco depois do clip começar. 0 = na hora.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Sound", meta = (ClampMin = "0.0"))
+	float VoiceLatencySeconds = 0.0f;
+
+	/**
+	 * O fantasma perto da câmera do original (FUN_8004DC68): durante uma ação, quem está perto do ponto do eixo da vista que fica
+	 * CameraGhostPullBack da distância da câmera antes da mira (dentro de CameraGhostRadius dessa distância) fica translúcido, para
+	 * não tapar a tomada. Quem age e o alvo dele nunca. No original é um fantasma aditivo fraco (B + F/4); aqui, um dither da
+	 * opacidade (AJRPGBattlePawn::CameraGhostParameter).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera")
+	bool bCameraGhost = true;
+
+	/**
+	 * O fantasma também nos menus (comando, Attack, Spirit, o cursor de alvo), com a câmera ao lado de um inimigo: nosso, o original
+	 * só o faz durante as ações. Quem o menu enquadra e o alvo do cursor nunca.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera")
+	bool bCameraGhostInMenus = true;
+
+	/**
+	 * Nos menus o teste é de oclusão (nosso): o corpo some quando a caixa dele (o maior lado no plano x este fator) cruza a linha da
+	 * câmera até a mira, entre as duas, ou quando a câmera está dentro dela. Só nas tomadas do herói (Command, Attack, Spirit) e do
+	 * cursor de alvo; no Begin, no Escape e no Reselect (a tomada de longe) ninguém some.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera", meta = (ClampMin = "0.0"))
+	float CameraGhostMenuBodyScale = 0.8f;
+
+	/**
+	 * O mínimo, em segundos reais, que um corpo fica fantasma depois do teste o pegar (o que balança na borda do teste não pisca); o
+	 * teste para sair também é 15 % mais largo que o de entrar.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera", meta = (ClampMin = "0.0"))
+	float CameraGhostHoldSeconds = 0.6f;
+
+	/**
+	 * Nosso: durante o SpecialStarter (o dash agachado da Hyper, da Super, do Miracle e da Art nova) o alvo da ação fica sempre
+	 * fantasma, esteja ou não na frente da lente (o teste de oclusão às vezes não o pega, e ele tapa o herói).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera")
+	bool bCameraGhostTargetOnStarter = true;
+
+	/**
+	 * Nosso: linhas da câmera até a cabeça, o meio, os pés e os lados de quem a tomada mostra (quem age, o alvo, quem o menu enquadra);
+	 * um monstro cujos corpos do physics asset (que seguem a animação) cruzam uma delas vira fantasma. Pega a asa ou o braço que tapa
+	 * a vista longe do centro do corpo. Quem não tem physics asset (os heróis) fica só com os outros testes.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera")
+	bool bCameraGhostTrace = true;
+
+	/**
+	 * O clarão do monstro apontado pelo cursor de alvo (FUN_801DA6B4: o original dobra a cor dele enquanto o cursor está nele): a força
+	 * no AJRPGBattlePawn::TargetHighlightParameter (o M_PS1Monster soma cor do corpo x isto à emissão). 0 desliga.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera", meta = (ClampMin = "0.0"))
+	float TargetHighlightStrength = 0.8f;
+
+	/**
+	 * O material translúcido do fantasma (parâmetros BaseTexture, EmissiveStrength e Opacity): o corpo troca para ele e dá para ver
+	 * através. O padrão é o M_PS1MonsterTranslucent do projeto Legaia, para toda arena (a do mapa e a provisória) já vir pronta; num
+	 * projeto sem ele, ou vazio, fica o dither do JRPGCameraGhost no material do corpo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera")
+	TSoftObjectPtr<UMaterialInterface> CameraGhostMaterial = TSoftObjectPtr<UMaterialInterface>(
+		FSoftObjectPath(TEXT("/Game/Legaia/Battle/Materials/M_PS1MonsterTranslucent.M_PS1MonsterTranslucent")));
+
+	/** A opacidade do corpo fantasma (0 some, 1 inteiro). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float CameraGhostOpacity = 0.3f;
+
+	/** Quanto o ponto do teste sai da mira em direção à câmera, em fração da distância (o original: 25 / 128). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float CameraGhostPullBack = 25.0f / 128.0f;
+
+	/** O raio do teste, em fração da distância da câmera à mira (o original: 1 / 4), no plano. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera", meta = (ClampMin = "0.0"))
+	float CameraGhostRadius = 0.25f;
+
+	/** Segundos para entrar e sair do fantasma (o original troca na hora; um pouco de transição evita o pisca). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera", meta = (ClampMin = "0.0"))
+	float CameraGhostFadeSeconds = 0.12f;
+
+	/**
+	 * A música das lutas comuns desta arena: o RowName no DT_BattleMusic. "Battle1" é o tema dos encontros do original em quase
+	 * todo o jogo; "Battle2" é o das regiões que o trocam. Um chefe usa a dele (FJRPGBossData::Music). Entra em corte seco quando
+	 * a cena da luta abre e a do Field volta na saída. None = a luta comum não mexe na música.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Sound")
+	FName BattleMusic = TEXT("Battle1");
+
+	/**
+	 * As lutas comuns desta arena mantêm a música do Field (as cenas do original que guardam -1 na entrada: algumas masmorras). Um
+	 * chefe com música própria troca mesmo assim.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Sound")
+	bool bKeepFieldMusic = false;
 
 	/** A classe de cada combatente na cena (um Blueprint filho dá efeitos, nome na cabeça...). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
@@ -331,6 +604,10 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Arena")
 	AJRPGBattlePawn* GetPawnForSlot(int32 SlotIndex) const;
 
+	/** A câmera da luta montada aqui (nula com BattleCamera posta à mão, com bUseBattleCamera desligado ou fora de luta). */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Arena")
+	AJRPGBattleCamera* GetBattleCameraActor() const { return SpawnedBattleCamera; }
+
 	// --- Botões no editor ---------------------------------------------------------------------
 
 	/** Lista no Message Log (Map Check) os lugares amarelos/vermelhos da formação de preview. */
@@ -401,6 +678,9 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<AJRPGBattlePawn>> BattlePawns;
+
+	UPROPERTY(Transient)
+	TObjectPtr<AJRPGBattleCamera> SpawnedBattleCamera;
 
 	TArray<FHiddenActor> HiddenActors;
 	TWeakObjectPtr<APlayerController> InputController;

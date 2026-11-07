@@ -1,0 +1,106 @@
+/* ============================================================
+   95_battle_dpad.css — O D-PAD DO MENU DE LUTA (peça isolada, placeholder)
+
+   Par de 95_battle_dpad.js. O contêiner (#bt-dpad) é posicionado pelo 96_battle.css; aqui fica só o desenho do d-pad em si:
+   o ícone central e os quatro botões. Trocar pelos botões 3D = apagar este arquivo e o .js.
+
+   Nada de radial-gradient(ellipse) (o Ultralight desenha um círculo) nem <use> (falha em silêncio).
+   ============================================================ */
+
+#bt-dpad {
+    position: absolute;
+    width: 900px;
+    height: 330px;
+}
+
+#bt-dpad.bdp-empty {
+    display: none;
+}
+
+/* O ícone do meio: o centro do d-pad (450, 165) */
+.bdp-center {
+    position: absolute;
+    left: 420px;
+    top: 135px;
+    width: 60px;
+    height: 60px;
+    fill: #9aa0b4;
+    stroke: #3a3f55;
+    stroke-width: 2;
+    opacity: 0.9;
+}
+
+.bdp-btn {
+    position: absolute;
+    width: 300px;
+    height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, #34389a 0%, #1b1e75 100%);
+    border: 3px solid var(--border-gold);
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+    color: var(--text-primary);
+    font-family: 'Cinzel', Georgia, serif;
+    font-size: 34px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.bdp-left  { left: 98px;  top: 130px; }
+.bdp-right { left: 502px; top: 130px; }
+.bdp-up    { left: 300px; top: 20px; }
+.bdp-down  { left: 300px; top: 240px; }
+
+.bdp-btn:hover {
+    border-color: var(--gold-bright);
+    background: linear-gradient(180deg, #454ab8 0%, #272b94 100%);
+}
+
+.bdp-label {
+    position: relative;
+    z-index: 1;
+}
+
+/* O custo no gauge, no canto (tela Attack) */
+.bdp-cost {
+    position: absolute;
+    right: 12px;
+    bottom: 4px;
+    font-size: 17px;
+    letter-spacing: 0;
+    color: var(--gold-light);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Apagado: sem destaque e com um X vermelho por cima. */
+.bdp-btn.disabled {
+    opacity: 0.6;
+    cursor: default;
+    border-color: var(--border-gold-dim);
+    background: linear-gradient(180deg, #25274f 0%, #15163a 100%);
+    color: var(--text-secondary);
+}
+
+.bdp-btn.disabled:hover {
+    border-color: var(--border-gold-dim);
+    background: linear-gradient(180deg, #25274f 0%, #15163a 100%);
+}
+
+.bdp-x {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    fill: none;
+    stroke: #e2586b;
+    stroke-width: 5;
+    stroke-linecap: round;
+    pointer-events: none;
+}

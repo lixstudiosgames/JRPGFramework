@@ -677,6 +677,7 @@ void AJRPGBattleArena::AssembleBattle(const FJRPGBattleSetup& Setup, const TArra
 			Warn(FString::Printf(TEXT("%s sem modelo de batalha (%s) — só a cápsula"), *C.Key.ToString(), *Why));
 		}
 		Pawn->InitCombatant(C, Visual, Seat.Transform);
+		Pawn->SetArena(this);   // a arena limita onde ele anda na ação (a apresentação da Fase 5)
 		BattlePawns.Add(Pawn);
 	}
 
@@ -719,6 +720,12 @@ void AJRPGBattleArena::TeardownBattle()
 			Camera->RestoreToPlayerCamera(TransitionTime > 0.0f ? 0.0f : 0.5f);
 		}
 	}
+	// A vista já voltou ao jogador (o blend guarda a última pose dela)
+	if (IsValid(SpawnedBattleCamera))
+	{
+		SpawnedBattleCamera->Destroy();
+	}
+	SpawnedBattleCamera = nullptr;
 	if (bBattleAssembled)
 	{
 		Print(TEXT("luta desmontada"), FColor::Cyan);
@@ -870,6 +877,23 @@ void AJRPGBattleArena::FrameCamera()
 	{
 		Camera->FocusOnLevelCamera(BattleCamera, Blend, false, 0.0f);
 		return;
+	}
+
+	// A câmera da luta: segue a luta (o plano geral, os closes, a ação), já na primeira pose
+	if (bUseBattleCamera)
+	{
+		UClass* CameraClass = BattleCameraClass ? BattleCameraClass.Get() : AJRPGBattleCamera::StaticClass();
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		Params.ObjectFlags |= RF_Transient;
+		SpawnedBattleCamera = GetWorld()->SpawnActor<AJRPGBattleCamera>(CameraClass, GetActorTransform(), Params);
+		if (SpawnedBattleCamera)
+		{
+			SpawnedBattleCamera->InitForArena(this);
+			Camera->FocusOnLevelCamera(SpawnedBattleCamera, Blend, false, 0.0f);
+			return;
+		}
+		Warn(TEXT("não consegui criar a câmera da luta — enquadramento parado"));
 	}
 
 	// O preset gira em volta do primeiro do grupo e olha para o rosto dele: um inimigo primeiro

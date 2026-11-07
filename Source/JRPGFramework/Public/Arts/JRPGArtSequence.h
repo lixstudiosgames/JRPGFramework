@@ -6,6 +6,7 @@
 #include "JRPGArtSequence.generated.h"
 
 class UAnimSequence;
+class UAnimSequenceBase;
 
 /** O que um passo é, para a escala de velocidade do turno. */
 UENUM(BlueprintType)
@@ -101,6 +102,14 @@ public:
 
 	/** A linha do DT_Arts (nullptr se não existe). */
 	static const FJRPGArtData* FindArt(FName ArtKey);
+
+	/**
+	 * O clip da Art traz o byte +0x87 da entrada (no DT_ArtVoices bRaisesLatch: as finalizações das Supers). Sem uso na velocidade:
+	 * o commit só grava a trava do modo especial quando o +0x87 é diferente de 0 (FUN_8004AD80 0x8004BE18..0x8004BE2C), então um
+	 * clip com 0 não a derruba e toda Art depois do SpecialStarter vai a 2 até FUN_801E93C8 limpar a trava (bug 73). Sem o
+	 * DT_ArtVoices, as Parts (finalizações) dão verdadeiro.
+	 */
+	static bool RaisesSpecialLatch(FName ArtKey);
 
 private:
 	static void AddStep(TArray<FJRPGArtStep>& Steps, const FString& Label, UAnimSequence* Clip, EJRPGArtStepKind Kind, FName ArtKey);

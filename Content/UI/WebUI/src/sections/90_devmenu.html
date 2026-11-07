@@ -23,6 +23,7 @@
             <button class="dev-tab" data-tab="3">Mundo &amp; Save</button>
             <button class="dev-tab" data-tab="4">Party</button>
             <button class="dev-tab" data-tab="5">Telas</button>
+            <button class="dev-tab" data-tab="6">Battle</button>
         </div>
 
         <div id="dev-main">
@@ -269,6 +270,78 @@
                 </div>
                 <div class="dev-row">
                     <span class="dev-note">Abrir uma tela FECHA o dev menu &mdash; as telas do jogo exigem o estado HudOnly.</span>
+                </div>
+            </div>
+
+            <!-- ---------- 6: BATTLE ---------- -->
+            <div class="dev-panel" data-panel="6">
+                <div class="dev-row">
+                    <label>Inimigos</label>
+                    <input id="dev-enemy" type="text" value="gimard" placeholder="key do DT_Enemies, ou v&aacute;rias: gimard,vera,vera">
+                    <label>Qtd</label>
+                    <input id="dev-ecount" type="number" value="1" min="1" max="8">
+                    <label>Level</label>
+                    <input id="dev-elevel" type="number" value="1" min="1" max="99">
+                    <label>Forma&ccedil;&atilde;o</label>
+                    <select id="dev-eadv">
+                        <option value="roll">sorteio</option>
+                        <option value="none">normal</option>
+                        <option value="back">pelas costas</option>
+                        <option value="first">surpresa</option>
+                    </select>
+                    <label>Transi&ccedil;&atilde;o</label>
+                    <select id="dev-etrans">
+                        <option value="auto">auto</option>
+                        <option value="shatter">shatter</option>
+                        <option value="shatter1">shatter 1 (avan&ccedil;a)</option>
+                        <option value="shatter2">shatter 2 (radial)</option>
+                        <option value="scatter">scatter</option>
+                        <option value="scatter2">scatter 2 (branco)</option>
+                        <option value="spinup">spin-up</option>
+                        <option value="curtain">cortina</option>
+                        <option value="swirl">swirl</option>
+                        <option value="fade">fade</option>
+                        <option value="cut">corte</option>
+                    </select>
+                    <button class="dev-btn" data-tpl="battle.start {enemy} {ecount} {elevel} {eadv} {etrans}">Come&ccedil;ar luta</button>
+                </div>
+                <div class="dev-row">
+                    <span class="dev-note">Uma key repete &quot;Qtd&quot; vezes; v&aacute;rias keys separadas por v&iacute;rgula entram uma de cada. A luta come&ccedil;a onde o jogador est&aacute; e fecha o dev menu.</span>
+                </div>
+                <div class="dev-row">
+                    <label>R&aacute;pidas</label>
+                    <button class="dev-btn" data-cmd="battle.start gimard 1 1">Gimard</button>
+                    <button class="dev-btn" data-cmd="battle.start gimard 3 1">3 Gimard</button>
+                    <button class="dev-btn" data-cmd="battle.start vera 2 1">2 Vera (voa)</button>
+                    <button class="dev-btn" data-cmd="battle.start evil_fly 1 1">Evil Fly (voa)</button>
+                    <button class="dev-btn" data-cmd="battle.start gimard,vera,evil_fly 1 1">Misto</button>
+                </div>
+                <div class="dev-row">
+                    <label>Procurar</label>
+                    <input id="dev-efilter" type="text" placeholder="parte do nome (vazio = todos)">
+                    <button class="dev-btn" data-tpl="battle.enemies {efilter}">Listar keys</button>
+                </div>
+                <div class="dev-row">
+                    <label>Encerrar</label>
+                    <button class="dev-btn" data-cmd="battle.end victory">Vit&oacute;ria</button>
+                    <button class="dev-btn" data-cmd="battle.end defeat">Derrota</button>
+                    <button class="dev-btn" data-cmd="battle.end escape">Fuga</button>
+                    <button class="dev-btn" data-cmd="battle.end abort">Abortar</button>
+                    <span class="dev-note">A vit&oacute;ria daqui paga EXP e Gold de todos os inimigos, vivos tamb&eacute;m.</span>
+                </div>
+                <div class="dev-row">
+                    <label>AP</label>
+                    <button class="dev-btn" data-cmd="battle.ap on">AP sempre 100</button>
+                    <button class="dev-btn" data-cmd="battle.ap off">AP normal</button>
+                    <span class="dev-note">Todos os her&oacute;is ficam com o AP no m&aacute;ximo a cada quadro (nesta luta e nas pr&oacute;ximas da sess&atilde;o).</span>
+                </div>
+                <div class="dev-row">
+                    <label>Arts</label>
+                    <button class="dev-btn" data-cmd="arts.learnall all">Liberar todas</button>
+                    <button class="dev-btn" data-cmd="arts.learnall Vahn">S&oacute; Vahn</button>
+                    <button class="dev-btn" data-cmd="arts.learnall Noa">S&oacute; Noa</button>
+                    <button class="dev-btn" data-cmd="arts.learnall Gala">S&oacute; Gala</button>
+                    <span class="dev-note">Todas as Arts do DT_Arts (menos as Parts) de quem est&aacute; no roster.</span>
                 </div>
             </div>
 

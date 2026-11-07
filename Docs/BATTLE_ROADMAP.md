@@ -4,9 +4,9 @@
 Approved 2026-09-13. Phases 0 to 4 are done (2026-10-30): the battle data (`DT_Enemies`,
 `DT_Arts`, `DT_Bosses`), every monster and the party's battle clips in Unreal, enemies roaming the
 map and a fight assembled over it. Phase 6, the Arts, is done without a fight (2026-11-04:
-recognition, learning, the Supers, the new AP, the validator, the Art Tester's `Input`); next is
-Phase 5, combat itself, which closes Phase 6's in-fight part (order swapped 2026-11-04:
-[Phases](#phases)). The combat core keeps the door open to PvP / online / co-op
+recognition, learning, the Supers, the new AP, the validator, the Art Tester's `Input`). Phase 5,
+combat itself, which closes Phase 6's in-fight part (order swapped 2026-11-04: [Phases](#phases)), is
+**written (2026-11-04), to build and test** ([Guides/BATTLE.md](Guides/BATTLE.md)). The combat core keeps the door open to PvP / online / co-op
 ([decided 2026-11-04](#pvp-online-and-co-op--door-open-decided-2026-11-04)).
 
 This is the largest unimplemented system left in the plugin, and the only one with stub
@@ -19,7 +19,8 @@ is done and will be consumed by the battle system rather than rewritten.
 
 ## Current state
 
-The fight is **assembled but not fought** (2026-11-04):
+The fight was **assembled but not fought** until Phase 5 was written (2026-11-04: it now is played, see
+[Phase 5](#phase-5--basic-combat); the table is what Phase 5 started from):
 
 | Exists | Where |
 |---|---|
@@ -31,7 +32,7 @@ The fight is **assembled but not fought** (2026-11-04):
 | The Arts: buttons → the turn (recognition with the original's overlap, Supers, the new AP), learning and the learned list in the save, the validator | Phase 6 — `UJRPGArtsRules`, `UArtsSubsystem`, `UJRPGArtsValidator`, the Art Tester's `Input` ([Guides/ARTS.md › 4](Guides/ARTS.md#4-recognition-learning-and-ap)) |
 
 Still a stub: `ApplyBattleItemEffect` (the inventory routes item use into it; the call arrives and
-does nothing). No turns, no damage, no rewards yet — that is Phase 5.
+does nothing; Phase 7). Phase 5 added the turns, the damage and the rewards.
 
 ---
 
@@ -60,6 +61,13 @@ against the disc) and **assets** (meshes, animations, textures, sounds).
 | **Where fights happen** | In the field scene; only the camera changes | Same — battle layers on top of the existing maps |
 | **Action state machine** | ~50 states (mixes logic, camera and effect VM) | 8 phases; presentation delegated to AnimMontage / Sequencer |
 | **Parry** | None — the defender does nothing while it is hit | **Planned, design open** (2026-10-31): a timed button during the enemy's attack. Why it shapes Phase 5: [State machine](#state-machine); what is still to decide: [Open questions](#open-questions-to-settle-in-practice-not-on-paper) |
+| **Angle and distance in the damage** | The melee kernel adds `(Angle * atk) >> 16` to the Offense and `(def * Distance) >> 10` to the Defense, from the actors' positions | Dropped: positions cannot feed the rules ([What the core cannot do](#what-the-core-cannot-do)). Both terms are 0 |
+| **The original's bugs** | Initiative keys of `0x8000`+ never win (a mixed-sign compare); with every key at 0 the pick is a random seat; the RNG is shared with presentation | Not reproduced. The rules have their own stream; the presentation uses another |
+
+**Everything not in this table follows the original as the RE documents it** (decided
+2026-11-04): formulas, order of operations, truncation, the constants. A rule is changed only on
+purpose, with a row here; it can be refined later, in play. When the roadmap is silent or vague
+about a rule, the RE's version is the answer, not a guess.
 
 ---
 
@@ -73,9 +81,9 @@ None of this needs to be written — only called.
 | Damage, heal, restore MP, `SetAP`, revive, full restore | `UPartySubsystem` |
 | XP split among survivors, level-up with jitter | `UPartySubsystem::AwardBattleXP` (takes the **raw** EXP sum; applies the version and the difficulty) / `LevelUpMember` |
 | Enemy stats installed and victory EXP / Gold, per version (USA / Japan) | `UJRPGBattleRules` (`InstallEnemyStats`, `VictoryEXPPool`, `VictoryEXPShare`, `VictoryGold`) + `UCoreSubsystem::GetRuleset` |
-| Effective stat (base + equipment + Ra-Seru) | `UStatusSubsystem::GetEffectiveStat` |
-| Ra-Seru bonus (1..9) | `UStatusSubsystem::GetSeruBonus` |
-| Elemental affinity multiplier | `UStatusSubsystem::GetElementMultiplier` |
+| Effective stat (base + equipment + Ra-Seru) | `UStatusSubsystem::GetEffectiveStat` — the menu number. The fight snapshots UDF / LDF / SPD / INT / AGL from it, but **not ATK** ([Damage formula](#damage-formula)) |
+| Ra-Seru bonus (1..9) | `UStatusSubsystem::GetSeruBonus` — ours, not the disc's (INT only). The Ra-Seru's ATK in a fight is its tier's equipment row ([Damage formula](#damage-formula)) |
+| Elemental affinity multiplier | `UStatusSubsystem::GetElementMultiplier` — float, for the menus. The fight uses the integer 8×8 matrix in `UBattleFormulas` |
 | Status conditions | `UStatusSubsystem::ApplyCondition` / `HasCondition` |
 | Enemy scaling by difficulty | `UCoreSubsystem::ScaleEnemyHP/ATK/DEF` |
 | XP curve and stat growth | `UCoreSubsystem` + `DT_GrowthCurve` / `DT_StatGrowth` |
@@ -99,9 +107,9 @@ Each phase ends in something you can run and watch work.
 | **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **Done** (2026-10-30) — all 179 monster models with sounds and notifies, the party's battle clips (real names, game speed, sounds), equipment pieces |
 | **3** | Enemies roaming the map (zone, roaming, trigger) | **Done** (2026-10-27) — `AJRPGFieldEnemy`, `AJRPGEncounterZone` (sphere/box/spline), tested in the editor |
 | **4** | Battle stage (spawn, formation, camera) | **Done** (2026-10-27) — `AJRPGBattleArena` assembles the fight, `UJRPGBattleSceneSubsystem`, `BeginBattle`/`EndBattle`, `AJRPGBattlePawn`, `AJRPGBattleWaves` + JSON/Studio; tested in the editor and on the Muscle Dome map. Party-size scaling moved to Phase 8 |
-| **5** | Basic combat (turns, damage, death, victory) | **Next** — also closes Phase 6's in-fight part |
+| **5** | Basic combat (turns, damage, death, victory) | **Written 2026-11-04, to build and test** — also closes Phase 6's in-fight part. "Done" only after it is built and played in the editor ([Guides/BATTLE.md](Guides/BATTLE.md)) |
 | **6** | Directional Arts + the new AP | **Done without a fight** (2026-11-04) — recognition, learning, Supers, AP, validator, tester `Input`, automation tests. In a fight: Phase 5 |
-| **7** | Remaining commands (item, escape, guard, drop / steal) and presentation (HUD, attack camera, sound) | Not started |
+| **7** | Remaining commands (item, escape, Spirit, formation advantage, drop / steal) and presentation (HUD, attack camera, VFX, the remaining sounds) | Not started |
 | **8** | Magic and Seru | Not started |
 
 ```
@@ -115,7 +123,7 @@ Phase 0 (extraction)
                                   ▼
                          Phase 6 (Arts + new AP)       ← done without a fight
                                   ▼
-                         Phase 5 (basic combat)        ← next
+                         Phase 5 (basic combat)        ← written, to build and test
                                   ▼
                          Phase 7 (commands + presentation)
                                   ▼
@@ -573,7 +581,9 @@ the same job, and the hero models configured by hand.
 - Models come from the DataTables: `DT_Characters.BattleMesh` / `BattleAnims` for heroes,
   `DT_Enemies.Mesh` / `Anims` for enemies.
 - `EndBattle` → black → `TeardownBattle` (everything back exactly as it was) → `OnFieldShown`
-  → screen opens. `EncounterGraceTime` also counts from the end.
+  → screen opens. `EncounterGraceTime` also counts from the end, and a longer `PostBattleGraceTime` (5 s) counts from the
+  moment the field is shown again: until it passes no encounter starts and no field enemy chases (bug 4 of the Phase 5 test
+  batch: an enemy standing next to the player started a new fight ~3 s after a victory).
 
 Console: `JRPG.Battle.Start <EnemyKey> [Count] [Level]` and `JRPG.Battle.End
 [victory|defeat|escape|abort]`.
@@ -586,7 +596,8 @@ same separation the rest of the plugin keeps.
 `AJRPGBattleWaves`: fights in a row. A list of encounters (one per wave), the party, the
 arena; a won wave calls the next after a delay, a lost / escaped / aborted one stops. It runs
 on the field GameMode — no separate battle GameMode, pawn or controller — so it tests the same
-path a field encounter takes. With no combat yet, a wave ends from the console.
+path a field encounter takes. A wave ends when the fight does (the party wins, falls or escapes);
+`JRPG.Battle.End` still ends it from the console.
 
 The waves live in a JSON (`WavesFile`, `Content/Data/Waves/*.json`) read on every play and
 edited in **LegaiaStudio › Ondas**. Packaged with *Additional Non-Asset Directories*, the
@@ -685,6 +696,72 @@ input window inside a turn, damage per hit with each Art's power, AP on the comb
 > plan: the sketches below are written that way, and the table in
 > [What the core cannot do](#what-the-core-cannot-do) is binding. Comes **after Phase 6**
 > ([Phases](#phases)), so the Arts are there to test from the first turn.
+>
+> **The rules are the original's** (decided 2026-11-04): what is not in
+> [Deliberate departures](#deliberate-departures-from-the-original) follows the RE — its formulas,
+> constants, order and truncation — and gets refined later, in play, if it needs to be. The
+> sections below cite the RE function and doc for each rule; read it before writing the code.
+
+**Written 2026-11-04 — to build and test.** Nothing below was compiled or run by the author (the build is manual);
+"Done" goes in this section only after the user builds, imports the new tables and plays it. Usage in
+[Guides/BATTLE.md](Guides/BATTLE.md). What the implementation settled that the draft left open:
+
+- **The core is `FJRPGBattleResolver`** (no UObject): `Begin`, `SubmitCommand`, `SubmitInput`, `StepFrame`; `UBattleSubsystem` takes
+  the snapshot, runs the clock (a fixed-step accumulator, 1/60 s a frame; the raw `DeltaTime` never reaches the rules) and
+  writes back. `UBattleFormulas` holds the contas as pure static functions with a rand source.
+- **The logic frame is 1/60 s** (the original's tick). A clip of rate *R* at game speed *S* advances *S·R/32* clip frames per
+  logic frame (`UBattleFormulas::ClipFramesToSteps`); a hit beat *b* fires at clip frame *b − 1*; a flinch's juggle window is its
+  beat over its rate (the RE's measurements are tests: Gobu Gobu 16, Zeto 32, Caruban 40, Vahn 12, Gilium under an Art 32).
+- **The block's second gate** is "the defender still stands" (above). **Inside a reaction window** the roll is overridden as in the
+  RE port: a defender in its block window keeps blocking, one in a flinch window cannot block.
+- **Knockdown**: a hit that kills, or (on someone with a get-up clip) the **last connecting hit of the action** when the combo took more
+  than ¼ of max HP or left it under ¼, knocks down and opens no juggle window; the others flinch (high hit: flinch 1, low: flinch 2)
+  and open the window. The original adds the combo up and decides once, on the hit that writes the total (`melee_reaction_entry`'s
+  `kill_check`), so a combo does not flag every hit after the ¼ as a knockdown. The pawn plays Knockdown → GetUp → Idle.
+- **The target falls mid-chain**: **nothing is cut and nothing is retargeted** (RE: the target is fixed at dispatch, `actor[+0x1DD]`; the
+  combo total is added up and written to HP once, on the last connecting hit, floored at 0; the wipe is only tested at the end of the
+  action, state `0x5A`). Every hit still resolves on the same target, HP stops at 0 and the excess is discarded (never dealt to anyone
+  else). The target only falls (Death, `KillCombatant`, the knockdown) on the last connecting hit; until then it flinches. That holds for
+  the last enemy too: a 99-hit Art lands 99 hits and victory comes when the action ends. At the end of the action a `ComboTotal` event
+  (`Count` hits, `Value` = the damage of every hit, excess included; sent for 1+ hits) shows the on-screen summary: nothing during
+  the combo (each hit only shows its damage over the target), and at the end of the action the cluster reads "Hit N" over "Damage X" (a one-hit action only "Damage X"),
+  the original's `HIT` / `TOTAL` cluster (`DAT_8007BD14`, one running sum of the landed hits, shown until the `0x51` teardown).
+- **Party swings** come from the swing record of what is equipped (`DT_HeroSwings`, one row per hero + item + button, read from PROT
+  0863..0865 by `generate_hero_battle_csv.py`): the power byte(s), the hit beat(s) (the frame of the clip where each hit falls; 1 or 2
+  per swing), the rate and the button cost. The plain swing's hit lands at logic frame `ceil(32 (beat − 1) / (8 × rate))`, as the monsters'
+  do, instead of the one `SwingHitFrame`. Default section (nothing equipped): Arms `0x18`, Ra-Seru `0x18` (Noa `0x1D`), High `0x18` (Vahn)
+  or `0x0E` (Noa, Gala), Low `0x13`; the restricted ones (`0x13` Low, `0x0E` High) miss class 2 / class 3 targets, the boots that bring
+  `0x1D` / `0x18` do not. Missing table or row: the default byte and the default frame, as before.
+- **Reach** is the original's range law by size class (`DT_Enemies.SizeClass`), knockback is per hit (the defender turns and slides back,
+  the attacker follows at each step), nobody walks back to a seat (confirmed by the RE, `battle-action.md`).
+- **A refused command** (`OnCommandRefused`) shows on screen in red next to the prompt, with the reason.
+- **The monster's swings** are queued with the original's budget loop (a random candidate; it is queued if the AGL pool pays;
+  15 swings or 16 unpaid draws); with a next swing queued and `Gate` 0 the clip is cut at beat + 3 and the later hits are lost. A monster
+  with no swing row (the data is missing, or `cort`, whose script is Phase 8) hits with a default swing, logged (`ActionIndex` −1: the pawn
+  plays the first attack of its clip set). **A hit beat past the clip never fires** (the original only fires the beats its cursor reaches,
+  frame ≤ `FrameCount` − 1): such beats are dropped and the clip is not stretched; a row whose beats are all past the clip plays and deals no
+  damage (logged once), still eligible and paying its AGL — `koru_05` / `koru_06` at beat 200 and `rogue_05` at 255, bosses whose damage is
+  Phase 8 script. A flinch window is capped at its clip (`cort_juggernaut_02_Damaged`: beat 10, 7 frames).
+- **The party's timeline** reads the clip's length, `UJRPGAnimNotify_Hit` markers and Chain Cut as data through an optional provider;
+  the markers are not on the clips yet, so the per-kind defaults (`FJRPGTimelineDefaults`, editable on the subsystem) are the normal path
+  and are logged once per kind of step.
+- **`AwardBattleXPToParticipants`** is the "overload with `TArray<FName>`": a differently named plain method, because UHT does not take an
+  overloaded `UFUNCTION`.
+- **The parry** (`SubmitInput`): the input is validated (owner, alive, a stamp that is not from the future), stamped and kept in the state; it
+  changes nothing yet — its window and effect are open question 5.
+- **A round with no action** counts only when nobody could plan one for lack of data (64 in a row, warned each time, then `Aborted` with an
+  error in the log — a safety net, the resolver loops without advancing frames); a round emptied by conditions (sleep, stun) does not count.
+- **The fight waits** while the scene is entering (`HoldLogic`: commands are accepted and kept but the round stays in Commands; releasing it
+  starts the execution), and for as long as the player takes to enter the commands. **After every action** it waits like the original
+  (`BATTLE_TIMING.md`): the attacker's last clip to its natural end (no tail), then the target's reaction (flinch, block, knockdown +
+  get-up, a hero's Knockdown + Dying, a monster's knockdown + death fade; lengths are data on the combatant), then the 60-vsync Done
+  band, then the victory / defeat test, then about 6 passes before the next actor (`FJRPGBattleState::FinishCheckFrame` /
+  `NextActionNotBefore`; `FJRPGTimelineDefaults::DoneBandFrames`, `PassGapFrames`). The decided fight holds `VictoryHoldFrames` (256) or
+  `DefeatHoldFrames` (322) before `EndBattle`.
+- **Not done**: Item, Escape, Spirit, formation advantage roll, drop / steal (Phase 7); magic and the scripted bosses (Phase 8); the
+  enemies' level scaling (the encounter's level is stored, no curve exists); the `UJRPGAnimNotify_Hit` markers on the party's clips
+  (content); rule 3 of "Staying in the arena" (minimum spacing) and rule 4 (the per-Art override) — the pawn walks to the reach, the
+  arena's area clamps the step, nobody walks back; the Rim Elm / Tetsu training row of `DT_Bosses` (the training is not in `bosses.toml`).
 
 ### 5.0 — Contracts first
 
@@ -692,13 +769,26 @@ The first step of Phase 5, before any turn is played: write down (in this sectio
 and tests) what each piece promises, so the core does not grow silent assumptions. They hold for
 single player and PvP alike.
 
-**Data and the version's rules — done (2026-11-04).** `DT_Enemies` is the raw disc record;
+**Data and the version's rules.** *Done (2026-11-04):* `DT_Enemies` is the raw disc record, and
 `UJRPGBattleRules` installs the stats and computes EXP / Gold for the rules picked by
-`EJRPGRuleset` ([Version rules](#version-rules--usa-or-japan)). `BeginBattle` snapshots each
-enemy through `InstallEnemyStats(row, Setup.bScriptedFight, ruleset)` and then the difficulty
-(`ScaleEnemyHP/ATK/DEF`). `FJRPGBattleSetup` gains `bScriptedFight` (and `Seed`): the original's
-flag is per formation, not per boss, so `DT_Bosses` gets a column for it (Tetsu's training and
-Lapis are scripted fights with the random-encounter profile).
+`EJRPGRuleset` ([Version rules](#version-rules--usa-or-japan)). *Phase 5 (written 2026-11-04):*
+`BeginBattle` snapshots each enemy through `InstallEnemyStats(row, Setup.bScriptedFight, ruleset)`
+and then the difficulty (`ScaleEnemyHP/ATK/DEF`); `FJRPGBattleSetup` gains `bScriptedFight`,
+`Seed` and `bNoRewards` (none of them exists today). The original's flag is per formation, not per
+boss, so `DT_Bosses` gets a column for it (Tetsu's training and Lapis are scripted fights with the
+random-encounter profile). A scripted fight also cannot be escaped and rolls no formation
+advantage (`ctx+0x287`).
+
+**Data the fight needs from the disc** (Phase 5 generator work like Phase 1's — **written 2026-11-04**:
+`DT_EnemyActions`, `DT_Enemies.TargetClass` and `.SizeClass`, `DT_Bosses.bScriptedFight`, `DT_RaSeruTiers`, `DT_WeaponCosts`, `DT_HeroSwings`, and later `DT_HeroReactions` (the heroes' reaction lengths, which the fight waits for);
+[Guides/ENEMIES.md](Guides/ENEMIES.md)):
+
+| Data | From (RE) | For |
+|---|---|---|
+| Each monster's **action entries**: per clip the power bytes (`+0x00..+0x03`, one per hit), the hit frames (the event-frame list `+0x10..+0x13`), the AGL cost (`+0x74`), the playback rate (`+0x78`), the status selector (`+0x7A`), the tag (`0x0D..0x0F` attacks, `0x0B` block) | `docs/formats/monster-animation.md` › action entry; the monster archive (PROT 867) | The enemy's timeline, its damage, its AI budget, its block. A table (`DT_EnemyActions`, a row per monster clip), **not notifies** |
+| Each monster's **target class** (record `+0x1E`: 2 = floating, the "Lower, misses floating" hits miss it; 3 = short, the "Upper, misses short" hits miss it; 0 = every hit reaches) | `battle-formulas.md` › "The limb-vs-height miss" | The miss by height. A column in `DT_Enemies` |
+| The **Ra-Seru tiers** as equipment rows (ATK, UDF, LDF, SPD per tier; weapon category with the Ra-Seru bit) | `docs/formats/equipment-table.md` (the ~24 per-tier entries the curated tables collapsed) | The Ra-Seru's ATK fold and its stats at load. The hero's tier is `SeruLevel` |
+| The party's **per-button cost** (`+0x74` of the weapon section: 30 / 42 / 54) | `arts-command-gauge.md` › "Where the cost comes from" | The input window's cost per button, per weapon |
 
 **The round.** The original's: **every hero's command is entered first, then the round plays
 out** in initiative order (enemies included). That is a gameplay decision, not only a network
@@ -710,7 +800,8 @@ mean "whose command is being entered" during Commands and "who is acting" during
 
 | Question | Contract |
 |---|---|
-| Where an action's frames come from | Built **when the action starts**, before anything plays: from each clip's asset data (length, rate, hit frames from the notifies) into a plain `FJRPGActionTimeline` (total frames, hit frames, chain-cut frames). Validated there: a hit frame past the clip's end, or a clip without hit notifies where `HitPower` says there are hits, is logged |
+| Where an action's frames come from | Built **when the action starts**, before anything plays, into a plain `FJRPGActionTimeline` (total frames, hit frames with their power byte, chain-cut frames). **Always from data, never from a notify firing.** Monsters: their `DT_EnemyActions` row, which is the disc's own action entry (hit frames, power, rate) — no notify at all. Party: the clip's length and rate plus the `UJRPGAnimNotify_Hit` markers, read as data off the asset (the authoring tool for Arts made by hand). Validated there: a hit frame past the clip's end, or fewer hits than `HitPower` says, is logged. The resolution only sees `FJRPGActionTimeline`, so the tests feed it directly, with no asset |
+| The pace | Whole frames at the game's pace: 15 × rate frames/s (scale 8). An Art plays at scale 4 and the special starter at 2 (half and a quarter; `SpeedScale` per step overrides it — Phase 6), so its frames count longer ([Guides/PS1_ASSETS.md](Guides/PS1_ASSETS.md)) |
 | A clip that is missing or broken | The timeline falls back to defaults per kind (swing, Art, enemy attack: one hit at a fixed frame, a fixed length), logs it, and the fight goes on. The fallback is data, not a guess at play time |
 | When the damage is committed | At the hit's frame, by `ResolveHit(N)`, with every input received up to that frame. Never earlier (the parry) and never by a notify |
 | When a parry input counts | Only inside the hit's window (open question 5), stamped with the frame it arrived on; one input per hit; anything outside is ignored, not queued |
@@ -733,14 +824,17 @@ resolution); the conditions themselves come with Phase 8.
 
 **End of the fight** — what each result writes back:
 
-| | HP / MP | AP | Items used | EXP / Gold / drop | Then |
-|---|---|---|---|---|---|
-| **Victory** | Kept as they are | Kept | Gone | Paid once | Back to the field |
-| **Defeat** | — | — | — | Nothing | Game over (Muscle Dome: the waves stop) |
-| **Escaped** | Kept | Kept | Gone | Nothing | Back to the field, grace period |
-| **Aborted** (debug, map change) | Untouched: as before the fight | Untouched | Not consumed | Nothing | Back to the field |
+| | HP / MP | AP | Items used | Arts learned | EXP / Gold / drop | Then |
+|---|---|---|---|---|---|---|
+| **Victory** | Kept as they are | Kept | Gone | Kept | Paid once | Back to the field |
+| **Defeat** | — | — | — | — | Nothing | Game over (Muscle Dome: the waves stop) |
+| **Escaped** | Kept; the fallen get up with **1 HP** (the original) | Kept | Gone | Kept | Nothing | Back to the field, grace period |
+| **Aborted** (debug, map change) | Untouched: as before the fight | Untouched | Not consumed | Not learned | Nothing | Back to the field |
 
-So the snapshot is written back only on Victory and Escaped, and `Aborted` throws it away.
+So the snapshot is written back only on Victory and Escaped, and `Aborted` throws it away. An Art
+learned during the fight goes into the **combatant's** learned list (the resolution cannot write
+the roster: `UArtsSubsystem::CommitArtsChain` is the out-of-battle path) and reaches the save with
+the rest of the write-back, through `UArtsSubsystem`.
 **Rewards are paid once**: a flag in the battle state, set when they are paid, checked by
 `EndBattle` (a second `EndBattle`, or a victory that arrives twice from two last hits, pays
 nothing more). Some original fights pay nothing at all (`_DAT_8007BAC0`, the special battles):
@@ -761,7 +855,7 @@ UENUM(BlueprintType) enum class EJRPGBattleSide       : uint8 { Party, Enemy }; 
 UENUM(BlueprintType) enum class EJRPGBattleCommandKind: uint8 { None, Attack, Arts, Item, Magic, Escape, Guard };
 UENUM(BlueprintType) enum class EJRPGBattleInputKind  : uint8 { Parry };
 UENUM(BlueprintType) enum class EJRPGBattleEventType  : uint8 {   // the UI builds the text
-    RoundStart, ActionStart, Damage, Miss, Heal, Death, APChanged, ArtRecognized, ArtLearned, ActionEnd
+    RoundStart, ActionStart, Damage, Miss, Block, Heal, Death, APChanged, ArtRecognized, ArtLearned, ActionEnd
 };
 UENUM(BlueprintType) enum class EJRPGActionPhase      : uint8 {   // presentation: lives in the pawn
     Idle, Windup, Advance, Strike, Chain, Recovery, Return, Done
@@ -777,11 +871,22 @@ USTRUCT(BlueprintType) struct FJRPGCombatant {
   FName Key;                  // party member, seru, or DT_Enemies row
   int32 Level;
   int32 HP, MaxHP, MP, MaxMP;
-  int32 ATK, UDF, LDF, SPD, INT, AGL;   // heroes: base + Ra-Seru bonus; enemies: InstallEnemyStats + difficulty
-  TArray<int32> EquipATK;     // each piece's ATK apart, folded per command at the hit
-  EJRPGElement Element;
-  int32 AP;                   // persistent meter (Arts add, specials spend)
-  int32 CommandGauge;         // per-turn input budget, seeded from AGL
+  int32 ATK;                  // heroes: the BASE stat, no equipment (the original's loader does not fold it);
+                              // enemies: InstallEnemyStats + difficulty
+  int32 UDF, LDF, SPD, INT, AGL;   // heroes: GetEffectiveStat (equipment and the Ra-Seru tier folded at load,
+                                   // as the original's FUN_80053CB8 does); enemies: InstallEnemyStats + difficulty
+  TArray<int32> PieceATK;     // heroes: the ATK of each piece, by role — Weapon, Ra-Seru tier, Shoes, Body, Head —
+                              // folded per hit (Damage formula › Equipment fold)
+  EJRPGElement Element;       // heroes: Vahn fire, Noa wind, Gala thunder, Terra wind; enemies: DT_Enemies
+  int32 TargetClass;          // enemies: record +0x1E (the miss by height); heroes: 0
+  int32 SizeClass;            // enemies: record +0x1F (the reach of the range law, FUN_8004E2F0); heroes: 0
+  TArray<int32> SwingBytes;   // heroes: the plain swing's power byte per button, from the equipment's swing record (empty = the default)
+  TArray<FJRPGBattleSwingProfile> SwingProfiles;   // heroes: per button, the swing record's power bytes, hit beats and rate (DT_HeroSwings)
+  int32 AP, MaxAP;            // persistent meter (Arts add, specials spend)
+  int32 CommandGauge, MaxCommandGauge;   // the AGL pool: the input budget and the enemy's action budget
+  TArray<int32> ButtonCost;   // heroes: per button, from the weapon (30 / 42 / 54)
+  TArray<FName> KnownArts;    // heroes: the learned list, grows when an Art is learned in the fight
+  bool bHasRaSeru;            // heroes: gates the Hypers and the Miracle (Phase 6)
   int32 InitiativeKey;
   int32 TargetSlot; int32 JuggleCounter; bool bGuarding; bool bAlive;
   TArray<FJRPGBattleCondition> Conditions;   // 5.0 › Conditions
@@ -839,47 +944,143 @@ FOnBattleEnded   OnBattleEnded;
 
 ### Turn order
 
-The original's initiative key is `key = SPD + roll + 1 + wounded_bonus`, where the bonus is
-the missing HP shifted (shift 4 below a quarter of max, 5 below half). Implement that and
-leave room to tune — sorting by descending key is what produces the original's feel. The `roll`
-comes from the state's `Rng`; `TArray::Sort` is not stable, so ties break explicitly by
-`SlotIndex`.
+The original's (`FUN_801DA780`, RE `battle-formulas.md` › "Initiative key seeding"), seeded once
+per round for every combatant:
+
+```
+key = SPD + Rng % (SPD/2 + 1) + 1
+hero:     HP < MaxHP/4  -> key += (MaxHP - HP) >> 4
+          HP < MaxHP/2  -> key += (MaxHP - HP) >> 5
+          otherwise     -> key += (MaxHP - HP) >> 6
+monster:                   key += (MaxHP - HP) >> 10
+Slow:                      key >>= 1                       (Phase 8, with the conditions)
+always-last / always-first accessories: key = 1 / key += 0x1000   (when accessories have abilities)
+```
+
+A hero near death gains more from the wounded term than from the whole SPD roll; a wounded monster
+gains almost nothing. Hero SPD is the snapshot's (shoes folded). Execution picks the living
+combatant with the highest unspent key, again and again, and a pick spends the key (`FUN_801DABA4`);
+a dead combatant's key is zeroed before every pick. **Ties** are drawn from the state's `Rng` as the
+original does (the tie list starts at seat 0; a seat that raises the maximum goes in twice, and
+`Rng % (count + 1)` picks) — deterministic, because the stream is the fight's. The original's
+mixed-sign compare (`0x8000`+ never wins) is a bug and is not kept.
+
+**The AGL pool, per round** (`FUN_801D88CC`, before the keys): a combatant whose command was an
+attack / Arts, and every monster, gets `CommandGauge = MaxCommandGauge`; one that chose Spirit
+gets `min(Max * 7/5 + 8, 288)` (Phase 7); anyone else keeps what is left. A hero whose target died
+is re-pointed at the **lowest living enemy slot** (`FUN_801DB8B4`).
+
+**Formation advantage** (back attack / pre-emptive, `FUN_80051D84`) zeroes one side's keys for
+round one. It is the original's and comes in Phase 7 with the facing it needs; Phase 5 leaves the
+hook (`FJRPGBattleSetup` can carry the rolled result).
 
 ### Damage formula
 
-The original resolves it as follows, and it is a good base because the *feel* of combat
-depends on the shape of it:
+The original's melee kernel (`FUN_801EC3E4`, RE `battle-formulas.md` › "Melee hit"), which every
+direction hit, every Art hit and every monster swing goes through, one call per hit. Kept as it
+is, minus the angle / distance terms ([Deliberate departures](#deliberate-departures-from-the-original)):
+
+**The power byte** of the hit (`b`, one per hit: the Art's `HitPower`, the monster action's
+`+0x00..+0x03`; a plain direction hit carries the 20 tier) gives both the scalar and the height:
 
 ```
-BaseOffense = ATK_base + (ATK of the equipment that command uses) / 2
-Offense     = (BaseOffense + rand % (BaseOffense/8 + 1)) * Power / 16
-              + CurrentHP / 256
-              + (juggle * ATK) / 64
-If Art:       Offense = Offense * 13 / 10
-Element:      * 104 / 100 on opposed pairs, * 96 / 100 on same element (integer,
-              not the float from GetElementMultiplier)
-Defense     = DEF + rand % (DEF/8 + 1)       // UDF on high hits, LDF on low ones
-Damage      = Offense - Defense, capped at 9999
-Floor:        when defense would win it does not clamp to 1 — it rebuilds the
-              attack on top of the defense
+Power   = [12, 18, 20, 22, 28][(b - 0x0C) % 5]
+HighHit = (b - 0x0C) % 10 < 5            // high hits roll against UDF, low ones against LDF
 ```
+
+**Miss by height** (hero attackers only; the monster's `TargetClass`): `b < 0x16` against class 2
+misses when `b >= 0x11`; against class 3 when `b < 0x11`. A miss draws nothing and does nothing
+(a `Miss` event). The party's **plain swings** go through this too: their byte is the equipment's swing record's first
+byte (RE `docs/reference/glitches/turn-order-and-arts.md`): `0x18` / `0x1D` are free (power 20, UDF / LDF), `0x0E` is a
+restricted high kick (misses short targets) and `0x13` a restricted low kick (misses floating ones). The default footwear
+gives Low `0x13` for all three heroes and High `0x0E` for Noa and Gala, `0x18` for Vahn — so a plain Low swing always
+misses a flyer, as in the original (`UBattleFormulas::DefaultSwingPowerByte`). Equipment that brings the free pair
+(Gala's War God Boots, Vahn's Triumph and Ra-Seru Boots) is read from `DT_HeroSwings` (`UBattleSubsystem::ApplyHeroSwings` →
+`FJRPGCombatant::SwingBytes` / `SwingProfiles`).
+
+**Block** (a defender that has a block clip — tag `0x0B` — and passes the RE's second gate,
+`target[+0x0] < defender HP` — settled 2026-11-04 from the RE port (`World::roll_block`): the word is the combo
+total already pending on the defender, which the original applies to HP only when the combo lands, so the gate
+is "the defender still stands on the accumulated total". The remake takes each hit's damage off HP at once, so
+the gate is `defender HP > 0`):
+
+```
+a = A.SPD + A.ATK*4/5;   d = D.SPD + D.ATK*4/5;   a = max(a, d)
+a += (Rng % a) * [6,4,4,4,2][(b - 0x0C) % 5] >> 1
+d += Rng % d
+D chose Spirit -> d = d*3/2;   A's hit is an Art -> a = a*3/2
+blocked = a < d          // no damage, juggle = 1 (a Block event)
+```
+
+(The ability-bit arms come with the accessories that set them.) Both gates come before the draws,
+so a defender without a block clip uses no randomness.
+
+**Equipment fold — Base Offense** (heroes only; a monster's is its ATK). Keyed by the command of
+the hit, not by the item:
+
+| Hit | Folds |
+|---|---|
+| Arms | `Weapon ATK >> 1` |
+| Ra-Seru | `Ra-Seru tier ATK >> 1` |
+| High, Low | `Shoes ATK >> 1` |
+| The starter | nothing |
+| An Art's hit | `(sum of the five pieces) >> 1` |
+
+`BaseOffense = ATK + fold`. Noa is left-handed, but the fold follows the role (her Arms button
+folds her claws, her Ra-Seru button folds Terra). The Ra-Seru's ATK is the tier's equipment row
+(5.0 › Data the fight still needs), not `GetSeruBonus`.
+
+**Offense, Defense, damage** (`atk` = BaseOffense):
+
+```
+Offense  = (atk + Rng % (atk/8 + 1)) * Power >> 4
+         + A.HP >> 8                          // the attacker's current HP
+         + (Juggle * atk) >> 6
+Art:       Offense = Offense * 13/10, then * Elem / 100
+always:    Offense = Offense * Elem / 100     // so an Art takes the element twice
+Venom / Toxic on the attacker: * 9/10 / * 7/10   (Phase 8)
+
+def      = HighHit ? D.UDF : D.LDF
+Defense  = def + Rng % (def/8 + 1)
+Spirit:    Defense = Defense * 3                 (Phase 7)
+Venom / Toxic on the defender: * 9/10 / * 7/10   (Phase 8)
+
+if not (Offense > Defense + Offense*Power/64 + Offense*Juggle/64 + Juggle):     // the underdog
+    Offense = Defense + (Offense*3/4 + Rng % (Offense/4 + 1)) * Power / 64
+                      + Offense*Juggle/64 + Juggle
+    Art:   Offense = Offense * 11/10, element pass(es) again
+    chip:  a swing within Defense + Juggle + 3 -> Defense + Rng%3 + 3 + Juggle
+           an Art  within Defense + Juggle + 5 -> Defense + Rng%4 + 5 + Juggle
+hero defender hit by a monster: the elemental-guard ladder (accessories, when they exist)
+Offense  = min(Offense, Defense + 9999)
+Damage   = Offense - Defense
+```
+
+There is no floor at 1: an attacker weaker than the defence still lands a hit that scales with
+its roll, and every hit that lands does at least 3. A zero-damage enemy hit is always a block.
+
+**Element** — the original's 8×8 matrix (`0x801F53E8`, row = attacker), integer percent:
+
+| Pairing | % |
+|---|---|
+| Same element | 96 |
+| Opposed: earth-wind, water-fire, light-dark | 104 |
+| Thunder attacking anything | 102 (98 against dark) |
+| Anything else, and neutral | 100 |
 
 Two things matter more than the rest:
 
-- **Truncated integer arithmetic everywhere.** `int32`/`int64` and explicit `>>`; never
-  `float`, never `FMath::RoundToInt`.
+- **Truncated integer arithmetic everywhere.** `int32`/`int64` and explicit `>>`, in the
+  original's order; never `float`, never `FMath::RoundToInt`.
 - **ATK without equipment.** `GetEffectiveStat("ATK")` already folds equipment in (it is
-  the menu number). Combat needs **base** ATK + Ra-Seru bonus, and folds equipment per
-  command at the moment of the hit. Confusing the two inflates all damage invisibly.
+  the menu number). Combat needs the **base** ATK and folds one piece (or all five, for an Art)
+  per hit, at half. Confusing the two inflates all damage invisibly.
 
-Since this is not a 1:1 port, all of it lives in
-`UBattleFormulas : public UBlueprintFunctionLibrary` as pure static functions with exposed
-constants — rebalancing should not mean recompiling the state machine. They take the
-`FRandomStream&` and the combatant snapshot, never a subsystem.
-
-Art power is per hit: `0x16–0x1A` → UDF × 12/18/20/22/28, `0x1B–0x1F` → LDF × the same,
-`0x0C–0x15` → the same scale in the "alt" range (misses floating or short enemies). So
-`bTargetsUDF` comes from the hit's own power byte, not from the command.
+All of it lives in `UBattleFormulas : public UBlueprintFunctionLibrary` as pure static functions
+with the constants exposed — refining later should not mean recompiling the state machine. They
+take the `FRandomStream&` and the combatant snapshot, never a subsystem. The RNG draws go in the
+original's order (attack roll, defence roll, then the rewrite and chip draws only when they fire);
+matching its exact stream is not a goal (it was shared with presentation).
 
 ### State machine
 
@@ -900,8 +1101,10 @@ logic's timeline — not by the animation, and not all up front.**
 
 So the action runs on a **logic timeline**: a fixed-step frame counter owned by the battle, in
 whole frames at the game's pace (15 × rate frames/s, [Guides/PS1_ASSETS.md](Guides/PS1_ASSETS.md#the-partys-clips-and-sounds)).
-Each clip's length, rate and hit frames are **asset data** — the notify times on the
-`UAnimSequence`, read by the logic, the same on every machine. When the counter reaches hit N's
+Each clip's length, rate and hit frames are **data**, the same on every machine: for a monster,
+its action entry from the disc (`DT_EnemyActions`, the original's own event-frame list); for a
+hero, the `UJRPGAnimNotify_Hit` times on the `UAnimSequence`, read as data when the action starts
+(never as a notify that fires). When the counter reaches hit N's
 frame, `ResolveHit(N)` runs with the fight's state, its RNG and every input received so far
 (a parry pressed before the window closed), and emits that hit's events. The state machine above
 is the **presentation** of that timeline: the pawn plays the clip in step with the counter, and
@@ -934,9 +1137,16 @@ a set of rules, not trimming the Arts:
 
 1. **The target is the wall.** The original's range law (`FUN_8004E2F0`, the in-range back-off
    `0x80047C3C`) holds an attacker at the edge of its reach while it strikes: its clips cannot
-   carry it through the enemy. The remake keeps that — forward movement stops at reach distance.
+   carry it through the enemy. The remake keeps that — forward movement stops at reach distance,
+   which is the law's own: the threshold of the target's size class (`{256, 384, 1024}[class]` PSX units under 3, else
+   `class << 4`; the hero adds his offset `+43 / 0 / -53 / -100`), 0.433 cm a unit. At the start of every step the attacker
+   closes the distance again (the commit's "reach snap"), so a defender that slid back keeps being reached.
+   RE confirmation of the rest of this section: "an action does not return its combatants to their authored formation
+   seats ... there is no walk-home leg ... no recover backstep" (`battle-action.md`, "Where an action leaves its combatants").
 2. **The arena bounds clamp everyone.** Knockback, the arrival shove and the attacker's own root
-   movement are all clamped to the arena's area (`AJRPGBattleArena`). A target pinned against the
+   movement are all clamped to the arena's area (`AJRPGBattleArena`). Knockback is what pushes the defender back on each hit
+   (the original does it through the reaction clip's root speed `+0x0C` and end step `+0x0E`; the remake uses a per-hit
+   distance, `FlinchKnockback` 45 cm / `KnockdownKnockback` 120 cm / `BlockKnockback` 20 cm on the pawn). A target pinned against the
    edge stops the attacker by rule 1, so the whole fight stays inside.
 3. **Fighters keep their distance.** A minimum spacing between any two combatants (allies
    included), so a party that drifted forward does not stack on the enemy line.
@@ -949,8 +1159,20 @@ Root movement itself is the disc's: per clip, a root speed (`+0x0C`) and an end 
 
 ### Enemy AI
 
-Start honest and dumb: pick a random living target weighted toward low HP, and attack.
-The RE project documents the real selector (`FUN_801E9FD4`) when you want to go further.
+The original's generic core (`FUN_801E9FD4` + the target resolver `FUN_801E7320`, RE
+`battle-round-loop.md` › "Monster AI"), physical half:
+
+- **Target:** a uniform random living hero (`Rng % party count`, drawn again past the fallen).
+  Not weighted by HP — that is the RE port's non-faithful "smart monsters" toggle; it can come
+  later as an option.
+- **Action:** the monster's swing entries (tags `0x0C..0x1F` with a real AGL cost, from
+  `DT_EnemyActions`), queued while its AGL pool pays their `+0x74` cost — which one each time,
+  as the RE's `pick_monster_action` does (read it before writing). Each swing hits with its own
+  power byte at its own hit frames.
+- **Phase 8:** the magic roll (`Rng % (1 + live magic count)` over the record's three spell ids,
+  0 = physical) and the per-monster `switch` (bosses' scripted casts, cooldowns, the round
+  counter). Until then a monster with magic always takes the physical branch.
+
 It is a step of the resolution: it runs when the enemy's action starts, draws from the fight's
 `Rng`, and finds targets by **team**, not by `Side`.
 
@@ -963,10 +1185,12 @@ And the failures, each an automation test where it can be one (no map):
 
 | Case | Expected |
 |---|---|
-| The target dies before the action | Retarget to another living combatant on that side (check the original's rule in the RE first); none left → the action is dropped, nothing consumed |
+| The target dies before the action | A hero re-points at the lowest living enemy slot (`FUN_801DB8B4`); a monster draws another living hero; none left → the action is dropped, nothing consumed |
 | The attacker dies before its turn | Its command is dropped; a reserved item is released |
-| Two equal initiative keys | A fixed order (ties by `SlotIndex`), the same every run |
-| The last enemy dies in the middle of a combo | The rest of the chain does not resolve; victory once the action ends |
+| Two equal initiative keys | The tie drawn from the fight's `Rng` (the original's rule); the same seed gives the same order every run |
+| A hero's ATK in the snapshot | The base stat, with a sword equipped too; a High hit folds half the shoes' ATK, an Art half of all five pieces |
+| The damage kernel (no map) | The RE's worked example (Vahn vs Evil Fly, `battle-formulas.md`) and its regression cases give the same numbers with the same draws |
+| The last enemy dies in the middle of a combo | The whole chain still resolves (HP stops at 0, the excess is lost; the original tests the wipe only at the end of the action); the enemy falls on the last hit and victory comes once the action ends |
 | A clip is missing | The default frames; the fight goes on, a log line says which |
 | The fight ends during a transition (fade, a second `EndBattle`) | Ends once; rewards once |
 | `Aborted` | The party exactly as before the fight; no item consumed, no reward |
@@ -1121,7 +1345,7 @@ recognition time, `+0x170`). **Decided 2026-11-04** (open question 6):
 | Moment | What happens |
 |---|---|
 | **Commit** (the chain is recognized) | The chain is walked **left to right** with a running AP (start: the hero's AP). A loose regular Art adds its `APGain` (capped at 100); a special that fits the running AP is kept and subtracts its `APCost`; one that does not fit is downgraded to its buttons (plain swings / the regular Arts inside it, which add as loose Arts) and the walk goes on. Nothing is debited or credited yet |
-| **Each Art, when its action reaches it** | The meter moves the same way, step by step: a loose regular Art **credits** `APGain` at its first hit (an Art cut short by the enemy's death still credits); a kept special **debits** `APCost` when it starts; the Arts inside a fired Super move nothing. The meter never goes below 0 — the commit already made sure every special fits where it is |
+| **Each Art, when its action reaches it** | The meter moves the same way, step by step: a loose regular Art **credits** `APGain` at its first hit (an Art whose target already fell still goes on and credits); a kept special **debits** `APCost` when it starts; the Arts inside a fired Super move nothing. The meter never goes below 0 — the commit already made sure every special fits where it is |
 | **The action is cancelled** (the hero dies, the fight ends) | What was not reached is neither credited nor debited |
 
 Examples:
@@ -1203,7 +1427,8 @@ validator flags a duplicated `Command` and a `Sequence` step that does not exist
 *Each item is a `JRPG.Arts.*` automation test (2026-11-04; run in the editor after the build); the
 animations are checked by eye with the Art Tester's `Input`.*
 
-**Acceptance, closed in Phase 5** (in a fight): damage uses the Art's power per hit and AP
+**Acceptance, closed in Phase 5** (in a fight; written 2026-11-04, to be played: `JRPG.Battle.ArtsInFight` and
+`SuperInFight` test it without a map): damage uses the Art's power per hit and AP
 **rises**; fill AP and fire a Super Art → AP **drops** and damage is much larger; with
 insufficient AP, the Super shows as blocked.
 
@@ -1221,9 +1446,14 @@ Two kinds of work, kept apart: the **rules** go through the combat core like Pha
 
 - **Item** — 5.0 › Items: reserved at command time, consumed when its action resolves, the
   effect applied to the combatant through `ApplyBattleItemEffect` (still a stub today).
-- **Escape** — the roll (party SPD vs enemies; the RE has the original's), `EndBattle(Escaped)`
-  and what it keeps (5.0 › End of the fight). Not in scripted fights.
-- **Guard** — what it changes in the damage (the kernel already reads `bGuarding`) and how long.
+- **Escape** — the original's roll (`FUN_801E791C`: party `(SPD*3)>>1 + missingHP>>4` against the
+  enemies' `SPD + missingHP>>5`, two draws; it fails in a scripted fight), `EndBattle(Escaped)` and
+  what it keeps (5.0 › End of the fight). The monsters' own flee roll (`FUN_801EC0DC`) with it.
+- **Spirit** (the original's guard) — Defense × 3 in the kernel and the block bonus (Phase 5
+  already reads `bGuarding`), from the commit to the next round's sweep; the AGL pool
+  `min(Max * 7/5 + 8, 288)` next round; its AP charge.
+- **Formation advantage** — back attack / pre-emptive (`FUN_80051D84`): the roll at the start, the
+  losing side's keys at 0 for round one and its facing turned; none in scripted fights.
 - **Rewards beyond EXP / Gold** — the drop roll (at most one item per fight, the original's
   `0x8004F3D8`) and the steal; `DropItem` / `StealItem` are already in `DT_Enemies`.
 
@@ -1234,14 +1464,28 @@ Two kinds of work, kept apart: the **rules** go through the combat core like Pha
   enum** (values are serialized in Blueprints). New `UWebUIBridge` callbacks:
   `OnBattleCommand`, `OnBattleArtsButton`, `OnBattleArtsCommit`, `OnBattleTargetChanged`.
   C++→JS always goes through `UWebUISubsystem`, never `ExecuteJS` from `UBattleSubsystem`.
+  *Status (2026-11-05): a placeholder of this screen's core exists — the command phase only (Start /
+  Tactics / Attack inputs / Target / Final, auto-battle tactics), see
+  [Guides/BATTLE.md › Battle UI](Guides/BATTLE.md#13-battle-ui). It uses ONE bridge callback,
+  `onbattleinput`, instead of the four listed above, and keeps the choices in a buffer sent on Begin. The
+  enemy row, the AP bar with cost markers and the damage log below are still to do.*
 - **Attack camera.** `FocusOnActor` on turn start, `PlayCameraShake` on `Strike`, `Orbit`
   on victory.
-- **Sound.** Impacts, Art voice lines and battle BGM extracted via the RE project's `vab` /
-  `xa` crates, wired into `UAudioSubsystem`.
+- **Sound — the rest of it.** Phase 2 brought the monsters' sounds and the party clips' own cues;
+  everything else comes now: impacts, blocks and misses, the Art voice lines, the battle HUD's
+  sounds (cursor, confirm, the input window's buttons, the AP gauge), the victory fanfare and the
+  battle BGM. Extracted via the RE project's `vab` / `xa` crates, wired into `UAudioSubsystem`.
+  Driven by the events, like the rest of the presentation.
+- **VFX.** The battle's visual effects in Niagara: hit sparks per element, the block, the Art and
+  Super flashes, the after-image trail, death and the victory. The original's are effect scripts
+  in each action entry (`+0x14..+0x53`, RE `docs/formats/monster-animation.md` › "Effect-script
+  records"); read them for when and where each one plays, and rebuild the look in Niagara.
+  Presentation only: they play off the events (`Damage`, `Block`, `Miss`, `Death`…) when the clip
+  gets there, and any randomness in them uses the cosmetic stream, never the fight's `Rng`.
 - **The victory screen** — EXP, Gold and the item, from the events the rules emitted.
 
-**Acceptance:** a full fight with sound, reactive camera, usable items and working escape,
-with nothing debug-looking on screen.
+**Acceptance:** a full fight with every sound and VFX in place, reactive camera, usable items and
+working escape, with nothing debug-looking on screen.
 
 ---
 
@@ -1350,9 +1594,13 @@ out of animation notifies means rewriting the resolution.
 Phase 5 does **not** add replication, lobbies or EOS — it only keeps the core from closing the
 door.
 
+**Match setup in PvP (noted, not implemented).** `UBattleSubsystem::TimelineDefaults` (editable) and the times read from the party's clips
+(length, `UJRPGAnimNotify_Hit` and Chain Cut markers, through `ClipTiming`) feed the logic timeline, so the two machines must agree on them:
+they are part of the match's setup, to travel with the seed, the party snapshots and the ruleset. Today each machine reads its own.
+
 ### Phase 5 with the door open — what changes in the plan
 
-The rules themselves stay: the damage formula, the turn order, the dumb AI and "Staying in the
+The rules themselves stay: the damage formula, the turn order, the enemy AI and "Staying in the
 arena" are the same. What changes is how Phase 5 is organised, item by item. On screen, in
 single player, the result is identical. The Phase 5 sketches were rewritten this way on
 2026-11-04; this list keeps what changed from the closed-door version, and why.
@@ -1372,7 +1620,7 @@ In PvP both sides choose at the same time without seeing each other.
 |---|---|
 | `EJRPGBattleSide { Party, Enemy }` | Stays, but the rules ask "same team?": add `int32 Team` and `int32 OwnerPlayer` (-1 = AI). Victory is "a whole team is down", not "the enemies are dead" |
 | `EJRPGActionPhase` | Already out of the combatant, in `AJRPGBattlePawn` (decided either way, 2026-11-04) |
-| Stats read through `GetEffectiveStat` at the moment of the hit | A **snapshot** at `BeginBattle`: base ATK + Ra-Seru bonus, and each equipment piece's ATK kept separate. This also retires the "ATK double-counted" risk |
+| Stats read through `GetEffectiveStat` at the moment of the hit | A **snapshot** at `BeginBattle`: base ATK, each piece's ATK kept separate (the Ra-Seru tier one of them), the other stats with equipment folded. This also retires the "ATK double-counted" risk |
 | `FJRPGBattleEvent { FName EventType; …; FText Text }` | `EventType` becomes an enum; `FText` goes (the UI builds the text); add `ActionIndex` / `HitIndex` so a notify knows which event to show |
 | — | **`FJRPGBattleCommand`** `{ PlayerIndex, Slot, Command, TargetSlot, ArtBytes, ItemKey }` |
 | — | **`FJRPGBattleInput`** `{ PlayerIndex, Slot, Kind (Parry…), HitIndex, Frame }` — what arrives during execution |
@@ -1390,14 +1638,15 @@ In PvP both sides choose at the same time without seeing each other.
 | `FTickableGameObject` | Stays, but as a **fixed-step accumulator** calling `StepFrame()` — never the raw `DeltaTime` into the rules. Open question 4 still applies |
 | `EndBattle` writing back to the party | Writes back (HP, XP, items used) only into the **local player's** members |
 
-**Turn order.** Same formula; the `roll` comes from the state's `Rng`. `TArray::Sort` is not
-stable, so two equal initiative keys could come out in a different order on each machine: break
-ties explicitly by `SlotIndex`.
+**Turn order.** Same formula; the `roll` and the tie draw come from the state's `Rng`. No
+`TArray::Sort` (not stable): the original's "highest unspent key" pick, with its tie draw, is
+already the same on every machine.
 
 **Damage formula.** Same formula (the plan already bans floats, which helps). `UBattleFormulas`
 functions take the `FRandomStream&` and the snapshot instead of asking a subsystem. The element
-"×1.04 / ×0.96" becomes integer (`* 104 / 100`, `* 96 / 100`) — a float from
-`GetElementMultiplier` can round differently per machine.
+matrix is integer percent (`* 104 / 100`, `* 96 / 100`, …) — a float from
+`GetElementMultiplier` can round differently per machine. The angle / distance terms are gone
+(positions).
 
 **State machine.** Still there, but **in the pawn, as playback** of the logic timeline
 (Phase 5 › State machine, decided either way).
@@ -1441,7 +1690,8 @@ network-related.
 |---|---|---|
 | ~~Skin injection rejected by Interchange~~ | Retired — the Blender → FBX converter works (Gimard + party) | Its own traps are rules 48–52 in [ARCHITECTURE.md](ARCHITECTURE.md) |
 | PS1 over-bright vertex colours (> 1.0) clamped by the 8-bit vertex colour | Low — flames and glowing blades look duller | Export the colour halved and double it in `M_PS1Monster` |
-| ATK double-counted (`GetEffectiveStat` already includes equipment) | **High**, because it is invisible — inflates damage uniformly | Explicit test: Vahn's combatant with a sword equipped must read `ATK == base + Seru bonus` |
+| ATK double-counted (`GetEffectiveStat` already includes equipment) | **High**, because it is invisible — inflates damage uniformly | Explicit test: Vahn's combatant with a sword equipped must read `ATK == base`; the fold adds half of one piece per hit (all five for an Art) |
+| Hit frames taken from notifies firing | **High** for PvP — playback differs per machine | Monsters' frames come from the disc (`DT_EnemyActions`), the party's from the markers read as data when the action starts; the resolution only sees `FJRPGActionTimeline` |
 | PS1 integer arithmetic translated as float | Medium | `int32`/`int64` throughout the damage kernel, no `FMath::` |
 | A version's factor applied twice, or baked into a table | **High**, invisible — the first `DT_Enemies` held EXP × 3/4 and `AwardBattleXP` cut it again (≈56% of the EXP) | The table is the raw record; every factor lives once, in `UJRPGBattleRules` (rule 53). Tests pin the RE's captures (Gaza, Gobu Gobu, Gimard, Zeto) |
 | Larger party breaking balance | Medium | `bScaleEnemiesWithPartySize` from Phase 4, multipliers exposed as `UPROPERTY` |
@@ -1455,16 +1705,22 @@ network-related.
 
 1. ~~Does Interchange honor a glTF skin?~~ Moot: the pipeline goes through FBX (Phase 2).
 2. ~~PSX→cm scale~~ — settled at **0.433005 cm per unit** (Phase 2 › Scale).
-3. **`EAutomationTestFlags` in 5.8** was renamed recently — check `AutomationTest.h` before
-   writing the first automated test.
-4. **`UGameInstanceSubsystem` + `FTickableGameObject`** — a known pattern, but confirm
+3. ~~`EAutomationTestFlags` in 5.8~~ — settled by Phase 6's `JRPG.Arts.*` tests; Phase 5's
+   follow them.
+4. **`UGameInstanceSubsystem` + `FTickableGameObject`** — written as `ETickableTickType::Conditional`
+   (`IsTickable()` true only during a fight, `IsTickableWhenPaused()` false). Found in review: without
+   `GetTickableGameObjectWorld()` the engine ticks it in its world-less call (`UGameEngine::Tick` →
+   `TickObjects(nullptr, LEVELTICK_All, false)`), which ignores the pause; it now returns the game instance's world, and
+   `Tick` also returns early if the world is null or paused. To be confirmed in play. The original question: a known pattern, but confirm
    whether `ETickableTickType::Conditional` is enough or `IsTickableWhenPaused()` is needed.
 5. **The parry** (planned 2026-10-31, design open). To decide: which hits can be parried (every
    enemy hit, or only some attacks), the window in frames and whether it shrinks with
    difficulty, what a parry does (no damage, less damage, a counter, AP), what a miss costs,
    how the window is telegraphed (a flash, a sound, the clip itself), and whether the party's
-   Arts can be parried in PvP. The window comes from the attack clip's hit frame, so the enemy
-   clips' hit notifies have to be right. Its phase is not set yet (6 or 7).
+   Arts can be parried in PvP. The window comes from the attack's hit frame on the logic
+   timeline — for monsters the disc's own frames (`DT_EnemyActions`), so they are right by
+   construction. How it sits beside the original's automatic block is part of the design. Its
+   phase is not set yet (7 or later).
 6. ~~AP in a chain~~ — settled 2026-11-04: each special is checked on its own, in order, against
    the AP at that point of the chain (the Arts before it count, the ones after do not); loose
    regular Arts add AP wherever they are; the Arts inside a fired Super add nothing (Phase 6 ›
@@ -1488,12 +1744,17 @@ save, `LearnArt` / `HasLearnedArt`, commit from the bytes), `UJRPGArtsValidator`
 Validation + `Extras/arts_rules.py`), the `Unlock` / `SpeedScale` columns and the Art Tester's
 `Input`. Run `JRPG.Arts.*` after the build.
 
-**Phase 5 (next), door open** ([decided 2026-11-04](#pvp-online-and-co-op--door-open-decided-2026-11-04)):
+**Phase 5 — written 2026-11-04, to build and test** ([Guides/BATTLE.md](Guides/BATTLE.md)): import the new tables, build,
+run `JRPG.Battle.*`, play `JRPG.Battle.Start gimard 2` + `JRPG.Battle.Auto`, then mark it Done. Next: the markers on the party's
+clips, then Phase 7. The plan it was written from, door open ([decided 2026-11-04](#pvp-online-and-co-op--door-open-decided-2026-11-04)):
 first the contracts (5.0 — the round, the logic timeline and its fallback, items,
-end of the fight, who gets the EXP), then basic combat on the Muscle Dome — combatant stats
-through the version rules, the original's turn order, the integer damage kernel, the action
-state machine, a dumb enemy AI, victory / defeat. With it, Phase 6's in-fight part: the input
-window inside a turn (`CommandGauge` from AGL, the weapon hand's cost), `BuildChain` on the
+end of the fight, who gets the EXP) and the disc data the fight still needs (5.0 › `DT_EnemyActions`,
+the target class, the Ra-Seru tiers, the per-button cost), then basic combat on the Muscle Dome —
+combatant stats through the version rules, the original's turn order and AGL pool, the original's
+melee kernel (miss by height, block, fold, underdog, element matrix), the action state machine,
+the original's physical enemy AI, victory / defeat. With it, Phase 6's in-fight part: the input
+window inside a turn (`CommandGauge` from AGL, the weapon's cost per button), `BuildChain` on the
 combatant's snapshot and the fight's `Rng`, damage per hit from each step's `HitPower`, and AP
 moving as the action reaches each Art. In parallel, the party's battle clips (attack, hit, KO) and
-the `UJRPGAnimNotify_Hit` markers on the Art clips that it needs.
+the `UJRPGAnimNotify_Hit` markers on the Art clips that it needs. **Rule for all of it: what this
+roadmap does not change on purpose follows the RE** ([Deliberate departures](#deliberate-departures-from-the-original)).

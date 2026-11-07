@@ -1,4 +1,5 @@
 #include "Arts/JRPGArtSequence.h"
+#include "Battle/HeroBattleData.h"
 #include "Battle/JRPGAnimNotify_ChainCut.h"
 #include "Party/CharacterData.h"
 #include "Core/CoreSubsystem.h"
@@ -191,18 +192,32 @@ bool UJRPGArtSequenceLibrary::AppendArtSteps(FName ArtKey, bool bLeftHanded, boo
 	return true;
 }
 
+bool UJRPGArtSequenceLibrary::RaisesSpecialLatch(FName ArtKey)
+{
+	if (const UDataTable* Voices = UCoreSubsystem::ResolveDataTable(TEXT("DT_ArtVoices")))
+	{
+		if (Voices->GetRowStruct() == FJRPGArtVoiceData::StaticStruct())
+		{
+			const FJRPGArtVoiceData* Row = Voices->FindRow<FJRPGArtVoiceData>(ArtKey, TEXT("ArtSequence"), false);
+			return Row && Row->bRaisesLatch;
+		}
+	}
+	const FJRPGArtData* Art = FindArt(ArtKey);
+	return Art && Art->Kind == EJRPGArtKind::Part;
+}
+
 void UJRPGArtSequenceLibrary::ApplyGameSpeeds(TArray<FJRPGArtStep>& Steps)
 {
-	// A Art (e o starter especial) entram pelo braço de Art do commit (FUN_8004AD80), que põe 2 com
-	// o modo especial ligado e 4 sem. Golpes e o ArtStarter ficam no ritmo normal (8), também os
-	// conectores no meio de uma Super. O SpecialStarter liga o modo especial depois do próprio commit.
+	// A Art entra pelo braço de Art do commit (FUN_8004AD80), que põe 2 com o modo especial ligado e 4
+	// sem. Golpes e o ArtStarter ficam no ritmo normal (8), também os conectores no meio de uma Super.
+	// O SpecialStarter é o dash a 2 (o braço 0x1A: a luta em 0, quem age em 2) e liga o modo especial.
 	bool bSpecial = false;
 	for (FJRPGArtStep& Step : Steps)
 	{
 		switch (Step.Kind)
 		{
 		case EJRPGArtStepKind::SpecialStarter:
-			Step.GameSpeed = bSpecial ? SpeedSpecial : SpeedArt;
+			Step.GameSpeed = SpeedSpecial;
 			bSpecial = true;
 			break;
 		case EJRPGArtStepKind::Art:
@@ -219,6 +234,11 @@ void UJRPGArtSequenceLibrary::ApplyGameSpeeds(TArray<FJRPGArtStep>& Steps)
 		}
 		default:
 			Step.GameSpeed = SpeedNormal;
+			// Um golpe simples solta o modo especial (FUN_801E93C8, com um id < 0x10 commitado); o ArtStarter não
+			if (Step.Kind == EJRPGArtStepKind::Swing)
+			{
+				bSpecial = false;
+			}
 			break;
 		}
 	}

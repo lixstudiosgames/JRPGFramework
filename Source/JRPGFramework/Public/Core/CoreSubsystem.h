@@ -240,19 +240,21 @@ public:
 	 * Ganho DETERMINÍSTICO de um atributo ao subir de `FromLevel` para o
 	 * seguinte, sem o sorteio:
 	 *
-	 *   ganho = (MaxValue - GrowthStart) * curva[CurveRow][FromLevel-1] / 9408
+	 *   ganho = (MaxValue - GrowthStart) * curva[CurveRow][FromLevel-1] / D
 	 *   ganho = max(1, ganho)
 	 *
-	 * O jogo ainda soma `rand() % (2*Jitter+1) - Jitter` por cima — use
-	 * RollStatGain para incluir essa variação. Precisa de StatGrowthTable e
-	 * GrowthCurveTable atribuídas; sem elas devolve 0.
+	 * D = 9408 (0x24C0) para todos menos o AGL, que divide por 6336 (0x18C0, RE level-up.md): o AGL cresce ~1,5 vez o intervalo
+	 * dele e para no teto de 280 bem antes do level 99. O jogo soma `rand() % (2*Jitter+1) - Jitter` ANTES do piso de 1 — use
+	 * RollStatGain para incluir essa variação. Precisa de StatGrowthTable e GrowthCurveTable atribuídas; sem elas devolve 0.
 	 *
-	 * Como cada curva soma exatamente 9408 ao longo dos 98 níveis, os ganhos
-	 * acumulam para exatamente (MaxValue - GrowthStart): todo atributo cai
-	 * preciso no seu teto no level 99.
+	 * Cada curva soma 9408 ao longo dos 98 níveis, então os ganhos somam perto de (MaxValue - GrowthStart) (a divisão trunca a
+	 * cada nível; o piso de 1 devolve parte); os tetos fixos (GetStatCap) seguram o resto.
 	 */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Core|Progression")
 	int32 GetStatGainCore(FName Character, FName Stat, int32 FromLevel) const;
+
+	/** O ganho da fórmula sem o piso de 1 (o sorteio do RollStatGain entra antes dele); -1 quando o atributo não cresce. */
+	int32 GetStatGainRaw(FName Character, FName Stat, int32 FromLevel) const;
 
 	/** GetStatGainCore mais o sorteio de jitter do original. Piso de 1. */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Core|Progression")

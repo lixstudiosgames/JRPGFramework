@@ -564,6 +564,13 @@ namespace
 	constexpr int32 GrowthCurveSum = 0x24C0;   // 9408
 
 	/**
+	 * O divisor do AGL (RE level-up.md: o bloco do AGL, 0x801E98C8..0x801E9980, divide por 0x18C0 e não por 0x24C0). O AGL cresce
+	 * ~1,5 vez o intervalo dele e para no teto 0x118 (280) bem antes do level 99: o máximo de art blocks já sai pelo level 54-59,
+	 * sem Spirit. Três leituras de uma partida real (Vahn: 115 / 130 / 145 nos levels 6 / 11 / 16) batem com ele.
+	 */
+	constexpr int32 AGLGrowthDivisor = 0x18C0;   // 6336
+
+	/**
 	 * Última linha de DT_GrowthCurve. Acima do level 99 o crescimento repete
 	 * esta linha: as três curvas do original já são constantes em 64 desde o
 	 * level 50, então extrapolar não cria degrau — é a mesma taxa que já vinha
@@ -574,14 +581,21 @@ namespace
 
 int32 UCoreSubsystem::GetStatGainCore(FName Character, FName Stat, int32 FromLevel) const
 {
+	const int32 Raw = GetStatGainRaw(Character, Stat, FromLevel);
+	// O original tem piso de 1: nenhum atributo fica parado num level-up.
+	return Raw < 0 ? 0 : FMath::Max(1, Raw);
+}
+
+int32 UCoreSubsystem::GetStatGainRaw(FName Character, FName Stat, int32 FromLevel) const
+{
 	if (!StatGrowthTable || !GrowthCurveTable)
 	{
-		return 0;
+		return -1;
 	}
 	// O ganho de L->L+1 lê a curva na linha L; não há ganho a partir do teto.
 	if (FromLevel < 1 || FromLevel >= GetMaxLevel())
 	{
-		return 0;
+		return -1;
 	}
 
 	const FName GrowthRowName(*FString::Printf(TEXT("%s_%s"), *Character.ToString(), *Stat.ToString()));
@@ -589,7 +603,7 @@ int32 UCoreSubsystem::GetStatGainCore(FName Character, FName Stat, int32 FromLev
 		StatGrowthTable->FindRow<FStatGrowthRow>(GrowthRowName, TEXT("GetStatGainCore"), false);
 	if (!Growth)
 	{
-		return 0;
+		return -1;
 	}
 
 	// Acima do level 99 não há linha na tabela: repete a última (98). As três
@@ -601,7 +615,7 @@ int32 UCoreSubsystem::GetStatGainCore(FName Character, FName Stat, int32 FromLev
 		GrowthCurveTable->FindRow<FGrowthCurveRow>(CurveRowName, TEXT("GetStatGainCore"), false);
 	if (!Curve)
 	{
-		return 0;
+		return -1;
 	}
 
 	// Gate de dificuldade: abaixo do mínimo o atributo não cresce. É como a
@@ -610,7 +624,7 @@ int32 UCoreSubsystem::GetStatGainCore(FName Character, FName Stat, int32 FromLev
 	// como Normal aqui (JRPGDifficulty::GrowthRank).
 	if (JRPGDifficulty::GrowthRank(Difficulty) < JRPGDifficulty::GrowthRank(Growth->MinDifficulty))
 	{
-		return 0;
+		return -1;
 	}
 
 	int32 CurveByte = Curve->Row0;
@@ -618,16 +632,16 @@ int32 UCoreSubsystem::GetStatGainCore(FName Character, FName Stat, int32 FromLev
 	else if (Growth->CurveRow == 2) { CurveByte = Curve->Row2; }
 
 	const int64 Span = FMath::Max(0, Growth->MaxValue - Growth->GrowthStart);
-	const int32 Gain = static_cast<int32>((Span * CurveByte) / GrowthCurveSum);
-
-	// O original tem piso de 1: nenhum atributo fica parado num level-up.
-	return FMath::Max(1, Gain);
+	const int64 Divisor = Stat == TEXT("AGL") ? AGLGrowthDivisor : GrowthCurveSum;
+	// Sem o piso (o sorteio do RollStatGain entra antes dele, como no original); -1 = o atributo não cresce
+	return static_cast<int32>((Span * CurveByte) / Divisor);
 }
 
 int32 UCoreSubsystem::RollStatGain(FName Character, FName Stat, int32 FromLevel) const
 {
-	const int32 Core = GetStatGainCore(Character, Stat, FromLevel);
-	if (Core <= 0)
+	// O original (0x801E9758..0x801E97F8): ganho = span * curva / D, mais o sorteio em [-jitter, +jitter], e só então o piso de 1
+	const int32 Core = GetStatGainRaw(Character, Stat, FromLevel);
+	if (Core < 0)
 	{
 		return 0;
 	}
@@ -644,7 +658,7 @@ int32 UCoreSubsystem::RollStatGain(FName Character, FName Stat, int32 FromLevel)
 	}
 	if (Jitter == 0)
 	{
-		return Core;
+		return FMath::Max(1, Core);
 	}
 
 	// rand() % (2*jitter + 1) - jitter: sorteio centrado em [-jitter, +jitter]
