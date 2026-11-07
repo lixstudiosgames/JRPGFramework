@@ -31,7 +31,7 @@ namespace
 		return GI ? GI->GetSubsystem<UBattleSubsystem>() : nullptr;
 	}
 
-	/** JRPG.Battle.Start <EnemyKey> [Quantos] [Level]: uma luta onde o jogador está. */
+	/** JRPG.Battle.Start <EnemyKey> [Quantos] [Level] [roll|none|back|first]: uma luta onde o jogador está. */
 	void StartBattleCommand(const TArray<FString>& Args, UWorld* World)
 	{
 		UBattleSubsystem* Battle = GetBattleSubsystem(World);
@@ -45,6 +45,7 @@ namespace
 		const int32 Level = Args.Num() > 2 ? FMath::Max(1, FCString::Atoi(*Args[2])) : 1;
 
 		FJRPGBattleSetup Setup;
+		Setup.FormationAdvantage = UBattleSubsystem::ParseFormationAdvantage(Args.Num() > 3 ? Args[3] : FString());
 		for (int32 i = 0; i < Count; ++i)
 		{
 			FJRPGEncounterCombatant& Enemy = Setup.Enemies.AddDefaulted_GetRef();
@@ -292,7 +293,9 @@ void UJRPGBattleSceneSubsystem::Deinitialize()
 	if (World)
 	{
 		World->GetTimerManager().ClearTimer(TransitionTimer);
+		World->GetTimerManager().ClearTimer(IntroTimer);
 	}
+	IntroStage = EJRPGBattleIntroStage::None;
 	UBattleSubsystem* Battle = GetBattleSubsystem(World);
 	if (Battle)
 	{
@@ -362,6 +365,8 @@ void UJRPGBattleSceneSubsystem::HandleBattleStarted(const FJRPGBattleSetup& Setu
 
 void UJRPGBattleSceneSubsystem::HandleBattleEnded(EJRPGBattleResult Result)
 {
+	// A luta acabou no meio da abertura (o JRPG.Battle.End): os nomes saem e a câmera para de varrer
+	CancelIntro();
 	// A luta acabou no meio de uma Art: o tempo volta ao normal antes do fade (ele anda no tempo do mundo)
 	ShoutUntilRealTime = 0.0;
 	SetShoutDilation(1.0f);
@@ -575,6 +580,11 @@ void UJRPGBattleSceneSubsystem::HandleSlotChanged(int32 Slot, EJRPGBattleStage S
 {
 	const UBattleSubsystem* Battle = GetBattleSubsystem(GetWorld());
 	if (!Battle || Stage != EJRPGBattleStage::Commands || !Battle->GetCombatants().IsValidIndex(Slot))
+	{
+		return;
+	}
+	// Antes da cena e na abertura nada pede comando na tela: o FinishIntro mostra o prompt de quem digita
+	if (Phase != EPhase::Assembled || IntroStage != EJRPGBattleIntroStage::None)
 	{
 		return;
 	}
@@ -1037,6 +1047,7 @@ void UJRPGBattleSceneSubsystem::EnterBattleScene()
 	{
 		Current->AssembleBattle(PendingSetup, PendingCombatants);
 		Voices.VoiceLatencySeconds = Current->VoiceLatencySeconds;
+		TurnAmbushedSideAway(*Current);
 	}
 	Voices.Begin();
 	// O material do fantasma: uma vez por luta (o caminho que não existe não é procurado de novo a cada quadro)
@@ -1050,12 +1061,112 @@ void UJRPGBattleSceneSubsystem::EnterBattleScene()
 		Fade(false);
 	}
 
+	// A abertura (a varredura e os nomes) antes do aviso: quem escuta o OnSceneAssembled (o menu) já vê que ela está rodando
+	BeginIntro();
 	AJRPGBattleArena* Current = Arena.Get();
 	OnSceneAssembled.Broadcast(Current, Current ? Current->GetBattlePawns() : TArray<AJRPGBattlePawn*>());
+	if (IntroStage == EJRPGBattleIntroStage::None)
+	{
+		FinishIntro();
+	}
+	else
+	{
+		SetIntroStage(IntroStage);   // o aviso da varredura, depois do OnSceneAssembled
+	}
+}
 
+// ---------------------------------------------------------------------------------------------
+// A abertura: a varredura da câmera e os nomes dos inimigos (BATTLE_RE_SWEEP.md 2.1, parte 5.2)
+// ---------------------------------------------------------------------------------------------
+
+float UJRPGBattleSceneSubsystem::GetIntroElapsedSeconds() const
+{
+	const UWorld* World = GetWorld();
+	return (IntroStage != EJRPGBattleIntroStage::None && World) ? static_cast<float>(World->GetTimeSeconds() - IntroStartTime) : 0.0f;
+}
+
+void UJRPGBattleSceneSubsystem::BeginIntro()
+{
+	IntroStage = EJRPGBattleIntroStage::None;
+	const AJRPGBattleArena* Current = Arena.Get();
+	UWorld* World = GetWorld();
+	if (!Current || !World || !Current->bBattleIntro)
+	{
+		return;
+	}
+	// O original só chega no fluxo 0x0A (os nomes) depois da varredura, e o tick da luta não roda debaixo dela: nenhum prompt abre
+	IntroStage = EJRPGBattleIntroStage::Sweep;
+	IntroStartTime = World->GetTimeSeconds();
+	const float Seconds = static_cast<float>(FMath::Max(Current->IntroDriftFrames + Current->IntroCloseInFrames, 0)) / 60.0f;
+	if (Seconds > 0.0f)
+	{
+		World->GetTimerManager().SetTimer(IntroTimer, FTimerDelegate::CreateUObject(this, &UJRPGBattleSceneSubsystem::EnterIntroNames),
+			Seconds, false);
+	}
+	else
+	{
+		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UJRPGBattleSceneSubsystem::EnterIntroNames));
+	}
+}
+
+void UJRPGBattleSceneSubsystem::EnterIntroNames()
+{
+	const AJRPGBattleArena* Current = Arena.Get();
+	UWorld* World = GetWorld();
+	if (IntroStage != EJRPGBattleIntroStage::Sweep || !Current || !World)
+	{
+		return;
+	}
+	// 0x5A quadros, 0x78 com a linha de vantagem de formação (ctx[+0x290] != 0)
+	const UBattleSubsystem* Battle = GetBattleSubsystem(World);
+	const bool bAdvantage = Battle && Battle->GetState().FormationAdvantage != 0;
+	const int32 Frames = bAdvantage ? Current->IntroNamesAdvantageFrames : Current->IntroNamesFrames;
+	SetIntroStage(EJRPGBattleIntroStage::Names);
+	if (Frames > 0)
+	{
+		World->GetTimerManager().SetTimer(IntroTimer, FTimerDelegate::CreateUObject(this, &UJRPGBattleSceneSubsystem::FinishIntro),
+			Frames / 60.0f, false);
+	}
+	else
+	{
+		FinishIntro();
+	}
+}
+
+void UJRPGBattleSceneSubsystem::SetIntroStage(EJRPGBattleIntroStage Stage)
+{
+	IntroStage = Stage;
+	OnIntroStageChanged.Broadcast(Stage);
+}
+
+void UJRPGBattleSceneSubsystem::CancelIntro()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(IntroTimer);
+	}
+	if (IntroStage != EJRPGBattleIntroStage::None)
+	{
+		SetIntroStage(EJRPGBattleIntroStage::None);
+	}
+}
+
+void UJRPGBattleSceneSubsystem::FinishIntro()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(IntroTimer);
+	}
+	if (Phase != EPhase::Assembled)
+	{
+		IntroStage = EJRPGBattleIntroStage::None;
+		return;
+	}
+	AJRPGBattleArena* Current = Arena.Get();
 	if (UBattleSubsystem* Battle = GetBattleSubsystem(GetWorld()))
 	{
-		// Uma ação que já começou com a cena de fora (só IA, ou um comando de antes) perdeu o ActionStart: começa nela agora
+		// Uma ação que já começou com a cena de fora (só IA, um comando de antes, a rodada 1 pelas costas) perdeu o ActionStart:
+		// começa nela agora
 		if (const FJRPGActionTimeline* Active = Battle->GetActiveTimeline())
 		{
 			const FJRPGActiveAction& Running = Battle->GetState().Action;
@@ -1071,13 +1182,45 @@ void UJRPGBattleSceneSubsystem::EnterBattleScene()
 				}
 			}
 		}
-		// A cena está de pé: o relógio da luta pode andar
+		// A cena está de pé e a abertura acabou: o relógio da luta pode andar
 		Battle->HoldLogic(false);
+	}
+	IntroStage = EJRPGBattleIntroStage::None;
+	// O prompt de quem digita, que a abertura segurou (o menu da UI o esconde quando abre)
+	if (const UBattleSubsystem* Battle = GetBattleSubsystem(GetWorld()))
+	{
+		if (Battle->IsInBattle() && Battle->GetState().Stage == EJRPGBattleStage::Commands && Battle->GetCombatants().IsValidIndex(Battle->GetActiveSlot()))
+		{
+			ShowCommandPrompt(*Battle, Battle->GetActiveSlot());
+		}
+	}
+	// Por último: o menu abre com a luta já andando (a fase de comandos da rodada 1)
+	SetIntroStage(EJRPGBattleIntroStage::None);
+}
+
+void UJRPGBattleSceneSubsystem::TurnAmbushedSideAway(AJRPGBattleArena& Current) const
+{
+	// O lado em desvantagem começa de costas (FUN_80051D84: +0x46 = 0x800 na party pelas costas, 0 nos monstros na surpresa); cada
+	// um volta a olhar quando age (a mira no alvo) ou apanha (a reação vira para o atacante)
+	const UBattleSubsystem* Battle = GetBattleSubsystem(GetWorld());
+	const int32 Advantage = Battle ? Battle->GetState().FormationAdvantage : 0;
+	if (Advantage != 1 && Advantage != 2)
+	{
+		return;
+	}
+	const EJRPGBattleSide Turned = Advantage == 1 ? EJRPGBattleSide::Party : EJRPGBattleSide::Enemy;
+	for (AJRPGBattlePawn* Pawn : Current.GetBattlePawns())
+	{
+		if (Pawn && Pawn->GetCombatant().Side == Turned)
+		{
+			Pawn->SetActorRotation(Pawn->GetActorRotation() + FRotator(0.0f, 180.0f, 0.0f));
+		}
 	}
 }
 
 void UJRPGBattleSceneSubsystem::LeaveBattleScene()
 {
+	CancelIntro();
 	ShoutUntilRealTime = 0.0;
 	SetShoutDilation(1.0f);
 	Voices.End();

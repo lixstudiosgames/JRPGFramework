@@ -141,11 +141,11 @@ a divergence).
 
 | Step | Plugin | Status |
 |---|---|---|
-| Encounter, advantage | `FJRPGBattleSetup::FormationAdvantage` (0/1/2), passed to the resolver; field enemies start fights (`FIELD_ENEMIES.md`) | **have** (the roll that picks 1/2 is the field's) |
+| Encounter, advantage | `FJRPGBattleSetup::FormationAdvantage` (-1 rolls, 0/1/2 force), the roll `UBattleFormulas::RollFormationAdvantage` in `FJRPGBattleResolver::Begin`; field enemies start fights (`FIELD_ENEMIES.md`) | **have** (part 5.1; the accessory passives wait) |
 | Transition | `UJRPGBattleSceneSubsystem` fade (`Fade`, `TransitionTime` timer) | **missing**: the five styles. A post-process / UMG capture of the last field frame is the natural port |
-| Entry sweep | arena camera blend (`JRPGBattleArena.cpp`) | **partial**: a blend, not the rise-and-pull-in path (section 7) |
-| Name labels + hold | `HoldLogic(true)` while the scene assembles | **missing**: the enemy-name labels, the formation banner and the 90 / 120 hold as such |
-| Back attack loses round 1 | resolver: `FormationAdvantage == 1` handled in `JRPGBattleResolver.cpp` (initiative) | **check**: the original skips the party's whole command phase in round 1, not just its keys |
+| Entry sweep | `AJRPGBattleCamera` shot `Entry` (rise and pull-in, then case 2) | **have** (part 5.2) |
+| Name labels + hold | `UJRPGBattleSceneSubsystem` intro stages, `UJRPGBattleUISubsystem::ShowIntroBanner`, `JRPGBattleHUD.intro` | **have** (part 5.2): the labels over the groups, the formation line, the 90 / 120 hold; rules and menu wait |
+| Back attack loses round 1 | resolver: no party command in round 1 (`IsPartyAmbushedThisRound`), keys at 0; the turned side (`TurnAmbushedSideAway`) | **have** (part 5.1) |
 
 ---
 
@@ -870,8 +870,9 @@ original's HUD look (ours is our own design).
 | 2. Spirit | **Done**, tested OK in PIE. |
 | 3. Cameras | **Done** (2a-2e), tested OK in PIE: far + orbit, menu close-ups, action 6 / 7 / 8, per-Art camera (`DT_ArtCamera` imported), Battle Camera option in Options > Game. |
 | 4. Remaining sounds | **Done, to build and test** (2026-11-06): the Arts shout, the starter fanfare and the block grunt (`FJRPGBattleVoices`, `DT_BattleVoices` + `DT_ArtVoices` from `Extras/ps1_battle_voices.py`), battle music from the disc (`DT_BattleMusic`, picked per boss / arena). Menu blips dropped: the WebUI's `SFX_*` already are the original's sounds (user). Level-up cue and victory voice go with step 6. |
-| 5. Battle start | To do. |
-| 6. Battle end | To do. |
+| 5. Battle start | **In progress** (2026-11-07), parts 5.1-5.3 below: 5.1 (rules) and 5.2 (intro) written, to build and test; 5.3 to do. |
+| 5b. Field-to-battle transition | To do (user, 2026-11-07: a step of its own before step 7), parts 5b.1-5b.2. |
+| 6. Battle end | To do, parts 6.1-6.3. |
 
 Open items that are not a step of their own (details in `Docs/BATTLE_PHASE5_BUGS.md`):
 
@@ -918,8 +919,39 @@ user. Data generators are listed where a step needs disc numbers (outside the re
    - **User's idea (same day), our addition:** when an **enemy dies**, the hero who killed it plays a short victory pose and a
      voice line, with the camera on him; as soon as the camera moves to another hero or enemy, he goes back to idle. (Decide
      when it plays so it does not hold the fight: probably over the Done band, and only on a kill.)
+   - **Parts (2026-11-07):**
+     - **5.1 Rules.** The formation-advantage roll `FUN_80051D84` (RE `battle-formulas.md` "Formation advantage") in the
+       resolver from the fight's `Rng`, when the setup asks for it (`FormationAdvantage = -1`, the new default; 0 / 1 / 2 still
+       force); a scripted fight never rolls; the forced back attack of monster `0xA7` (and the setup's own flag for the bees'
+       maps). **Back attack: the party enters no command in round 1** (flow `0x0B -> 0xFE`), not only its keys at 0; the
+       disadvantaged side starts turned away (`+0x46 = 0x800`) and turns back when it acts or is hit. Tests.
+     - **5.2 The intro.** The entry sweep camera (rise and pull in, then case 2), the intro shot on the enemies, the enemy-name
+       labels (one per run of equal ids, `Killer Bee * 3`, seated over the group) and the formation line (`<leader>'s team
+       surprised the enemy.` / `<leader> surprised the enemy.` / `Ambushed!`) in the battle WebUI, the 90 / 120 hold; the rules
+       and the command menu wait for the sweep and the hold (no prompt under them).
+     - **5.3 The user's extras.** Optional (arena toggles): an entry pose for the heroes (a victory-like clip, then idle) during
+       the intro; the kill pose + voice of the hero who killed an enemy, over the Done band, camera on him, back to idle when the
+       camera leaves.
+5b. **Field-to-battle transition** (user, 2026-11-07; RE `battle-stage-camera.md` "Field-to-battle intro presentation",
+   `cutscene.md` "Field-to-battle transition"; the user's HTML replica `LegaiaRE/viewer/batalha-intro/index.html`, outside the
+   repo). The five styles of overlay PROT 0979 over a capture of the last field frame, on a black base, 132 display frames (252
+   for the swirl), each with its fade ramp (white-out for spin-up, swirl and scatter sub 2, black for the rest), then the battle
+   scene. Style pick `FUN_801CE8CC` (default shatter; a scripted fight spin-up; the monster-id overrides) with an override on the
+   setup / arena / field enemy. Native, not WebUI: a Slate overlay that draws textured triangles with affine UVs (the PS1's own
+   interpolation) from the ported kernels, in PS1 units scaled to the viewport; the curtain as a CPU pass into a texture.
+   - **5b.1** The frame: the capture, the overlay, the style pick, the timing, the fade ramps, the start cue (`0x1F`, `0x4D` on a
+     scripted fight), the hand-off to the battle scene (replaces the plain `Fade` at the start), and the tile shatter (default).
+   - **5b.2** The other four styles: scatter, spin-up (with its ring), curtain, swirl.
 6. **Battle end** (4.6): the loop window per clip (6.2), the leader's **win pose** held through the 256 hold, the victory camera
    (7.8), the victory voice and level-up cue (9.2), the result / loss screens (our design).
+   - **Parts (2026-11-07):**
+     - **6.1 Victory sequence.** The RE timeline (signal, 80-frame load window with case 8's stand-off on the leader, the results
+       frame, the 256 hold with case 6's battle-over arm and the per-character win-pose camera script, the exit fade `0x40` frames
+       to black, 402 in all); the pose pick (HP-quarter tier aged by rounds, weak statuses, the column rolls) held by its loop
+       window; the victory voice is already a notify on the pose clips.
+     - **6.2 Defeat and escape ends.** The loss hold (`0x100`) and fade, the escape fade only; the level-up cue `0x50`.
+     - **6.3 Result and loss windows** (our design) in the battle WebUI: `<leader>'s team won the battle!`, EXP and Gold gained,
+       who levelled up; `<leader>'s team was annihilated.` / `<leader> is out of strength.`
 7. After that, order to decide:
    - our HUD (10.1) with the **enemy HP bars**, replacing the debug text;
    - effects (8.5): the per-clip effect notifies and `DT_BattleEffects`, hit burst, dust, Spirit aura, hit tint, **the user's

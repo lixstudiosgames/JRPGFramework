@@ -4,6 +4,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "Battle/BattleTypes.h"
 #include "Battle/JRPGBattleMenu.h"
+#include "Battle/JRPGBattleSceneSubsystem.h"
 #include "JRPGBattleUISubsystem.generated.h"
 
 class AJRPGBattleArena;
@@ -82,6 +83,17 @@ private:
 	UFUNCTION()
 	void HandleFieldShown();
 
+	/** A abertura da luta mudou de fase: os nomes entram, saem, e no fim (None) o menu pode abrir. */
+	UFUNCTION()
+	void HandleIntroStage(EJRPGBattleIntroStage Stage);
+
+	/**
+	 * Os nomes da abertura (FUN_801D9D3C): um rótulo por grupo de inimigos iguais seguidos ("Killer Bee * 3"), em cima do grupo na
+	 * tela, e a linha de formação ("Vahn's team surprised the enemy." / "Vahn surprised the enemy." / "Ambushed!").
+	 */
+	void ShowIntroBanner();
+	void HideIntroBanner();
+
 	/** Um aperto vindo do JS (bridge.onbattleinput): 'up' 'down' 'left' 'right' 'confirm' 'cancel' ou 'pick' com A e B. */
 	void HandleUIInput(const FString& Action, int32 A, int32 B);
 
@@ -122,6 +134,8 @@ private:
 	/** Dentro do CommitPlan: as mudanças de slot que o próprio envio provoca não abrem nem fecham nada. */
 	bool bCommitting = false;
 
+	/** Os nomes da abertura estão na tela. */
+	bool bIntroBannerUp = false;
 	/** O motivo da última recusa do núcleo (HandleCommandRefused), para mostrar na tela. */
 	FString LastRefusal;
 

@@ -182,7 +182,8 @@ struct FJRPGBattleResolver::FPlanStep
 // Começo
 // =================================================================================================
 
-void FJRPGBattleResolver::Begin(const TArray<FJRPGCombatant>& InCombatants, int32 InSeed, bool bInScriptedFight, int32 InFormationAdvantage)
+void FJRPGBattleResolver::Begin(const TArray<FJRPGCombatant>& InCombatants, int32 InSeed, bool bInScriptedFight, int32 InFormationAdvantage,
+	bool bForcedBackAttack)
 {
 	State = FJRPGBattleState();
 	Events.Reset();
@@ -212,8 +213,30 @@ void FJRPGBattleResolver::Begin(const TArray<FJRPGCombatant>& InCombatants, int3
 	State.Seed = InSeed;
 	State.Rng.Initialize(InSeed);
 	State.bScriptedFight = bInScriptedFight;
-	// Uma luta roteirizada não rola vantagem de formação (ctx+0x287)
-	State.FormationAdvantage = bInScriptedFight ? 0 : InFormationAdvantage;
+	// Uma luta roteirizada não rola vantagem de formação (ctx+0x287). Negativo: o sorteio do original (FUN_80051D84), na montagem
+	// da luta, antes da iniciativa da rodada 1, com as médias de SPD dos vivos
+	if (bInScriptedFight)
+	{
+		State.FormationAdvantage = 0;
+	}
+	else if (InFormationAdvantage < 0)
+	{
+		TArray<int32> PartySPD;
+		TArray<int32> EnemySPD;
+		for (const FJRPGCombatant& C : State.Combatants)
+		{
+			if (C.bAlive)
+			{
+				(C.Side == EJRPGBattleSide::Party ? PartySPD : EnemySPD).Add(C.SPD);
+			}
+		}
+		State.FormationAdvantage = UBattleFormulas::RollFormationAdvantage(PartySPD, EnemySPD, bForcedBackAttack,
+			[this]() { return Rand15(); });
+	}
+	else
+	{
+		State.FormationAdvantage = FMath::Clamp(InFormationAdvantage, 0, 2);
+	}
 	State.Commands.SetNum(State.Combatants.Num());
 	State.Round = 0;
 
@@ -294,6 +317,12 @@ void FJRPGBattleResolver::StartRound()
 	}
 	Emit(EJRPGBattleEventType::RoundStart, -1, -1, State.Round);
 
+	// Pelas costas, a party não comanda nada na rodada 1 (o fluxo 0x0B vai direto ao 0xFE): só os monstros agem
+	if (IsPartyAmbushedThisRound())
+	{
+		return;
+	}
+
 	// O herói sem dono (a IA, o aliado automático) ataca o inimigo de menor slot
 	for (FJRPGCombatant& C : State.Combatants)
 	{
@@ -308,8 +337,17 @@ void FJRPGBattleResolver::StartRound()
 	}
 }
 
+bool FJRPGBattleResolver::IsPartyAmbushedThisRound() const
+{
+	return State.Round == 1 && State.FormationAdvantage == 1;
+}
+
 bool FJRPGBattleResolver::NeedsAnyCommand(int32* OutSlot) const
 {
+	if (IsPartyAmbushedThisRound())
+	{
+		return false;
+	}
 	for (const FJRPGCombatant& C : State.Combatants)
 	{
 		if (C.bAlive && C.Type != EJRPGCombatantType::Enemy && C.OwnerPlayer >= 0

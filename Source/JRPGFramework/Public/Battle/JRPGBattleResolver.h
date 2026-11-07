@@ -197,8 +197,13 @@ public:
 	 */
 	bool bRequireApproach = false;
 
-	/** Começa a luta com estes combatentes (a foto). Reinicia o estado e os eventos e abre a rodada 1. */
-	void Begin(const TArray<FJRPGCombatant>& InCombatants, int32 InSeed, bool bInScriptedFight, int32 InFormationAdvantage);
+	/**
+	 * Começa a luta com estes combatentes (a foto). Reinicia o estado e os eventos e abre a rodada 1. InFormationAdvantage: 0 / 1 / 2
+	 * forçam a vantagem; negativo sorteia (UBattleFormulas::RollFormationAdvantage, do Rng da luta, antes da iniciativa), com
+	 * bForcedBackAttack dando o ataque pelas costas depois dos sorteios. Uma luta roteirizada não tem vantagem.
+	 */
+	void Begin(const TArray<FJRPGCombatant>& InCombatants, int32 InSeed, bool bInScriptedFight, int32 InFormationAdvantage,
+		bool bForcedBackAttack = false);
 
 	/**
 	 * Um comando, um ponto de entrada: confere que quem manda é o dono do slot (OwnerPlayer), que a rodada está
@@ -250,6 +255,9 @@ public:
 	int32 GetActiveSlot() const { return State.ActiveSlot; }
 
 	bool IsFinished() const { return State.bFinished; }
+
+	/** Ataque pelas costas na rodada 1: a party não comanda nada nela (o fluxo 0x0B do original vai direto ao 0xFE). */
+	bool IsPartyAmbushedThisRound() const;
 	EJRPGBattleResult GetResult() const { return State.Result; }
 
 	/** Dev (battle.ap): enche o AP de todo herói vivo até o máximo, com o APChanged de quem mudou. */

@@ -339,6 +339,44 @@ int32 UBattleFormulas::InitiativeKey(bool bHero, int32 SPD, int32 HP, int32 MaxH
 	return ClampToInt(Key);
 }
 
+int32 UBattleFormulas::RollFormationAdvantage(const TArray<int32>& PartySPD, const TArray<int32>& EnemySPD, bool bForcedBackAttack,
+	FJRPGRand15 Draw)
+{
+	if (PartySPD.Num() == 0 || EnemySPD.Num() == 0)
+	{
+		return bForcedBackAttack ? 1 : 0;
+	}
+	// As médias (inteiras, sem sinal como no original: uma SPD negativa conta 0)
+	const auto Mean = [](const TArray<int32>& Values)
+	{
+		int64 Sum = 0;
+		for (const int32 Value : Values)
+		{
+			Sum += FMath::Max(Value, 0);
+		}
+		return Sum / Values.Num();
+	};
+	const int64 P = Mean(PartySPD);
+	const int64 E = Mean(EnemySPD);
+	const auto Spread = [&Draw](int64 Lo, int64 Hi) -> int64
+	{
+		const int64 Span = FMath::Abs(Lo - Hi) * 2;
+		return Span == 0 ? 0 : Draw() % Span;
+	};
+	const int64 A = P + Spread(P, E);
+	const int64 B = E + Spread(A, E);
+	// Na ordem do original: o teste do 1 em 16 só sorteia do lado que ganhou
+	if ((A < B && Draw() % FormationRarity == 0) || bForcedBackAttack)
+	{
+		return 1;
+	}
+	if (B < A && Draw() % FormationRarity == 0)
+	{
+		return 2;
+	}
+	return 0;
+}
+
 int32 UBattleFormulas::PickByInitiative(const TArray<int32>& Keys, FJRPGRand15 Draw)
 {
 	if (Keys.IsEmpty())

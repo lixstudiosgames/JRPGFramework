@@ -2427,6 +2427,94 @@ bool FJRPGBattleSpiritTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// --- Vantagem de formação (FUN_80051D84) ------------------------------------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattleFormationAdvantageTest, "JRPG.Battle.FormationAdvantage", JRPG_BATTLE_TEST_FLAGS)
+bool FJRPGBattleFormationAdvantageTest::RunTest(const FString& Parameters)
+{
+	// O sorteio: a = p + rand % (2|p - e|), b = e + rand % (2|a - e|), e o 1 em 16 só do lado que ganhou
+	{
+		FSequenceDraw Draw({ 0, 0, 0 });
+		TestEqual(TEXT("party mais rápida, o 1 em 16 passa: surpresa"),
+			UBattleFormulas::RollFormationAdvantage({ 100 }, { 50 }, false, [&Draw]() { return Draw(); }), 2);
+		TestEqual(TEXT("três sorteios (dois espalhamentos e o 1 em 16)"), Draw.Count, 3);
+	}
+	{
+		FSequenceDraw Draw({ 0, 0, 1 });
+		TestEqual(TEXT("o 1 em 16 falha: nada"), UBattleFormulas::RollFormationAdvantage({ 100 }, { 50 }, false, [&Draw]() { return Draw(); }), 0);
+	}
+	{
+		FSequenceDraw Draw({ 0, 0, 32 });
+		TestEqual(TEXT("inimigos mais rápidos, 32 % 16 == 0: pelas costas"),
+			UBattleFormulas::RollFormationAdvantage({ 50 }, { 100 }, false, [&Draw]() { return Draw(); }), 1);
+	}
+	{
+		// a = 50 + 60 = 110 passa o e = 100: o espalhamento de b é em torno do a (2 * 10 = 20), b = 100 + 19 = 119 > a
+		FSequenceDraw Draw({ 60, 19, 0 });
+		TestEqual(TEXT("o espalhamento de b é em torno do a sorteado"),
+			UBattleFormulas::RollFormationAdvantage({ 50 }, { 100 }, false, [&Draw]() { return Draw(); }), 1);
+	}
+	{
+		FSequenceDraw Draw({ 7 });
+		TestEqual(TEXT("SPD igual: sem espalhamento nem vantagem"), UBattleFormulas::RollFormationAdvantage({ 80, 120 }, { 100 }, false,
+			[&Draw]() { return Draw(); }), 0);
+		TestEqual(TEXT("e nenhum sorteio"), Draw.Count, 0);
+	}
+	{
+		FSequenceDraw Draw({ 0, 0, 5 });
+		TestEqual(TEXT("forçado: pelas costas mesmo com a party mais rápida"),
+			UBattleFormulas::RollFormationAdvantage({ 100 }, { 50 }, true, [&Draw]() { return Draw(); }), 1);
+		TestEqual(TEXT("os dois espalhamentos são gastos igual"), Draw.Count, 2);
+	}
+
+	// Pelas costas: a party não comanda na rodada 1, só os monstros agem; a rodada 2 pede os comandos
+	{
+		FFight Fight;
+		Fight.RandOverride = []() { return 0; };
+		Fight.Begin({ Hero(0, TEXT("Vahn"), 100000, 100, 100), Hero(1, TEXT("Noa"), 100000, 100, 50), Foe(2, TEXT("a"), 100000, 100, 80) }, 1, false, 1);
+		TestEqual(TEXT("pelas costas"), Fight.GetState().FormationAdvantage, 1);
+		TestTrue(TEXT("a party está emboscada na rodada 1"), Fight.IsPartyAmbushedThisRound());
+		TestEqual(TEXT("a rodada 1 já executa, sem comando"), (int32)Fight.GetState().Stage, (int32)EJRPGBattleStage::Execution);
+		TestFalse(TEXT("um comando da party é recusado"), Fight.SubmitCommand(Attack(0, 2)));
+		for (int32 Frames = 0; Frames < 5000 && Fight.GetState().Round == 1 && !Fight.IsFinished(); ++Frames)
+		{
+			Fight.StepFrame();
+		}
+		TestTrue(TEXT("na rodada 1 só o monstro agiu"), ActionOrder(Fight) == TArray<int32>({ 2 }));
+		TestEqual(TEXT("a rodada 2 começou"), Fight.GetState().Round, 2);
+		TestEqual(TEXT("a rodada 2 pede os comandos"), (int32)Fight.GetState().Stage, (int32)EJRPGBattleStage::Commands);
+		TestEqual(TEXT("quem digita é o herói 0"), Fight.GetActiveSlot(), 0);
+	}
+
+	// Surpresa: a party comanda e age; os monstros perdem a rodada 1
+	{
+		FFight Fight;
+		Fight.RandOverride = []() { return 0; };
+		Fight.Begin({ Hero(0, TEXT("Vahn"), 100000, 100, 100), Foe(1, TEXT("a"), 100000, 100, 80) }, 1, false, 2);
+		TestEqual(TEXT("a rodada 1 pede os comandos"), (int32)Fight.GetState().Stage, (int32)EJRPGBattleStage::Commands);
+		TestTrue(TEXT("o comando"), Fight.SubmitCommand(Attack(0, 1)));
+		for (int32 Frames = 0; Frames < 5000 && Fight.GetState().Round == 1 && !Fight.IsFinished(); ++Frames)
+		{
+			Fight.StepFrame();
+		}
+		TestTrue(TEXT("na rodada 1 só o herói agiu"), ActionOrder(Fight) == TArray<int32>({ 0 }));
+	}
+
+	// A luta roteirizada nunca tem vantagem, nem forçada; o sorteio (-1) dá 0, 1 ou 2
+	{
+		FFight Fight;
+		Fight.Begin({ Hero(0, TEXT("Vahn"), 100000, 100, 100), Foe(1, TEXT("a"), 100000, 100, 80) }, 1, true, -1, true);
+		TestEqual(TEXT("roteirizada: sem vantagem"), Fight.GetState().FormationAdvantage, 0);
+	}
+	{
+		FFight Fight;
+		Fight.RandOverride = []() { return 0; };
+		Fight.Begin({ Hero(0, TEXT("Vahn"), 100000, 100, 50), Foe(1, TEXT("a"), 100000, 100, 100) }, 1, false, -1, true);
+		TestEqual(TEXT("o sorteio com o forçado: pelas costas"), Fight.GetState().FormationAdvantage, 1);
+	}
+	return true;
+}
+
 } // namespace JRPGBattleTests
 
 #endif // WITH_DEV_AUTOMATION_TESTS

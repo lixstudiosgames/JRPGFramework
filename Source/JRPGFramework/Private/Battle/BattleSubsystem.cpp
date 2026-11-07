@@ -757,11 +757,46 @@ bool UBattleSubsystem::BeginBattle(const FJRPGBattleSetup& Setup)
 	UE_LOG(LogTemp, Log, TEXT("BattleSubsystem: luta começou — %d herói(s) contra %d inimigo(s), semente %d%s"), Party.Num(),
 		CurrentSetup.Enemies.Num(), CurrentSetup.Seed, CurrentSetup.bScriptedFight ? TEXT(", luta roteirizada") : TEXT(""));
 
+	// O ataque pelas costas forçado do sorteio: o monstro 0xA7 em qualquer lugar (FUN_80051D84), ou a flag da luta (as abelhas
+	// 0x3D..0x3F nos mapas 0x0C / 0x15, que só quem monta a luta sabe)
+	bool bForcedBackAttack = CurrentSetup.bForceBackAttack;
+	for (const FJRPGEncounterCombatant& Enemy : CurrentSetup.Enemies)
+	{
+		FJRPGEnemyData Row;
+		if (!bForcedBackAttack && UJRPGEncounterLibrary::GetEnemyData(Enemy.EnemyKey, Row) && Row.MonsterArchiveID == ForcedBackAttackMonsterID)
+		{
+			bForcedBackAttack = true;
+		}
+	}
+
 	// A rodada 1 abre aqui (RoundStart); os comandos esperam o jogador e nada anda até alguém comandar
-	Resolver.Begin(Combatants, CurrentSetup.Seed, CurrentSetup.bScriptedFight, CurrentSetup.FormationAdvantage);
+	Resolver.Begin(Combatants, CurrentSetup.Seed, CurrentSetup.bScriptedFight, CurrentSetup.FormationAdvantage, bForcedBackAttack);
+	if (Resolver.GetState().FormationAdvantage != 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("BattleSubsystem: %s"), Resolver.GetState().FormationAdvantage == 1
+			? TEXT("ataque pelas costas — a party não comanda na rodada 1") : TEXT("ataque surpresa — os inimigos perdem a rodada 1"));
+	}
 	OnBattleStarted.Broadcast(CurrentSetup, Resolver.GetCombatants());
 	FlushEvents();
 	return true;
+}
+
+int32 UBattleSubsystem::ParseFormationAdvantage(const FString& Word)
+{
+	const FString Lower = Word.ToLower();
+	if (Lower == TEXT("none") || Lower == TEXT("0"))
+	{
+		return 0;
+	}
+	if (Lower == TEXT("back") || Lower == TEXT("1"))
+	{
+		return 1;
+	}
+	if (Lower == TEXT("first") || Lower == TEXT("2"))
+	{
+		return 2;
+	}
+	return -1;
 }
 
 void UBattleSubsystem::EndBattle(EJRPGBattleResult Result)

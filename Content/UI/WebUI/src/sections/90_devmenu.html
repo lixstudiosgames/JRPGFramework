@@ -282,7 +282,14 @@
                     <input id="dev-ecount" type="number" value="1" min="1" max="8">
                     <label>Level</label>
                     <input id="dev-elevel" type="number" value="1" min="1" max="99">
-                    <button class="dev-btn" data-tpl="battle.start {enemy} {ecount} {elevel}">Come&ccedil;ar luta</button>
+                    <label>Forma&ccedil;&atilde;o</label>
+                    <select id="dev-eadv">
+                        <option value="roll">sorteio</option>
+                        <option value="none">normal</option>
+                        <option value="back">pelas costas</option>
+                        <option value="first">surpresa</option>
+                    </select>
+                    <button class="dev-btn" data-tpl="battle.start {enemy} {ecount} {elevel} {eadv}">Come&ccedil;ar luta</button>
                 </div>
                 <div class="dev-row">
                     <span class="dev-note">Uma key repete &quot;Qtd&quot; vezes; v&aacute;rias keys separadas por v&iacute;rgula entram uma de cada. A luta come&ccedil;a onde o jogador est&aacute; e fecha o dev menu.</span>

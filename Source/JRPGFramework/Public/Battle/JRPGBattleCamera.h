@@ -75,7 +75,12 @@ enum class EJRPGBattleShot : uint8
 	 * A câmera própria de uma Art (FUN_801D71B8): por cima de 6 / 7 / 8, enquanto um herói toca uma Art (ou o dash do Super /
 	 * Miracle) que tem um "braço" no original; cortes rápidos (1, 3 ou 6 quadros) por trechos do clip.
 	 */
-	Art
+	Art,
+	/**
+	 * A abertura da luta (a varredura do FUN_80046A20, antes do tick da luta): de trás da party, a câmera sobe e se aproxima por
+	 * EntryDrift, depois fecha no centro da arena (o caso 2) e fica lá com os nomes dos inimigos.
+	 */
+	Entry
 };
 
 /**
@@ -201,6 +206,45 @@ public:
 	/** O piso da distância do plano geral, antes do prescale (0x800: a formação encolhida quando o atacante chega no alvo). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Far", meta = (ClampMin = "0.0"))
 	float FarMinSpanUnits = 2048.0f;
+
+	// --- Abertura (a varredura de entrada, UJRPGBattleSceneSubsystem::GetIntroStage) ------------
+
+	/** Usar a varredura do original na abertura. Desligado, a abertura fica no plano geral. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Entry")
+	bool bEntryShots = true;
+
+	/** O giro da varredura, em graus a partir da arena (0 = de trás da party, olhando para os inimigos: o giro 0 do original). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Entry")
+	float EntryYawDegrees = 0.0f;
+
+	/**
+	 * A pose em que a varredura começa (a do init da luta, capturada: inclinação 60, TR (0, 1280, 7168), o Z já na escala da
+	 * câmera) e quanto ela anda por vsync na subida (TR.y += 0x30, TR.z -= 0x40 por passo de 2 vsyncs, com o passo 2).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Entry")
+	float EntryStartPitchUnits = 60.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Entry")
+	float EntryStartLiftUnits = 1280.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Entry", meta = (ClampMin = "0.0"))
+	float EntryStartDepthUnits = 7168.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Entry")
+	float EntryLiftPerFrame = 48.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Entry")
+	float EntryPullPerFrame = 64.0f;
+
+	/** O caso 2 em que ela fecha: inclinação 0, TR (0, 0x600, prescale(0x700)), o foco no centro da arena, ease-out de 6 passos. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Entry")
+	float EntryPitchUnits = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Entry")
+	float EntryLiftUnits = 1536.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Entry", meta = (ClampMin = "0.0"))
+	float EntryDepthUnits = 1792.0f;
 
 	// --- Menu (casos 0 e 1) ---------------------------------------------------------------------
 
@@ -369,6 +413,8 @@ protected:
 	bool BuildTwoShotPose(FJRPGBattleCameraPose& OutPose) const;
 	/** Caso 8: o alvo (o ramp da queda anda com DeltaSeconds). */
 	bool BuildOnTargetPose(float DeltaSeconds, FJRPGBattleCameraPose& OutPose);
+	/** A varredura da abertura: a subida (bEntryDrifting, a pose de uma vez) e depois o caso 2. */
+	bool BuildEntryPose(FJRPGBattleCameraPose& OutPose);
 
 	/**
 	 * A câmera própria da Art que toca (o override do original): monta a pose do braço dela e devolve os passos do ease-out dele
@@ -445,6 +491,8 @@ private:
 	int32 ShotSlot = INDEX_NONE;
 	int32 ShotTargetSlot = INDEX_NONE;
 	bool bHasPose = false;
+	/** A varredura está na subida (a pose anda por conta própria, sem o ease-out). */
+	bool bEntryDrifting = false;
 
 	// O estado da ação (UpdateActionState): quem age e o alvo, a ação (pelo índice), o tipo, a escada do giro, o ângulo sorteado,
 	// a distância, o primeiro golpe, a faixa do fim e o ramp da queda

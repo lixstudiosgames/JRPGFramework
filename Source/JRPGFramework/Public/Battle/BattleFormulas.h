@@ -258,6 +258,21 @@ public:
 	 */
 	static int32 InitiativeKey(bool bHero, int32 SPD, int32 HP, int32 MaxHP, bool bSlow, FJRPGRand15 Draw);
 
+	/** O "1 em 16" das duas vantagens de formação (sem os passivos de acessório, que mudam para 2 / 64). */
+	static constexpr int32 FormationRarity = 16;
+
+	/**
+	 * A vantagem de formação da luta (FUN_80051D84, RE battle-formulas.md "Formation advantage"): 0 nenhuma, 1 ataque pelas
+	 * costas, 2 ataque surpresa. Com p e e as médias de SPD dos dois lados:
+	 *   a = p + rand % (2 |p - e|);  b = e + rand % (2 |a - e|)     (o espalhamento de b é em torno do a já sorteado)
+	 *   pelas costas se a < b e rand % 16 == 0;  surpresa se b < a e rand % 16 == 0
+	 * Um espalhamento 0 não sorteia (o divisor 0 do original não é definido; como o port do RE). bForcedBackAttack (o monstro 0xA7,
+	 * as abelhas nos mapas 0x0C / 0x15) dá o ataque pelas costas depois dos sorteios, que são gastos igual. Os passivos de
+	 * acessório (Pre-emptive, Guard) ficam para os passivos. Quem chama pula a luta roteirizada.
+	 */
+	static int32 RollFormationAdvantage(const TArray<int32>& PartySPD, const TArray<int32>& EnemySPD, bool bForcedBackAttack,
+		FJRPGRand15 Draw);
+
 	/**
 	 * O próximo a agir (FUN_801DABA4): quem tem a maior chave ainda não gasta; os empates saem do sorteio como
 	 * no original (a lista começa no assento 0 e quem SOBE o máximo entra duas vezes, e rand % (n + 1) escolhe).

@@ -337,6 +337,12 @@ public:
 	/** Quantos passos um Tick pode dar de uma vez (uma pausa longa do jogo não vira uma rajada de golpes). */
 	static constexpr int32 MaxStepsPerTick = 12;
 
+	/** O monstro que força o ataque pelas costas em qualquer lugar (DT_Enemies.MonsterArchiveID 0xA7, Lapis; FUN_80051D84). */
+	static constexpr int32 ForcedBackAttackMonsterID = 0xA7;
+
+	/** Uma palavra de dev para FJRPGBattleSetup::FormationAdvantage: "none" 0, "back" 1, "first" 2, outra (ou "roll") -1. */
+	static int32 ParseFormationAdvantage(const FString& Word);
+
 	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle")
 	FOnJRPGEncounterStarted OnEncounterStarted;
 

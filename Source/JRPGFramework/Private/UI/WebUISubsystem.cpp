@@ -1154,7 +1154,8 @@ void UWebUISubsystem::RunDevCommand(const FString& Command)
 		Out = FString::Printf(TEXT("%d inimigo(s)%s:\n%s"), Keys.Num(), Filter.IsEmpty() ? TEXT("") : *FString::Printf(TEXT(" com '%s'"), *Filter),
 			*FString::Join(Keys, TEXT("  ")));
 	}
-	// battle.start <key[,key...]> [quantos] [level]: uma key repete "quantos" vezes; várias keys, uma de cada (até o MaxEnemySlots)
+	// battle.start <key[,key...]> [quantos] [level] [roll|none|back|first]: uma key repete "quantos" vezes; várias keys, uma de cada
+	// (até o MaxEnemySlots); o último é a vantagem de formação (sorteio por padrão)
 	else if (Verb == TEXT("battle.start"))
 	{
 		UBattleSubsystem* Battle = GI ? GI->GetSubsystem<UBattleSubsystem>() : nullptr;
@@ -1169,6 +1170,7 @@ void UWebUISubsystem::RunDevCommand(const FString& Command)
 		else
 		{
 			FJRPGBattleSetup Setup;
+			Setup.FormationAdvantage = UBattleSubsystem::ParseFormationAdvantage(DevArgStr(Args, 3, TEXT("roll")));
 			for (int32 k = 0; k < Keys.Num(); ++k)
 			{
 				const int32 Copies = Keys.Num() == 1 ? Count : 1;
@@ -2058,6 +2060,15 @@ void UWebUISubsystem::CloseBattleUI()
 	// O C++ fecha na hora (a rodada vai tocar): o JS só esconde a seção e não chama closemenu de volta
 	DispatchJS(TEXT("JRPGBattle.close();"));
 	HandleCloseRequestFromJS();
+}
+
+void UWebUISubsystem::CallBattleHUD(const FString& JSCall)
+{
+	if (JSCall.IsEmpty() || !EnsureShellWidget())
+	{
+		return;
+	}
+	DispatchJS(FString::Printf(TEXT("if (window.JRPGBattleHUD) { JRPGBattleHUD.%s; }"), *JSCall));
 }
 
 void UWebUISubsystem::HandleBattleInputFromJS(const FString& Action, int32 A, int32 B)

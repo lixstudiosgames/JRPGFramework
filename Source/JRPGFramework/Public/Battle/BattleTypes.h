@@ -567,12 +567,19 @@ struct JRPGFRAMEWORK_API FJRPGBattleSetup
 	bool bNoRewards = false;
 
 	/**
-	 * A vantagem de formação já sorteada (FUN_80051D84, Fase 7): 0 nenhuma, 1 ataque pelas costas (a party
-	 * perde as chaves de iniciativa da rodada 1), 2 ataque surpresa (os inimigos perdem). A Fase 5 só honra o
-	 * que vier aqui; quem sorteia é a Fase 7, e uma luta roteirizada não sorteia.
+	 * A vantagem de formação (FUN_80051D84): -1 sorteia no começo da luta (o padrão, do Rng da luta, pelas médias de SPD;
+	 * UBattleFormulas::RollFormationAdvantage); 0 nenhuma, 1 ataque pelas costas (a party não comanda nada na rodada 1 e começa
+	 * de costas), 2 ataque surpresa (os inimigos perdem a rodada 1 e começam de costas) forçam. Uma luta roteirizada nunca tem.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle", meta = (ClampMin = "-1", ClampMax = "2"))
+	int32 FormationAdvantage = -1;
+
+	/**
+	 * O sorteio dá ataque pelas costas de qualquer jeito (o original força nas abelhas 0x3D..0x3F dos mapas 0x0C / 0x15). O
+	 * monstro 0xA7 (Lapis, DT_Enemies.MonsterArchiveID) força sozinho. Só vale com FormationAdvantage = -1.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
-	int32 FormationAdvantage = 0;
+	bool bForceBackAttack = false;
 
 	/**
 	 * A música desta luta: o RowName no DT_BattleMusic ("Battle1", "Boss1"...). None = a escolha automática: a do chefe
@@ -982,6 +989,7 @@ struct JRPGFRAMEWORK_API FJRPGBattleState
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	bool bScriptedFight = false;
 
+	/** A vantagem de formação desta luta, já sorteada: 0 nenhuma, 1 pelas costas, 2 surpresa. */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	int32 FormationAdvantage = 0;
 

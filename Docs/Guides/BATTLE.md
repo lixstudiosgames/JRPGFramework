@@ -36,7 +36,7 @@ are in [BATTLE_STAGE.md](BATTLE_STAGE.md)):
 
 | Command | What it does |
 |---|---|
-| `JRPG.Battle.Start gimard 2` | A fight against two Gimards where the player stands |
+| `JRPG.Battle.Start gimard 2 [level] [roll\|none\|back\|first]` | A fight against two Gimards where the player stands. The 4th argument forces the formation advantage (the dev menu's Battle tab has the same choice); without it the fight rolls |
 | `JRPG.Battle.Attack [enemy]` | The command of whoever is being asked (the on-screen prompt says who): one Arms swing. `enemy` is a number, **0 = the first enemy**; without it, the living enemy of lowest slot |
 | `JRPG.Battle.Arts <buttons> [enemy]` | The Art chain: `JRPG.Battle.Arts High Low High 0`, `JRPG.Battle.Arts "A R A"` (letters), or arrows. The hero's handedness applies (Noa's Arms is the right arrow). The gauge limits how many buttons fit |
 | `JRPG.Battle.Auto` | Everyone who has not commanded attacks the lowest living enemy: walks the round without typing one by one |
@@ -66,7 +66,8 @@ Battle: [f82 a0] Vahn#0 ends
 | `Seed` | The fight's `FRandomStream` seed. **0 draws one** (outside the rules, like the encounter roll) and stores it in `GetBattleSetup()`, so a fight can be repeated |
 | `bScriptedFight` | The original's scripted-fight flag (`ctx+0x287`): the enemies take the **boss** stat profile, the fight cannot be escaped, no formation advantage. **Who sets it**: the code that builds the fight copies it with `UJRPGEncounterLibrary::ResolveScriptedFight(Enemies)` (`AJRPGFieldEnemy` and `AJRPGBattleWaves` already do). No enemy is `bIsBoss` in `DT_Enemies` → false (a random encounter). Otherwise it finds the `DT_Bosses` row whose `Enemies` are exactly the fight's (any order) and uses that row's `bScriptedFight` (Lapis is false). A boss with no row → true, with a warning in the log. A fight you build by hand (the debug `JRPG.Battle.Start` too) leaves the field false unless you call it |
 | `bNoRewards` | A fight that pays nothing (the original's special battles) |
-| `FormationAdvantage` | 0 none, 1 back attack (the party loses its round-1 initiative keys), 2 pre-emptive (the enemies do). The roll is Phase 7; Phase 5 honours what arrives |
+| `FormationAdvantage` | **-1 (the default) rolls** at the start of the fight: the original's `FUN_80051D84` from the fight's `Rng`, before round 1's initiative (`UBattleFormulas::RollFormationAdvantage`: each side's mean SPD blurred by a spread, then a 1-in-16 gate for the side that won; the accessory passives are not in yet). 0 none, 1 back attack, 2 pre-emptive force it. **Back attack**: the party enters no command in round 1 (only the monsters act) and starts turned away; **pre-emptive**: the monsters lose round 1 and start turned away. Each turned combatant faces again when it acts or is hit. A scripted fight never has one; the Muscle Dome waves set 0 |
+| `bForceBackAttack` | The roll gives a back attack whatever the scores (the original forces it for the bees `0x3D..0x3F` on maps `0x0C` / `0x15`; monster `0xA7`, Lapis, forces it by itself through `DT_Enemies.MonsterArchiveID`). Only with `FormationAdvantage = -1` |
 
 `EndBattle(Result)` is idempotent: a second call does nothing and pays nothing. `Aborted` and
 `Defeat` write nothing; `Victory` and `Escaped` write HP, MP, AP and the learned Arts back

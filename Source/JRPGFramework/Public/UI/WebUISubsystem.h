@@ -267,6 +267,13 @@ public:
 	FOnJRPGBattleUIInput OnBattleUIInput;
 
 	/**
+	 * A camada de HUD da luta (97_battle_hud.js: os nomes da abertura, depois as janelas do fim): chama JRPGBattleHUD.<JSCall> no
+	 * shell, em qualquer estado (não pega input nem muda o estado da UI). JSCall já montado com ToJSStringLiteral, ex.
+	 * TEXT("introHide()").
+	 */
+	void CallBattleHUD(const FString& JSCall);
+
+	/**
 	 * O jogador pediu para pôr/tirar alguém da formação. Quem valida é o
 	 * PartySubsystem — a UI não decide sozinha; ela recebe o estado de volta.
 	 */

@@ -17,6 +17,24 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnJRPGBattleSceneAssembled, AJRPGB
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnJRPGFormationShifted, FVector, Translation, int32, Frames);
 
 /**
+ * A abertura da luta, depois da tela abrir e antes do primeiro prompt (Docs/Reference/BATTLE_RE_SWEEP.md seções 2.1 e 10.3, parte
+ * 5.2): a varredura da câmera (o contador 0x80..0xC0 do FUN_80046A20) e os nomes dos inimigos com a linha de formação (o fluxo
+ * 0x0A / 0x0B, 90 quadros, 120 com vantagem). As regras e o menu esperam as duas.
+ */
+UENUM(BlueprintType)
+enum class EJRPGBattleIntroStage : uint8
+{
+	/** Sem abertura: a luta anda (ou nem começou). */
+	None,
+	/** A câmera sobe e se aproxima, depois fecha no centro (o caso 2). */
+	Sweep,
+	/** Os nomes dos inimigos e a linha de formação na tela. */
+	Names
+};
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGBattleIntroStage, EJRPGBattleIntroStage, Stage);
+
+/**
  * UJRPGBattleSceneSubsystem
  * A ponte entre o UBattleSubsystem (que não conhece ator nenhum) e o mapa. Existe sozinho em todo
  * mapa jogado — não há nada para pôr na cena nem para configurar; quem é configurada é a arena.
@@ -64,6 +82,18 @@ public:
 	 */
 	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle Scene")
 	FOnJRPGFormationShifted OnFormationShifted;
+
+	/** A abertura mudou de fase (a varredura, os nomes, e None quando acaba: aí a luta anda e o menu pode abrir). */
+	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle Scene")
+	FOnJRPGBattleIntroStage OnIntroStageChanged;
+
+	/** Em que fase da abertura a luta está (None fora dela). */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Scene")
+	EJRPGBattleIntroStage GetIntroStage() const { return IntroStage; }
+
+	/** Segundos desde o começo da abertura (o relógio da varredura da câmera); 0 fora dela. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Scene")
+	float GetIntroElapsedSeconds() const;
 
 	/** A arena da luta atual (pode ser a provisória); nula fora de luta. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Scene")
@@ -193,6 +223,22 @@ private:
 	void EnterBattleScene();
 	/** Tela preta no fim: desmonta e mostra o Field. */
 	void LeaveBattleScene();
+	/** A vantagem de formação: o lado em desvantagem começa de costas (até agir ou apanhar). */
+	void TurnAmbushedSideAway(AJRPGBattleArena& Current) const;
+
+	/** A abertura: arma a varredura (ou nada, sem abertura na arena) antes de a cena avisar que está montada. */
+	void BeginIntro();
+	/** A varredura acabou: os nomes. */
+	void EnterIntroNames();
+	/** A abertura acabou: a ação que já começou entra no pawn e as regras andam. */
+	void FinishIntro();
+	/** Corta a abertura (a luta acabou no meio dela). */
+	void CancelIntro();
+	void SetIntroStage(EJRPGBattleIntroStage Stage);
+
+	EJRPGBattleIntroStage IntroStage = EJRPGBattleIntroStage::None;
+	double IntroStartTime = 0.0;
+	FTimerHandle IntroTimer;
 
 	void ChooseArena(const FJRPGBattleSetup& Setup);
 	void ReleaseArena();

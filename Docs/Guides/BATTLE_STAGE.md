@@ -117,9 +117,28 @@ A combatant without a model appears as its capsule only, and the arena says why 
 | `ArtsShoutSeconds` | 1.0 | How long that slow lasts, in real seconds, from the starter. |
 | `TransitionTime` | 0.35 | Fade to black in and out; the scene changes with the screen fully black. 0 = hard cut. |
 | `TransitionColor` | black | |
+| `bBattleIntro` | true | The original's opening between the screen opening and the first prompt (below). Off = the fight runs as soon as the scene is up. |
+| `IntroDriftFrames` / `IntroCloseInFrames` | 34 / 31 | The camera sweep: vsyncs of the rise and pull-in, then of the close-in on the arena centre. |
+| `IntroNamesFrames` / `IntroNamesAdvantageFrames` | 90 / 120 | How long the enemy names stay up (with a formation advantage, its line shows too and they stay longer). |
 | `PawnClass` | `AJRPGBattlePawn` | A Blueprint child for entry effects, a name over the head… |
 
 A map with no arena uses these defaults on the temporary one.
+
+### The battle intro
+
+The original's opening (`Reference/BATTLE_RE_SWEEP.md` 2.1), in `UJRPGBattleSceneSubsystem` (`GetIntroStage`,
+`OnIntroStageChanged`): once the scene is assembled and the screen opens,
+
+1. **Sweep** (`IntroDriftFrames + IntroCloseInFrames`, ~1.1 s): the camera's `Entry` shot (below);
+2. **Names** (90 frames, 120 with a formation advantage): one label per group of equal enemies in a row, over the group
+   (`Killer Bee * 3`), and the formation line at the top: `<leader>'s team surprised the enemy.` (`<leader> surprised the
+   enemy.` alone) on a pre-emptive strike, `Ambushed!` on a back attack. Drawn by the WebUI's battle HUD layer
+   (`JRPGBattleHUD.intro`, [WEBUI_API.md](WEBUI_API.md#battle-hud-layer)).
+3. **None**: the rules start (`HoldLogic(false)`; an action that already started, as a back attack's monster, enters its pawn
+   now) and the command menu opens.
+
+Nothing asks for a command under the sweep or the names, as in the original (its battle tick does not run yet). A fight that
+ends during the intro (the console's `JRPG.Battle.End`) cuts it.
 
 ### The battle camera (`AJRPGBattleCamera`)
 
@@ -139,6 +158,7 @@ The original's battle camera, from the RE (`Docs/Reference/BATTLE_RE_SWEEP.md` s
 
 | Shot | When | Pose |
 |---|---|---|
+| **Entry** (the sweep of `FUN_80046A20`) | The battle intro (above) | Focus on the arena centre on the floor, yaw `EntryYawDegrees` from the arena (0 = behind the party, at the enemies). First the rise: the init pose (tilt 60, `TR (0, 1280, 7168)`) moving `TR.y += 48`, `TR.z -= 64` per vsync, set each frame; then case 2 (tilt 0, `TR (0, 0x600, prescale(0x700))`, ~166 cm up, ~310 cm away) by the usual ease-out, held through the names. The far shot then starts its orbit from this yaw. |
 | **Far** (case 9) | Menu Start / Tactics / Escape / Final screens; no menu (console commands); between actions (after the end hold) | The whole formation's box centre on the floor; distance `prescale(max(width * 3, 0x800))` (1 v 1: ~831 cm), eye ~139 cm up, tilt 2.8°. The yaw is passed through (it keeps the direction of the shot before) and **orbits** at -10.5°/s (`bOrbit`). |
 | **Member** (case 0) | Menu Command and Attack (arts entry) screens | Close-up of the hero being commanded: focus on his feet, looking at him from the front 21° to one side (`0x8F0 - facing`), shifted so he sits left of centre (`TR.x -0x200`), ~266 cm away, eye at his row of the original's height table (Vahn 1152 ≈ 125 cm, Noa 960, Gala 1408; `MemberLiftUnits`), tilt 2.8°. |
 | **TargetEnemy** (case 1) | Menu Target screen | Behind and above the hero, looking from the camera's focus to the enemy under the cursor (`0x800 - bearing`): focus on the hero, ~355 cm away, eye ~166 cm up, tilt 22.5°. Moving the cursor swings the camera to the next enemy. |
@@ -179,7 +199,7 @@ Tuning on the class: `DistanceScale` (every eye distance; 1 = the original's), `
 cut), `StartYaw` (relative to the arena; the original opens at 0, both rows in line; 20° by default), `OrbitDegreesPerSecond`,
 `bMirrorYaw`, `bMenuShots` (off = the menu stays on the far shot), the `Member*` / `Target*` numbers, `bActionShots`,
 `CameraOption`, `bFollowGameOption`, `bRandomStyle`, the `Action*` / `Style*` / `*YawUnits` numbers, `DoneHoldSeconds`,
-`bArtShots`, `StarterLoopCount`, `StarterDiscRate`, `FieldOfView43`,
+`bArtShots`, `StarterLoopCount`, `StarterDiscRate`, `FieldOfView43`, `bEntryShots` and the `Entry*` numbers,
 `bPrintDebug` (shot, slots and pose on screen).
 
 **Field enemies:** `bStartBattle` (default on) — off, contact only announces the encounter, as

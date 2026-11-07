@@ -278,6 +278,30 @@ public:
 	FLinearColor TransitionColor = FLinearColor::Black;
 
 	/**
+	 * A abertura do original entre a tela abrir e o primeiro prompt (UJRPGBattleSceneSubsystem::GetIntroStage): a varredura da
+	 * câmera e os nomes dos inimigos. As regras e o menu esperam por ela. Desligada, a luta anda assim que a cena monta.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Intro")
+	bool bBattleIntro = true;
+
+	/**
+	 * A varredura (FUN_80046A20, o contador de entrada): IntroDriftFrames vsyncs em que a câmera sobe e se aproxima (0x80..0xA1),
+	 * depois IntroCloseInFrames em que ela fecha no centro da arena (o caso 2, 0xA2..0xC0).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Intro", meta = (ClampMin = "0", EditCondition = "bBattleIntro"))
+	int32 IntroDriftFrames = 34;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Intro", meta = (ClampMin = "0", EditCondition = "bBattleIntro"))
+	int32 IntroCloseInFrames = 31;
+
+	/** Os nomes dos inimigos na tela (o timer ctx[+0x6D6]): 90 quadros, 120 quando há vantagem de formação (a linha dela junto). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Intro", meta = (ClampMin = "0", EditCondition = "bBattleIntro"))
+	int32 IntroNamesFrames = 90;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Intro", meta = (ClampMin = "0", EditCondition = "bBattleIntro"))
+	int32 IntroNamesAdvantageFrames = 120;
+
+	/**
 	 * O "slow" das Arts do original: enquanto o grito da Art é lido do CD (a voz XA no starter de uma Art conhecida, a fanfarra no
 	 * dash de uma Art nova / Super / Miracle), o PS1 fica sem fôlego e o jogo INTEIRO anda mais devagar — o clip do starter do Lizard
 	 * Tail dura 32 vsyncs em vez de 22, o da Art 61 em vez de 40 (docs/subsystems/battle-action-helpers.md, "Retail frames stretch

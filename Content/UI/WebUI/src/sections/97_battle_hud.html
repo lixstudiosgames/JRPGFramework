@@ -1,0 +1,10 @@
+<!-- ============ SEÇÃO: HUD DA LUTA (camada sem input) ============
+     Desenha por cima da luta em qualquer estado da UI (hud_only incluso) e nunca pega input. O C++ chama
+     JRPGBattleHUD.<função> pelo UWebUISubsystem::CallBattleHUD. Por enquanto: os nomes dos inimigos e a linha de
+     formação da abertura (JRPGBattleHUD.intro / introHide). Contrato em Docs/Guides/WEBUI_API.md. -->
+<div id="battle-hud">
+    <div id="bh-stage">
+        <div id="bh-line"></div>
+        <div id="bh-names"></div>
+    </div>
+</div>

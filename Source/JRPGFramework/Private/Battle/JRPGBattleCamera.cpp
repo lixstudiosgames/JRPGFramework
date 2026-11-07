@@ -127,6 +127,10 @@ void AJRPGBattleCamera::Tick(float DeltaSeconds)
 		}
 	}
 	float Steps = Shot == EJRPGBattleShot::Far ? FarChaseSteps : ChaseSteps;
+	if (Shot == EJRPGBattleShot::Entry && bEntryDrifting)
+	{
+		Steps = 0.0f;   // a subida da varredura é a própria pose de cada quadro
+	}
 
 	// A câmera própria da Art: por cima da tomada da ação (o tail de FUN_801D5854 chama o override depois do caso), com o ease-out
 	// curto dela
@@ -212,6 +216,16 @@ EJRPGBattleShot AJRPGBattleCamera::ChooseShot(int32& OutSlot, int32& OutTargetSl
 
 	// A fase de comandos com a UI de pé: a tela do menu escolhe (o FUN_801D388C do original arma o caso 0 no anel e na entrada das
 	// Arts, o 1 no cursor de alvo, e o 9 no prompt da rodada e na confirmação)
+	// A abertura: a varredura do original é dona da câmera antes do tick da luta (o contador de entrada do FUN_80046A20)
+	if (bEntryShots)
+	{
+		const UJRPGBattleSceneSubsystem* Scene = World->GetSubsystem<UJRPGBattleSceneSubsystem>();
+		if (Scene && Scene->GetIntroStage() != EJRPGBattleIntroStage::None)
+		{
+			return EJRPGBattleShot::Entry;
+		}
+	}
+
 	const UGameInstance* GI = World->GetGameInstance();
 	const UBattleSubsystem* Battle = GI ? GI->GetSubsystem<UBattleSubsystem>() : nullptr;
 	const UJRPGBattleUISubsystem* UI = World->GetSubsystem<UJRPGBattleUISubsystem>();
@@ -1092,6 +1106,8 @@ bool AJRPGBattleCamera::BuildShotPose(EJRPGBattleShot InShot, float DeltaSeconds
 		return BuildTwoShotPose(OutPose);
 	case EJRPGBattleShot::OnTarget:
 		return BuildOnTargetPose(DeltaSeconds, OutPose);
+	case EJRPGBattleShot::Entry:
+		return BuildEntryPose(OutPose);
 	case EJRPGBattleShot::Far:
 	default:
 		return BuildFarPose(DeltaSeconds, OutPose);
@@ -1194,6 +1210,42 @@ bool AJRPGBattleCamera::BuildFarPose(float DeltaSeconds, FJRPGBattleCameraPose& 
 		Live.Yaw = static_cast<float>(FRotator::NormalizeAxis(Live.Yaw + OrbitDegreesPerSecond * DeltaSeconds));
 	}
 	OutPose.Yaw = Live.Yaw;
+	return true;
+}
+
+bool AJRPGBattleCamera::BuildEntryPose(FJRPGBattleCameraPose& OutPose)
+{
+	const AJRPGBattleArena* CurrentArena = Arena.Get();
+	const UJRPGBattleSceneSubsystem* Scene = GetWorld() ? GetWorld()->GetSubsystem<UJRPGBattleSceneSubsystem>() : nullptr;
+	const TArray<AJRPGBattlePawn*> Pawns = GetVisiblePawns();
+	if (!CurrentArena || !Scene || Pawns.Num() == 0)
+	{
+		return false;
+	}
+	// O foco é a origem da luta (o centro da arena), no chão dos combatentes
+	double FloorZ = 0.0;
+	for (const AJRPGBattlePawn* Pawn : Pawns)
+	{
+		FloorZ += FeetOf(Pawn).Z;
+	}
+	OutPose.Focus = CurrentArena->GetActorLocation();
+	OutPose.Focus.Z = FloorZ / Pawns.Num();
+	OutPose.Yaw = static_cast<float>(FRotator::NormalizeAxis(CurrentArena->GetActorRotation().Yaw + EntryYawDegrees));
+
+	// 0x80..0xA1: a subida, da pose do init (os números do original por vsync); depois o caso 2, pelo ease-out
+	const float Frames = Scene->GetIntroElapsedSeconds() * 60.0f;
+	bEntryDrifting = Frames < static_cast<float>(CurrentArena->IntroDriftFrames);
+	if (bEntryDrifting)
+	{
+		OutPose.Pitch = UnitsToDegrees(EntryStartPitchUnits);
+		OutPose.Offset = FVector(0.0, CameraUnitsToCm(EntryStartLiftUnits + EntryLiftPerFrame * Frames),
+			CameraUnitsToCm(FMath::Max(EntryStartDepthUnits - EntryPullPerFrame * Frames, 0.0f)) * DistanceScale);
+	}
+	else
+	{
+		OutPose.Pitch = UnitsToDegrees(EntryPitchUnits);
+		OutPose.Offset = FVector(0.0, CameraUnitsToCm(EntryLiftUnits), CameraUnitsToCm(Prescale(EntryDepthUnits)) * DistanceScale);
+	}
 	return true;
 }
 

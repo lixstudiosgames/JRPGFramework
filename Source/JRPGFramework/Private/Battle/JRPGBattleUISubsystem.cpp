@@ -11,6 +11,12 @@
 #include "Party/CharacterData.h"
 #include "TimerManager.h"
 #include "UI/WebUISubsystem.h"
+#include "UI/WebUIScripting.h"
+#include "GameFramework/PlayerController.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/Engine.h"
+#include "Battle/JRPGBattlePawn.h"
+#include "Battle/JRPGBattleArena.h"
 
 bool UJRPGBattleUISubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
 {
@@ -53,6 +59,7 @@ void UJRPGBattleUISubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	{
 		Scene->OnSceneAssembled.AddDynamic(this, &UJRPGBattleUISubsystem::HandleSceneAssembled);
 		Scene->OnFieldShown.AddDynamic(this, &UJRPGBattleUISubsystem::HandleFieldShown);
+		Scene->OnIntroStageChanged.AddDynamic(this, &UJRPGBattleUISubsystem::HandleIntroStage);
 	}
 	if (UWebUISubsystem* WebUI = GetWebUI())
 	{
@@ -76,11 +83,13 @@ void UJRPGBattleUISubsystem::Deinitialize()
 		{
 			Scene->OnSceneAssembled.RemoveDynamic(this, &UJRPGBattleUISubsystem::HandleSceneAssembled);
 			Scene->OnFieldShown.RemoveDynamic(this, &UJRPGBattleUISubsystem::HandleFieldShown);
+			Scene->OnIntroStageChanged.RemoveDynamic(this, &UJRPGBattleUISubsystem::HandleIntroStage);
 			Scene->SetDebugPromptSuppressed(false);
 		}
 		if (UWebUISubsystem* WebUI = GetWebUI())
 		{
 			WebUI->OnBattleUIInput.RemoveAll(this);
+			HideIntroBanner();
 			// O mapa saiu com o menu na tela: devolve o input ao jogo
 			if (bMenuUp)
 			{
@@ -115,6 +124,7 @@ void UJRPGBattleUISubsystem::HandleBattleEnded(EJRPGBattleResult Result)
 {
 	bFightOn = false;
 	bSceneUp = false;
+	HideIntroBanner();
 	HideMenu();
 	Menu.ResetFight();
 }
@@ -122,12 +132,162 @@ void UJRPGBattleUISubsystem::HandleBattleEnded(EJRPGBattleResult Result)
 void UJRPGBattleUISubsystem::HandleFieldShown()
 {
 	bSceneUp = false;
+	HideIntroBanner();
 }
 
 void UJRPGBattleUISubsystem::HandleSceneAssembled(AJRPGBattleArena* Arena, const TArray<AJRPGBattlePawn*>& Pawns)
 {
+	// Com a abertura rodando, o menu espera o fim dela (HandleIntroStage None): nenhum prompt debaixo da varredura nem dos nomes
+	const UJRPGBattleSceneSubsystem* Scene = GetWorld() ? GetWorld()->GetSubsystem<UJRPGBattleSceneSubsystem>() : nullptr;
+	if (Scene && Scene->GetIntroStage() != EJRPGBattleIntroStage::None)
+	{
+		return;
+	}
 	bSceneUp = true;
 	TryShowMenu();
+}
+
+void UJRPGBattleUISubsystem::HandleIntroStage(EJRPGBattleIntroStage Stage)
+{
+	switch (Stage)
+	{
+	case EJRPGBattleIntroStage::Names:
+		ShowIntroBanner();
+		break;
+	case EJRPGBattleIntroStage::None:
+		HideIntroBanner();
+		if (bFightOn)
+		{
+			bSceneUp = true;
+			TryShowMenu();
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+void UJRPGBattleUISubsystem::ShowIntroBanner()
+{
+	UWorld* World = GetWorld();
+	UBattleSubsystem* Battle = GetBattle();
+	UWebUISubsystem* WebUI = GetWebUI();
+	const UJRPGBattleSceneSubsystem* Scene = World ? World->GetSubsystem<UJRPGBattleSceneSubsystem>() : nullptr;
+	const AJRPGBattleArena* Arena = Scene ? Scene->GetArena() : nullptr;
+	if (!bUIEnabled || !World || !Battle || !Battle->IsInBattle() || !WebUI)
+	{
+		return;
+	}
+
+	// Onde um ponto do mundo cai na tela, em fração da largura (o JS põe no canvas dele). O original centra pelo X de mundo do grupo,
+	// que com a câmera do caso 2 (de trás da party, giro 0) é o mesmo que a posição na tela
+	APlayerController* PC = World->GetFirstPlayerController();
+	FVector2D ViewportSize(1.0, 1.0);
+	if (GEngine && GEngine->GameViewport)
+	{
+		GEngine->GameViewport->GetViewportSize(ViewportSize);
+	}
+	auto ScreenX = [PC, &ViewportSize](const FVector& Where) -> double
+	{
+		FVector2D Screen;
+		if (PC && ViewportSize.X > 1.0 && PC->ProjectWorldLocationToScreen(Where, Screen, false))
+		{
+			return FMath::Clamp(Screen.X / ViewportSize.X, 0.0, 1.0);
+		}
+		return 0.5;
+	};
+
+	// Um rótulo por grupo de inimigos iguais em slots seguidos (o original corre os quatro ids e junta os iguais em sequência): o
+	// nome do primeiro, e "* N" quando há mais
+	struct FGroup
+	{
+		FName Key;
+		FString Name;
+		int32 Count = 0;
+		FVector Sum = FVector::ZeroVector;
+		int32 Placed = 0;
+	};
+	TArray<FGroup> Groups;
+	FString Leader;
+	int32 PartyCount = 0;
+	const UDataTable* Characters = UCoreSubsystem::ResolveDataTable(TEXT("DT_Characters"));
+	for (const FJRPGCombatant& C : Battle->GetCombatants())
+	{
+		if (C.Side != EJRPGBattleSide::Enemy)
+		{
+			// O líder é o primeiro assento da party (DAT_8007BD10[0]); a linha fala do time quando há um segundo
+			if (PartyCount++ == 0)
+			{
+				Leader = C.Key.ToString();
+				if (const FCharacterData* Row = Characters ? Characters->FindRow<FCharacterData>(C.Key, TEXT("BattleUI"), false) : nullptr)
+				{
+					if (!Row->DisplayName.IsEmpty())
+					{
+						Leader = Row->DisplayName.ToString();
+					}
+				}
+			}
+			continue;
+		}
+		if (!C.bAlive)
+		{
+			continue;
+		}
+		if (Groups.Num() == 0 || Groups.Last().Key != C.Key)
+		{
+			FGroup& Group = Groups.AddDefaulted_GetRef();
+			Group.Key = C.Key;
+			FJRPGEnemyData Row;
+			Group.Name = UJRPGEncounterLibrary::GetEnemyData(C.Key, Row) && !Row.DisplayName.IsEmpty() ? Row.DisplayName.ToString() : C.Key.ToString();
+		}
+		FGroup& Group = Groups.Last();
+		++Group.Count;
+		if (const AJRPGBattlePawn* Pawn = Arena ? Arena->GetPawnForSlot(C.SlotIndex) : nullptr)
+		{
+			Group.Sum += Pawn->GetBodyLocation();
+			++Group.Placed;
+		}
+	}
+
+	FString GroupsJS;
+	for (const FGroup& Group : Groups)
+	{
+		const FString Label = Group.Count > 1 ? FString::Printf(TEXT("%s * %d"), *Group.Name, Group.Count) : Group.Name;
+		const double X = Group.Placed > 0 ? ScreenX(Group.Sum / Group.Placed) : 0.5;
+		GroupsJS += FString::Printf(TEXT("%s{name:%s,x:%s}"), GroupsJS.IsEmpty() ? TEXT("") : TEXT(","), *JRPGWebUI::ToJSStringLiteral(Label),
+			*FString::SanitizeFloat(X));
+	}
+
+	// A linha de formação (as strings do PROT 0898 em 0x801F4CD8 / 0x801F4CF8 / 0x801F4D10)
+	FString Line;
+	switch (Battle->GetState().FormationAdvantage)
+	{
+	case 1:
+		Line = TEXT("Ambushed!");
+		break;
+	case 2:
+		Line = PartyCount > 1 ? FString::Printf(TEXT("%s's team surprised the enemy."), *Leader)
+			: FString::Printf(TEXT("%s surprised the enemy."), *Leader);
+		break;
+	default:
+		break;
+	}
+
+	WebUI->CallBattleHUD(FString::Printf(TEXT("intro({groups:[%s],line:%s})"), *GroupsJS, *JRPGWebUI::ToJSStringLiteral(Line)));
+	bIntroBannerUp = true;
+}
+
+void UJRPGBattleUISubsystem::HideIntroBanner()
+{
+	if (!bIntroBannerUp)
+	{
+		return;
+	}
+	bIntroBannerUp = false;
+	if (UWebUISubsystem* WebUI = GetWebUI())
+	{
+		WebUI->CallBattleHUD(TEXT("introHide()"));
+	}
 }
 
 void UJRPGBattleUISubsystem::HandleSlotChanged(int32 Slot, EJRPGBattleStage Stage)

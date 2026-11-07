@@ -166,6 +166,18 @@ Local, no CDN: `Content/UI/WebUI/fonts/` — **Cinzel** (general UI) and **Medie
 (dialogue/popup), declared via `@font-face` in `00_global.css`.
 `python Extras/download_fonts.py` verifies and downloads them (`--check` only verifies).
 
+## Battle HUD layer
+
+`97_battle_hud.*`: a layer that draws over the fight in **any** UI state (`hud_only` included), never takes input and never
+calls the bridge. The C++ calls it through `UWebUISubsystem::CallBattleHUD(JSCall)` (C++ only), which runs
+`JRPGBattleHUD.<JSCall>` if the layer exists. Today the battle intro uses it (`UJRPGBattleUISubsystem`); the end-of-battle windows
+come next (step 6 of `Reference/BATTLE_RE_SWEEP.md` 10.3).
+
+- `JRPGBattleHUD.intro({groups: [{name, x}], line})` — the enemy names of the intro: one label per group (`'Killer Bee * 3'`),
+  centred at `x` (a 0..1 fraction of the screen width, where the group stands; the JS maps it onto the 1920 canvas), labels that
+  touch pushed apart evenly, kept 36 px from the edges; `line` is the formation line across the top (`''` = none).
+- `JRPGBattleHUD.introHide()` · `JRPGBattleHUD.reset()` · `JRPGBattleHUD.preview()` (browser test only).
+
 ## Contracts C++ calls in JS (do not rename)
 
 `showItemPopup(name, qty)` · `JRPGUI.openMenu()` / `JRPGUI.closeMenu()` ·
@@ -174,6 +186,7 @@ Local, no CDN: `Content/UI/WebUI/fonts/` — **Cinzel** (general UI) and **Medie
 `setBuildInfo(version, build)` · `UIState.set('<state>')` · `resetUIShell()` ·
 `handleUIInput('<action>')` · `triggerAnimateOutAndClose()` (Escape) ·
 `JRPGBattle.open()` / `JRPGBattle.render(view)` / `JRPGBattle.close()` (the battle command menu, see above) ·
+`JRPGBattleHUD.intro(data)` / `JRPGBattleHUD.introHide()` (the battle HUD layer, see above) ·
 `updateCharacterStatus(charId, level, hpCur, hpMax, mpCur, mpMax, apCur, apMax)` ·
 `updateGoldTime(gold, playtimeSeconds)` (CoreSubsystem data; playtime in RAW SECONDS — JS
 formats it and keeps the seconds ticking while the menu is open) ·
