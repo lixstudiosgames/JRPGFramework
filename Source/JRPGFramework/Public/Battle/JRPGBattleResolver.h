@@ -252,6 +252,9 @@ public:
 	bool IsFinished() const { return State.bFinished; }
 	EJRPGBattleResult GetResult() const { return State.Result; }
 
+	/** Dev (battle.ap): enche o AP de todo herói vivo até o máximo, com o APChanged de quem mudou. */
+	void DebugFillPartyAP();
+
 	/** A timeline da ação em curso; nulo se não há. */
 	const FJRPGActionTimeline* GetActiveTimeline() const { return State.Action.bActive ? &State.Action.Timeline : nullptr; }
 
@@ -317,7 +320,7 @@ private:
 	void ApplyMark(const FJRPGActionMark& Mark);
 	bool RunConditions(FJRPGCombatant& Of, bool bTurnStart);
 	/** GameSpeed: a escala em vigor quando ele cai (a espera pela queda anda nela). */
-	void KillCombatant(FJRPGCombatant& Of, int32 KilledBy, int32 GameSpeed = UBattleFormulas::NormalGameSpeed);
+	void KillCombatant(FJRPGCombatant& Of, int32 KilledBy, int32 GameSpeed = UBattleFormulas::NormalGameSpeed, int32 SlowFrames = -1);
 	/** Nenhum golpe depois deste conecta com o alvo: é o que escreve o total do combo (e decide o knockdown e a queda). */
 	bool IsLastConnectingHit(int32 HitIndex, bool bHeroAttacker, const FJRPGCombatant& Defender) const;
 

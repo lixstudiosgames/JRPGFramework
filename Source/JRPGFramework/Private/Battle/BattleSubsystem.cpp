@@ -647,16 +647,13 @@ bool UBattleSubsystem::BeginBattle(const FJRPGBattleSetup& Setup)
 		{
 			PlaySeconds += static_cast<double>(Loops) * static_cast<double>(LoopEnd - LoopStart);
 		}
-		// O asset de uma Art gravado noutra velocidade que a do disco (o HurricaneKick3) toca mais rápido para durar o do original
-		const double AssetFix = Query.Kind == EJRPGActionStepKind::Art
-			? UJRPGArtSequenceLibrary::AssetRateCorrection(Clip, UJRPGArtSequenceLibrary::ArtDiscRate(Query.ArtKey)) : 1.0;
-		OutTiming.Frames = SecondsToSteps(PlaySeconds / AssetFix, ClipRate, Query.GameSpeed);
+		OutTiming.Frames = SecondsToSteps(PlaySeconds, ClipRate, Query.GameSpeed);
 		const TArray<float> Hits = UJRPGAnimNotify_Hit::FindHitTimes(Clip);
 		if (Hits.Num() == Query.ExpectedHits)
 		{
 			for (const float Time : Hits)
 			{
-				OutTiming.HitFrames.Add(SecondsToSteps(Time / AssetFix, ClipRate, Query.GameSpeed));
+				OutTiming.HitFrames.Add(SecondsToSteps(Time, ClipRate, Query.GameSpeed));
 			}
 		}
 		else
@@ -679,7 +676,11 @@ bool UBattleSubsystem::BeginBattle(const FJRPGBattleSetup& Setup)
 					// (B - 1) / (7,5 x rate) segundos do asset, e a duração do asset é um número inteiro de quadros do disco
 					const double DiscFramesPerSecond = 7.5 * static_cast<double>(Rate);
 					const double AssetDiscFrames = static_cast<double>(Clip->GetPlayLength()) * DiscFramesPerSecond;
-					if (FMath::Abs(AssetDiscFrames - FMath::RoundToDouble(AssetDiscFrames)) > 0.2)
+					// A importação arredonda o clip para cima até um quadro inteiro da amostragem (30 fps): o HurricaneKick3 de 1,111 s
+					// vira 1,133 s. Só avisa quando nenhum número inteiro de quadros do disco cabe nesse último quadro (bug 73)
+					const double SampleRate = ClipRate.AsDecimal() > 0.0 ? ClipRate.AsDecimal() : 30.0;
+					const double ShortestDiscFrames = (static_cast<double>(Clip->GetPlayLength()) - 1.0 / SampleRate) * DiscFramesPerSecond;
+					if (FMath::FloorToDouble(AssetDiscFrames + 0.2) < ShortestDiscFrames - 0.2)
 					{
 						LogClipTimingOnce(Clip->GetPathName() + TEXT("#rate"), FString::Printf(
 							TEXT("a Art %s: o clip %s dura %.3f s, %.2f quadros do disco no rate %d (deveria ser inteiro): o asset parece assado em outro rate, e os golpes do DT_ArtHits caem fora do impacto que se vê"),
@@ -1045,6 +1046,11 @@ void UBattleSubsystem::StepFrame()
 		Resolver.StepFrame();
 	}
 	PresentationOffset = PresentationFrame - Resolver.GetState().Frame;
+	// Dev (battle.ap on): o AP volta ao máximo a cada quadro, também na digitação dos comandos
+	if (bDebugFullAP && !Resolver.IsFinished())
+	{
+		Resolver.DebugFillPartyAP();
+	}
 	FlushEvents();
 	// Decidida a luta (depois da reação do alvo e da faixa Done), o relógio das regras para, mas a apresentação segue (hold da vitória / derrota)
 	if (bInBattle && Resolver.IsFinished())

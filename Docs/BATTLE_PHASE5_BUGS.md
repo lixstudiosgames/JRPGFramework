@@ -708,7 +708,7 @@ tables of 1c first.
     the resolver and `UJRPGArtSequenceLibrary::ApplyGameSpeeds` (`RaisesSpecialLatch`, from `DT_ArtVoices::bRaisesLatch`, Parts as
     the fallback); a swing or an ArtStarter drops the latch too. **Also changes the Miracle:** its inner Arts after the first now
     run at 4, as the RE reads; to check by ear.
-65. **`AS_Noa_Battle_HurricaneKick3` was baked at rate 2, the disc says 3** (1.133 s = 25.5 disc frames at rate 3, 17 at rate 2):
+65. **`AS_Noa_Battle_HurricaneKick3` was baked at rate 2, the disc says 3** *(wrong, undone in 73)* (1.133 s = 25.5 disc frames at rate 3, 17 at rate 2):
     it played 1.5x too slow. **Fixed:** `UJRPGArtSequenceLibrary::AssetRateCorrection` (the rate at which the asset length is a whole
     number of disc frames) speeds the clip up in the pawn and shortens it in `ClipTiming`. The other Hypers' assets match the disc.
 66. **Vulture Blade and Burning Flare: voice still a little off.** Nothing found in the data: their assets match the disc rate,
@@ -727,7 +727,7 @@ tables of 1c first.
 
 68. **Miracle too fast after 64.** The RE reading (the latch drops after the first Art) made every inner Art run at 4. **Reverted:**
     every Art after the SpecialStarter runs at 2 again, as the user had found right; `RaisesSpecialLatch` stays unused.
-69. **Hurricane Kick still slow.** With its second kick already sped up (65) and the latch reverted, the slow part is the first kick
+69. **Hurricane Kick still slow.** *(wrong, undone in 73)* With its second kick already sped up (65) and the latch reverted, the slow part is the first kick
     (`0x1D`, `AS_Noa_Battle_HurricaneKick2`). Its length is a whole number of disc frames at both rate 2 and rate 3, so a bake at
     the wrong rate (like `HurricaneKick3`) cannot be detected from the length. **Data fix:** `noa_hurricane_kick.SpeedScale = 3` in
     `DT_Arts` (2 x 1.5, the same effective speed as the corrected third kick). Tunable in the editor without a build.
@@ -739,6 +739,120 @@ tables of 1c first.
     Super of most AP that the hero's AP and gauge pay for, then fills like Standard. Defensive is still Spirit.
 72. **Auto-battle: the countdown was too short to cancel, and only clicking the button cancelled it** (the directions did nothing,
     so it looped for ever). **Fixed:** any key in the countdown turns the auto off (back to the manual Start); `AutoStartDelay` is 3 s.
+
+- **User re-test (2026-11-06, pass 15):** Hurricane Kick: the kicks are far too fast now and the voice comes after them.
+
+#### Pass 16 (2026-11-06)
+
+73. **65 and 69 were wrong: they sped up 9 Arts 1.5x, Hurricane Kick among them.** Checked against the RE's `.glb`
+    (`legaia-<hero>-battle-arts.glb`): both Hurricane Kick records were baked at rate 3, as the disc says (`0x1D` 19 keys, `0x1E`
+    26 keys, 1/22.5 s apart: 0.8 s and 1.111 s). `HurricaneKick3` is 1.133 s in UE only because the import rounds a clip up to whole
+    30 fps frames (33.3 -> 34); 17 keyframes at rate 2 was a coincidence. The `AssetRateCorrection` test (the asset length is a
+    whole number of disc frames) failed for every clip that the rounding touches and sped up, besides Hurricane Kick 3: Cross-Kick,
+    Pyro Pummel, Spin Combo, Cyclone, Acrobatic Blitz, Swan Driver, Triple Lizard (finisher) and Neo Static Raising (finisher).
+    Pyro Pummel and Spin Combo are in Vahn's Craze: part of the "Miracle too fast" of pass 14. **Fixed:** `AssetRateCorrection` /
+    `ArtDiscRate` removed (pawn and `ClipTiming`); `noa_hurricane_kick.SpeedScale` back to 0.
+    - **Speed by the RE, now as ours:** `1A` at 2 (everyone else frozen), `1D` at 2, `1E` at 2. The commit writes the special latch
+      (`FUN_8004E13C`) only when the new clip's `+0x87` is **non-zero** (`0x8004BE18..0x8004BE2C`, RE `battle-action.md`), so an
+      Art with 0 does not drop it: every Art after the SpecialStarter runs at 2 until `FUN_801E93C8` clears the latch. That is the
+      rule 68 put back; 64's reading (the latch drops at the next commit) was wrong.
+    - **Still different from the original, by choice:** while a voice streams the PS1's frames stretch and the Arts play about a
+      third slower (RE `battle-action-helpers.md`, "Retail frames stretch while a shout streams"); a Hyper's fanfare reads 5 to 7 s.
+      `bShoutSlowHyper` is off (pass 13). If Hurricane Kick's voice is still off after this, that is the lever to try first.
+
+- **User re-test (2026-11-06, pass 16):** Hurricane Kick is right now. New: in Noa's Miracle the camera goes very far when the
+  last Art (Jurassic Blow) starts.
+
+74. **Miracle: the camera runs far away on the last Art.** Noa's Ark ends with Jurassic Blow `0x2C` / `0x2D`, the same camera arms
+    as Hurricane Kick (`0x801D78F0` / `0x801D797C`), which add the accumulator `ctx[+0x87C]` (shifted left on `0x2C`) to the
+    distance. The original zeroes the ramp `ctx[+0x26E]`, the accumulator and the latch `ctx[+0x26F]` at **every clip commit** of
+    the acting actor (`FUN_8004AD80` `0x8004BF50..0x8004BF78`, RE `battle-action.md`); ours only at the action's start, so after
+    4 swings, the dash and 5 Arts the accumulator was huge. In Hurricane Kick only the dash came first, so it went unnoticed.
+    **Fixed:** `AJRPGBattleCamera::UpdateActionState` zeroes the three when the acting pawn's playing step changes
+    (`ArtCommitStepFrame`). This also changes, slightly, the camera of every Art that comes after other clips (Hurricane Kick's
+    kicks, the Supers' finishers): it now starts from 0 at each clip, as the original's.
+
+- **User re-test (2026-11-06, pass 17):** in a Hyper's starter the enemy still shows in front of the lens. Gala, two Arts on Che
+  Delilas: he went through him, with a flick back and forth, and his strikes seem to curve (the camera turns with him).
+
+75. **The enemy still covers the hero during the SpecialStarter.** **Done (ours):** `AJRPGBattleArena::bCameraGhostTargetOnStarter`
+    (on): while the acting hero plays the SpecialStarter, the action's target is always a ghost, whatever the occlusion test says.
+76. **False "baked at another rate" warning** (`vahn_cross_kick`, `ClipTiming`): the same 30 fps rounding as 73. **Fixed:** it only
+    warns when no whole number of disc frames fits inside the clip's last sampled frame.
+77. **Gala goes through Che Delilas and curves.** Measured on the RE's `163_Che_Delilas.glb`: his flinch (`Damaged`) throws his body
+    centroid (the body pair) about 254 units (~110 cm) back and brings it home over the clip; his knockdown about 290. Our rules
+    are the RE's: the attacker re-faces the target's **body pair** every frame and the reach snap at every clip commit closes to it
+    (both measured to the body pair, `0x801E36F0`, `0x8004BF7C`). So a clip that commits while Che's body is thrown back snaps Gala
+    ~1 m forward; when the body comes home it is on top of Gala, and the back-off (4 units a frame) pulls him out slowly: the flick.
+    **Fixed (decision, user 2026-11-06: ours):** `AJRPGBattlePawn::bAimRestBodyDuringReaction` (on). While a body plays a reaction,
+    whoever attacks it aims and measures the reach at that body in its **idle** pose (`GetAimBodyLocation`, the `NeutralCentroid`
+    carried by the actor's current position and facing): the every-frame re-face, the reach snap, the walk's stop point, the lunge's
+    range gate, the back-off and the arrival shove. The separation, the defender's own turn and the camera's focus keep the body of
+    the frame, as the original's. Off = the original's rule.
+78. **Some rounds stand still for no reason after an action** (user, from the session log). Measured in the log: the gap from an
+    action's end to the next action's start is 66 logic frames normally, but 346 / 354 after an Art killed a Gimard and 464 / 410
+    after a Miracle that knocked Cort down (90..260 after Arts that ended on a flinch). Cause: the resolver's reaction hold counted
+    the **whole** reaction at the Art's speed (`Scaled(len, speed)`: Cort's knockdown + get-up 118 x 4 = 472 at speed 2, + the
+    60 of the Done band = 532; the log reads 538). In the original everyone goes back to 8 on the pass the acting actor's last
+    Art clip ends (`FUN_801E93C8`, RE `arts-command-gauge.md`), so a reaction the Art started finishes at normal speed; our pawn
+    already plays it that way, so the fight waited ~5 s with nothing moving. **Fixed:** `ScaledUntil` in the resolver: the
+    reaction (flinch, block, knockdown + get-up, the fall) runs at the step's speed only until the end of that step and of the
+    slow steps right after it, then at 8 (`ResolveHit`, `KillCombatant`). Test `JRPG.Battle` (the Art-speed hold) updated.
+
+- **User re-test (2026-11-06, pass 18):** the ghost still misses (a big winged monster covers Vahn's command close-up). Asked: AP
+  always 100 in the dev menu; a faster camera blend from Begin / Escape to the hero (~0.3 s). Found: after a Hyper the next Arts are
+  slow (plain swings are not); Noa's Super Tempest finisher made no flinch on Songi (3rd), nor some hits of Gala's Supers; Vahn's
+  Pyro Pummel went through Vera and flicked back; the flyers (Vera, Evil Fly) are lower than in the original and sink into the
+  ground when they die.
+
+#### Pass 19 (2026-11-06)
+
+- **Ghost by trace (ours, user's idea):** `AJRPGBattleArena::bCameraGhostTrace` (on). Lines from the camera to five points of who the
+  shot must show (the middle, the head, near the feet, both sides; the acting pawn, the action's target, the menu's framed pawn and
+  cursor target) are traced against every other pawn's **physics asset bodies** (`AJRPGBattlePawn::BlocksView`; the monsters have
+  one, its bodies follow the animation, query only and ignoring every channel). A hit ghosts it. The old tests stay (the heroes have
+  no physics asset).
+- **Dev: AP always 100:** `battle.ap on|off` (dev menu, Battle tab, "AP"): every living hero's AP back to the maximum every frame
+  (`UBattleSubsystem::SetDebugFullAP`, `FJRPGBattleResolver::DebugFillPartyAP`), this fight and the next ones in the session.
+- **Camera from the far shot to a menu close-up in 0.3 s (ours):** `AJRPGBattleCamera::MenuEnterBlendSeconds` (0.3; 0 = the
+  original's ease-out): from Far to Member / TargetEnemy the camera arrives in that time (cubic ease-out over time, following the
+  moving goal), instead of the 6-step ease-out that takes almost a second from far away.
+79. **After a Hyper, the next Arts run at 2.** RE (`arts-command-gauge.md`, "Restoring the animation rate"): `FUN_801E93C8` runs on
+    every frame of the strike loop while the acting hero's committed id is `< 0x10` (a plain direction swing): everyone back to 8 and
+    the special latch `ctx[+0x243]` cleared. The ArtStarter (`0x19`) does not clear it. A regular Art after a Hyper starts with the
+    swings of its own buttons, so it runs at 4; only the Miracle chains its Arts with no swing between (all at 2, as before).
+    **Fixed:** a Swing step clears the special mode in `ComposeHeroTimeline` and `UJRPGArtSequenceLibrary::ApplyGameSpeeds`.
+80. **No flinch on the Super finishers' hits.** RE (`battle-actor-rendering.md`, rate writers): **every commit made while the actor's
+    rate is not 8 sets that actor to 4** (`FUN_8004AD80` `0x8004B080..0x8004B090`), the reaction commits included. After the
+    SpecialStarter the world runs at 2, so the defender's flinch plays at **4**; ours played it at 2, and each hit restarted it: a
+    long flinch (Songi 3rd's is 30 keyframes at rate 1) barely moved. **Fixed:** `AJRPGBattlePawn::ReactionRateFloor`: a reaction
+    clip committed with the world slow plays at 4 until the acting actor's next step commit (`GetStepCommitSerial`) or the return
+    to 8; the resolver times the hold and the reaction window at 4 too (`ReactionSpeed`).
+81. **Flyers too low and inside the ground when they die.** `InitCombatant` put the mesh's **lowest point** on the floor. The
+    original draws the model at the actor's position (height 0): a flyer floats because its parts sit above the root (Vera's lowest
+    point is 97 cm above it, Evil Fly's 80, Gimard's 3), and its knockdown brings the body down to the root. Ours lowered the flyers
+    ~1 m, so the fallen body went that much under the floor. **Fixed:** `AJRPGBattlePawn::bGroundAtMeshRoot` (on): the mesh root
+    is the floor; the capsule goes from the floor to the top of the body. Probably also the "Vahn goes through Vera" of this pass
+    (her body was at his height); to re-test.
+82. **Open: still no flinch on some hits of Gala's Neo Static Raising on Xain** (with 80 built: the log shows the `battle.ap` AP
+    refills). Checked and ruled out: the events reach the target every hit, an equal clip asked again restarts from frame 0, Xain
+    has its flinch (tag 2, 13 keyframes at rate 1, beat 5), the knockdown only comes on the last hit, the original also commits each
+    reaction at once (`+0x1DC |= 5`, `0x801EEC34`). **Diagnostic added:** `AJRPGBattlePawn::bLogReactions` (on) logs every reaction
+    that starts (role, clip, rate, frame, world speed, the rate-4 floor, length) and every one with no clip; next test: read which
+    hit has no line or a line with an odd speed / length.
+    - User re-test (2026-11-06, Xain alive): three hits of Neo Static Raising made no flinch, the last one among them. In the log
+      (the diagnostic not built yet) they match the **finisher's three hits** (f1109, f1136, f1205), the ones after the SpecialStarter
+      (world frozen, then 2). The earlier case (punches with no reaction after Xain died) is the expected one: a dead body takes no
+      reaction, the rest of the chain swings at it.
+    - **Diagnostic read (2026-11-06, two runs of the Super):** every finisher hit **starts** its reaction, at the right speed (4:
+      asked 2, floor 4) and length; the knockdown even hands over to the get-up on the exact frame (72 x 2). So the logic is right
+      and the body just does not move on screen. The bug appeared in pass 18, right after 75 (the target ghosted during the
+      SpecialStarter and held 0.6 s after), and the finisher hits fall inside that window. The monster mesh used
+      `AlwaysTickPose` (bones refreshed only when the mesh counts as rendered); with the ghost material it most likely did not, so
+      the bones froze. **Fixed:** every battle mesh uses `AlwaysTickPoseAndRefreshBones` (`BuildPieces`). The reaction log now also
+      prints the mesh's `GlobalAnimRateScale`, whether it was rendered in the last 0.2 s and the ghost opacity, to confirm.
+- **Menu camera switches in 0.3 s too (ours):** `MenuEnterBlendSeconds` now also covers a switch between menu close-ups (another
+  hero, the target cursor on another enemy, command to target and back), not only the entry from the far shot.
 
 #### Backlog (2026-11-05) — noted for later, not started
 

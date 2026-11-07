@@ -73,6 +73,7 @@ void AJRPGBattleCamera::InitForArena(AJRPGBattleArena* InArena)
 	ArtRamp = 0.0f;
 	ArtAccum = 0.0;
 	ArtLatch = 0;
+	ArtCommitStepFrame = INDEX_NONE;
 	bArtTracksLoaded = false;
 	if (BuildShotPose(Shot, 0.0f, Target))
 	{
@@ -151,7 +152,42 @@ void AJRPGBattleCamera::Tick(float DeltaSeconds)
 	{
 		// O arco longo do caso 7 só na entrada dos golpes (vindo da tomada de quem age): voltando da câmera de uma Art, ou trocando
 		// entre 7 e 8, o caminho curto (senão a câmera dava a volta a cada corte de uma combo e trocava de lado o tempo todo)
-		Chase(DeltaSeconds, Steps, Shot != PrevShot && PrevShot == EJRPGBattleShot::Action);
+		// Nosso: do plano geral (Begin / Escape / entre as ações) para o close do menu, e de um close do menu para outro (outro herói,
+		// o cursor de alvo em outro inimigo), um blend com tempo fixo (MenuEnterBlendSeconds) em vez do ease-out, que demora quase um
+		// segundo para chegar
+		const bool bMenuShot = Shot == EJRPGBattleShot::Member || Shot == EJRPGBattleShot::TargetEnemy;
+		const bool bWasMenuShot = PrevShot == EJRPGBattleShot::Member || PrevShot == EJRPGBattleShot::TargetEnemy;
+		const bool bMenuSwitch = bWasMenuShot && (Shot != PrevShot || ShotSlot != PrevShotSlot || ShotTargetSlot != PrevShotTargetSlot);
+		const bool bFromFar = Shot != PrevShot && PrevShot == EJRPGBattleShot::Far;
+		PrevShotSlot = ShotSlot;
+		PrevShotTargetSlot = ShotTargetSlot;
+		if (bMenuShot && (bFromFar || bMenuSwitch) && MenuEnterBlendSeconds > 0.0f)
+		{
+			MenuBlendElapsed = 0.0f;
+			bMenuBlend = true;
+		}
+		if (bMenuBlend && !bMenuShot)
+		{
+			bMenuBlend = false;
+		}
+		if (bMenuBlend)
+		{
+			// Ease-out cúbico no tempo; cada quadro anda a parte do que falta que leva a curva de onde estava até onde vai
+			auto Ease = [](float X) { return 1.0f - FMath::Cube(1.0f - FMath::Clamp(X, 0.0f, 1.0f)); };
+			const float Before = Ease(MenuBlendElapsed / MenuEnterBlendSeconds);
+			MenuBlendElapsed += DeltaSeconds;
+			const float After = Ease(MenuBlendElapsed / MenuEnterBlendSeconds);
+			const float Alpha = Before >= 1.0f ? 1.0f : FMath::Clamp((After - Before) / (1.0f - Before), 0.0f, 1.0f);
+			Chase(DeltaSeconds, Steps, false, Alpha);
+			if (MenuBlendElapsed >= MenuEnterBlendSeconds)
+			{
+				bMenuBlend = false;
+			}
+		}
+		else
+		{
+			Chase(DeltaSeconds, Steps, Shot != PrevShot && PrevShot == EJRPGBattleShot::Action);
+		}
 		ApplyLivePose();
 		PrevShot = Shot;
 	}
@@ -247,467 +283,467 @@ EJRPGBattleShot AJRPGBattleCamera::ChooseShot(int32& OutSlot, int32& OutTargetSl
 	return EJRPGBattleShot::Far;
 }
 
-// ---------------------------------------------------------------------------------------------
-// A câmera própria das Arts (FUN_801D71B8; o port do RE é legaia-engine-battle-vm::battle_attack_camera)
-// ---------------------------------------------------------------------------------------------
-
-namespace
-{
-	/** Um halfword do original: o resultado de somas em 16 bits com sinal. */
-	int32 Half(int64 Value)
-	{
-		return static_cast<int16>(static_cast<uint16>(Value & 0xFFFF));
-	}
-
-	/** O empurrão pelo cursor do clip (0x801D735C): nada abaixo de 0x61; (cursor - 0x60) << 4, até 0x100. */
-	bool AnimPush(int32 Cursor, int32& OutPush)
-	{
-		if (Cursor < 0x61)
-		{
-			return false;
-		}
-		OutPush = FMath::Min((Cursor - 0x60) << 4, 0x100);
-		return true;
-	}
-}
-
-void AJRPGBattleCamera::LoadArtTracks()
-{
-	bArtTracksLoaded = true;
-	ArtTracks.Init(FIntPoint::ZeroValue, 20);
-	const UDataTable* Table = UCoreSubsystem::ResolveDataTable(TEXT("DT_ArtCamera"));
-	if (!Table)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("BattleCamera: DT_ArtCamera não encontrada (Extras/generate_art_camera_csv.py) — a câmera das Arts roda com as linhas em 0"));
-		return;
-	}
-	for (int32 Row = 0; Row < ArtTracks.Num(); ++Row)
-	{
-		if (const FJRPGArtCameraTrackData* Data = Table->FindRow<FJRPGArtCameraTrackData>(*FString::Printf(TEXT("Row%02d"), Row), TEXT("BattleCamera"), false))
-		{
-			ArtTracks[Row] = FIntPoint(Data->Value0, Data->Value1);
-		}
-	}
-}
-
-int32 AJRPGBattleCamera::ArtTrack(int32 Row, int32 Column) const
-{
-	if (!ArtTracks.IsValidIndex(Row))
-	{
-		return 0;
-	}
-	return Column != 0 ? ArtTracks[Row].Y : ArtTracks[Row].X;
-}
-
-bool AJRPGBattleCamera::RunArtArm(int32 Character, int32 ArtId, int32 Select, int32 Cursor, int32 (&Rot)[3], int32 (&Dist)[3], int32& OutDuration)
-{
-	// As três tabelas de salto (0x801CEA88 / 0x801CEAD0 / 0x801CEB20): o braço de cada herói por clip
-	enum class EArm : uint8 { None, A7308, A74A8, A7568, A7650, A76EC, A7870, A78F0, A797C, A79F8, A7B4C, A7D7C, A7EA0, A81FC };
-	EArm Arm = EArm::None;
-	switch (Character)
-	{
-	case 1:
-		Arm = ArtId == 0x1A ? EArm::A7308 : ArtId == 0x1C ? EArm::A7650 : ArtId == 0x1D ? EArm::A7568
-			: (ArtId == 0x1E || ArtId == 0x2A) ? EArm::A74A8 : EArm::None;
-		break;
-	case 2:
-		Arm = ArtId == 0x1A ? EArm::A76EC : (ArtId == 0x1D || ArtId == 0x2C) ? EArm::A78F0 : (ArtId == 0x1E || ArtId == 0x2D) ? EArm::A797C
-			: ArtId == 0x1F ? EArm::A79F8 : ArtId == 0x20 ? EArm::A7870 : EArm::None;
-		break;
-	case 3:
-		Arm = ArtId == 0x1A ? EArm::A7B4C : ArtId == 0x1C ? EArm::A7D7C : ArtId == 0x1D ? EArm::A7EA0
-			: (ArtId == 0x1E || ArtId == 0x2A) ? EArm::A81FC : EArm::None;
-		break;
-	default:
-		break;
-	}
-	if (Arm == EArm::None)
-	{
-		return false;
-	}
-
-	const int32 Column = ArtColumn;
-	auto T = [this, Column](int32 Row) { return ArtTrack(Row, Column); };
-	auto RampNow = [this]() { return static_cast<int32>(ArtRamp); };
-	auto AccNow = [this]() { return static_cast<uint32>(static_cast<uint64>(ArtAccum) & 0xFFFFFFFFu); };
-	// A zerada na passagem de um limiar: com a trava ainda em Expect, a rampa (e o acumulador) zeram e a trava anda
-	auto LatchReset = [this](int32 Expect, bool bClearAccum)
-	{
-		if (ArtLatch != Expect)
-		{
-			return;
-		}
-		ArtRamp = 0.0f;
-		if (bClearAccum)
-		{
-			ArtAccum = 0.0;
-		}
-		++ArtLatch;
-	};
-	// O bloco do meio do golpe (0x801D7420 e irmãos) e o fim do braço 0x1A do Gala (0x801D7CF4): a rampa lida DEPOIS da zerada
-	auto ThresholdArm = [&](int32 Expect, int32 YawRow, int32 DepthRow)
-	{
-		LatchReset(Expect, false);
-		Rot[0] += 0xC0;
-		Rot[1] += YawRow;
-		Dist[1] -= 0x200;
-		Dist[2] += DepthRow - (RampNow() << 1);
-	};
-	auto LateArm = [&](int32 Row)
-	{
-		LatchReset(1, false);
-		Dist[1] -= 0x100;
-		Dist[2] += 0x200;
-		Rot[1] += Row;
-		Dist[2] -= RampNow() << 1;
-	};
-
-	const int32 R = RampNow();
-	const uint32 Acc = AccNow();
-	const int32 AccLo = Half(Acc);
-	auto AccShr = [Acc](int32 K) { return Half(Acc >> K); };
-	auto AccShl = [Acc](int32 K) { return Half(static_cast<uint32>(Acc << K)); };
-	const int32 F = Cursor;
-	const int32 S = Select;
-	int32 Push = 0;
-
-	switch (Arm)
-	{
-	// --- Vahn ---------------------------------------------------------------------------------
-	case EArm::A7308:   // o dash (0x1A)
-		if (S == 5)
-		{
-			Dist[2] -= 0x100;
-			Rot[0] += T(0);
-			Rot[1] += T(1);
-			if (AnimPush(F, Push))
-			{
-				Dist[1] -= Push;
-				if (Column != 0)
-				{
-					Rot[1] += Push >> 1;
-					Dist[2] -= Push >> 2;
-					Dist[0] += Push;
-				}
-				else
-				{
-					Rot[1] -= Push;
-					Dist[2] -= Push >> 1;
-				}
-			}
-			OutDuration = 6;
-		}
-		else if (S < 2)
-		{
-			LateArm(T(4));
-			OutDuration = 1;
-		}
-		else
-		{
-			ThresholdArm(0, T(2), T(3));
-			OutDuration = 1;
-		}
-		break;
-	case EArm::A74A8:   // Tornado Flame (0x1E / 0x2A)
-		if (F < 0xE0)
-		{
-			Rot[0] -= R >> 2;
-			Rot[1] += T(5) + AccLo;
-			Dist[1] += R;
-			Dist[2] += R >> 2;
-			OutDuration = 6;
-		}
-		else
-		{
-			Rot[1] += 0x600;
-			Dist[2] += 0x400;
-			Dist[0] -= 0x200;
-			OutDuration = 1;
-		}
-		break;
-	case EArm::A7568:   // Fire Blow (0x1D)
-		if (F < 0xF0)
-		{
-			Rot[0] -= R >> 1;
-			Rot[1] += T(6) + AccLo;
-			Dist[1] += R << 1;
-			Dist[2] += AccShr(2);
-			OutDuration = 6;
-		}
-		else
-		{
-			Rot[0] += 0x100;
-			Dist[0] -= 0x400;
-			Rot[1] += 0x200;
-			Dist[2] += 0x400;
-			Dist[1] += 0x200;
-			OutDuration = 3;
-		}
-		break;
-	case EArm::A7650:   // Burning Flare (0x1C)
-		Rot[0] += R >> 2;
-		Rot[1] += T(7) + AccLo;
-		Dist[2] += AccShr(1);
-		OutDuration = 6;
-		break;
-	// --- Noa ----------------------------------------------------------------------------------
-	case EArm::A76EC:   // o dash (0x1A)
-		if (S == 2)
-		{
-			Dist[2] -= 0x100;
-			Dist[0] -= 0x100;
-			Rot[0] += T(0);
-			Rot[1] += T(13);
-			OutDuration = 6;
-		}
-		else if (F < 0x90)
-		{
-			ThresholdArm(0, T(2), T(3));
-			OutDuration = 1;
-		}
-		else
-		{
-			LateArm(T(14));
-			OutDuration = 1;
-		}
-		break;
-	case EArm::A7870:   // Frost Breath (0x20)
-		Rot[0] += R >> 2;
-		Rot[1] += T(8);
-		Dist[1] += R;
-		Dist[2] -= AccShr(1) - 0x400;
-		OutDuration = 6;
-		break;
-	case EArm::A78F0:   // Hurricane Kick / Jurassic Blow 1 (0x1D / 0x2C): a linha e o acumulador somados e SUBTRAÍDOS do giro
-		Rot[0] += R >> 1;
-		Dist[0] += 0x200;
-		Rot[1] -= T(9) + AccShr(1);
-		Dist[1] += R >> 1;
-		Dist[2] += AccShl(1);
-		OutDuration = 6;
-		break;
-	case EArm::A797C:   // Hurricane Kick 3 / Jurassic Blow 2 (0x1E / 0x2D): a rampa OR 0xFF80 no pitch
-		Rot[0] += Half(static_cast<uint16>(R >> 2) | 0xFF80);
-		Dist[0] -= 0x300;
-		Rot[1] += T(10) + AccShr(1);
-		Dist[2] += AccShr(1);
-		OutDuration = 1;
-		break;
-	case EArm::A79F8:   // Vulture Blade (0x1F)
-		if (F < 0xE0)
-		{
-			Rot[0] += R >> 1;
-			Rot[1] += T(11) + AccShr(1);
-			Dist[0] += T(15);
-			Dist[2] += R >> 1;
-			OutDuration = 6;
-		}
-		else
-		{
-			Rot[0] += R >> 1;
-			Rot[1] += T(12);
-			Dist[0] += T(16);
-			Dist[1] -= R >> 1;
-			Dist[2] += R * 3;
-			OutDuration = 1;
-		}
-		break;
-	// --- Gala ---------------------------------------------------------------------------------
-	case EArm::A7B4C:   // o dash (0x1A)
-		if (F < 0x70)
-		{
-			Dist[2] -= T(19) + R;
-			Rot[0] += T(0);
-			Rot[1] += T(17);
-			OutDuration = 6;
-		}
-		else if (F < 0xA0)
-		{
-			ThresholdArm(0, T(2), T(3));
-			OutDuration = 1;
-		}
-		else
-		{
-			LateArm(T(4));
-			OutDuration = 1;
-		}
-		break;
-	case EArm::A7D7C:   // Explosive Fist (0x1C): quatro cortes, só literais
-		if (F < 0x40)
-		{
-			Rot[0] += 0x80;
-			Dist[0] -= 0x200;
-			Rot[1] += 0x200;
-		}
-		else if (F < 0x70)
-		{
-			Rot[0] -= 0x100;
-			Rot[1] -= 0x200;
-			Dist[0] += 0x280;
-			Dist[1] -= 0x200;
-		}
-		else if (F < 0xA0)
-		{
-			Rot[0] -= 0x100;
-			Rot[1] += 0x200;
-			Dist[0] -= 0x200;
-			Dist[1] -= 0x200;
-		}
-		else
-		{
-			Rot[0] += 0x80;
-			Rot[1] -= 0x200;
-			Dist[0] += 0x300;
-		}
-		OutDuration = 1;
-		break;
-	case EArm::A7EA0:   // Lightning Storm (0x1D): o único com roll, e uma linha lida numa coluna fixa
-		if (F < 0xB0)
-		{
-			if (Column != 0)
-			{
-				Rot[0] -= R >> 1;
-				Rot[1] += T(18) + AccShl(1);
-				Rot[2] -= R >> 1;
-				Dist[0] += AccLo;
-				Dist[1] -= AccShr(1);
-				const int32 Third = Half(static_cast<uint32>(Acc / 3u));
-				Dist[2] += Third - 0x100;
-			}
-			else
-			{
-				Rot[0] += R;
-				Rot[1] += ArtTrack(18, 0) + AccLo;
-			}
-			OutDuration = 6;
-		}
-		else if (F < 0x110)
-		{
-			LatchReset(0, true);
-			const uint32 Acc2 = AccNow();
-			const int32 Lo = Half(Acc2);
-			const int32 Shl1 = Half(static_cast<uint32>(Acc2 << 1));
-			if (Column != 0)
-			{
-				Rot[0] += Lo - 0x60;
-				Rot[1] -= Half(static_cast<uint32>(Acc2 * 3u)) - 0x400;
-				Dist[0] += Shl1 - 0x300;
-				Dist[1] += Shl1 - 0x200;
-				Dist[2] -= Shl1 - 0x200;
-			}
-			else
-			{
-				Dist[0] -= 0x400;
-				Rot[1] += 0x280;
-				Dist[2] -= 0x100;
-				Dist[1] -= 0x300;
-				Rot[0] -= (RampNow() >> 2) + 0x80;
-			}
-			OutDuration = 1;
-		}
-		else
-		{
-			LatchReset(1, true);
-			const uint32 Acc2 = AccNow();
-			const int32 R2 = RampNow();
-			const int32 Shl1 = Half(static_cast<uint32>(Acc2 << 1));
-			Dist[0] -= Shl1 - 0x400;
-			if (Column != 0)
-			{
-				Rot[0] -= R2;
-				Rot[1] += R2 * 6 - 0x600;
-				Dist[1] -= R2;
-				Dist[2] -= R2;
-			}
-			else
-			{
-				Rot[0] -= 0x80;
-				Dist[2] -= 0x100;
-				Dist[1] -= 0x100;
-				Rot[1] += Half(Acc2) - 0x200;
-			}
-			OutDuration = 1;
-		}
-		break;
-	case EArm::A81FC:   // Thunder Punch (0x1E / 0x2A): passado 0xC0 não arma nada (a tomada da ação fica)
-		if (F >= 0xC0)
-		{
-			return false;
-		}
-		Rot[1] += R * 5 - 0x600;
-		Dist[0] += R << 2;
-		Dist[2] += 0x40 - (R << 1);
-		OutDuration = 1;
-		break;
-	default:
-		return false;
-	}
-
-	// Os slots da pose são halfwords: as somas dão a volta em 16 bits, como no original
-	for (int32 i = 0; i < 3; ++i)
-	{
-		Rot[i] = Half(Rot[i]);
-		Dist[i] = Half(Dist[i]);
-	}
-	return true;
-}
-
-bool AJRPGBattleCamera::BuildArtPose(FJRPGBattleCameraPose& OutPose, float& OutSteps)
-{
-	// O portão (0x801D7138 e a entrada de FUN_801D71B8): a opção não é Far, um herói (Vahn / Noa / Gala) numa ação de golpe, o alvo
-	// vivo (a re-mira da morte nunca é coberta)
-	const AJRPGBattlePawn* Actor = ActionActor.Get();
-	const AJRPGBattlePawn* Victim = ActionTarget.Get();
-	if (!bArtShots || CameraOption == EJRPGBattleCameraOption::Far || !bInAction || !bActionMelee || !IsValid(Actor) || Actor->IsHidden()
-		|| !IsValid(Victim) || Victim->IsDefeated() || Actor->GetCombatant().Side != EJRPGBattleSide::Party)
-	{
-		return false;
-	}
-	const FName Key = Actor->GetCombatant().Key;
-	const int32 Character = Key == TEXT("Vahn") ? 1 : Key == TEXT("Noa") ? 2 : Key == TEXT("Gala") ? 3 : 0;
-	if (Character == 0)
-	{
-		return false;
-	}
-
-	// O clip latched (+0x1DB): o dash do Super / Miracle é 0x1A, uma Art é o ActionConstant dela (0x1B..0x32)
-	FJRPGActionStep Step;
-	float ClipSeconds = 0.0f;
-	float ClipLength = 0.0f;
-	if (!Actor->GetPlayingStep(Step, ClipSeconds, ClipLength))
-	{
-		return false;
-	}
-	int32 ArtId = 0;
-	int32 DiscRate = StarterDiscRate;
-	if (Step.Kind == EJRPGActionStepKind::SpecialStarter)
-	{
-		ArtId = 0x1A;
-	}
-	else if (Step.Kind == EJRPGActionStepKind::Art)
-	{
-		if (const FJRPGArtData* Art = UJRPGArtSequenceLibrary::FindArt(Step.ArtKey))
-		{
-			ArtId = Art->ActionConstant;
-		}
-		if (const UDataTable* Hits = UCoreSubsystem::ResolveDataTable(TEXT("DT_ArtHits")))
-		{
-			if (const FJRPGArtHitData* Row = Hits->FindRow<FJRPGArtHitData>(Step.ArtKey, TEXT("BattleCamera"), false))
-			{
-				DiscRate = FMath::Max(Row->Rate, 1);
-			}
-		}
-	}
-	if (ArtId == 0)
-	{
-		return false;
-	}
-	if (!bArtTracksLoaded)
-	{
-		LoadArtTracks();
-	}
-
-	// O cursor do clip em 1/16 de keyframe do disco (o asset vem a 7,5 x rate keyframes por segundo); a contagem de loops do dash
+// ---------------------------------------------------------------------------------------------
+// A câmera própria das Arts (FUN_801D71B8; o port do RE é legaia-engine-battle-vm::battle_attack_camera)
+// ---------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** Um halfword do original: o resultado de somas em 16 bits com sinal. */
+	int32 Half(int64 Value)
+	{
+		return static_cast<int16>(static_cast<uint16>(Value & 0xFFFF));
+	}
+
+	/** O empurrão pelo cursor do clip (0x801D735C): nada abaixo de 0x61; (cursor - 0x60) << 4, até 0x100. */
+	bool AnimPush(int32 Cursor, int32& OutPush)
+	{
+		if (Cursor < 0x61)
+		{
+			return false;
+		}
+		OutPush = FMath::Min((Cursor - 0x60) << 4, 0x100);
+		return true;
+	}
+}
+
+void AJRPGBattleCamera::LoadArtTracks()
+{
+	bArtTracksLoaded = true;
+	ArtTracks.Init(FIntPoint::ZeroValue, 20);
+	const UDataTable* Table = UCoreSubsystem::ResolveDataTable(TEXT("DT_ArtCamera"));
+	if (!Table)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("BattleCamera: DT_ArtCamera não encontrada (Extras/generate_art_camera_csv.py) — a câmera das Arts roda com as linhas em 0"));
+		return;
+	}
+	for (int32 Row = 0; Row < ArtTracks.Num(); ++Row)
+	{
+		if (const FJRPGArtCameraTrackData* Data = Table->FindRow<FJRPGArtCameraTrackData>(*FString::Printf(TEXT("Row%02d"), Row), TEXT("BattleCamera"), false))
+		{
+			ArtTracks[Row] = FIntPoint(Data->Value0, Data->Value1);
+		}
+	}
+}
+
+int32 AJRPGBattleCamera::ArtTrack(int32 Row, int32 Column) const
+{
+	if (!ArtTracks.IsValidIndex(Row))
+	{
+		return 0;
+	}
+	return Column != 0 ? ArtTracks[Row].Y : ArtTracks[Row].X;
+}
+
+bool AJRPGBattleCamera::RunArtArm(int32 Character, int32 ArtId, int32 Select, int32 Cursor, int32 (&Rot)[3], int32 (&Dist)[3], int32& OutDuration)
+{
+	// As três tabelas de salto (0x801CEA88 / 0x801CEAD0 / 0x801CEB20): o braço de cada herói por clip
+	enum class EArm : uint8 { None, A7308, A74A8, A7568, A7650, A76EC, A7870, A78F0, A797C, A79F8, A7B4C, A7D7C, A7EA0, A81FC };
+	EArm Arm = EArm::None;
+	switch (Character)
+	{
+	case 1:
+		Arm = ArtId == 0x1A ? EArm::A7308 : ArtId == 0x1C ? EArm::A7650 : ArtId == 0x1D ? EArm::A7568
+			: (ArtId == 0x1E || ArtId == 0x2A) ? EArm::A74A8 : EArm::None;
+		break;
+	case 2:
+		Arm = ArtId == 0x1A ? EArm::A76EC : (ArtId == 0x1D || ArtId == 0x2C) ? EArm::A78F0 : (ArtId == 0x1E || ArtId == 0x2D) ? EArm::A797C
+			: ArtId == 0x1F ? EArm::A79F8 : ArtId == 0x20 ? EArm::A7870 : EArm::None;
+		break;
+	case 3:
+		Arm = ArtId == 0x1A ? EArm::A7B4C : ArtId == 0x1C ? EArm::A7D7C : ArtId == 0x1D ? EArm::A7EA0
+			: (ArtId == 0x1E || ArtId == 0x2A) ? EArm::A81FC : EArm::None;
+		break;
+	default:
+		break;
+	}
+	if (Arm == EArm::None)
+	{
+		return false;
+	}
+
+	const int32 Column = ArtColumn;
+	auto T = [this, Column](int32 Row) { return ArtTrack(Row, Column); };
+	auto RampNow = [this]() { return static_cast<int32>(ArtRamp); };
+	auto AccNow = [this]() { return static_cast<uint32>(static_cast<uint64>(ArtAccum) & 0xFFFFFFFFu); };
+	// A zerada na passagem de um limiar: com a trava ainda em Expect, a rampa (e o acumulador) zeram e a trava anda
+	auto LatchReset = [this](int32 Expect, bool bClearAccum)
+	{
+		if (ArtLatch != Expect)
+		{
+			return;
+		}
+		ArtRamp = 0.0f;
+		if (bClearAccum)
+		{
+			ArtAccum = 0.0;
+		}
+		++ArtLatch;
+	};
+	// O bloco do meio do golpe (0x801D7420 e irmãos) e o fim do braço 0x1A do Gala (0x801D7CF4): a rampa lida DEPOIS da zerada
+	auto ThresholdArm = [&](int32 Expect, int32 YawRow, int32 DepthRow)
+	{
+		LatchReset(Expect, false);
+		Rot[0] += 0xC0;
+		Rot[1] += YawRow;
+		Dist[1] -= 0x200;
+		Dist[2] += DepthRow - (RampNow() << 1);
+	};
+	auto LateArm = [&](int32 Row)
+	{
+		LatchReset(1, false);
+		Dist[1] -= 0x100;
+		Dist[2] += 0x200;
+		Rot[1] += Row;
+		Dist[2] -= RampNow() << 1;
+	};
+
+	const int32 R = RampNow();
+	const uint32 Acc = AccNow();
+	const int32 AccLo = Half(Acc);
+	auto AccShr = [Acc](int32 K) { return Half(Acc >> K); };
+	auto AccShl = [Acc](int32 K) { return Half(static_cast<uint32>(Acc << K)); };
+	const int32 F = Cursor;
+	const int32 S = Select;
+	int32 Push = 0;
+
+	switch (Arm)
+	{
+	// --- Vahn ---------------------------------------------------------------------------------
+	case EArm::A7308:   // o dash (0x1A)
+		if (S == 5)
+		{
+			Dist[2] -= 0x100;
+			Rot[0] += T(0);
+			Rot[1] += T(1);
+			if (AnimPush(F, Push))
+			{
+				Dist[1] -= Push;
+				if (Column != 0)
+				{
+					Rot[1] += Push >> 1;
+					Dist[2] -= Push >> 2;
+					Dist[0] += Push;
+				}
+				else
+				{
+					Rot[1] -= Push;
+					Dist[2] -= Push >> 1;
+				}
+			}
+			OutDuration = 6;
+		}
+		else if (S < 2)
+		{
+			LateArm(T(4));
+			OutDuration = 1;
+		}
+		else
+		{
+			ThresholdArm(0, T(2), T(3));
+			OutDuration = 1;
+		}
+		break;
+	case EArm::A74A8:   // Tornado Flame (0x1E / 0x2A)
+		if (F < 0xE0)
+		{
+			Rot[0] -= R >> 2;
+			Rot[1] += T(5) + AccLo;
+			Dist[1] += R;
+			Dist[2] += R >> 2;
+			OutDuration = 6;
+		}
+		else
+		{
+			Rot[1] += 0x600;
+			Dist[2] += 0x400;
+			Dist[0] -= 0x200;
+			OutDuration = 1;
+		}
+		break;
+	case EArm::A7568:   // Fire Blow (0x1D)
+		if (F < 0xF0)
+		{
+			Rot[0] -= R >> 1;
+			Rot[1] += T(6) + AccLo;
+			Dist[1] += R << 1;
+			Dist[2] += AccShr(2);
+			OutDuration = 6;
+		}
+		else
+		{
+			Rot[0] += 0x100;
+			Dist[0] -= 0x400;
+			Rot[1] += 0x200;
+			Dist[2] += 0x400;
+			Dist[1] += 0x200;
+			OutDuration = 3;
+		}
+		break;
+	case EArm::A7650:   // Burning Flare (0x1C)
+		Rot[0] += R >> 2;
+		Rot[1] += T(7) + AccLo;
+		Dist[2] += AccShr(1);
+		OutDuration = 6;
+		break;
+	// --- Noa ----------------------------------------------------------------------------------
+	case EArm::A76EC:   // o dash (0x1A)
+		if (S == 2)
+		{
+			Dist[2] -= 0x100;
+			Dist[0] -= 0x100;
+			Rot[0] += T(0);
+			Rot[1] += T(13);
+			OutDuration = 6;
+		}
+		else if (F < 0x90)
+		{
+			ThresholdArm(0, T(2), T(3));
+			OutDuration = 1;
+		}
+		else
+		{
+			LateArm(T(14));
+			OutDuration = 1;
+		}
+		break;
+	case EArm::A7870:   // Frost Breath (0x20)
+		Rot[0] += R >> 2;
+		Rot[1] += T(8);
+		Dist[1] += R;
+		Dist[2] -= AccShr(1) - 0x400;
+		OutDuration = 6;
+		break;
+	case EArm::A78F0:   // Hurricane Kick / Jurassic Blow 1 (0x1D / 0x2C): a linha e o acumulador somados e SUBTRAÍDOS do giro
+		Rot[0] += R >> 1;
+		Dist[0] += 0x200;
+		Rot[1] -= T(9) + AccShr(1);
+		Dist[1] += R >> 1;
+		Dist[2] += AccShl(1);
+		OutDuration = 6;
+		break;
+	case EArm::A797C:   // Hurricane Kick 3 / Jurassic Blow 2 (0x1E / 0x2D): a rampa OR 0xFF80 no pitch
+		Rot[0] += Half(static_cast<uint16>(R >> 2) | 0xFF80);
+		Dist[0] -= 0x300;
+		Rot[1] += T(10) + AccShr(1);
+		Dist[2] += AccShr(1);
+		OutDuration = 1;
+		break;
+	case EArm::A79F8:   // Vulture Blade (0x1F)
+		if (F < 0xE0)
+		{
+			Rot[0] += R >> 1;
+			Rot[1] += T(11) + AccShr(1);
+			Dist[0] += T(15);
+			Dist[2] += R >> 1;
+			OutDuration = 6;
+		}
+		else
+		{
+			Rot[0] += R >> 1;
+			Rot[1] += T(12);
+			Dist[0] += T(16);
+			Dist[1] -= R >> 1;
+			Dist[2] += R * 3;
+			OutDuration = 1;
+		}
+		break;
+	// --- Gala ---------------------------------------------------------------------------------
+	case EArm::A7B4C:   // o dash (0x1A)
+		if (F < 0x70)
+		{
+			Dist[2] -= T(19) + R;
+			Rot[0] += T(0);
+			Rot[1] += T(17);
+			OutDuration = 6;
+		}
+		else if (F < 0xA0)
+		{
+			ThresholdArm(0, T(2), T(3));
+			OutDuration = 1;
+		}
+		else
+		{
+			LateArm(T(4));
+			OutDuration = 1;
+		}
+		break;
+	case EArm::A7D7C:   // Explosive Fist (0x1C): quatro cortes, só literais
+		if (F < 0x40)
+		{
+			Rot[0] += 0x80;
+			Dist[0] -= 0x200;
+			Rot[1] += 0x200;
+		}
+		else if (F < 0x70)
+		{
+			Rot[0] -= 0x100;
+			Rot[1] -= 0x200;
+			Dist[0] += 0x280;
+			Dist[1] -= 0x200;
+		}
+		else if (F < 0xA0)
+		{
+			Rot[0] -= 0x100;
+			Rot[1] += 0x200;
+			Dist[0] -= 0x200;
+			Dist[1] -= 0x200;
+		}
+		else
+		{
+			Rot[0] += 0x80;
+			Rot[1] -= 0x200;
+			Dist[0] += 0x300;
+		}
+		OutDuration = 1;
+		break;
+	case EArm::A7EA0:   // Lightning Storm (0x1D): o único com roll, e uma linha lida numa coluna fixa
+		if (F < 0xB0)
+		{
+			if (Column != 0)
+			{
+				Rot[0] -= R >> 1;
+				Rot[1] += T(18) + AccShl(1);
+				Rot[2] -= R >> 1;
+				Dist[0] += AccLo;
+				Dist[1] -= AccShr(1);
+				const int32 Third = Half(static_cast<uint32>(Acc / 3u));
+				Dist[2] += Third - 0x100;
+			}
+			else
+			{
+				Rot[0] += R;
+				Rot[1] += ArtTrack(18, 0) + AccLo;
+			}
+			OutDuration = 6;
+		}
+		else if (F < 0x110)
+		{
+			LatchReset(0, true);
+			const uint32 Acc2 = AccNow();
+			const int32 Lo = Half(Acc2);
+			const int32 Shl1 = Half(static_cast<uint32>(Acc2 << 1));
+			if (Column != 0)
+			{
+				Rot[0] += Lo - 0x60;
+				Rot[1] -= Half(static_cast<uint32>(Acc2 * 3u)) - 0x400;
+				Dist[0] += Shl1 - 0x300;
+				Dist[1] += Shl1 - 0x200;
+				Dist[2] -= Shl1 - 0x200;
+			}
+			else
+			{
+				Dist[0] -= 0x400;
+				Rot[1] += 0x280;
+				Dist[2] -= 0x100;
+				Dist[1] -= 0x300;
+				Rot[0] -= (RampNow() >> 2) + 0x80;
+			}
+			OutDuration = 1;
+		}
+		else
+		{
+			LatchReset(1, true);
+			const uint32 Acc2 = AccNow();
+			const int32 R2 = RampNow();
+			const int32 Shl1 = Half(static_cast<uint32>(Acc2 << 1));
+			Dist[0] -= Shl1 - 0x400;
+			if (Column != 0)
+			{
+				Rot[0] -= R2;
+				Rot[1] += R2 * 6 - 0x600;
+				Dist[1] -= R2;
+				Dist[2] -= R2;
+			}
+			else
+			{
+				Rot[0] -= 0x80;
+				Dist[2] -= 0x100;
+				Dist[1] -= 0x100;
+				Rot[1] += Half(Acc2) - 0x200;
+			}
+			OutDuration = 1;
+		}
+		break;
+	case EArm::A81FC:   // Thunder Punch (0x1E / 0x2A): passado 0xC0 não arma nada (a tomada da ação fica)
+		if (F >= 0xC0)
+		{
+			return false;
+		}
+		Rot[1] += R * 5 - 0x600;
+		Dist[0] += R << 2;
+		Dist[2] += 0x40 - (R << 1);
+		OutDuration = 1;
+		break;
+	default:
+		return false;
+	}
+
+	// Os slots da pose são halfwords: as somas dão a volta em 16 bits, como no original
+	for (int32 i = 0; i < 3; ++i)
+	{
+		Rot[i] = Half(Rot[i]);
+		Dist[i] = Half(Dist[i]);
+	}
+	return true;
+}
+
+bool AJRPGBattleCamera::BuildArtPose(FJRPGBattleCameraPose& OutPose, float& OutSteps)
+{
+	// O portão (0x801D7138 e a entrada de FUN_801D71B8): a opção não é Far, um herói (Vahn / Noa / Gala) numa ação de golpe, o alvo
+	// vivo (a re-mira da morte nunca é coberta)
+	const AJRPGBattlePawn* Actor = ActionActor.Get();
+	const AJRPGBattlePawn* Victim = ActionTarget.Get();
+	if (!bArtShots || CameraOption == EJRPGBattleCameraOption::Far || !bInAction || !bActionMelee || !IsValid(Actor) || Actor->IsHidden()
+		|| !IsValid(Victim) || Victim->IsDefeated() || Actor->GetCombatant().Side != EJRPGBattleSide::Party)
+	{
+		return false;
+	}
+	const FName Key = Actor->GetCombatant().Key;
+	const int32 Character = Key == TEXT("Vahn") ? 1 : Key == TEXT("Noa") ? 2 : Key == TEXT("Gala") ? 3 : 0;
+	if (Character == 0)
+	{
+		return false;
+	}
+
+	// O clip latched (+0x1DB): o dash do Super / Miracle é 0x1A, uma Art é o ActionConstant dela (0x1B..0x32)
+	FJRPGActionStep Step;
+	float ClipSeconds = 0.0f;
+	float ClipLength = 0.0f;
+	if (!Actor->GetPlayingStep(Step, ClipSeconds, ClipLength))
+	{
+		return false;
+	}
+	int32 ArtId = 0;
+	int32 DiscRate = StarterDiscRate;
+	if (Step.Kind == EJRPGActionStepKind::SpecialStarter)
+	{
+		ArtId = 0x1A;
+	}
+	else if (Step.Kind == EJRPGActionStepKind::Art)
+	{
+		if (const FJRPGArtData* Art = UJRPGArtSequenceLibrary::FindArt(Step.ArtKey))
+		{
+			ArtId = Art->ActionConstant;
+		}
+		if (const UDataTable* Hits = UCoreSubsystem::ResolveDataTable(TEXT("DT_ArtHits")))
+		{
+			if (const FJRPGArtHitData* Row = Hits->FindRow<FJRPGArtHitData>(Step.ArtKey, TEXT("BattleCamera"), false))
+			{
+				DiscRate = FMath::Max(Row->Rate, 1);
+			}
+		}
+	}
+	if (ArtId == 0)
+	{
+		return false;
+	}
+	if (!bArtTracksLoaded)
+	{
+		LoadArtTracks();
+	}
+
+	// O cursor do clip em 1/16 de keyframe do disco (o asset vem a 7,5 x rate keyframes por segundo); a contagem de loops do dash
 	// sai do trecho de laço real do clip (UJRPGAnimNotify_LoopWindow: as voltas que faltam, o +0x21B do original, e o cursor já com as
 	// voltas); num clip importado antes do trecho de laço, do progresso pela timeline
 	float CursorSeconds = ClipSeconds;
@@ -725,29 +761,29 @@ bool AJRPGBattleCamera::BuildArtPose(FJRPGBattleCameraPose& OutPose, float& OutS
 		Select = FMath::CeilToInt((1.0f - Progress) * static_cast<float>(StarterLoopCount));
 	}
 	const int32 Cursor = FMath::FloorToInt(CursorSeconds * 7.5f * static_cast<float>(DiscRate) * 16.0f);
-
-	// A pose semente (0x801D7230): pitch 0, o giro preso à frente, TR (0, 0x400, 0x400) (0x600 de altura no Gala), olhando o herói
-	int32 Rot[3] = { 0, 0, 0 };
-	int32 Dist[3] = { 0, Character == 3 ? 0x600 : 0x400, 0x400 };
-	int32 Duration = 6;
-	if (!RunArtArm(Character, ArtId, Select, Cursor, Rot, Dist, Duration))
-	{
-		return false;
-	}
-
-	OutPose.Focus = FeetOf(Actor);
-	OutPose.Yaw = FacingRelativeYaw(Actor, static_cast<float>(Rot[1]));
+
+	// A pose semente (0x801D7230): pitch 0, o giro preso à frente, TR (0, 0x400, 0x400) (0x600 de altura no Gala), olhando o herói
+	int32 Rot[3] = { 0, 0, 0 };
+	int32 Dist[3] = { 0, Character == 3 ? 0x600 : 0x400, 0x400 };
+	int32 Duration = 6;
+	if (!RunArtArm(Character, ArtId, Select, Cursor, Rot, Dist, Duration))
+	{
+		return false;
+	}
+
+	OutPose.Focus = FeetOf(Actor);
+	OutPose.Yaw = FacingRelativeYaw(Actor, static_cast<float>(Rot[1]));
 	// O pitch em +-89 graus (a soma do original pode passar da vertical; uma câmera de cabeça para baixo aqui não serve)
 	const int32 PitchUnits = ((Rot[0] % 4096) + 4096 + 2048) % 4096 - 2048;
-	OutPose.Pitch = FMath::Clamp(UnitsToDegrees(static_cast<float>(PitchUnits)), -89.0f, 89.0f);
-	OutPose.Offset = FVector(CameraUnitsToCm(static_cast<float>(Dist[0])), CameraUnitsToCm(static_cast<float>(Dist[1])),
-		FMath::Max(CameraUnitsToCm(Prescale(static_cast<float>(Dist[2]))) * DistanceScale, 20.0f));
-	OutPose.bOneWayYaw = false;
-	// A duração do original em quadros de tela; um passo do ease-out são dois (1 = corte)
-	OutSteps = static_cast<float>(Duration) * 0.5f;
-	return true;
-}
-
+	OutPose.Pitch = FMath::Clamp(UnitsToDegrees(static_cast<float>(PitchUnits)), -89.0f, 89.0f);
+	OutPose.Offset = FVector(CameraUnitsToCm(static_cast<float>(Dist[0])), CameraUnitsToCm(static_cast<float>(Dist[1])),
+		FMath::Max(CameraUnitsToCm(Prescale(static_cast<float>(Dist[2]))) * DistanceScale, 20.0f));
+	OutPose.bOneWayYaw = false;
+	// A duração do original em quadros de tela; um passo do ease-out são dois (1 = corte)
+	OutSteps = static_cast<float>(Duration) * 0.5f;
+	return true;
+}
+
 void AJRPGBattleCamera::UpdateActionState(float DeltaSeconds)
 {
 	AJRPGBattlePawn* Acting = nullptr;
@@ -794,6 +830,7 @@ void AJRPGBattleCamera::UpdateActionState(float DeltaSeconds)
 			ArtRamp = 0.0f;
 			ArtAccum = 0.0;
 			ArtLatch = 0;
+			ArtCommitStepFrame = INDEX_NONE;
 			if (bActionSpirit)
 			{
 				ActionDepthUnits = SpiritDepthUnits;
@@ -816,6 +853,19 @@ void AJRPGBattleCamera::UpdateActionState(float DeltaSeconds)
 		else if (Victim)
 		{
 			ActionTarget = Victim;
+		}
+
+		// Cada clip novo de quem age (o commit FUN_8004AD80, 0x8004BF50..0x8004BF78) zera a rampa, o acumulador e a trava: sem isso,
+		// no fim de um Miracle (4 golpes, o dash e 5 Arts antes do Jurassic Blow) o acumulador chegava enorme e a câmera ia longe
+		FJRPGActionStep PlayingStep;
+		float PlayingSeconds = 0.0f;
+		float PlayingLength = 0.0f;
+		if (Acting->GetPlayingStep(PlayingStep, PlayingSeconds, PlayingLength) && PlayingStep.StartFrame != ArtCommitStepFrame)
+		{
+			ArtCommitStepFrame = PlayingStep.StartFrame;
+			ArtRamp = 0.0f;
+			ArtAccum = 0.0;
+			ArtLatch = 0;
 		}
 
 		const EJRPGActionPhase Phase = Acting->GetPhase();
@@ -1188,17 +1238,16 @@ void AJRPGBattleCamera::HandleFormationShifted(FVector Translation, int32 Frames
 	}
 }
 
-void AJRPGBattleCamera::Chase(float DeltaSeconds, float Steps, bool bShotChanged)
+void AJRPGBattleCamera::Chase(float DeltaSeconds, float Steps, bool bShotChanged, float AlphaOverride)
 {
-	if (Steps <= 1.0f)
+	if (AlphaOverride < 0.0f && Steps <= 1.0f)
 	{
 		Live = Target;
 		bYawLongWay = false;
 		return;
 	}
 	// Cada passo de 30 Hz cobre 1/Steps do que falta: em DeltaSeconds, sobra (1 - 1/Steps)^(passos)
-	const float Keep = FMath::Pow(1.0f - 1.0f / Steps, DeltaSeconds * ChaseStepsPerSecond);
-	const float Alpha = 1.0f - Keep;
+	const float Alpha = AlphaOverride >= 0.0f ? AlphaOverride : 1.0f - FMath::Pow(1.0f - 1.0f / Steps, DeltaSeconds * ChaseStepsPerSecond);
 	Live.Focus = FMath::Lerp(Live.Focus, Target.Focus, Alpha);
 	Live.Offset = FMath::Lerp(Live.Offset, Target.Offset, Alpha);
 	Live.Pitch = FMath::Lerp(Live.Pitch, Target.Pitch, Alpha);

@@ -104,23 +104,12 @@ public:
 	static const FJRPGArtData* FindArt(FName ArtKey);
 
 	/**
-	 * O clip da Art religa a trava do modo especial (o byte +0x87 da entrada, no DT_ArtVoices bRaisesLatch: as finalizações das
-	 * Supers). Cada commit regrava a trava com o +0x87 do próprio clip (FUN_8004E13C), e só com ela ligada a Art entra a 2 (a metade
-	 * do 4): depois do SpecialStarter, a PRIMEIRA Art vai a 2 e a seguinte volta a 4, a menos que a de antes religue a trava. Sem o
-	 * DT_ArtVoices, as Parts (finalizações) religam.
+	 * O clip da Art traz o byte +0x87 da entrada (no DT_ArtVoices bRaisesLatch: as finalizações das Supers). Sem uso na velocidade:
+	 * o commit só grava a trava do modo especial quando o +0x87 é diferente de 0 (FUN_8004AD80 0x8004BE18..0x8004BE2C), então um
+	 * clip com 0 não a derruba e toda Art depois do SpecialStarter vai a 2 até FUN_801E93C8 limpar a trava (bug 73). Sem o
+	 * DT_ArtVoices, as Parts (finalizações) dão verdadeiro.
 	 */
 	static bool RaisesSpecialLatch(FName ArtKey);
-
-	/** A velocidade do disco do clip da Art (o Rate do DT_ArtHits); 0 se não há. */
-	static int32 ArtDiscRate(FName ArtKey);
-
-	/**
-	 * Quanto o asset de uma Art está fora da velocidade do disco: o .glb do RE grava a 7,5 x rate quadros por segundo, então a duração
-	 * dá um número inteiro de quadros do disco. Um asset em que isso não fecha, mas fecha noutra velocidade (o HurricaneKick3: 25,5
-	 * quadros no rate 3, 17 no rate 2), foi gravado nela e toca DiscRate / essa vezes devagar demais. Devolve o fator para multiplicar
-	 * o play rate (e dividir a duração); 1 quando bate.
-	 */
-	static float AssetRateCorrection(const UAnimSequenceBase* Clip, int32 DiscRate);
 
 private:
 	static void AddStep(TArray<FJRPGArtStep>& Steps, const FString& Label, UAnimSequence* Clip, EJRPGArtStepKind Kind, FName ArtKey);

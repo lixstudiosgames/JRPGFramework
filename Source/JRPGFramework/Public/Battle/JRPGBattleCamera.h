@@ -149,6 +149,14 @@ public:
 	float FarChaseSteps = 7.0f;
 
 	/**
+	 * Nosso: do plano geral (Begin, Escape, entre as ações) para o close do menu de um herói ou do cursor de alvo, e de um close do
+	 * menu para outro (outro herói, o cursor em outro alvo), a câmera chega em tantos segundos (ease-out cúbico), em vez do ease-out
+	 * do original, que leva quase um segundo. 0 = o do original.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Motion", meta = (ClampMin = "0.0"))
+	float MenuEnterBlendSeconds = 0.3f;
+
+	/**
 	 * Multiplica toda distância do olho ao foco (o TR.z de todo enquadramento): 1 = a do original. Mais = mais longe (os modelos
 	 * novos, uma tela grande).
 	 */
@@ -415,7 +423,7 @@ private:
 	 * de quem age virou 7 / 8): é quando um giro de sentido único escolhe o arco longo; depois ele segue pelo caminho curto quando
 	 * chega a menos de meia volta. As outras trocas (da câmera da Art de volta, 7 <-> 8) vão pelo caminho curto.
 	 */
-	void Chase(float DeltaSeconds, float Steps, bool bShotChanged);
+	void Chase(float DeltaSeconds, float Steps, bool bShotChanged, float AlphaOverride = -1.0f);
 	/** Põe o ator na pose Live. */
 	void ApplyLivePose();
 	void ApplyLens();
@@ -426,6 +434,12 @@ private:
 	EJRPGBattleShot Shot = EJRPGBattleShot::Far;
 	/** O enquadramento do quadro anterior, e o giro de sentido único indo pelo arco longo. */
 	EJRPGBattleShot PrevShot = EJRPGBattleShot::Far;
+	/** O blend de tempo fixo do plano geral para o menu (MenuEnterBlendSeconds) em curso, e quanto dele já passou. */
+	bool bMenuBlend = false;
+	float MenuBlendElapsed = 0.0f;
+	/** Quem a tomada enquadrava no quadro anterior (para ver a troca de herói / de alvo nos menus). */
+	int32 PrevShotSlot = INDEX_NONE;
+	int32 PrevShotTargetSlot = INDEX_NONE;
 	bool bYawLongWay = false;
 	/** De quem é o enquadramento de agora e o alvo dele (INDEX_NONE quando não há). */
 	int32 ShotSlot = INDEX_NONE;
@@ -453,6 +467,8 @@ private:
 	float ArtRamp = 0.0f;
 	double ArtAccum = 0.0;
 	int32 ArtLatch = 0;
+	/** O passo (StartFrame) que quem age tocava no último quadro: um passo novo é um commit, que zera rampa, acumulador e trava. */
+	int32 ArtCommitStepFrame = INDEX_NONE;
 	/** O DT_ArtCamera lido (20 x 2), e se já tentou ler. */
 	TArray<FIntPoint> ArtTracks;
 	bool bArtTracksLoaded = false;

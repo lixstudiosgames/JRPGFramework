@@ -1220,6 +1220,22 @@ void UWebUISubsystem::RunDevCommand(const FString& Command)
 			Out = FString::Printf(TEXT("battle.end %s"), *Word);
 		}
 	}
+	// battle.ap [on|off]: o AP de todo herói fica em 100 a cada quadro (sem argumento, alterna)
+	else if (Verb == TEXT("battle.ap"))
+	{
+		UBattleSubsystem* Battle = GI ? GI->GetSubsystem<UBattleSubsystem>() : nullptr;
+		if (!Battle)
+		{
+			Out = TEXT("sem o UBattleSubsystem");
+		}
+		else
+		{
+			const FString Word = DevArgStr(Args, 0).ToLower();
+			const bool bOn = Word.IsEmpty() ? !Battle->IsDebugFullAP() : (Word == TEXT("on") || Word == TEXT("1"));
+			Battle->SetDebugFullAP(bOn);
+			Out = FString::Printf(TEXT("battle.ap %s: AP %s"), bOn ? TEXT("on") : TEXT("off"), bOn ? TEXT("sempre no máximo") : TEXT("normal"));
+		}
+	}
 	// -------------------------------------------------------------- telas
 	else if (Verb.StartsWith(TEXT("screen.")))
 	{

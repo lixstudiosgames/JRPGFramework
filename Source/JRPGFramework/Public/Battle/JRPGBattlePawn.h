@@ -187,7 +187,10 @@ public:
 	 * o idle, a reação, o caído tocam nela (GlobalAnimRateScale da malha), e os prazos da reação e a velocidade de raiz andam no
 	 * mesmo tempo. Quem age toca os próprios passos na velocidade deles.
 	 */
-	void SetWorldAnimSpeed(int32 Speed);
+	void SetWorldAnimSpeed(int32 Speed, int32 CommitSerial = INDEX_NONE);
+
+	/** Um número que muda a cada passo que este pawn commita na ação dele (a cena o passa aos outros no SetWorldAnimSpeed). */
+	int32 GetStepCommitSerial() const { return bActionActive ? Action.ActionIndex * 1000 + PlayedStep : INDEX_NONE; }
 
 	/** Outra ação começou: o recuo dentro do alcance que este pawn seguia fazendo depois da ação dele acaba. */
 	void EndPostActionSpacing() { bPostActionSpacing = false; }
@@ -269,6 +272,16 @@ public:
 
 	/** GetBodyLocation no fim do deslize em curso (o corpo de agora, levado para onde o ator vai parar). */
 	FVector GetSettledBodyLocation() const { return GetSettledLocation() + BodyOffset(); }
+
+	/**
+	 * Onde quem ataca mira e mede o alcance deste corpo: o body pair, menos durante uma reação (flinch, knockdown, block...) com
+	 * bAimRestBodyDuringReaction, em que vale o corpo na pose de idle. Nosso (bug 77): o flinch do Che Delilas joga o corpo ~1,1 m
+	 * para trás e de volta, e o atacante que persegue isso avança, fica dentro dele quando o corpo volta e vira junto.
+	 */
+	FVector GetAimBodyLocation() const { return GetActorLocation() + AimBodyOffset(); }
+
+	/** GetAimBodyLocation no fim do deslize em curso. */
+	FVector GetSettledAimBodyLocation() const { return GetSettledLocation() + AimBodyOffset(); }
 
 	// --- A formação (a cena move todo mundo, como o original) ----------------------------------
 
@@ -425,6 +438,25 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Reach")
 	bool bUseBodyPair = true;
 
+	/**
+	 * Nosso (bug 77): enquanto este corpo toca uma reação, quem o ataca mira e mede o alcance pelo corpo dele na pose de idle (no
+	 * original, o corpo do quadro: o atacante persegue o balanço do flinch). A separação e a virada do próprio defensor seguem o
+	 * corpo do quadro. Desligado: o do original.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Reach")
+	bool bAimRestBodyDuringReaction = true;
+
+	/**
+	 * A raiz da malha fica no chão (o original: o modelo é desenhado na posição do ator, altura 0): o voador flutua pela própria
+	 * pose. Desligado: o ponto mais baixo da malha no pose de referência vai ao chão (o antigo; baixa os voadores).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Placement")
+	bool bGroundAtMeshRoot = true;
+
+	/** Diagnóstico: cada reação que começa (papel, clip, quadro, velocidade do mundo) e a que não acha clip vão ao Output Log. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Debug")
+	bool bLogReactions = true;
+
 	/** Abaixo disto, em cm, o deslocamento do fim do clip é ignorado (o idle entra com a mistura normal). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|Knockback", meta = (ClampMin = "0.0"))
 	float EndStepMinDistance = 3.0f;
@@ -562,6 +594,15 @@ public:
 	 */
 	void SetCameraGhost(float Opacity, UMaterialInterface* GhostMaterial = nullptr);
 
+	/** Se o corpo (os corpos do physics asset, que seguem a animação) cruza a linha Eye -> Point. Falso sem physics asset. */
+	bool BlocksView(const FVector& Eye, const FVector& Point) const;
+
+	/** Se o corpo tem os corpos de consulta do BlocksView (o mesh tem physics asset). */
+	bool HasViewBodies() const { return bHasViewBodies; }
+
+	/** Os pontos do corpo que a câmera tem de ver (o meio, a cabeça, perto dos pés, os dois lados vistos de Eye). */
+	void GetViewPoints(const FVector& Eye, TArray<FVector>& OutPoints) const;
+
 	/**
 	 * Entre dois quadros lógicos: o deslize (o passo do fim de um clip na volta ao idle, o reach snap) anda no tempo do mundo, que é
 	 * o relógio da mistura das poses. Só quadro a quadro lógico (60 Hz, mais grosso ainda com o slow das Arts), o corpo andava em
@@ -682,6 +723,9 @@ private:
 	/** Do ator ao corpo, no plano do chão (o centro da pose em mundo menos a posição do ator); zero sem pose ou sem bUseBodyPair. */
 	FVector BodyOffset() const;
 
+	/** O BodyOffset de quem mira este corpo: o do idle durante uma reação (bAimRestBodyDuringReaction), senão o BodyOffset. */
+	FVector AimBodyOffset() const;
+
 	/** A velocidade da caminhada em cm por quadro lógico (a do disco nos heróis, EnemyWalkSpeedUnits nos monstros). */
 	float WalkSpeedCm() const;
 
@@ -793,6 +837,17 @@ private:
 	/** A velocidade do resto da luta para este pawn (SetWorldAnimSpeed), 0..8, e o atraso acumulado do tempo local dele (< 1 quadro). */
 	int32 WorldAnimSpeed = 8;
 	double WorldTimeLag = 0.0;
+	/**
+	 * O "todo commit com a velocidade != 8 põe 4" do original (FUN_8004AD80 0x8004B080..0x8004B090): a reação que este pawn commita com
+	 * o mundo lento (a 2 depois do SpecialStarter, ou congelado) toca a 4 até o próximo commit de quem age reescrever todos. Bug 80:
+	 * a 2, o flinch longo do Songi recomeçava a cada golpe do finalizador sem quase se mexer. 0 = sem piso.
+	 */
+	int32 ReactionRateFloor = 0;
+	/** A velocidade que a cena pediu (antes do piso) e o passo de quem age a que ela se refere. */
+	int32 RequestedWorldSpeed = 8;
+	int32 WorldCommitSerial = INDEX_NONE;
+	/** Aplica WorldAnimSpeed (o pedido com o piso) à malha. */
+	void ApplyWorldAnimSpeed();
 
 	/** O tempo local anda a WorldAnimSpeed / 8: cada quadro lógico inteiro de atraso empurra os prazos da reação e do clip em 1. */
 	void AdvanceWorldTime();
@@ -804,6 +859,8 @@ private:
 	bool bEnemyHasMotionData = false;
 
 	/** A pose do idle medida (o centro dos bones, espaço do componente): a referência do passo do fim do clip sem dado. */
+	/** O mesh tem physics asset e os corpos dele estão em consulta (o BlocksView). */
+	bool bHasViewBodies = false;
 	FVector NeutralCentroid = FVector::ZeroVector;
 	bool bHasNeutralCentroid = false;
 	/** O idle toca desde este quadro lógico (INDEX_NONE = outro clip toca). */

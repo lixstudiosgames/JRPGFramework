@@ -353,6 +353,21 @@ public:
 	float CameraGhostHoldSeconds = 0.6f;
 
 	/**
+	 * Nosso: durante o SpecialStarter (o dash agachado da Hyper, da Super, do Miracle e da Art nova) o alvo da ação fica sempre
+	 * fantasma, esteja ou não na frente da lente (o teste de oclusão às vezes não o pega, e ele tapa o herói).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera")
+	bool bCameraGhostTargetOnStarter = true;
+
+	/**
+	 * Nosso: linhas da câmera até a cabeça, o meio, os pés e os lados de quem a tomada mostra (quem age, o alvo, quem o menu enquadra);
+	 * um monstro cujos corpos do physics asset (que seguem a animação) cruzam uma delas vira fantasma. Pega a asa ou o braço que tapa
+	 * a vista longe do centro do corpo. Quem não tem physics asset (os heróis) fica só com os outros testes.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Camera")
+	bool bCameraGhostTrace = true;
+
+	/**
 	 * O clarão do monstro apontado pelo cursor de alvo (FUN_801DA6B4: o original dobra a cor dele enquanto o cursor está nele): a força
 	 * no AJRPGBattlePawn::TargetHighlightParameter (o M_PS1Monster soma cor do corpo x isto à emissão). 0 desliga.
 	 */

@@ -120,6 +120,10 @@ public:
 	 */
 	void EndBattleForDebug(EJRPGBattleResult Result, bool bPayEveryEnemy);
 
+	/** Dev (battle.ap on|off): o AP de todo herói fica no máximo (100) a cada quadro, nesta luta e nas próximas da sessão. */
+	void SetDebugFullAP(bool bOn) { bDebugFullAP = bOn; }
+	bool IsDebugFullAP() const { return bDebugFullAP; }
+
 	/**
 	 * Um comando, um ponto de entrada: confere que quem manda é o dono do slot e o resto (regra 22; a recusa
 	 * sai no log com o motivo). Nunca chame isto direto de um callback da UI sem passar o jogador que mandou.
@@ -390,6 +394,9 @@ private:
 
 	/** O fim de debug em curso paga todos os inimigos (EndBattleForDebug). */
 	bool bDebugPayEveryEnemy = false;
+
+	/** Dev: o AP de todo herói fica no máximo (SetDebugFullAP). */
+	bool bDebugFullAP = false;
 
 	bool bInBattle = false;
 	/** Estava no Field quando a luta começou (devolve o SAVE ao acabar). */

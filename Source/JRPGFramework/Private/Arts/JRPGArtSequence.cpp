@@ -206,38 +206,6 @@ bool UJRPGArtSequenceLibrary::RaisesSpecialLatch(FName ArtKey)
 	return Art && Art->Kind == EJRPGArtKind::Part;
 }
 
-int32 UJRPGArtSequenceLibrary::ArtDiscRate(FName ArtKey)
-{
-	const UDataTable* Hits = UCoreSubsystem::ResolveDataTable(TEXT("DT_ArtHits"));
-	const FJRPGArtHitData* Row = Hits ? Hits->FindRow<FJRPGArtHitData>(ArtKey, TEXT("ArtSequence"), false) : nullptr;
-	return Row ? FMath::Max(Row->Rate, 1) : 0;
-}
-
-float UJRPGArtSequenceLibrary::AssetRateCorrection(const UAnimSequenceBase* Clip, int32 DiscRate)
-{
-	if (!Clip || DiscRate <= 0)
-	{
-		return 1.0f;
-	}
-	auto Whole = [Clip](int32 Rate)
-	{
-		const double Frames = static_cast<double>(Clip->GetPlayLength()) * 7.5 * static_cast<double>(Rate);
-		return FMath::Abs(Frames - FMath::RoundToDouble(Frames)) <= 0.05;
-	};
-	if (Whole(DiscRate))
-	{
-		return 1.0f;
-	}
-	for (int32 Rate = 1; Rate <= 7; ++Rate)
-	{
-		if (Rate != DiscRate && Whole(Rate))
-		{
-			return static_cast<float>(DiscRate) / static_cast<float>(Rate);
-		}
-	}
-	return 1.0f;
-}
-
 void UJRPGArtSequenceLibrary::ApplyGameSpeeds(TArray<FJRPGArtStep>& Steps)
 {
 	// A Art entra pelo braço de Art do commit (FUN_8004AD80), que põe 2 com o modo especial ligado e 4
@@ -266,6 +234,11 @@ void UJRPGArtSequenceLibrary::ApplyGameSpeeds(TArray<FJRPGArtStep>& Steps)
 		}
 		default:
 			Step.GameSpeed = SpeedNormal;
+			// Um golpe simples solta o modo especial (FUN_801E93C8, com um id < 0x10 commitado); o ArtStarter não
+			if (Step.Kind == EJRPGArtStepKind::Swing)
+			{
+				bSpecial = false;
+			}
 			break;
 		}
 	}

@@ -657,12 +657,14 @@ void UJRPGBattleSceneSubsystem::HandleLogicFrame(int32 Frame)
 	// A câmera lenta das Arts vale para a luta inteira (o byte +0x21D de cada ator): quem age pede, os outros tocam nela
 	const AJRPGBattlePawn* Acting = nullptr;
 	int32 WorldSpeed = UBattleFormulas::NormalGameSpeed;
+	int32 WorldSerial = INDEX_NONE;
 	for (const AJRPGBattlePawn* Pawn : Current->GetBattlePawns())
 	{
 		if (IsValid(Pawn) && Pawn->GetActiveActionIndex() != INDEX_NONE)
 		{
 			Acting = Pawn;
 			WorldSpeed = Pawn->GetWorldSpeedRequest(Frame);
+			WorldSerial = Pawn->GetStepCommitSerial();
 			break;
 		}
 	}
@@ -674,7 +676,7 @@ void UJRPGBattleSceneSubsystem::HandleLogicFrame(int32 Frame)
 	{
 		if (IsValid(Pawn))
 		{
-			Pawn->SetWorldAnimSpeed(Pawn == Acting ? UBattleFormulas::NormalGameSpeed : WorldSpeed);
+			Pawn->SetWorldAnimSpeed(Pawn == Acting ? UBattleFormulas::NormalGameSpeed : WorldSpeed, WorldSerial);
 			// A ação pode ter sido cortada depois do ActionStart (o último inimigo caiu no meio da combo): relê a timeline
 			// que valeu, para nenhum passo depois do corte tocar
 			const int32 ActionIndex = Pawn->GetActiveActionIndex();
@@ -777,11 +779,47 @@ void UJRPGBattleSceneSubsystem::UpdateCameraGhost(const UBattleSubsystem* Battle
 			Eye = View->GetCameraLocation();
 			bOcclusion = true;
 		}
-		if (Battle && Acting)
+	}
+	if (Battle && Acting)
+	{
+		ActionTarget = Current->GetPawnForSlot(Battle->GetState().Action.TargetSlot);
+	}
+	// Nosso: no SpecialStarter o alvo some sempre (bCameraGhostTargetOnStarter)
+	bool bForceTarget = false;
+	if (Current->bCameraGhost && Current->bCameraGhostTargetOnStarter && Acting && ActionTarget && ActionTarget != Acting)
+	{
+		FJRPGActionStep PlayingStep;
+		float PlayingSeconds = 0.0f;
+		float PlayingLength = 0.0f;
+		bForceTarget = Acting->GetPlayingStep(PlayingStep, PlayingSeconds, PlayingLength)
+			&& PlayingStep.Kind == EJRPGActionStepKind::SpecialStarter;
+	}
+	// O trace da vista (nosso): da câmera a pontos de quem a tomada tem de mostrar; um corpo com physics asset que cruza uma dessas
+	// linhas vira fantasma, o que quer que o centro dele diga (a asa de um monstro grande tapa o herói longe do centro)
+	TArray<FVector> ViewPoints;
+	TArray<const AJRPGBattlePawn*, TInlineAllocator<4>> Subjects;
+	if (bTest && bOcclusion && Current->bCameraGhostTrace)
+	{
+		auto AddSubject = [&Subjects](const AJRPGBattlePawn* Pawn)
 		{
-			ActionTarget = Current->GetPawnForSlot(Battle->GetState().Action.TargetSlot);
+			if (Pawn && !Pawn->IsHidden() && !Subjects.Contains(Pawn))
+			{
+				Subjects.Add(Pawn);
+			}
+		};
+		AddSubject(Acting);
+		if (!bArtShot && !bForceTarget)
+		{
+			AddSubject(ActionTarget);
+		}
+		AddSubject(ShotPawn);
+		AddSubject(ShotTarget);
+		for (const AJRPGBattlePawn* Subject : Subjects)
+		{
+			Subject->GetViewPoints(Eye, ViewPoints);
 		}
 	}
+
 	// Um passo por quadro lógico (1/60 s)
 	const float Step = Current->CameraGhostFadeSeconds > 0.0f
 		? 1.0f / (static_cast<float>(UBattleFormulas::StepsPerSecond) * Current->CameraGhostFadeSeconds) : 1.0f;
@@ -817,6 +855,21 @@ void UJRPGBattleSceneSubsystem::UpdateCameraGhost(const UBattleSubsystem* Battle
 				const FVector Closest = Eye + Line * FMath::Clamp(T, 0.0f, 1.0f);
 				bGhost = FVector::Dist(Origin, Eye) < BodyRadius || (T > 0.0f && T < 0.98f && FVector::Dist(Origin, Closest) < BodyRadius);
 			}
+			if (!bGhost && Pawn->HasViewBodies() && !Subjects.Contains(Pawn))
+			{
+				for (const FVector& ViewPoint : ViewPoints)
+				{
+					if (Pawn->BlocksView(Eye, ViewPoint))
+					{
+						bGhost = true;
+						break;
+					}
+				}
+			}
+		}
+		if (bForceTarget && Pawn == ActionTarget && !Pawn->IsHidden() && !Pawn->IsDefeated())
+		{
+			bGhost = true;
 		}
 		// Uma vez fantasma, segura um mínimo (o corpo que balança na borda do teste não pisca)
 		if (bGhost)

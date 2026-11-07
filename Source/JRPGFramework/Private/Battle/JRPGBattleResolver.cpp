@@ -37,6 +37,26 @@ namespace
 		return (Frames * UBattleFormulas::NormalGameSpeed + Speed - 1) / Speed;
 	}
 
+	/**
+	 * Como Scaled, mas só os primeiros SlowFrames quadros andam em GameSpeed: depois a luta volta a 8 (FUN_801E93C8 põe todos a 8 na
+	 * passada em que o último clip de Art de quem age acaba, e o knockdown que a Art começou termina na velocidade normal). Bug 78:
+	 * contar a reação inteira lenta segurava a luta uns 5 s depois de um Miracle que derruba ou mata.
+	 */
+	int32 ScaledUntil(int32 Frames, int32 GameSpeed, int32 SlowFrames)
+	{
+		const int32 Speed = FMath::Max(GameSpeed, 1);
+		if (Speed >= UBattleFormulas::NormalGameSpeed || SlowFrames < 0)
+		{
+			return Scaled(Frames, Speed);
+		}
+		const int32 SlowProgress = SlowFrames * Speed / UBattleFormulas::NormalGameSpeed;
+		if (Frames <= SlowProgress)
+		{
+			return Scaled(Frames, Speed);
+		}
+		return SlowFrames + (Frames - SlowProgress);
+	}
+
 	/** Qual reação se mede (a duração vem do combatente, ou do padrão quando ele não traz). */
 	enum class EReactionLength : uint8
 	{
@@ -742,6 +762,18 @@ void FJRPGBattleResolver::EndAction(bool bCancelled)
 	ScheduleFinishCheck();
 }
 
+void FJRPGBattleResolver::DebugFillPartyAP()
+{
+	for (FJRPGCombatant& C : State.Combatants)
+	{
+		if (C.Side == EJRPGBattleSide::Party && C.bAlive && C.MaxAP > 0 && C.AP != C.MaxAP)
+		{
+			C.AP = C.MaxAP;
+			Emit(EJRPGBattleEventType::APChanged, C.SlotIndex, C.SlotIndex, C.AP);
+		}
+	}
+}
+
 void FJRPGBattleResolver::ScheduleFinishCheck()
 {
 	// O atacante está livre (o ActionEnd saiu), mas a luta não: o estado 0x20 do original segura até o alvo voltar ao idle (ou a
@@ -1072,6 +1104,13 @@ void FJRPGBattleResolver::ComposeHeroTimeline(const FJRPGCombatant& Hero, const 
 		}
 		default:
 			Step.Speed = UBattleFormulas::NormalGameSpeed;
+			// Um golpe simples (direção) solta o modo especial: FUN_801E93C8 roda enquanto quem age tem um id < 0x10 commitado (o
+			// golpe), põe todos a 8 e zera ctx[+0x243]. O ArtStarter (0x19) não: a Art depois dele segue a 2. Bug 79: depois de uma
+			// Hyper, a Art seguinte (que começa pelos golpes dos botões dela) ficava a 2
+			if (Step.Kind == EJRPGActionStepKind::Swing)
+			{
+				bSpecialMode = false;
+			}
 			break;
 		}
 	}
@@ -1548,6 +1587,20 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 	FJRPGCombatant& Defender = State.Combatants[Action.TargetSlot];
 	const bool bHeroAttacker = Attacker.Type != EJRPGCombatantType::Enemy;
 	const int32 Speed = Action.Timeline.Steps.IsValidIndex(Hit.StepIndex) ? Action.Timeline.Steps[Hit.StepIndex].GameSpeed : UBattleFormulas::NormalGameSpeed;
+	// Quanto da reação ainda anda lenta: até o fim deste passo e dos lentos colados nele (as Arts seguidas de um Miracle); depois, 8
+	int32 SlowLeft = -1;
+	if (Speed < UBattleFormulas::NormalGameSpeed && Action.Timeline.Steps.IsValidIndex(Hit.StepIndex))
+	{
+		const TArray<FJRPGActionStep>& Steps = Action.Timeline.Steps;
+		int32 SlowEnd = Steps[Hit.StepIndex].EndFrame;
+		for (int32 Next = Hit.StepIndex + 1; Next < Steps.Num() && Steps[Next].GameSpeed < UBattleFormulas::NormalGameSpeed; ++Next)
+		{
+			SlowEnd = Steps[Next].EndFrame;
+		}
+		SlowLeft = FMath::Max(Action.Timeline.StartFrame + SlowEnd - State.Frame, 0);
+	}
+	// A reação que o alvo commita com o mundo lento toca a 4 (FUN_8004AD80: todo commit com a velocidade != 8 põe 4; bug 80)
+	const int32 ReactionSpeed = Speed < UBattleFormulas::NormalGameSpeed ? FMath::Max(Speed, UBattleFormulas::NormalGameSpeed / 2) : Speed;
 	int32 Flags = 0;
 	if (!UBattleFormulas::TargetsUpper(Hit.PowerByte))
 	{
@@ -1615,9 +1668,9 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 			State.Action.bApproachSpent = true;
 			Defender.JuggleCounter = 1;
 			Defender.bReactionIsBlock = true;
-			Defender.ReactionUntilFrame = State.Frame + ReactionFrames(Defender.BlockClip, Speed);
+			Defender.ReactionUntilFrame = State.Frame + ReactionFrames(Defender.BlockClip, ReactionSpeed);
 			// A ação seguinte espera o block acabar, na velocidade em que ele foi tomado
-			Defender.ReactionHoldUntilFrame = State.Frame + Scaled(ReactionLengthOf(Defaults, Defender, EReactionLength::Block), Speed);
+			Defender.ReactionHoldUntilFrame = State.Frame + ScaledUntil(ReactionLengthOf(Defaults, Defender, EReactionLength::Block), ReactionSpeed, SlowLeft);
 			Emit(EJRPGBattleEventType::Block, Attacker.SlotIndex, Defender.SlotIndex, 0, HitIndex, Flags, NAME_None, 0, Speed);
 			return;
 		}
@@ -1672,8 +1725,8 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 		Flags |= FJRPGBattleEventFlag::Knockdown;
 		// Cai e levanta: a ação seguinte espera o knockdown E o levantar (o estado 0x20 só solta com o alvo de volta ao idle). Quem
 		// morre troca isto pela queda no KillCombatant, logo abaixo
-		Defender.ReactionHoldUntilFrame = State.Frame + Scaled(ReactionLengthOf(Defaults, Defender, EReactionLength::Knockdown)
-			+ ReactionLengthOf(Defaults, Defender, EReactionLength::GetUp), Speed);
+		Defender.ReactionHoldUntilFrame = State.Frame + ScaledUntil(ReactionLengthOf(Defaults, Defender, EReactionLength::Knockdown)
+			+ ReactionLengthOf(Defaults, Defender, EReactionLength::GetUp), ReactionSpeed, SlowLeft);
 	}
 	else
 	{
@@ -1682,10 +1735,10 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 		const FJRPGBattleReactionClip& Primary = bUpper ? Defender.FlinchHigh : Defender.FlinchLow;
 		const FJRPGBattleReactionClip& Other = bUpper ? Defender.FlinchLow : Defender.FlinchHigh;
 		const FJRPGBattleReactionClip& Flinch = Primary.Beat > 0 ? Primary : Other;
-		Defender.ReactionUntilFrame = State.Frame + ReactionFrames(Flinch, Speed);
+		Defender.ReactionUntilFrame = State.Frame + ReactionFrames(Flinch, ReactionSpeed);
 		// Um flinch por cima de outro recomeça o clip: a espera conta do último golpe
-		Defender.ReactionHoldUntilFrame = State.Frame + Scaled(ReactionLengthOf(Defaults, Defender,
-			bUpper ? EReactionLength::FlinchHigh : EReactionLength::FlinchLow), Speed);
+		Defender.ReactionHoldUntilFrame = State.Frame + ScaledUntil(ReactionLengthOf(Defaults, Defender,
+			bUpper ? EReactionLength::FlinchHigh : EReactionLength::FlinchLow), ReactionSpeed, SlowLeft);
 	}
 
 	Emit(EJRPGBattleEventType::Damage, Attacker.SlotIndex, Defender.SlotIndex, Damage, HitIndex, Flags, NAME_None, 0, Speed);
@@ -1706,28 +1759,30 @@ void FJRPGBattleResolver::ResolveHit(int32 HitIndex)
 
 	if (bFalls)
 	{
-		KillCombatant(Defender, Attacker.SlotIndex, Speed);
+		KillCombatant(Defender, Attacker.SlotIndex, ReactionSpeed, SlowLeft);
 	}
 }
 
-void FJRPGBattleResolver::KillCombatant(FJRPGCombatant& Of, int32 KilledBy, int32 GameSpeed)
+void FJRPGBattleResolver::KillCombatant(FJRPGCombatant& Of, int32 KilledBy, int32 GameSpeed, int32 SlowFrames)
 {
 	Of.HP = 0;
 	Of.bAlive = false;
 	Of.InitiativeKey = 0;
 	Of.ReactionUntilFrame = 0;
 	// A queda que a ação seguinte espera: o herói cai e chega à entrada 8 (o knockdown + a entrada 7; a 8 repete para sempre),
-	// o monstro cai e o corpo some no fade de derrota (o terceiro teste do estado 0x20). Conta do quadro da queda
+	// o monstro cai e o corpo some no fade de derrota (o terceiro teste do estado 0x20). Conta do quadro da queda; a parte depois
+	// do último clip de Art anda a 8 (ScaledUntil)
 	int32 Fade = 0;
-	int32 Hold = Scaled(ReactionLengthOf(Defaults, Of, EReactionLength::Knockdown), GameSpeed);
+	int32 Hold = 0;
 	if (Of.Type == EJRPGCombatantType::Enemy)
 	{
 		Fade = ReactionLengthOf(Defaults, Of, EReactionLength::DeathFade);
-		Hold += Fade;   // o fade anda por passo, não pela escala da Art
+		Hold = ScaledUntil(ReactionLengthOf(Defaults, Of, EReactionLength::Knockdown), GameSpeed, SlowFrames) + Fade;   // o fade anda por passo
 	}
 	else
 	{
-		Hold += Scaled(ReactionLengthOf(Defaults, Of, EReactionLength::Dying), GameSpeed);
+		Hold = ScaledUntil(ReactionLengthOf(Defaults, Of, EReactionLength::Knockdown) + ReactionLengthOf(Defaults, Of, EReactionLength::Dying),
+			GameSpeed, SlowFrames);
 	}
 	Of.ReactionHoldUntilFrame = State.Frame + Hold;
 	Emit(EJRPGBattleEventType::Death, Of.SlotIndex, KilledBy, Fade, -1, 0, NAME_None, 0, GameSpeed);

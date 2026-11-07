@@ -127,6 +127,11 @@ void AJRPGBattlePawn::InitCombatant(const FJRPGCombatant& InCombatant, const FJR
 
 	USkeletalMesh* LoadedMesh = Visual.Mesh.LoadSynchronous();
 	Mesh->SetSkeletalMeshAsset(LoadedMesh);
+	// Com physics asset (os monstros), os corpos dele seguem a animação só para consulta: o fantasma da câmera traça a vista contra
+	// eles (BlocksView). Ignoram todos os canais, então nenhum outro trace do jogo os vê
+	bHasViewBodies = LoadedMesh && LoadedMesh->GetPhysicsAsset();
+	Mesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+	Mesh->SetCollisionEnabled(bHasViewBodies ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 	Mesh->SetRelativeScale3D(FVector(Visual.Scale));
 	Mesh->SetRelativeRotation(FRotator(0.0f, MeshYawOffset, 0.0f));
 
@@ -138,10 +143,24 @@ void AJRPGBattlePawn::InitCombatant(const FJRPGCombatant& InCombatant, const FJR
 		const float MinZ = (Bounds.Origin.Z - Bounds.BoxExtent.Z) * Visual.Scale;
 		const float Height = Bounds.BoxExtent.Z * 2.0f * Visual.Scale;
 		const float Radius = FMath::Clamp(FMath::Max(Bounds.BoxExtent.X, Bounds.BoxExtent.Y) * Visual.Scale * 0.6f, 20.0f, 150.0f);
-		Half = FMath::Max(Height * 0.5f, Radius);
-		Capsule->SetCapsuleSize(Radius, Half);
-		DisplayHeightCm = Height;
-		Mesh->SetRelativeLocation(FVector(0.0f, 0.0f, -Half - MinZ));
+		if (bGroundAtMeshRoot)
+		{
+			// A raiz do modelo é o chão, como no original (o live pair tem altura 0): o voador (Vera, Evil Fly) flutua porque as peças
+			// dele ficam acima da raiz, e cai até o chão no knockdown. Bug 81: encaixar o ponto mais baixo no chão o baixava e, ao
+			// morrer, o corpo caído ficava dentro da terra. A cápsula vai do chão ao topo do corpo
+			const float Top = FMath::Max(MinZ + Height, Height * 0.5f);
+			Half = FMath::Max(Top * 0.5f, Radius);
+			Capsule->SetCapsuleSize(Radius, Half);
+			DisplayHeightCm = Top;
+			Mesh->SetRelativeLocation(FVector(0.0f, 0.0f, -Half));
+		}
+		else
+		{
+			Half = FMath::Max(Height * 0.5f, Radius);
+			Capsule->SetCapsuleSize(Radius, Half);
+			DisplayHeightCm = Height;
+			Mesh->SetRelativeLocation(FVector(0.0f, 0.0f, -Half - MinZ));
+		}
 	}
 	SetActorLocationAndRotation(FeetTransform.GetLocation() + FVector(0.0f, 0.0f, Half), FeetTransform.GetRotation());
 	if (!LoadedMesh)
@@ -247,11 +266,12 @@ void AJRPGBattlePawn::BuildPieces(const FJRPGBattleVisual& Visual)
 
 	// Por partes, a Mesh só conduz a pose. Invisível ela pararia de atualizar os bones (por padrão
 	// só atualiza quando aparece na tela), e as partes que seguem a pose dela sumiriam junto.
+	// Bug 82: sempre atualiza os bones, também a malha inteira (os monstros). Com o material do fantasma da câmera (o alvo no
+	// SpecialStarter e os 0,6 s depois) a engine não a contava como desenhada e os bones paravam: os flinches do finalizador de
+	// uma Super rodavam na lógica sem aparecer. São poucos pawns, o custo não conta
 	const bool bByPieces = Visual.Pieces.Num() > 0;
 	Mesh->SetVisibility(!bByPieces);
-	Mesh->VisibilityBasedAnimTickOption = bByPieces
-		? EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones
-		: EVisibilityBasedAnimTickOption::AlwaysTickPose;
+	Mesh->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 
 	for (const FJRPGBattlePieceMesh& Part : Visual.Pieces)
 	{
@@ -469,6 +489,11 @@ void AJRPGBattlePawn::AdvanceReaction(int32 LogicFrame)
 		UAnimSequence* Clip = FindRoleClip(Step.Role, Rate);
 		if (!Clip)
 		{
+			if (bLogReactions)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("BattlePawn %s: reação %s no quadro %d sem clip (nem o flinch de troca): nada toca"),
+					*Combatant.Key.ToString(), *Step.Role.ToString(), LogicFrame);
+			}
 			// Sem o clip deste papel a cadeia segue direto para o próximo (quem não tem o GetUp volta ao idle depois do Knockdown)
 			if (bLast)
 			{
@@ -494,9 +519,22 @@ void AJRPGBattlePawn::AdvanceReaction(int32 LogicFrame)
 			return;
 		}
 		PlayClip(Clip, false, Rate);
+		// O commit da reação com o mundo lento põe este ator a 4 (ReactionRateFloor)
+		if (bSlowWorldDuringArts && !bActionActive && RequestedWorldSpeed < UBattleFormulas::NormalGameSpeed)
+		{
+			ReactionRateFloor = UBattleFormulas::NormalGameSpeed / 2;
+			ApplyWorldAnimSpeed();
+		}
 		const float Speed = FMath::Max(Rate * FMath::Max(Clip->RateScale, KINDA_SMALL_NUMBER), KINDA_SMALL_NUMBER);
 		const int32 Frames = FMath::Max(FMath::CeilToInt(Clip->GetPlayLength() / Speed * static_cast<float>(UBattleFormulas::StepsPerSecond)), 1);
 		ReactionEndFrame = LogicFrame + Frames;
+		if (bLogReactions)
+		{
+			UE_LOG(LogTemp, Log, TEXT("BattlePawn %s: reação %s (%s, rate %.2f) no quadro %d, mundo a %d (pedido %d, piso %d), %d quadros na escala 8, malha a %.2f, desenhada %s, fantasma %.2f%s"),
+				*Combatant.Key.ToString(), *Step.Role.ToString(), *Clip->GetName(), Rate, LogicFrame, WorldAnimSpeed, RequestedWorldSpeed,
+				ReactionRateFloor, Frames, Mesh ? Mesh->GlobalAnimRateScale : -1.0f, Mesh && Mesh->WasRecentlyRendered(0.2f) ? TEXT("sim") : TEXT("NÃO"),
+				CameraGhostOpacity, bActionActive ? TEXT(" (está agindo!)") : TEXT(""));
+		}
 		// O clip da reação move o ator enquanto toca (o knockdown desliza a queda inteira) e anda o passo do fim dele quando acaba
 		BeginClipMotion(RoleMotion(Step.Role), LogicFrame, ReactionEndFrame, ClipSpeed, false);
 		return;
@@ -591,6 +629,48 @@ FVector AJRPGBattlePawn::BodyOffset() const
 	FVector Offset = Mesh->GetComponentTransform().TransformPosition(PoseCentroid()) - GetActorLocation();
 	Offset.Z = 0.0;
 	return Offset;
+}
+
+bool AJRPGBattlePawn::BlocksView(const FVector& Eye, const FVector& Point) const
+{
+	if (!bHasViewBodies || !Mesh || IsHidden())
+	{
+		return false;
+	}
+	FHitResult Hit;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(BattleCameraGhost), false);
+	return Mesh->LineTraceComponent(Hit, Eye, Point, Params);
+}
+
+void AJRPGBattlePawn::GetViewPoints(const FVector& Eye, TArray<FVector>& OutPoints) const
+{
+	// O meio, a cabeça, perto dos pés e os dois lados (de quem olha), na caixa de agora do corpo
+	FVector Origin, Extent;
+	GetActorBounds(true, Origin, Extent);
+	FVector Side = FVector::CrossProduct(Origin - Eye, FVector::UpVector).GetSafeNormal();
+	if (Side.IsNearlyZero())
+	{
+		Side = GetActorRightVector();
+	}
+	const double Half = FMath::Max(Extent.X, Extent.Y) * 0.5;
+	OutPoints.Add(Origin);
+	OutPoints.Add(Origin + FVector(0.0, 0.0, Extent.Z * 0.7));
+	OutPoints.Add(Origin - FVector(0.0, 0.0, Extent.Z * 0.6));
+	OutPoints.Add(Origin + Side * Half);
+	OutPoints.Add(Origin - Side * Half);
+}
+
+FVector AJRPGBattlePawn::AimBodyOffset() const
+{
+	// Nosso (bug 77): numa reação o corpo balança (o flinch do Che Delilas o leva ~1,1 m para trás e de volta); quem ataca mira o corpo
+	// na pose de idle, levado pela posição e direção de agora do ator
+	if (bAimRestBodyDuringReaction && ReactionRole != NAME_None && bHasNeutralCentroid && bUseBodyPair && Mesh)
+	{
+		FVector Offset = Mesh->GetComponentTransform().TransformPosition(NeutralCentroid) - GetActorLocation();
+		Offset.Z = 0.0;
+		return Offset;
+	}
+	return BodyOffset();
 }
 
 void AJRPGBattlePawn::SettleIntoIdle()
@@ -739,7 +819,7 @@ void AJRPGBattlePawn::UpdateRootMotion(int32 LogicFrame)
 		{
 			return;
 		}
-		const double Gap = FVector::Dist2D(GetActorLocation(), Foe->GetBodyLocation());
+		const double Gap = FVector::Dist2D(GetActorLocation(), Foe->GetAimBodyLocation());
 		const double Edge = static_cast<double>(ReachFor(Foe) + StopMargin);
 		if (Gap <= Edge)
 		{
@@ -878,7 +958,7 @@ void AJRPGBattlePawn::ArrivalShove()
 	}
 	// A lei de alcance do original: a posição do atacante contra o CORPO do alvo
 	const FVector Here = GetActorLocation();
-	const FVector There = Foe->GetBodyLocation();
+	const FVector There = Foe->GetAimBodyLocation();
 	const FVector Facing = FVector(There.X - Here.X, There.Y - Here.Y, 0.0);
 	const double Gap = Facing.Size2D();
 	// A borda do alcance: o limiar da lei (o ReachFor já tira a margem de parada, que o original anda para dentro)
@@ -1206,7 +1286,7 @@ FVector AJRPGBattlePawn::ComputeStopPoint(const FVector& From, const AJRPGBattle
 		return From;
 	}
 	// A lei de alcance do original mede o atacante (From) contra o CORPO do alvo (o body pair), não os pés
-	const FVector TargetLocation = Target->GetSettledBodyLocation();
+	const FVector TargetLocation = Target->GetSettledAimBodyLocation();
 	const FVector Flat = FVector(TargetLocation.X - From.X, TargetLocation.Y - From.Y, 0.0).GetSafeNormal();
 	const float Reach = ReachFor(Target);
 	// Já ao alcance (ou em cima do alvo): fica onde está. Senão o alvo é a parede: para a Reach dele
@@ -1231,7 +1311,7 @@ void AJRPGBattlePawn::FollowTarget(int32 LogicFrame)
 	// A banda de golpes do original mira o CORPO do alvo (0x801E36F0): um knockdown que leva o corpo de lado vira o atacante junto.
 	// A partir de onde ele vai parar (o passo do fim do clip anterior pode estar deslizando)
 	const FVector Current = GetSettledLocation();
-	const FVector FoeBody = Foe->GetSettledBodyLocation();
+	const FVector FoeBody = Foe->GetSettledAimBodyLocation();
 	const FVector Flat = FVector(FoeBody.X - Current.X, FoeBody.Y - Current.Y, 0.0).GetSafeNormal();
 	if (Flat.IsNearlyZero())
 	{
@@ -1262,7 +1342,7 @@ FVector AJRPGBattlePawn::ComputeSnapPoint(const FVector& From, const AJRPGBattle
 	{
 		return From;
 	}
-	const FVector TargetBody = Target->GetSettledBodyLocation();
+	const FVector TargetBody = Target->GetSettledAimBodyLocation();
 	const FVector Flat = FVector(TargetBody.X - From.X, TargetBody.Y - From.Y, 0.0).GetSafeNormal();
 	if (Flat.IsNearlyZero())
 	{
@@ -1307,9 +1387,22 @@ int32 AJRPGBattlePawn::GetWorldSpeedRequest(int32 LogicFrame) const
 	}
 }
 
-void AJRPGBattlePawn::SetWorldAnimSpeed(int32 Speed)
+void AJRPGBattlePawn::SetWorldAnimSpeed(int32 Speed, int32 CommitSerial)
 {
-	WorldAnimSpeed = bSlowWorldDuringArts ? FMath::Clamp(Speed, 0, UBattleFormulas::NormalGameSpeed) : UBattleFormulas::NormalGameSpeed;
+	RequestedWorldSpeed = bSlowWorldDuringArts ? FMath::Clamp(Speed, 0, UBattleFormulas::NormalGameSpeed) : UBattleFormulas::NormalGameSpeed;
+	// Um passo novo de quem age (a Art e o SpecialStarter reescrevem todos os atores) ou a volta a 8 tiram o piso da reação
+	if (CommitSerial != WorldCommitSerial || RequestedWorldSpeed >= UBattleFormulas::NormalGameSpeed)
+	{
+		WorldCommitSerial = CommitSerial;
+		ReactionRateFloor = 0;
+	}
+	ApplyWorldAnimSpeed();
+}
+
+void AJRPGBattlePawn::ApplyWorldAnimSpeed()
+{
+	WorldAnimSpeed = ReactionRateFloor > 0 && RequestedWorldSpeed < UBattleFormulas::NormalGameSpeed
+		? FMath::Max(RequestedWorldSpeed, ReactionRateFloor) : RequestedWorldSpeed;
 	// Quem age toca os próprios passos na velocidade deles; o resto (idle, reação, caído) na do mundo
 	const float Scale = bActionActive ? 1.0f : static_cast<float>(WorldAnimSpeed) / static_cast<float>(UBattleFormulas::NormalGameSpeed);
 	if (Mesh && !FMath::IsNearlyEqual(Mesh->GlobalAnimRateScale, Scale))
@@ -1365,7 +1458,7 @@ void AJRPGBattlePawn::UpdateStrikeSpacing()
 		return;
 	}
 	const FVector Here = GetActorLocation();
-	const FVector FoeBody = Foe->GetBodyLocation();
+	const FVector FoeBody = Foe->GetAimBodyLocation();
 	const FVector ToFoe(FoeBody.X - Here.X, FoeBody.Y - Here.Y, 0.0);
 	const double Distance = ToFoe.Size2D();
 	if (Distance <= KINDA_SMALL_NUMBER)
@@ -1602,11 +1695,6 @@ void AJRPGBattlePawn::PlayStep(const FJRPGActionStep& Step)
 		if (Clip && Clip->RateScale > KINDA_SMALL_NUMBER)
 		{
 			Rate = Step.GameSpeed / (4.0f * Clip->RateScale);
-			// O asset de uma Art gravado noutra velocidade que a do disco (o HurricaneKick3): mais rápido, para durar o do original
-			if (Step.Kind == EJRPGActionStepKind::Art)
-			{
-				Rate *= UJRPGArtSequenceLibrary::AssetRateCorrection(Clip, UJRPGArtSequenceLibrary::ArtDiscRate(Step.ArtKey));
-			}
 		}
 	}
 	if (Clip)
@@ -1823,6 +1911,10 @@ void AJRPGBattlePawn::EndAction(int32 LogicFrame)
 
 void AJRPGBattlePawn::ShowEvent(const FJRPGBattleEvent& Event, const FString& Text, bool bAsTarget)
 {
+	if (bLogReactions && bAsTarget && bDown && (Event.Type == EJRPGBattleEventType::Damage || Event.Type == EJRPGBattleEventType::Block))
+	{
+		UE_LOG(LogTemp, Log, TEXT("BattlePawn %s: golpe no quadro %d com o corpo já caído: sem reação"), *Combatant.Key.ToString(), Event.Frame);
+	}
 	if (bAsTarget && !bDown)
 	{
 		switch (Event.Type)

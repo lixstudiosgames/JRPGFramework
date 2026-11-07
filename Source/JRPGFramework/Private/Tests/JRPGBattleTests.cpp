@@ -2285,7 +2285,21 @@ bool FJRPGBattlePostActionHoldTest::RunTest(const FString& Parameters)
 		{
 			TestEqual(TEXT("a escala de uma Art"), LastArtHit->GameSpeed, 4);
 			const int32 Normal = (LastArtHit->Flags & FJRPGBattleEventFlag::LowHit) ? D.EnemyFlinchLowFrames : D.EnemyFlinchHighFrames;
-			TestEqual(TEXT("a espera pelo flinch conta na escala do golpe"), Fight.GetCombatants()[1].ReactionHoldUntilFrame - LastArtHit->Frame, Normal * 2);
+			// Bug 78: lenta só até o clip da Art acabar (FUN_801E93C8 devolve o 8 a todos), o resto da reação a 8
+			const FJRPGActionTimeline& Timeline = Fight.GetState().Action.Timeline;
+			int32 ArtEnd = INDEX_NONE;
+			for (const FJRPGActionStep& Step : Timeline.Steps)
+			{
+				if (Step.Kind == EJRPGActionStepKind::Art)
+				{
+					ArtEnd = Timeline.StartFrame + Step.EndFrame;
+				}
+			}
+			TestTrue(TEXT("o passo da Art na timeline"), ArtEnd != INDEX_NONE);
+			const int32 SlowLeft = FMath::Max(ArtEnd - LastArtHit->Frame, 0);
+			const int32 SlowProgress = SlowLeft * 4 / 8;
+			const int32 Expected = Normal <= SlowProgress ? Normal * 2 : SlowLeft + (Normal - SlowProgress);
+			TestEqual(TEXT("a espera pelo flinch: lenta até o fim da Art, depois a 8"), Fight.GetCombatants()[1].ReactionHoldUntilFrame - LastArtHit->Frame, Expected);
 		}
 		Arts->RemoveFromRoot();
 	}
