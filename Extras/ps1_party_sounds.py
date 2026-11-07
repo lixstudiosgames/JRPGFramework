@@ -307,8 +307,10 @@ def main():
                           "rate_scale": c["rate_scale"], "chain_cut": chain_cut}
             # O trecho que o tick repete antes de seguir (FUN_80047430): o cursor que chega a +0x86 volta a +0x85, +0x84 vezes.
             # Vai como UJRPGAnimNotify_LoopWindow (ue_import_monster_sounds.py); em segundos do asset, como os notifies
+            # Os finalizadores das Supers (id >= 0x2B: Neo Static Raising 0x2F, Super Tempest 0x30) trazem o byte, mas no original
+            # não repetem (o usuário, vendo o jogo, 2026-11-06: o Neo Static Raising dá só 3 golpes): ficam sem o trecho
             count, first, last = c["loop"]
-            if count and last > first:
+            if count and last > first and c["id"] < 0x2B:
                 entry_clip["loop"] = {"count": count, "start": round(first * seconds_per_frame, 4),
                                       "end": round(last * seconds_per_frame, 4)}
             manifest["clips"].append(entry_clip)

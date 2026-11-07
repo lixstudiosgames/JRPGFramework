@@ -710,6 +710,25 @@ bool UBattleSubsystem::BeginBattle(const FJRPGBattleSetup& Setup)
 				}
 			}
 		}
+		// O trecho de laço nos golpes (bug 83): o cursor que chega ao fim do trecho volta ao começo dele, Loops vezes, então os golpes
+		// depois do trecho atrasam as voltas (o Burning Flare segura um quadro 5 vezes antes dos golpes 11..14). Os golpes do trecho não
+		// se repetem: os finalizadores das Supers, que repetiriam, não têm o trecho (o original não repete; ps1_party_sounds.py)
+		if (Query.Kind == EJRPGActionStepKind::Art && Loops > 0 && Loops < UJRPGAnimNotify_LoopWindow::Forever && LoopEnd > LoopStart)
+		{
+			const int32 WindowEnd = SecondsToSteps(LoopEnd, ClipRate, Query.GameSpeed);
+			const int32 WindowSteps = FMath::Max(WindowEnd - SecondsToSteps(LoopStart, ClipRate, Query.GameSpeed), 1);
+			for (int32& Frame : OutTiming.HitFrames)
+			{
+				if (Frame >= WindowEnd)
+				{
+					Frame += Loops * WindowSteps;
+				}
+			}
+			if (!OutTiming.HitFrames.IsEmpty())
+			{
+				OutTiming.Frames = FMath::Max(OutTiming.Frames, OutTiming.HitFrames.Last() + 1);
+			}
+		}
 		const float Cut = UJRPGAnimNotify_ChainCut::FindCutTime(Clip);
 		if (Cut >= 0.0f)
 		{

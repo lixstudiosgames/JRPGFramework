@@ -851,6 +851,19 @@ tables of 1c first.
       `AlwaysTickPose` (bones refreshed only when the mesh counts as rendered); with the ghost material it most likely did not, so
       the bones froze. **Fixed:** every battle mesh uses `AlwaysTickPoseAndRefreshBones` (`BuildPieces`). The reaction log now also
       prints the mesh's `GlobalAnimRateScale`, whether it was rendered in the last 0.2 s and the ghost opacity, to confirm.
+    - **Closed by 83** (the user's recording: after the dash, punches 1 and 2 flinch, the 3rd does not, the 4th knocks down, the
+      rest hit nothing): our finisher looped and showed more punches than its hits. The reaction log was right all along; the
+      `AlwaysTickPoseAndRefreshBones` change stays (harmless).
+83. **Super finishers looped: Neo Static Raising repeated its punches.** Gala's finisher (`0x2F`) carries a loop window in its
+    disc entry (keyframes 5..15, count 2), and so does Noa's Super Tempest finisher (`0x30`, 3..17, count 2); ours played both
+    (bug 61), so the clip showed more punches than its 3 / 4 hits and the last hit (the knockdown) fell among the repeats. **The
+    user checked the original: Neo Static Raising lands only 3 punches, no repeat.** (The RE text says a windowed clip with an id
+    `>= 0x2B` re-zeroes its hit index on every rewind; on screen the original does not loop these, so that reading does not hold
+    here.) **Fixed:** `ps1_party_sounds.py` no longer exports the loop window of the Super finishers (id `>= 0x2B`); the two assets
+    already imported need their `UJRPGAnimNotify_LoopWindow` (track "Loop") removed by hand. The battle `ClipTiming` also delays the
+    hits that come after a clip's loop window by the loops (Burning Flare, `0x1C`, holds one keyframe 5 times before its hits
+    11..14, which came 5 keyframes early). The other clips with a loop window, all kept: the three SpecialStarters (user-checked),
+    Burning Flare (user-checked in pass 14), UseItem (x10) and the win poses (255).
 - **Menu camera switches in 0.3 s too (ours):** `MenuEnterBlendSeconds` now also covers a switch between menu close-ups (another
   hero, the target cursor on another enemy, command to target and back), not only the entry from the far shot.
 
