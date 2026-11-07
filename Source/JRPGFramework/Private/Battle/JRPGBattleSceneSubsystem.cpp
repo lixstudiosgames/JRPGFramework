@@ -13,6 +13,9 @@
 #include "Battle/JRPGBattleArena.h"
 #include "Battle/JRPGBattlePawn.h"
 #include "Battle/JRPGBattleCamera.h"
+#include "JRPGBattleIntroEffect.h"
+#include "JRPGBattleTransition.h"
+#include "Battle/EnemyData.h"
 #include "Battle/JRPGBattleUISubsystem.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Engine/Engine.h"
@@ -21,6 +24,7 @@
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Components/AudioComponent.h"
 #include "TimerManager.h"
 
 namespace
@@ -31,7 +35,7 @@ namespace
 		return GI ? GI->GetSubsystem<UBattleSubsystem>() : nullptr;
 	}
 
-	/** JRPG.Battle.Start <EnemyKey> [Quantos] [Level] [roll|none|back|first]: uma luta onde o jogador está. */
+	/** JRPG.Battle.Start <EnemyKey> [Quantos] [Level] [roll|none|back|first] [estilo]: uma luta onde o jogador está. */
 	void StartBattleCommand(const TArray<FString>& Args, UWorld* World)
 	{
 		UBattleSubsystem* Battle = GetBattleSubsystem(World);
@@ -46,6 +50,7 @@ namespace
 
 		FJRPGBattleSetup Setup;
 		Setup.FormationAdvantage = UBattleSubsystem::ParseFormationAdvantage(Args.Num() > 3 ? Args[3] : FString());
+		Setup.TransitionStyle = UBattleSubsystem::ParseTransitionStyle(Args.Num() > 4 ? Args[4] : FString(), Setup.TransitionSubStyle);
 		for (int32 i = 0; i < Count; ++i)
 		{
 			FJRPGEncounterCombatant& Enemy = Setup.Enemies.AddDefaulted_GetRef();
@@ -295,6 +300,15 @@ void UJRPGBattleSceneSubsystem::Deinitialize()
 		World->GetTimerManager().ClearTimer(TransitionTimer);
 		World->GetTimerManager().ClearTimer(IntroTimer);
 	}
+	if (Transition)
+	{
+		Transition->Stop();
+	}
+	if (IsValid(TransitionSoundComponent))
+	{
+		TransitionSoundComponent->Stop();
+	}
+	TransitionSoundComponent = nullptr;
 	IntroStage = EJRPGBattleIntroStage::None;
 	UBattleSubsystem* Battle = GetBattleSubsystem(World);
 	if (Battle)
@@ -331,6 +345,10 @@ void UJRPGBattleSceneSubsystem::HandleBattleStarted(const FJRPGBattleSetup& Setu
 	{
 		// Uma luta nova antes da anterior sair da tela: desmonta a velha na hora
 		Timers.ClearTimer(TransitionTimer);
+		if (Transition)
+		{
+			Transition->Stop();
+		}
 		LeaveBattleScene();
 	}
 
@@ -352,15 +370,185 @@ void UJRPGBattleSceneSubsystem::HandleBattleStarted(const FJRPGBattleSetup& Setu
 	{
 		Current->StopFieldForBattle();
 	}
-	if (GetTransitionTime() > 0.0f)
+
+	// O começo do overlay PROT 0979: o som do começo da luta (fase 0) e a música da luta (fase 2) já no primeiro quadro, em corte seco
+	PlayTransitionSound(Setup);
+	StartBattleMusic(Setup);
+
+	// A transição do original sobre a captura do último quadro do Field; ela chama a montagem quando a tela fica toda na cor final
+	FadeColor = TransitionColor;
+	bEntryFadeIn = true;
+	bEnteredByTransition = StartFieldTransition(Setup);
+	if (bEnteredByTransition)
+	{
+		return;
+	}
+	int32 IgnoredSub = 0;
+	if (GetTransitionTime() > 0.0f && ResolveTransitionStyle(Setup, IgnoredSub) != EJRPGBattleTransitionStyle::Cut)
 	{
 		Fade(true);
 		Timers.SetTimer(TransitionTimer, FTimerDelegate::CreateUObject(this, &UJRPGBattleSceneSubsystem::EnterBattleScene), GetTransitionTime(), false);
 	}
 	else
 	{
+		bEntryFadeIn = false;   // o corte seco: a luta aparece direto
 		EnterBattleScene();
 	}
+}
+
+// ---------------------------------------------------------------------------------------------
+// A transição do Field (BATTLE_RE_SWEEP.md 10.3, passo 5b)
+// ---------------------------------------------------------------------------------------------
+
+EJRPGBattleTransitionStyle UJRPGBattleSceneSubsystem::ResolveTransitionStyle(const FJRPGBattleSetup& Setup, int32& OutSub) const
+{
+	// A luta escolhe; senão a arena; senão a escolha do original pela luta (de script ou não) e pelo primeiro inimigo
+	if (Setup.TransitionStyle != EJRPGBattleTransitionStyle::Auto)
+	{
+		OutSub = FMath::Max(Setup.TransitionSubStyle, 0);
+		return Setup.TransitionStyle;
+	}
+	const AJRPGBattleArena* Current = Arena.Get();
+	if (Current && Current->TransitionStyle != EJRPGBattleTransitionStyle::Auto)
+	{
+		OutSub = FMath::Max(Current->TransitionSubStyle, 0);
+		return Current->TransitionStyle;
+	}
+	int32 FirstMonster = -1;
+	if (Setup.Enemies.Num() > 0)
+	{
+		FJRPGEnemyData Row;
+		if (UJRPGEncounterLibrary::GetEnemyData(Setup.Enemies[0].EnemyKey, Row))
+		{
+			FirstMonster = Row.MonsterArchiveID;
+		}
+	}
+	int32 Style = FJRPGBattleIntroEffect::Shatter;
+	int32 Sub = 0;
+	// O mapa (os braços das abelhas e do Golem) o plugin não conhece: quem precisa põe o estilo no inimigo do Field
+	FJRPGBattleIntroEffect::SelectStyle(Setup.bScriptedFight, FirstMonster, -1, Style, Sub);
+	// O sub-estilo do setup vale também para a escolha automática (o radial das abelhas no estilo que o original escolheu)
+	OutSub = Setup.TransitionSubStyle >= 0 ? Setup.TransitionSubStyle : Sub;
+	switch (Style)
+	{
+	case FJRPGBattleIntroEffect::Scatter: return EJRPGBattleTransitionStyle::Scatter;
+	case FJRPGBattleIntroEffect::SpinUp:  return EJRPGBattleTransitionStyle::SpinUp;
+	case FJRPGBattleIntroEffect::Curtain: return EJRPGBattleTransitionStyle::Curtain;
+	case FJRPGBattleIntroEffect::Swirl:   return EJRPGBattleTransitionStyle::Swirl;
+	default:                              return EJRPGBattleTransitionStyle::Shatter;
+	}
+}
+
+bool UJRPGBattleSceneSubsystem::StartFieldTransition(const FJRPGBattleSetup& Setup)
+{
+	int32 Sub = 0;
+	int32 Style = -1;
+	switch (ResolveTransitionStyle(Setup, Sub))
+	{
+	case EJRPGBattleTransitionStyle::Scatter: Style = FJRPGBattleIntroEffect::Scatter; break;
+	case EJRPGBattleTransitionStyle::SpinUp:  Style = FJRPGBattleIntroEffect::SpinUp;  break;
+	case EJRPGBattleTransitionStyle::Shatter: Style = FJRPGBattleIntroEffect::Shatter; break;
+	case EJRPGBattleTransitionStyle::Curtain: Style = FJRPGBattleIntroEffect::Curtain; break;
+	case EJRPGBattleTransitionStyle::Swirl:   Style = FJRPGBattleIntroEffect::Swirl;   break;
+	default:
+		return false;   // o Fade e o Cut
+	}
+	if (!Transition)
+	{
+		Transition = NewObject<UJRPGBattleTransition>(this);
+	}
+	const AJRPGBattleArena* Current = Arena.Get();
+	const int32 CurtainScale = Current ? Current->TransitionCurtainScale : 3;
+	FJRPGBattleTransitionTiming Timing;
+	if (Current)
+	{
+		Timing.PlaybackRate = Current->TransitionPlaybackRate;
+		Timing.HoldSeconds = Current->TransitionHoldSeconds;
+		Timing.RevealSeconds = Current->TransitionRevealSeconds;
+	}
+	TWeakObjectPtr<UJRPGBattleSceneSubsystem> WeakThis(this);
+	return Transition->Start(GetWorld(), Style, Sub, CurtainScale, Timing,
+		[WeakThis](bool bWhite)
+		{
+			if (UJRPGBattleSceneSubsystem* Self = WeakThis.Get())
+			{
+				Self->HandleTransitionFinished(bWhite);
+			}
+		},
+		[WeakThis]()
+		{
+			if (UJRPGBattleSceneSubsystem* Self = WeakThis.Get())
+			{
+				Self->HandleTransitionReveal();
+			}
+		});
+}
+
+void UJRPGBattleSceneSubsystem::HandleTransitionFinished(bool bWhite)
+{
+	if (Phase != EPhase::Entering)
+	{
+		return;
+	}
+	// A luta monta debaixo da cor final; quem abre é o próprio overlay (a espera e o fade dele), não o fade da câmera
+	FadeColor = bWhite ? FLinearColor::White : FLinearColor::Black;
+	bEntryFadeIn = false;
+	EnterBattleScene();
+}
+
+void UJRPGBattleSceneSubsystem::HandleTransitionReveal()
+{
+	if (Phase != EPhase::Assembled)
+	{
+		return;
+	}
+	RestartIntroClock();
+	FadeTransitionSound();
+}
+
+void UJRPGBattleSceneSubsystem::FadeTransitionSound()
+{
+	UAudioComponent* Component = TransitionSoundComponent.Get();
+	TransitionSoundComponent = nullptr;
+	if (!IsValid(Component) || !Component->IsPlaying())
+	{
+		return;
+	}
+	const AJRPGBattleArena* Current = Arena.Get();
+	const float Seconds = Current ? Current->TransitionSoundFadeSeconds : 1.5f;
+	if (Seconds > 0.0f)
+	{
+		Component->FadeOut(Seconds, 0.0f);
+	}
+	else
+	{
+		Component->Stop();
+	}
+}
+
+void UJRPGBattleSceneSubsystem::PlayTransitionSound(const FJRPGBattleSetup& Setup)
+{
+	const AJRPGBattleArena* Current = Arena.Get();
+	if (!Current)
+	{
+		return;
+	}
+	// FUN_801CF5BC fase 0: o cue 0x1F, ou 0x4D com a luta de script
+	const TSoftObjectPtr<USoundBase>& Path = Setup.bScriptedFight && !Current->ScriptedTransitionSound.IsNull()
+		? Current->ScriptedTransitionSound : Current->TransitionSound;
+	USoundBase* Sound = Path.IsNull() ? nullptr : Path.LoadSynchronous();
+	if (!Sound)
+	{
+		return;
+	}
+	const UGameInstance* GI = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+	const UAudioSubsystem* Audio = GI ? GI->GetSubsystem<UAudioSubsystem>() : nullptr;
+	// Um componente (não o PlaySound2D solto): quando a luta aparece ele abaixa até sumir (FadeTransitionSound)
+	if (IsValid(TransitionSoundComponent))
+	{
+		TransitionSoundComponent->Stop();
+	}
+	TransitionSoundComponent = UGameplayStatics::SpawnSound2D(GetWorld(), Sound, Audio ? Audio->GetEffectiveSFXVolume() : 1.0f);
 }
 
 void UJRPGBattleSceneSubsystem::HandleBattleEnded(EJRPGBattleResult Result)
@@ -375,10 +563,16 @@ void UJRPGBattleSceneSubsystem::HandleBattleEnded(EJRPGBattleResult Result)
 	{
 		// Acabou antes da cena existir: o Field não chegou a sumir; devolve o controle e abre a tela
 		Timers.ClearTimer(TransitionTimer);
-		if (GetTransitionTime() > 0.0f)
+		if (Transition && Transition->IsRunning())
+		{
+			Transition->Stop();   // o overlay sai e o Field está ali embaixo
+		}
+		else if (GetTransitionTime() > 0.0f)
 		{
 			Fade(false);
 		}
+		FadeTransitionSound();
+		RestoreFieldMusic();
 		if (AJRPGBattleArena* Current = Arena.Get())
 		{
 			Current->TeardownBattle();
@@ -395,6 +589,8 @@ void UJRPGBattleSceneSubsystem::HandleBattleEnded(EJRPGBattleResult Result)
 	}
 
 	Phase = EPhase::Leaving;
+	// A saída escurece para TransitionColor (o fim da luta, passo 6, é outro)
+	FadeColor = TransitionColor;
 	if (GetTransitionTime() > 0.0f)
 	{
 		Fade(true);
@@ -1054,15 +1250,20 @@ void UJRPGBattleSceneSubsystem::EnterBattleScene()
 	GhostMaterial = Arena.IsValid() && !Arena->CameraGhostMaterial.IsNull() ? Arena->CameraGhostMaterial.LoadSynchronous() : nullptr;
 	VoiceActionIndex = INDEX_NONE;
 	VoiceStepIndex = INDEX_NONE;
-	StartBattleMusic(PendingSetup);
 	Phase = EPhase::Assembled;
-	if (GetTransitionTime() > 0.0f)
+	if (GetTransitionTime() > 0.0f && bEntryFadeIn)
 	{
 		Fade(false);
 	}
 
-	// A abertura (a varredura e os nomes) antes do aviso: quem escuta o OnSceneAssembled (o menu) já vê que ela está rodando
-	BeginIntro();
+	// A abertura (a varredura e os nomes) antes do aviso: quem escuta o OnSceneAssembled (o menu) já vê que ela está rodando. Pela
+	// transição, a varredura espera parada até a cor abrir (HandleTransitionReveal); senão a luta já aparece e o som abaixa agora
+	const bool bWaitReveal = bEnteredByTransition && Transition && Transition->IsRunning();
+	BeginIntro(bWaitReveal ? 3600.0f : 0.0f);
+	if (!bWaitReveal)
+	{
+		FadeTransitionSound();
+	}
 	AJRPGBattleArena* Current = Arena.Get();
 	OnSceneAssembled.Broadcast(Current, Current ? Current->GetBattlePawns() : TArray<AJRPGBattlePawn*>());
 	if (IntroStage == EJRPGBattleIntroStage::None)
@@ -1082,10 +1283,11 @@ void UJRPGBattleSceneSubsystem::EnterBattleScene()
 float UJRPGBattleSceneSubsystem::GetIntroElapsedSeconds() const
 {
 	const UWorld* World = GetWorld();
-	return (IntroStage != EJRPGBattleIntroStage::None && World) ? static_cast<float>(World->GetTimeSeconds() - IntroStartTime) : 0.0f;
+	// Antes do começo (a varredura esperando a transição abrir) é 0: a câmera fica na pose do primeiro quadro
+	return (IntroStage != EJRPGBattleIntroStage::None && World) ? FMath::Max(static_cast<float>(World->GetTimeSeconds() - IntroStartTime), 0.0f) : 0.0f;
 }
 
-void UJRPGBattleSceneSubsystem::BeginIntro()
+void UJRPGBattleSceneSubsystem::BeginIntro(float DelaySeconds)
 {
 	IntroStage = EJRPGBattleIntroStage::None;
 	const AJRPGBattleArena* Current = Arena.Get();
@@ -1096,6 +1298,28 @@ void UJRPGBattleSceneSubsystem::BeginIntro()
 	}
 	// O original só chega no fluxo 0x0A (os nomes) depois da varredura, e o tick da luta não roda debaixo dela: nenhum prompt abre
 	IntroStage = EJRPGBattleIntroStage::Sweep;
+	IntroStartTime = World->GetTimeSeconds() + FMath::Max(DelaySeconds, 0.0f);
+	const float Seconds = FMath::Max(DelaySeconds, 0.0f)
+		+ static_cast<float>(FMath::Max(Current->IntroDriftFrames + Current->IntroCloseInFrames, 0)) / 60.0f;
+	if (Seconds > 0.0f)
+	{
+		World->GetTimerManager().SetTimer(IntroTimer, FTimerDelegate::CreateUObject(this, &UJRPGBattleSceneSubsystem::EnterIntroNames),
+			Seconds, false);
+	}
+	else
+	{
+		World->GetTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &UJRPGBattleSceneSubsystem::EnterIntroNames));
+	}
+}
+
+void UJRPGBattleSceneSubsystem::RestartIntroClock()
+{
+	const AJRPGBattleArena* Current = Arena.Get();
+	UWorld* World = GetWorld();
+	if (IntroStage != EJRPGBattleIntroStage::Sweep || !Current || !World)
+	{
+		return;
+	}
 	IntroStartTime = World->GetTimeSeconds();
 	const float Seconds = static_cast<float>(FMath::Max(Current->IntroDriftFrames + Current->IntroCloseInFrames, 0)) / 60.0f;
 	if (Seconds > 0.0f)
@@ -1297,7 +1521,7 @@ void UJRPGBattleSceneSubsystem::Fade(bool bToBlack)
 	if (APlayerCameraManager* CameraManager = PC ? PC->PlayerCameraManager.Get() : nullptr)
 	{
 		CameraManager->StartCameraFade(bToBlack ? 0.0f : 1.0f, bToBlack ? 1.0f : 0.0f, TransitionTime,
-			TransitionColor, false, bToBlack);
+			FadeColor, false, bToBlack);
 	}
 }
 

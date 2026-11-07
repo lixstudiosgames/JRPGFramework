@@ -11,6 +11,8 @@ class AJRPGBattlePawn;
 class UBattleSubsystem;
 class USoundBase;
 class UMaterialInterface;
+class UJRPGBattleTransition;
+class UAudioComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnJRPGBattleSceneEvent);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnJRPGBattleSceneAssembled, AJRPGBattleArena*, Arena, const TArray<AJRPGBattlePawn*>&, Pawns);
@@ -226,8 +228,13 @@ private:
 	/** A vantagem de formação: o lado em desvantagem começa de costas (até agir ou apanhar). */
 	void TurnAmbushedSideAway(AJRPGBattleArena& Current) const;
 
-	/** A abertura: arma a varredura (ou nada, sem abertura na arena) antes de a cena avisar que está montada. */
-	void BeginIntro();
+	/**
+	 * A abertura: arma a varredura (ou nada, sem abertura na arena) antes de a cena avisar que está montada. DelaySeconds: a varredura
+	 * espera tanto parada no primeiro quadro (a cor da transição ainda cobre a tela); RestartIntroClock a solta.
+	 */
+	void BeginIntro(float DelaySeconds = 0.0f);
+	/** A varredura começa agora (a transição abriu): o relógio dela e o timer dos nomes contam daqui. */
+	void RestartIntroClock();
 	/** A varredura acabou: os nomes. */
 	void EnterIntroNames();
 	/** A abertura acabou: a ação que já começou entra no pawn e as regras andam. */
@@ -243,7 +250,37 @@ private:
 	void ChooseArena(const FJRPGBattleSetup& Setup);
 	void ReleaseArena();
 	float GetTransitionTime() const { return TransitionTime; }
+	/** O fade da câmera para FadeColor (bToBlack) ou dela para a cena. */
 	void Fade(bool bToBlack);
+
+	/**
+	 * A transição do Field (passo 5b): resolve o estilo (o setup, a arena, a escolha do original) e começa a dos cinco estilos.
+	 * Falso no Fade / Cut ou quando a captura falha (quem chama faz o fade de antes).
+	 */
+	bool StartFieldTransition(const FJRPGBattleSetup& Setup);
+	/** A transição acabou com a tela toda branca (bWhite) ou preta: a luta monta e abre dessa cor. */
+	void HandleTransitionFinished(bool bWhite);
+	/** O estilo da transição desta luta (Auto resolvido): FJRPGBattleSetup, a arena, FUN_801CE8CC. */
+	EJRPGBattleTransitionStyle ResolveTransitionStyle(const FJRPGBattleSetup& Setup, int32& OutSub) const;
+	/** O som do começo da luta (o cue 0x1F, ou 0x4D numa luta de script), no primeiro quadro da transição. */
+	void PlayTransitionSound(const FJRPGBattleSetup& Setup);
+	/** A luta apareceu: o som do começo abaixa até sumir (AJRPGBattleArena::TransitionSoundFadeSeconds). */
+	void FadeTransitionSound();
+	/** A cor da transição começou a abrir sobre a luta: a abertura (a varredura) e o som. */
+	void HandleTransitionReveal();
+
+	UPROPERTY()
+	TObjectPtr<UAudioComponent> TransitionSoundComponent;
+
+	UPROPERTY()
+	TObjectPtr<UJRPGBattleTransition> Transition;
+
+	/** A cor do fade da câmera de agora: TransitionColor, ou a cor em que a transição terminou (a entrada abre dela). */
+	FLinearColor FadeColor = FLinearColor::Black;
+	/** A entrada desta luta foi pela transição (não pelo fade da câmera). */
+	bool bEnteredByTransition = false;
+	/** A luta abre por um fade da câmera (falso no corte seco). */
+	bool bEntryFadeIn = true;
 
 	TWeakObjectPtr<AJRPGBattleArena> Arena;
 	/** A arena foi criada aqui (mapa sem arena) e morre com a luta. */

@@ -289,7 +289,21 @@
                         <option value="back">pelas costas</option>
                         <option value="first">surpresa</option>
                     </select>
-                    <button class="dev-btn" data-tpl="battle.start {enemy} {ecount} {elevel} {eadv}">Come&ccedil;ar luta</button>
+                    <label>Transi&ccedil;&atilde;o</label>
+                    <select id="dev-etrans">
+                        <option value="auto">auto</option>
+                        <option value="shatter">shatter</option>
+                        <option value="shatter1">shatter 1 (avan&ccedil;a)</option>
+                        <option value="shatter2">shatter 2 (radial)</option>
+                        <option value="scatter">scatter</option>
+                        <option value="scatter2">scatter 2 (branco)</option>
+                        <option value="spinup">spin-up</option>
+                        <option value="curtain">cortina</option>
+                        <option value="swirl">swirl</option>
+                        <option value="fade">fade</option>
+                        <option value="cut">corte</option>
+                    </select>
+                    <button class="dev-btn" data-tpl="battle.start {enemy} {ecount} {elevel} {eadv} {etrans}">Come&ccedil;ar luta</button>
                 </div>
                 <div class="dev-row">
                     <span class="dev-note">Uma key repete &quot;Qtd&quot; vezes; v&aacute;rias keys separadas por v&iacute;rgula entram uma de cada. A luta come&ccedil;a onde o jogador est&aacute; e fecha o dev menu.</span>

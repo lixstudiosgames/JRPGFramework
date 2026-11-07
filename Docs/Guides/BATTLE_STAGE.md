@@ -115,14 +115,58 @@ A combatant without a model appears as its capsule only, and the arena says why 
 | `bCameraBehindParty` | true | Still framing behind the heroes looking at the enemies; off = the other way. |
 | `ArtsShoutTimeDilation` | 0.67 | The original's Arts "slow": on the PS1 the CD read of a known Art's voice shout stretched the frames. The whole fight (rules, animations, camera) runs at this rate for `ArtsShoutSeconds` from a known Art's starter. The dash (Hyper / Super / Miracle / a new Art) does not open it: it already is the original's slow-motion (the fight frozen, Arts after it at 1/4). 1 = off. |
 | `ArtsShoutSeconds` | 1.0 | How long that slow lasts, in real seconds, from the starter. |
-| `TransitionTime` | 0.35 | Fade to black in and out; the scene changes with the screen fully black. 0 = hard cut. |
-| `TransitionColor` | black | |
+| `TransitionTime` | 0.35 | The camera fade: on the way out to black; on the way in, from the colour the field transition ended on (white or black), or to / from `TransitionColor` with the `Fade` style. 0 = hard cut. |
+| `TransitionColor` | black | The colour of the `Fade` style and of the way out. |
+| `TransitionStyle` / `TransitionSubStyle` | Auto / -1 | The field-to-battle transition for fights here when the fight does not pick one (below). |
+| `TransitionHoldSeconds` / `TransitionRevealSeconds` | 0.6 / 0.5 | After the effect, the end colour stays full this long with the fight already assembled underneath (the original's CD load), then fades into the fight; the intro's sweep starts with that fade. |
+| `TransitionPlaybackRate` | 1 | The effect's speed (1 = the port's 60 frames a second; less = slower). |
+| `TransitionSoundFadeSeconds` | 1.5 | The battle-start sound fades out over this once the fight shows (0 = cut). |
+| `TransitionCurtainScale` | 3 | The curtain style's working image: 320 x 240 times this (two CPU passes a frame). |
+| `TransitionSound` / `ScriptedTransitionSound` | `SW_Battle_Static1F` / `SW_Battle_Static4D` | The battle-start sound on the transition's first frame (the original's static cue `0x1F`, `0x4D` on a scripted fight), in `/Game/Legaia/Battle/Sounds/Common/`. Empty = silent. |
 | `bBattleIntro` | true | The original's opening between the screen opening and the first prompt (below). Off = the fight runs as soon as the scene is up. |
 | `IntroDriftFrames` / `IntroCloseInFrames` | 34 / 31 | The camera sweep: vsyncs of the rise and pull-in, then of the close-in on the arena centre. |
 | `IntroNamesFrames` / `IntroNamesAdvantageFrames` | 90 / 120 | How long the enemy names stay up (with a formation advantage, its line shows too and they stay longer). |
 | `PawnClass` | `AJRPGBattlePawn` | A Blueprint child for entry effects, a name over the head… |
 
 A map with no arena uses these defaults on the temporary one.
+
+### The field-to-battle transition
+
+The original's overlay PROT 0979 (`Reference/BATTLE_RE_SWEEP.md` 10.3, step 5b; the RE's `battle-stage-camera.md` "Field-to-battle
+intro presentation" and `cutscene.md` "Field-to-battle transition"). When a fight starts, `UJRPGBattleSceneSubsystem`:
+
+1. plays the battle-start sound and switches to the battle music (the original does both on the transition's first frames);
+2. captures the last frame of the viewport and draws one of five styles over it, on a black base, at 60 frames a second, for
+   **132 frames** (2.2 s; the swirl 252, 4.2 s), each with its fade ramp at the end (white for spin-up, swirl and scatter sub 2,
+   black for the rest);
+3. with the screen fully on that colour, assembles the fight underneath, holds the colour (`TransitionHoldSeconds`) and fades it
+   into the fight (`TransitionRevealSeconds`); the intro's sweep and the start sound's fade-out (`TransitionSoundFadeSeconds`)
+   begin with that fade. With the `Fade` style the camera fade opens the fight (`TransitionTime`) and the sound fades then.
+
+| Style | Look | Who gets it (the original's pick, `FUN_801CE8CC`) |
+|---|---|---|
+| `Shatter` | The screen breaks into 16 x 16 boxes that tumble away (sub 0 back, 1 forward, 2 radial from the centre) | **The default** of random encounters; sub 1 for the Piuras (`0x13..0x15`) on a scripted fight; sub 2 for the bees on Rim Elm / Octam maps and the Golem on Mt. Rikuroa (map arms the plugin cannot see: set it on the field enemy) |
+| `Scatter` | 8 x 8 patches fly off diagonally, additive | Songi 1st / 2nd / 3rd (sub 0 / 1 / 2, the 3rd whites out) |
+| `SpinUp` | The patches spin faster and fade, behind a shock-wave ring; whites out | Every other scripted fight |
+| `Curtain` | Columns and rows pull apart with a fading trail | Tetsu (training and rematch), Gaza |
+| `Swirl` | Rings rush in and out like a drain, then roll; whites out | Evolved Cort (Juggernaut) |
+| `Fade` | The camera fade to `TransitionColor` (the plugin's old one) | Only when chosen |
+| `Cut` | No transition | Only when chosen |
+
+**Who picks**: `FJRPGBattleSetup::TransitionStyle` / `TransitionSubStyle` (the field enemy has the same two, and copies them);
+Auto falls to the arena's; Auto there runs the original's pick from the fight (scripted or not) and its first enemy
+(`DT_Enemies.MonsterArchiveID`). A sub-style set on the fight also applies to the automatic pick.
+
+How it is drawn (`UJRPGBattleTransition`, the simulation in `FJRPGBattleIntroEffect`, both private): the kernels are the RE port's
+(the user's HTML replica, `LegaiaRE/viewer/batalha-intro`), in PS1 units on a 320 x 240 screen stretched to the viewport; a Slate
+overlay above everything (z 200) draws them as textured triangles with affine UVs, like the PS1. One blend (pre-multiplied) gives
+the original's three by the vertex alpha: opaque, additive (ABR 1, exact), half; the black subtractive fade (ABR 2) is a darken by
+alpha. The curtain runs its two passes on the CPU into a texture. Approximations (as the replica's): standard sine / cosine, the
+port's LCG, a hand-drawn shade ramp for the shatter's side faces, the scatter's `0x101010` wash not modelled. A capture that fails
+(no viewport) falls back to the `Fade`.
+
+Test: the dev menu's Battle tab has a *Transição* choice; on the console, the 5th argument of `JRPG.Battle.Start`
+(`JRPG.Battle.Start gimard 1 1 roll swirl`, `shatter2`, `scatter2`, `curtain`...).
 
 ### The battle intro
 

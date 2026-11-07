@@ -69,6 +69,7 @@ window.JRPGDev = (function () {
         ecount: 'dev-ecount',
         elevel: 'dev-elevel',
         eadv: 'dev-eadv',
+        etrans: 'dev-etrans',
         efilter: 'dev-efilter'
     };
 

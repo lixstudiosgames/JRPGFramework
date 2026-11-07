@@ -343,6 +343,12 @@ public:
 	/** Uma palavra de dev para FJRPGBattleSetup::FormationAdvantage: "none" 0, "back" 1, "first" 2, outra (ou "roll") -1. */
 	static int32 ParseFormationAdvantage(const FString& Word);
 
+	/**
+	 * Uma palavra de dev para FJRPGBattleSetup::TransitionStyle: auto, scatter, spinup, shatter, curtain, swirl, fade, cut; um dígito
+	 * no fim é o sub-estilo ("shatter2" o radial, "scatter2" o fade branco). Outra palavra = Auto.
+	 */
+	static EJRPGBattleTransitionStyle ParseTransitionStyle(const FString& Word, int32& OutSub);
+
 	UPROPERTY(BlueprintAssignable, Category = "JRPG|Battle")
 	FOnJRPGEncounterStarted OnEncounterStarted;
 

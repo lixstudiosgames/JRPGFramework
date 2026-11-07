@@ -39,6 +39,31 @@ enum class EJRPGBattleResult : uint8
 	Aborted
 };
 
+/**
+ * A transição do Field para a luta (o overlay PROT 0979 do original, BATTLE_RE_SWEEP.md 10.3 passo 5b): um dos cinco estilos sobre a
+ * captura do último quadro do Field, o fade nosso de antes, ou o corte seco.
+ */
+UENUM(BlueprintType)
+enum class EJRPGBattleTransitionStyle : uint8
+{
+	/** A escolha do original (FUN_801CE8CC): o tile shatter; a luta de script, o spin-up; alguns monstros, o seu. */
+	Auto,
+	/** A tela vira retalhos de 8 x 8 que voam em diagonal (Songi). */
+	Scatter,
+	/** Os retalhos giram acelerando com uma onda de choque, e branqueia (as lutas de script). */
+	SpinUp,
+	/** A tela vira 16 x 16 caixas que se soltam (o padrão dos encontros). */
+	Shatter,
+	/** A tela se abre em colunas e linhas com rastro (Tetsu, Gaza). */
+	Curtain,
+	/** Anéis que vêm e vão como um ralo, 4,2 s (Cort). */
+	Swirl,
+	/** Só o fade para TransitionColor (o de antes). */
+	Fade,
+	/** Corte seco. */
+	Cut
+};
+
 /** O que o jogador (ou a IA) manda um combatente fazer na rodada. Só Attack e Arts existem na Fase 5. */
 UENUM(BlueprintType)
 enum class EJRPGBattleCommandKind : uint8
@@ -580,6 +605,20 @@ struct JRPGFRAMEWORK_API FJRPGBattleSetup
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
 	bool bForceBackAttack = false;
+
+	/**
+	 * A transição do Field para esta luta. Auto: a da arena (AJRPGBattleArena::TransitionStyle), e se ela também for Auto, a escolha
+	 * do original pela luta (de script ou não) e pelo primeiro inimigo (DT_Enemies.MonsterArchiveID).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	EJRPGBattleTransitionStyle TransitionStyle = EJRPGBattleTransitionStyle::Auto;
+
+	/**
+	 * O sub-estilo (-1 = o do original, ou 0): Scatter 0 / 1 fade preto, 2 fade branco; Shatter 0 recua (padrão), 1 avança, 2 radial
+	 * do centro (as abelhas em Rim Elm / Octam e o Golem no Mt. Rikuroa, mapas que o plugin não conhece: ponha aqui).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle", meta = (ClampMin = "-1", ClampMax = "2"))
+	int32 TransitionSubStyle = -1;
 
 	/**
 	 * A música desta luta: o RowName no DT_BattleMusic ("Battle1", "Boss1"...). None = a escolha automática: a do chefe

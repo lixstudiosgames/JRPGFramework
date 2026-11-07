@@ -1154,8 +1154,8 @@ void UWebUISubsystem::RunDevCommand(const FString& Command)
 		Out = FString::Printf(TEXT("%d inimigo(s)%s:\n%s"), Keys.Num(), Filter.IsEmpty() ? TEXT("") : *FString::Printf(TEXT(" com '%s'"), *Filter),
 			*FString::Join(Keys, TEXT("  ")));
 	}
-	// battle.start <key[,key...]> [quantos] [level] [roll|none|back|first]: uma key repete "quantos" vezes; várias keys, uma de cada
-	// (até o MaxEnemySlots); o último é a vantagem de formação (sorteio por padrão)
+	// battle.start <key[,key...]> [quantos] [level] [roll|none|back|first] [estilo]: uma key repete "quantos" vezes; várias keys, uma
+	// de cada (até o MaxEnemySlots); depois a vantagem de formação (sorteio por padrão) e a transição (auto, shatter, scatter2...)
 	else if (Verb == TEXT("battle.start"))
 	{
 		UBattleSubsystem* Battle = GI ? GI->GetSubsystem<UBattleSubsystem>() : nullptr;
@@ -1171,6 +1171,7 @@ void UWebUISubsystem::RunDevCommand(const FString& Command)
 		{
 			FJRPGBattleSetup Setup;
 			Setup.FormationAdvantage = UBattleSubsystem::ParseFormationAdvantage(DevArgStr(Args, 3, TEXT("roll")));
+			Setup.TransitionStyle = UBattleSubsystem::ParseTransitionStyle(DevArgStr(Args, 4, TEXT("auto")), Setup.TransitionSubStyle);
 			for (int32 k = 0; k < Keys.Num(); ++k)
 			{
 				const int32 Copies = Keys.Num() == 1 ? Count : 1;

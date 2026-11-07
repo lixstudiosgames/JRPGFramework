@@ -172,6 +172,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy")
 	bool bStartBattle = true;
 
+	/**
+	 * A transição para a luta deste inimigo (FJRPGBattleSetup::TransitionStyle / TransitionSubStyle). Auto = a da arena, ou a do
+	 * original pelo inimigo. Shatter com o sub 2 é o radial das abelhas em Rim Elm / Octam e do Golem no Mt. Rikuroa.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy")
+	EJRPGBattleTransitionStyle TransitionStyle = EJRPGBattleTransitionStyle::Auto;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy", meta = (ClampMin = "-1", ClampMax = "2"))
+	int32 TransitionSubStyle = -1;
+
 	/** A música da luta deste inimigo (RowName no DT_BattleMusic; FJRPGBattleSetup::BattleMusic). None = a automática. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Sound")
 	FName BattleMusic;

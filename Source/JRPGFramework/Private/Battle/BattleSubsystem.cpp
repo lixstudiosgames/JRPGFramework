@@ -799,6 +799,25 @@ int32 UBattleSubsystem::ParseFormationAdvantage(const FString& Word)
 	return -1;
 }
 
+EJRPGBattleTransitionStyle UBattleSubsystem::ParseTransitionStyle(const FString& Word, int32& OutSub)
+{
+	FString Lower = Word.ToLower();
+	OutSub = -1;
+	if (Lower.Len() > 1 && FChar::IsDigit(Lower[Lower.Len() - 1]))
+	{
+		OutSub = Lower[Lower.Len() - 1] - TEXT('0');
+		Lower.LeftChopInline(1);
+	}
+	if (Lower == TEXT("scatter")) { return EJRPGBattleTransitionStyle::Scatter; }
+	if (Lower == TEXT("spinup"))  { return EJRPGBattleTransitionStyle::SpinUp; }
+	if (Lower == TEXT("shatter")) { return EJRPGBattleTransitionStyle::Shatter; }
+	if (Lower == TEXT("curtain")) { return EJRPGBattleTransitionStyle::Curtain; }
+	if (Lower == TEXT("swirl"))   { return EJRPGBattleTransitionStyle::Swirl; }
+	if (Lower == TEXT("fade"))    { return EJRPGBattleTransitionStyle::Fade; }
+	if (Lower == TEXT("cut"))     { return EJRPGBattleTransitionStyle::Cut; }
+	return EJRPGBattleTransitionStyle::Auto;
+}
+
 void UBattleSubsystem::EndBattle(EJRPGBattleResult Result)
 {
 	if (!bInBattle)

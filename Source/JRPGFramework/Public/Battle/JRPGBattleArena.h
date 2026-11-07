@@ -16,6 +16,7 @@ class AJRPGBattlePawn;
 class AJRPGBattleCamera;
 class APlayerController;
 class UMaterialInterface;
+class USoundBase;
 
 /** De onde saem os lugares da formação automática. */
 UENUM(BlueprintType)
@@ -268,11 +269,57 @@ public:
 	bool bCameraBehindParty = true;
 
 	/**
-	 * Segundos de fade para o preto ao entrar e ao sair; a cena troca com a tela toda preta.
-	 * 0 = corte seco. (A tela quebrando é a Fase 7.)
+	 * Segundos de fade ao sair da luta (para o preto) e ao entrar: com o estilo Fade, para TransitionColor e de volta; depois de
+	 * um dos cinco estilos, da cor em que ele termina (branco ou preto) para a luta. 0 = corte seco.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle", meta = (ClampMin = "0.0"))
 	float TransitionTime = 0.35f;
+
+	/**
+	 * A transição do Field para as lutas desta arena quando a luta não escolhe (FJRPGBattleSetup::TransitionStyle Auto). Auto = a
+	 * escolha do original (o tile shatter na maioria). Os estilos desenham sobre a captura do último quadro do Field, 132 quadros
+	 * (2,2 s; o swirl 252), e acabam em branco ou preto. Docs/Guides/BATTLE_STAGE.md › The field-to-battle transition.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition")
+	EJRPGBattleTransitionStyle TransitionStyle = EJRPGBattleTransitionStyle::Auto;
+
+	/** O sub-estilo quando TransitionStyle não é Auto (-1 = 0). Ver FJRPGBattleSetup::TransitionSubStyle. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "-1", ClampMax = "2"))
+	int32 TransitionSubStyle = -1;
+
+	/**
+	 * Depois do efeito, a cor final (preta ou branca) fica cheia por tantos segundos, com a luta já montada embaixo (no original, a
+	 * carga da luta do CD), e abre num fade de TransitionRevealSeconds. A abertura da luta (a varredura) começa com o fade.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "0.0"))
+	float TransitionHoldSeconds = 0.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "0.0"))
+	float TransitionRevealSeconds = 0.5f;
+
+	/** A velocidade do efeito: 1 = os 60 quadros por segundo do port (2,2 s; o swirl 4,2 s). Menos = mais devagar. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "0.05", ClampMax = "4.0"))
+	float TransitionPlaybackRate = 1.0f;
+
+	/** O som do começo da luta abaixa até sumir em tantos segundos quando a luta aparece (0 = corta na hora). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "0.0"))
+	float TransitionSoundFadeSeconds = 1.5f;
+
+	/** A escala da imagem da cortina (as duas passadas em CPU): 320 x 240 vezes isto. Mais = mais nítida e mais cara. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "1", ClampMax = "6"))
+	int32 TransitionCurtainScale = 3;
+
+	/**
+	 * O som do começo da luta, no primeiro quadro da transição (o cue 0x1F da tabela estática, banco do sistema; 0x4D numa luta de
+	 * script: FUN_801CF5BC fase 0). Vazio = mudo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition")
+	TSoftObjectPtr<USoundBase> TransitionSound = TSoftObjectPtr<USoundBase>(
+		FSoftObjectPath(TEXT("/Game/Legaia/Battle/Sounds/Common/SW_Battle_Static1F.SW_Battle_Static1F")));
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition")
+	TSoftObjectPtr<USoundBase> ScriptedTransitionSound = TSoftObjectPtr<USoundBase>(
+		FSoftObjectPath(TEXT("/Game/Legaia/Battle/Sounds/Common/SW_Battle_Static4D.SW_Battle_Static4D")));
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Battle")
 	FLinearColor TransitionColor = FLinearColor::Black;

@@ -848,6 +848,8 @@ void AJRPGFieldEnemy::TriggerEncounter()
 	Setup.bScriptedFight = UJRPGEncounterLibrary::ResolveScriptedFight(Enemies);
 	Setup.BattleMusic = BattleMusic;
 	Setup.bKeepCurrentMusic = bKeepCurrentMusic;
+	Setup.TransitionStyle = TransitionStyle;
+	Setup.TransitionSubStyle = TransitionSubStyle;
 	Setup.Location = Info.ContactLocation;
 	// Sem arena, a party olha de quem encostou para o inimigo
 	const APawn* Player = GetPlayerPawn();

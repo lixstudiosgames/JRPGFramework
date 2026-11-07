@@ -142,7 +142,7 @@ a divergence).
 | Step | Plugin | Status |
 |---|---|---|
 | Encounter, advantage | `FJRPGBattleSetup::FormationAdvantage` (-1 rolls, 0/1/2 force), the roll `UBattleFormulas::RollFormationAdvantage` in `FJRPGBattleResolver::Begin`; field enemies start fights (`FIELD_ENEMIES.md`) | **have** (part 5.1; the accessory passives wait) |
-| Transition | `UJRPGBattleSceneSubsystem` fade (`Fade`, `TransitionTime` timer) | **missing**: the five styles. A post-process / UMG capture of the last field frame is the natural port |
+| Transition | `UJRPGBattleTransition` + `FJRPGBattleIntroEffect` over a viewport capture, the pick, the timing, the fade ramps, the start cue, the music at its start | **have** (step 5b) |
 | Entry sweep | `AJRPGBattleCamera` shot `Entry` (rise and pull-in, then case 2) | **have** (part 5.2) |
 | Name labels + hold | `UJRPGBattleSceneSubsystem` intro stages, `UJRPGBattleUISubsystem::ShowIntroBanner`, `JRPGBattleHUD.intro` | **have** (part 5.2): the labels over the groups, the formation line, the 90 / 120 hold; rules and menu wait |
 | Back attack loses round 1 | resolver: no party command in round 1 (`IsPartyAmbushedThisRound`), keys at 0; the turned side (`TurnAmbushedSideAway`) | **have** (part 5.1) |
@@ -871,7 +871,7 @@ original's HUD look (ours is our own design).
 | 3. Cameras | **Done** (2a-2e), tested OK in PIE: far + orbit, menu close-ups, action 6 / 7 / 8, per-Art camera (`DT_ArtCamera` imported), Battle Camera option in Options > Game. |
 | 4. Remaining sounds | **Done, to build and test** (2026-11-06): the Arts shout, the starter fanfare and the block grunt (`FJRPGBattleVoices`, `DT_BattleVoices` + `DT_ArtVoices` from `Extras/ps1_battle_voices.py`), battle music from the disc (`DT_BattleMusic`, picked per boss / arena). Menu blips dropped: the WebUI's `SFX_*` already are the original's sounds (user). Level-up cue and victory voice go with step 6. |
 | 5. Battle start | **In progress** (2026-11-07), parts 5.1-5.3 below: 5.1 (rules) and 5.2 (intro) written, to build and test; 5.3 to do. |
-| 5b. Field-to-battle transition | To do (user, 2026-11-07: a step of its own before step 7), parts 5b.1-5b.2. |
+| 5b. Field-to-battle transition | **Written** (2026-11-07), 5b.1 and 5b.2 together, to build and test. |
 | 6. Battle end | To do, parts 6.1-6.3. |
 
 Open items that are not a step of their own (details in `Docs/BATTLE_PHASE5_BUGS.md`):
