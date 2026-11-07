@@ -934,6 +934,20 @@ tables of 1c first.
       wait starts before the first step, not only before the first hit; (5) with the squash and a gliding recentre, a walking attacker's
       goal moves with its target's share, not its own (`ApplyFormationShift`, `TranslateApproachGoal`).
 
+#### Pass 21 (2026-11-07) — noted for the next batch, not started
+
+85. **The light floor makes the fighters glow on night maps.** The monster and party materials carry a fixed light floor
+    (`M_PS1Monster`'s `EmissiveStrength`, 0.2, `Base Color x EmissiveStrength`; `Guides/PS1_ASSETS.md`) so they are not too dark,
+    but on night maps they glow too much. To do: measure the light where the fight is (the arena / the map's lighting, or a probe
+    at the formation) and lower the floor to match, instead of one constant for every map.
+86. **A blocked hit still makes the impact sound.** When a hero or a monster blocks, no hit sound must play (the original's
+    block skips the impact cue, `BATTLE_RE_SWEEP.md` 9.2 row 1). Check the `Block` path of the hit-sound gate (bug 20) on both
+    sides.
+87. **The party enters the fight with the Ra-Seru already equipped.** Maybe because of the test save; the default should be
+    without them until the story gives them. Check where the starting equipment comes from (the new game / the dev setup).
+88. **Dev menu: an equipment tab.** Equip the Ra-Seru and any weapon / armour / accessory on any hero from the dev menu, to test
+    the equipment in a fight (the pieces, the swings of `DT_HeroSwings`, the stats).
+
 ## Not bugs (checked)
 
 - Pause stops the logic clock: the frame counter stayed still for 16 s while paused.
