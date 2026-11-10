@@ -47,17 +47,19 @@ weights each system by estimated effort. Hover any cell for details.
 |---|---|
 | Field systems (core, save, inventory, world state, shop, party, status, audio, camera, mist, field character) | ✅ Done |
 | HTML UI (Ultralight shell, field menus, gamepad / keyboard / mouse) | ✅ Done |
-| Data pipeline (8 DataTables as CSV + LegaiaStudio editor) | ✅ Done |
+| Data pipeline (22 DataTables as CSV + LegaiaStudio editor) | ✅ Done |
 | Options screen, Dialogue, Localization | 🟡 Partial |
-| Battle and Arts | ⬜ Stubs only, with an approved 9-phase plan |
+| Arts (directional Arts, the new AP) | ✅ Done |
+| Battle | 🟡 Playable: 7 of the 9 roadmap phases done, phase 7 in progress |
 | Cutscene, Equip screen | ⬜ Not started |
 
 ---
 
 ## What's done
 
-12 `UGameInstanceSubsystem`s that register themselves once the project's GameInstance inherits
-`UJRPGGameInstance`. That is about 15k lines of C++.
+13 `UGameInstanceSubsystem`s that register themselves once the project's GameInstance inherits
+`UJRPGGameInstance`, plus 2 world subsystems for the battle scene and its menu. That is about 52k
+lines of C++, almost half of it battle and Arts.
 
 | System | Highlights |
 |---|---|
@@ -73,6 +75,8 @@ weights each system by estimated effort. Hover any cell for details.
 | **Camera** | 13 framing presets with DOF, 8 procedural shakes, level cameras and zones, shot-reverse-shot conversation, `FrameGroup` / `Orbit` ready for battle |
 | **Mist** | Living volumetric mist in the map's volumetric fog: 5 modes, an Air mode in its own box, follows the terrain, a trail painted into a texture by the player and NPCs ([details](Docs/Guides/MIST.md)) |
 | **Field character** | Top-down character and controller: camera zones that stack, per-map settings, camera-relative or fixed-yaw controls, interaction through an interface, Enhanced Input, the party following the leader and R3 to switch who is controlled ([details](Docs/Guides/PLAYER.md)) |
+| **Arts** | Directional Arts recognised as the original does (overlapping Arts, Supers, Miracles), learning + the learned list in the save, and the new AP model (regular Arts *add* AP, Hyper / Super / Miracle *spend* it). A new Art is a `DT_Arts` row ([details](Docs/Guides/ARTS.md)) |
+| **Battle** | Playable from a touch on the map to the victory: visible enemies roaming the field, arenas placed in the map, the original's transitions, the original's turn order, damage, block, juggle and knockdown rules, Arts and Spirit in the fight, formation advantage, the original's camera, voices and music, a command menu with auto-battle, USA / Japan rules. Every monster and the party's battle clips come from the disc ([details](Docs/Guides/BATTLE.md)) |
 | **WebUI** | A single-page HTML shell rendered by [Ultralight][ul] on its own thread, through a custom D3D11 GPU driver: menu, items, party, shop, save/load, options, main menu, popups and a dev screen |
 | **Tools** | [LegaiaStudio](Extras/LegaiaStudio/README.md), a local web panel that edits the CSVs record by record and runs the builds, plus the WebUI build, plugin packaging and data converters in [`Extras/`](Extras/) |
 
@@ -82,8 +86,7 @@ weights each system by estimated effort. Hover any cell for details.
 
 | Item | State | Notes |
 |---|---|---|
-| **Battle** | ⬜ Stub | 71 lines that log `TODO`. The plan is [`Docs/BATTLE_ROADMAP.md`](Docs/BATTLE_ROADMAP.md): 9 phases (0–8), from disc extraction to magic and Seru |
-| **Arts** | 🟡 Without a fight | Directional Arts recognised as the original does (overlapping Arts, Supers, Miracles), learning + the learned list in the save, and the new AP model (regular Arts *add* AP, Hyper / Super / Miracle *spend* it). A new Art is a `DT_Arts` row. In a fight with roadmap phase 5 |
+| **Battle** | 🟡 Partial | Still to do: items in a fight, the escape roll (Escape always works today), drop / steal, the rest of the HUD, VFX, the victory screen, then magic and Seru. A fix pass on the open bugs comes first ([list](Docs/BATTLE_PHASE5_BUGS.md)). The plan is [`Docs/BATTLE_ROADMAP.md`](Docs/BATTLE_ROADMAP.md) |
 | **Dialogue** | 🟡 Partial | The conversation camera and the `OpenDialogue` signature are done. The dialogue runtime, its data format and an editor are missing |
 | **Cutscene** | ⬜ Not started | The camera pieces it needs already exist |
 | **Localization** | 🟡 Partial | `FText` is used everywhere and the Language option exists. Runtime culture switching and a string pipeline (Unreal and WebUI) are missing |
@@ -96,14 +99,14 @@ weights each system by estimated effort. Hover any cell for details.
 
 | Phase | Scope | Status |
 |---|---|---|
-| 0 | Extract assets from the disc (Rust + `legaia-extract`) | Not started |
-| 1 | Battle data (TOML → CSV → DataTable) | Not started |
-| 2 | PS1 3D assets (GLB + skin injection → SkeletalMesh) | Not started |
-| 3 | Enemies roaming the map | Not started |
-| 4 | Battle stage (spawn, formation, camera) | Not started |
-| 5 | Basic combat (turns, damage, death, victory) | Not started |
-| 6 | Directional Arts + the new AP | Done without a fight (the in-fight part closes in phase 5) |
-| 7 | Presentation (HUD, attack camera, sound, items, escape) | Not started |
+| 0 | Extract assets from the disc (the RE project's prebuilt tools) | Done |
+| 1 | Battle data (TOML → CSV → DataTable) | Done |
+| 2 | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | Done: all 179 monsters and the party's battle clips |
+| 3 | Enemies roaming the map | Done |
+| 4 | Battle stage (arena, formation, camera) | Done |
+| 5 | Basic combat (turns, damage, death, victory) | Done and played; some bugs open for a later fix |
+| 6 | Directional Arts + the new AP | Done |
+| 7 | Remaining commands and presentation | In progress. Done: Spirit, formation advantage, transitions, camera, voices, music, command menu. To do: items, the escape roll, drop / steal, HUD, VFX |
 | 8 | Magic and Seru | Not started |
 
 ---
@@ -147,11 +150,11 @@ JRPGFramework/
 | Document | What it is |
 |---|---|
 | [`Docs/README.md`](Docs/README.md) | Documentation index |
-| [`Docs/ARCHITECTURE.md`](Docs/ARCHITECTURE.md) | How the plugin fits together, and the 53 rules that must not be broken |
+| [`Docs/ARCHITECTURE.md`](Docs/ARCHITECTURE.md) | How the plugin fits together, and the 54 rules that must not be broken |
 | [`Docs/STRUCTURE.md`](Docs/STRUCTURE.md) | File-by-file tree: what exists, what is a stub, what is planned |
 | [`Docs/BATTLE_ROADMAP.md`](Docs/BATTLE_ROADMAP.md) | The battle system, in 9 phases |
 | [`Docs/Guides/`](Docs/Guides/) | How to use each system (save, inventory, shop, party, status, audio, camera, WebUI…) |
-| [`Docs/Reference/`](Docs/Reference/) | Progression formulas and the Ultralight integration |
+| [`Docs/Reference/`](Docs/Reference/) | Progression formulas, the Ultralight integration, and how the original paces and stages a fight |
 
 ---
 

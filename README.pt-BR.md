@@ -49,17 +49,19 @@ pondera cada sistema pelo esforço estimado. Passe o mouse em qualquer célula p
 |---|---|
 | Sistemas de campo (core, save, inventário, estado do mundo, loja, party, status, áudio, câmera, névoa, personagem do field) | ✅ Pronto |
 | UI em HTML (shell Ultralight, menus de campo, gamepad / teclado / mouse) | ✅ Pronto |
-| Pipeline de dados (8 DataTables em CSV + editor LegaiaStudio) | ✅ Pronto |
+| Pipeline de dados (22 DataTables em CSV + editor LegaiaStudio) | ✅ Pronto |
 | Tela de opções, Diálogo, Localização | 🟡 Parcial |
-| Batalha e Arts | ⬜ Só stubs, com um plano aprovado de 9 fases |
+| Arts (Arts direcionais, o novo AP) | ✅ Pronto |
+| Batalha | 🟡 Jogável: 7 das 9 fases do roadmap prontas, fase 7 em andamento |
 | Cutscene, tela de equipamento | ⬜ Não iniciado |
 
 ---
 
 ## O que já foi feito
 
-São 12 `UGameInstanceSubsystem`s que se registram sozinhos quando a GameInstance do projeto herda de
-`UJRPGGameInstance`. Ao todo, cerca de 15 mil linhas de C++.
+São 13 `UGameInstanceSubsystem`s que se registram sozinhos quando a GameInstance do projeto herda de
+`UJRPGGameInstance`, mais 2 subsistemas de mundo para a cena da batalha e o menu dela. Ao todo, cerca
+de 52 mil linhas de C++, quase metade delas de batalha e Arts.
 
 | Sistema | Destaques |
 |---|---|
@@ -75,6 +77,8 @@ São 12 `UGameInstanceSubsystem`s que se registram sozinhos quando a GameInstanc
 | **Câmera** | 13 presets de enquadramento com DOF, 8 tremores procedurais, câmeras de nível e zonas, plano e contraplano para conversas, `FrameGroup` / `Orbit` prontos para a batalha |
 | **Névoa** | Névoa volumétrica viva na volumetric fog do mapa: 5 modos, um modo Air numa caixa própria, segue o terreno, rastro pintado numa textura pelo jogador e pelos NPCs ([detalhes](Docs/Guides/MIST.md)) |
 | **Personagem do field** | Personagem e controller top-down: zonas de câmera empilhadas, config por mapa, controle relativo à câmera ou com yaw fixo, interação por interface, Enhanced Input, a party seguindo o líder e o R3 para trocar de personagem ([detalhes](Docs/Guides/PLAYER.md)) |
+| **Arts** | Arts direcionais reconhecidas como no original (Arts sobrepostas, Supers, Miracles), aprender + a lista no save, e o novo modelo de AP (Arts normais *somam* AP, Hyper / Super / Miracle *gastam*). Uma Art nova é uma linha do `DT_Arts` ([detalhes](Docs/Guides/ARTS.md)) |
+| **Batalha** | Jogável do toque no mapa até a vitória: inimigos visíveis andando pelo field, arenas colocadas no mapa, as transições do original, a ordem de turnos, o dano, o bloqueio, o juggle e a queda do original, Arts e Spirit na luta, vantagem de formação, a câmera, as vozes e a música do original, um menu de comandos com auto-battle, regras USA / Japão. Todos os monstros e os clips de batalha da party vêm do disco ([detalhes](Docs/Guides/BATTLE.md)) |
 | **WebUI** | Shell HTML de página única renderizado pelo [Ultralight][ul] em thread própria, com um driver de GPU D3D11 próprio: menu, itens, party, loja, save/load, opções, menu principal, popups e tela de dev |
 | **Ferramentas** | [LegaiaStudio](Extras/LegaiaStudio/README.md), um painel web local que edita os CSVs registro por registro e roda os builds, mais o build da WebUI, o empacotamento do plugin e os conversores de dados em [`Extras/`](Extras/) |
 
@@ -84,8 +88,7 @@ São 12 `UGameInstanceSubsystem`s que se registram sozinhos quando a GameInstanc
 
 | Item | Estado | Observações |
 |---|---|---|
-| **Batalha** | ⬜ Stub | 71 linhas que registram `TODO`. O plano está no [`Docs/BATTLE_ROADMAP.md`](Docs/BATTLE_ROADMAP.md): 9 fases (0–8), da extração do disco até magia e Seru |
-| **Arts** | 🟡 Sem luta | Arts direcionais reconhecidas como no original (Arts sobrepostas, Supers, Miracles), aprender + a lista no save, e o novo modelo de AP (Arts normais *somam* AP, Hyper / Super / Miracle *gastam*). Uma Art nova é uma linha do `DT_Arts`. Na luta com a fase 5 do roadmap |
+| **Batalha** | 🟡 Parcial | Ainda falta: itens na luta, o sorteio da fuga (hoje a fuga sempre dá certo), drop / roubo, o resto do HUD, VFX, a tela de vitória, e depois magia e Seru. Antes vem uma rodada de correção dos bugs abertos ([lista](Docs/BATTLE_PHASE5_BUGS.md)). O plano está no [`Docs/BATTLE_ROADMAP.md`](Docs/BATTLE_ROADMAP.md) |
 | **Diálogo** | 🟡 Parcial | A câmera de conversa e a assinatura de `OpenDialogue` estão prontas. Faltam o runtime de diálogo, o formato de dados e um editor |
 | **Cutscene** | ⬜ Não iniciado | As peças de câmera necessárias já existem |
 | **Localização** | 🟡 Parcial | `FText` em todo lugar e a opção de idioma já existe. Faltam a troca de cultura em runtime e um pipeline de strings (Unreal e WebUI) |
@@ -98,14 +101,14 @@ São 12 `UGameInstanceSubsystem`s que se registram sozinhos quando a GameInstanc
 
 | Fase | Escopo | Status |
 |---|---|---|
-| 0 | Extrair assets do disco (Rust + `legaia-extract`) | Não iniciada |
-| 1 | Dados de batalha (TOML → CSV → DataTable) | Não iniciada |
-| 2 | Assets 3D do PS1 (GLB + injeção de skin → SkeletalMesh) | Não iniciada |
-| 3 | Inimigos andando pelo mapa | Não iniciada |
-| 4 | Palco da batalha (spawn, formação, câmera) | Não iniciada |
-| 5 | Combate básico (turnos, dano, morte, vitória) | Não iniciada |
-| 6 | Arts direcionais + o novo AP | Pronta sem luta (a parte dentro da luta fecha na fase 5) |
-| 7 | Apresentação (HUD, câmera de ataque, som, itens, fuga) | Não iniciada |
+| 0 | Extrair assets do disco (as ferramentas prontas do projeto de RE) | Pronta |
+| 1 | Dados de batalha (TOML → CSV → DataTable) | Pronta |
+| 2 | Assets 3D do PS1 (GLB → Blender → FBX → SkeletalMesh) | Pronta: os 179 monstros e os clips de batalha da party |
+| 3 | Inimigos andando pelo mapa | Pronta |
+| 4 | Palco da batalha (arena, formação, câmera) | Pronta |
+| 5 | Combate básico (turnos, dano, morte, vitória) | Pronta e jogada; alguns bugs abertos para uma correção depois |
+| 6 | Arts direcionais + o novo AP | Pronta |
+| 7 | Comandos restantes e apresentação | Em andamento. Feito: Spirit, vantagem de formação, transições, câmera, vozes, música, menu de comandos. Falta: itens, o sorteio da fuga, drop / roubo, HUD, VFX |
 | 8 | Magia e Seru | Não iniciada |
 
 ---
@@ -150,11 +153,11 @@ JRPGFramework/
 | Documento | O que é |
 |---|---|
 | [`Docs/README.md`](Docs/README.md) | Índice da documentação |
-| [`Docs/ARCHITECTURE.md`](Docs/ARCHITECTURE.md) | Como o plugin se encaixa, e as 53 regras que não podem ser quebradas |
+| [`Docs/ARCHITECTURE.md`](Docs/ARCHITECTURE.md) | Como o plugin se encaixa, e as 54 regras que não podem ser quebradas |
 | [`Docs/STRUCTURE.md`](Docs/STRUCTURE.md) | Árvore arquivo por arquivo: o que existe, o que é stub, o que está planejado |
 | [`Docs/BATTLE_ROADMAP.md`](Docs/BATTLE_ROADMAP.md) | O sistema de batalha, em 9 fases |
 | [`Docs/Guides/`](Docs/Guides/) | Como usar cada sistema (save, inventário, loja, party, status, áudio, câmera, WebUI…) |
-| [`Docs/Reference/`](Docs/Reference/) | Fórmulas de progressão e a integração com o Ultralight |
+| [`Docs/Reference/`](Docs/Reference/) | Fórmulas de progressão, a integração com o Ultralight e como o original marca o ritmo e monta uma luta |
 
 ---
 

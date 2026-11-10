@@ -38,7 +38,7 @@ API_GROUPS = [
     ("inventory", "Inventory", "Inventário", ["Inventory"], 1),
     ("status", "Status", "Status", ["Status"], 1),
     ("audio", "Audio", "Áudio", ["Audio"], 1),
-    ("world", "World state + mist", "Estado do mundo + névoa", ["World"], 1),
+    ("world", "World state + mist", "Estado do mundo + névoa", ["World"], 0),
     ("shop", "Shop", "Loja", ["Shop"], 1),
     ("save", "Save / Load", "Save / Load", ["Save"], 1),
     ("battle", "Battle", "Batalha", ["Battle"], 1),
@@ -53,13 +53,9 @@ API_STATE = {
 
 # API nomeada em Docs/BATTLE_ROADMAP.md que ainda não existe.
 API_PLANNED = {
-    "battle": [
-        ("BeginBattle", "Phase 5"), ("EndBattle", "Phase 5"), ("SubmitCommand", "Phase 5"),
-        ("GetCombatants", "Phase 5"), ("GetActiveSlot", "Phase 5"),
-        ("SeatFor", "Phase 4 · ABattleStage"),
-        ("OnBattleCommand", "Phase 7 · WebUI bridge"), ("OnBattleArtsButton", "Phase 7 · WebUI bridge"),
-        ("OnBattleArtsCommit", "Phase 7 · WebUI bridge"), ("OnBattleTargetChanged", "Phase 7 · WebUI bridge"),
-    ],
+    # A API da luta das Fases 4-5 já existe (vem dos headers); os quatro callbacks de HUD do plano
+    # viraram um só, OnBattleInput, que também já existe. Nada nomeado no roadmap está por escrever.
+    "battle": [],
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -93,7 +89,7 @@ SYSTEMS = [
           "Curva de XP, crescimento de stats tirado do disco, Easy / Normal / Hard / Juggernaut", "Progressão"),
         S("Camera", OK, 3, "13 presets, 8 shakes, level cameras + zones, conversation, FrameGroup / Orbit",
           "13 presets, 8 tremores, câmeras de nível + zonas, conversa, FrameGroup / Orbit", "Câmera"),
-        S("Data", OK, 1.5, "8 DataTables as CSV, the source of truth", "8 DataTables em CSV, a fonte da verdade", "Dados"),
+        S("Data", OK, 1.5, "22 DataTables as CSV, the source of truth", "22 DataTables em CSV, a fonte da verdade", "Dados"),
         S("Mist", OK, 2, "Living volumetric mist: 5 modes with presets (Air in its own box), follows terrain, trail painted into a texture (player + NPCs), self light at night",
           "Névoa volumétrica viva: 5 modos com presets (Air numa caixa própria), segue o terreno, rastro pintado numa textura (jogador + NPCs), luz própria à noite", "Névoa"),
     ],
@@ -112,10 +108,10 @@ SYSTEMS = [
           "Tela pronta; valores não ligados a UGameUserSettings / AudioSubsystem", "Opções"),
     ],
     [  # linha 4
-        S("Battle", PENDING, 10, "Stub — 71 lines that log TODO. 9-phase plan in Docs/BATTLE_ROADMAP.md",
-          "Stub — 71 linhas que registram TODO. Plano de 9 fases em Docs/BATTLE_ROADMAP.md", "Batalha"),
-        S("Arts", PARTIAL, 4, "Recognition with the original's overlap, learning + the learned list in the save, Supers, the new AP, validator, Art tester Input — the in-fight part closes in phase 5",
-          "Reconhecimento com a sobreposição do original, aprender + a lista no save, Supers, o novo AP, validador, Input no Art Tester — a parte dentro da luta fecha na fase 5"),
+        S("Battle", PARTIAL, 10, "Playable: enemies on the map, arenas, the original's turns, damage, block, Arts, Spirit, formation advantage, camera, voices, music, command menu. Missing: items, escape roll, drop / steal, HUD, VFX, magic and Seru",
+          "Jogável: inimigos no mapa, arenas, os turnos do original, dano, bloqueio, Arts, Spirit, vantagem de formação, câmera, vozes, música, menu de comandos. Falta: itens, sorteio da fuga, drop / roubo, HUD, VFX, magia e Seru", "Batalha"),
+        S("Arts", OK, 4, "Recognition with the original's overlap, learning + the learned list in the save, Supers, the new AP, validator, Art tester Input; played in a fight",
+          "Reconhecimento com a sobreposição do original, aprender + a lista no save, Supers, o novo AP, validador, Input no Art Tester; jogadas na luta"),
         S("Dialogue", PARTIAL, 4, "Conversation camera and OpenDialogue signature done; no dialogue runtime yet",
           "Câmera de conversa e assinatura de OpenDialogue prontas; falta o runtime de diálogo", "Diálogo"),
         S("Cutscene", PENDING, 3, "Nothing written; camera pieces already exist",
@@ -131,9 +127,9 @@ ROADMAP_PHASES = [
     (OK, "PS1 3D assets (GLB → Blender → FBX → SkeletalMesh)", "Assets 3D do PS1 (GLB → Blender → FBX → SkeletalMesh)"),
     (OK, "Enemies roaming the map", "Inimigos andando pelo mapa"),
     (OK, "Battle stage", "Palco da batalha"),
-    (PENDING, "Basic combat", "Combate básico"),
-    (PARTIAL, "Directional Arts + new AP", "Arts direcionais + novo AP"),
-    (PENDING, "Presentation (HUD, camera, sound)", "Apresentação (HUD, câmera, som)"),
+    (OK, "Basic combat", "Combate básico"),
+    (OK, "Directional Arts + new AP", "Arts direcionais + novo AP"),
+    (PARTIAL, "Remaining commands + presentation", "Comandos restantes + apresentação"),
     (PENDING, "Magic and Seru", "Magia e Seru"),
 ]
 

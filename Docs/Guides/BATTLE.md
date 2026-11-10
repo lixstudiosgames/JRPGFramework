@@ -70,10 +70,10 @@ Battle: [f82 a0] Vahn#0 ends
 | `TransitionStyle`, `TransitionSubStyle` | The field-to-battle transition (Auto: the arena's, then the original's pick). [BATTLE_STAGE.md](BATTLE_STAGE.md#the-field-to-battle-transition) |
 | `bForceBackAttack` | The roll gives a back attack whatever the scores (the original forces it for the bees `0x3D..0x3F` on maps `0x0C` / `0x15`; monster `0xA7`, Lapis, forces it by itself through `DT_Enemies.MonsterArchiveID`). Only with `FormationAdvantage = -1` |
 
-`EndBattle(Result)` is idempotent: a second call does nothing and pays nothing. `Aborted` and
-`Defeat` write nothing; `Victory` and `Escaped` write HP, MP, AP and the learned Arts back
-(an escape lifts the fallen to 1 HP); `Victory` pays EXP and Gold **once** to the heroes of the
-fight who are alive.
+`EndBattle(Result)` is idempotent: a second call does nothing and pays nothing. `Aborted` writes
+nothing. `Victory`, `Escaped` and `Defeat` write HP and MP back as the fight left them, the fallen
+lifted to 1 HP (nothing is restored after a fight); AP and the learned Arts are kept on `Victory`
+and `Escaped` only. `Victory` pays EXP and Gold **once** to the heroes of the fight who are alive.
 
 ---
 
@@ -293,7 +293,7 @@ Nothing here has been built or run by the author. In the editor:
    a knocked-down fighter gets up, and that the clips play (a monster plays its row's `Anim`; a hero looks for `AS_<Name>_Battle_<Clip>` next to its
    mesh).
 
-Not in Phase 5: Item, Escape, formation advantage, drop / steal (Phase 7); magic and the monsters' scripts
+Not in Phase 5: Item, the escape roll (Escape from the menu always works), drop / steal (Phase 7); magic and the monsters' scripts
 (Phase 8); the parry (its window and effect are open question 5; the input is accepted, stamped and kept, and has
 no effect yet); level scaling of the enemy stats (no curve is defined: the row is used as is).
 

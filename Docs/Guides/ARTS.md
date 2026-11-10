@@ -201,6 +201,13 @@ another Art). So Arts overlap:
 | `↑↓↑` (Somersault) | `↑`, `↓` as swings, then Somersault |
 | `↑↓↑↑↑↓↑` | Somersault (1–3), Cyclone (2–5), Somersault (5–7) — Tri-Somersault's chain |
 | `↑↓↑ ↓↑↑↑ ↑↓↑` (the three typed apart) | four Arts, not the Tri-Somersault chain |
+| `↑↓↑↓↑` | Somersault (1–3), Somersault (3–5): two Arts in five buttons |
+
+**The shortened input.** That last row is what the overlap gives the player: the end of one Art
+is the start of the next, so a chain costs fewer buttons (and less gauge) than its Arts typed
+apart. It is the original's behaviour and it is kept. Between Regular Arts the shared part is 1 or
+2 buttons: in today's `DT_Arts` no pair shares 3, for any hero (the commands do not line up that
+way), but the rules set no limit, so a new Art whose command allows it would share more.
 
 - **Order.** Disc Arts by `ActionConstant` (the grid: the longer Arts have the lower numbers), then
   new Arts (`ActionConstant` 0), the longer first, then the table order.

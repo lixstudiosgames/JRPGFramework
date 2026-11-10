@@ -1,19 +1,24 @@
 # Battle System Roadmap
 
 **JRPGFramework — Legend of Legaia Remake**
-Approved 2026-09-13. Phases 0 to 4 are done (2026-10-30): the battle data (`DT_Enemies`,
+Approved 2026-09-13. Phases 0 to 4 are done (2026-10-26 to 2026-10-30): the battle data (`DT_Enemies`,
 `DT_Arts`, `DT_Bosses`), every monster and the party's battle clips in Unreal, enemies roaming the
 map and a fight assembled over it. Phase 6, the Arts, is done without a fight (2026-11-04:
 recognition, learning, the Supers, the new AP, the validator, the Art Tester's `Input`). Phase 5,
 combat itself, which closes Phase 6's in-fight part (order swapped 2026-11-04: [Phases](#phases)), is
-**written (2026-11-04), to build and test** ([Guides/BATTLE.md](Guides/BATTLE.md)). The combat core keeps the door open to PvP / online / co-op
+**played**: written 2026-11-04, built and tested in PIE, merged 2026-11-07 (PR #14;
+[Guides/BATTLE.md](Guides/BATTLE.md)). The bugs still open are in
+[BATTLE_PHASE5_BUGS.md](BATTLE_PHASE5_BUGS.md) and go in a later fix. Part of Phase 7 came with it
+(Spirit, formation advantage, the field-to-battle transition, the battle camera, voices, music, the
+command menu). The combat core keeps the door open to PvP / online / co-op
 ([decided 2026-11-04](#pvp-online-and-co-op--door-open-decided-2026-11-04)).
 
-This is the largest unimplemented system left in the plugin, and the only one with stub
-files already in place. (Dialogue, Cutscene and Localization are also unwritten - see
+The battle is the largest system of the plugin. What is left of it: the rest of Phase 7 (items,
+the escape roll, drop / steal, the rest of the HUD, VFX) and Phase 8 (magic
+and Seru). (Dialogue, Cutscene and Localization are also unwritten - see
 [STRUCTURE.md](STRUCTURE.md).) Everything
 else — Core, Save/Load, Inventory, World State, Shop, Audio, Camera, Party, Status, WebUI —
-is done and will be consumed by the battle system rather than rewritten.
+is done and is consumed by the battle system rather than rewritten.
 
 ---
 
@@ -56,18 +61,38 @@ against the disc) and **assets** (meshes, animations, textures, sounds).
 |---|---|---|
 | **AP** | Spent on every directional command — a long-standing player complaint | Regular Arts **add** AP; Hyper / Super / Miracle **spend** it (the Legaia 2 model) |
 | **Party size** | Hard-coded 3 | Configurable; Serus join as support members |
-| **Enemy count** | 4–5 fixed seats | Configurable, scales with party size to stay balanced |
+| **Enemy count** | Up to 4 fixed seats | Configurable (`MaxEnemySlots`, 5 today); meant to grow with the difficulty and the party size |
 | **Encounters** | Random while walking (mist) | Visible enemies roaming the map, with a chase radius and respawn |
 | **Where fights happen** | In the field scene; only the camera changes | Same — battle layers on top of the existing maps |
 | **Action state machine** | ~50 states (mixes logic, camera and effect VM) | 8 phases; presentation delegated to AnimMontage / Sequencer |
 | **Parry** | None — the defender does nothing while it is hit | **Planned, design open** (2026-10-31): a timed button during the enemy's attack. Why it shapes Phase 5: [State machine](#state-machine); what is still to decide: [Open questions](#open-questions-to-settle-in-practice-not-on-paper) |
-| **Angle and distance in the damage** | The melee kernel adds `(Angle * atk) >> 16` to the Offense and `(def * Distance) >> 10` to the Defense, from the actors' positions | Dropped: positions cannot feed the rules ([What the core cannot do](#what-the-core-cannot-do)). Both terms are 0 |
+| **Angle and distance in the damage and the block** | The kernel reads them from the actors' positions: `(Angle * atk) >> 16` to the Offense, `(def * Distance) >> 10` to the Defense, and both in the block roll | Same terms and numbers (bug 26), but they arrive as an **input**: the scene measures them when the action starts and submits them (`SubmitApproach`); the rules clamp and log them and never read a position ([What the core cannot do](#what-the-core-cannot-do)). No input = 0 |
+| **Where a Super is matched** | Only at the tail of the queue | Anywhere in the chain, so an Art can follow a Super. With today's gauge no chain is long enough for that to happen; it shows if the Arts blocks grow |
+| **HP during a combo** | Written once, on the last connecting hit | Taken off at each hit (stops at 0), so the HUD can show it dropping while the combo lands. The target still only falls on the last connecting hit |
+| **Making way for the attacker** | Every bystander steps off the attack line, near or far | Only who stands in the attacker's lane moves, and only as far as it takes to clear it (`bMakeWayOnlyInLane`; off = the original) |
+| **Blend between clips** | None (only a 2–4 frame tween into the next clip) | Loops (idle, walk, down) blend in over `AnimBlendTime` (0.2 s), for a softer look; one-shot clips still cut |
+| **Camera ghost** | Combatants in front of the lens turn see-through during the actions | Also on the menu shots (command, Attack, Spirit, target cursor) and on the target during the special starter (`bCameraGhostTargetOnStarter`) |
 | **The original's bugs** | Initiative keys of `0x8000`+ never win (a mixed-sign compare); with every key at 0 the pick is a random seat; the RNG is shared with presentation | Not reproduced. The rules have their own stream; the presentation uses another |
 
 **Everything not in this table follows the original as the RE documents it** (decided
 2026-11-04): formulas, order of operations, truncation, the constants. A rule is changed only on
 purpose, with a row here; it can be refined later, in play. When the roadmap is silent or vague
 about a rule, the RE's version is the answer, not a guess.
+
+### Classic and Modern combat (planned, not scheduled)
+
+An option in the menu, wanted by the user (2026-11-10): **Classic** plays the fight as the
+original does, for who wants it exactly as it was; **Modern** plays it with the remake's changes.
+**Quality-of-life additions are the same in both** (they are not rules: the Arts list, the
+prefilled chain, auto-battle, the camera ghost and the like).
+
+So from now on a new departure is written as a **switch** with the original's behaviour on the
+other side, not as a replacement, the way `bMakeWayOnlyInLane` already is. Which rows of the table
+above each mode takes is still to decide; the candidates are the ones that change the rules or
+the feel of a fight: the AP model, where a Super is matched, HP during a combo, making way, the
+blend between clips, the enemy count. Not written yet: the option itself, where it is stored
+(beside the difficulty) and how it reaches the fight (it would travel in the setup, like the
+ruleset, so both machines of a PvP match agree).
 
 ---
 
@@ -86,7 +111,7 @@ None of this needs to be written — only called.
 | Elemental affinity multiplier | `UStatusSubsystem::GetElementMultiplier` — float, for the menus. The fight uses the integer 8×8 matrix in `UBattleFormulas` |
 | Status conditions | `UStatusSubsystem::ApplyCondition` / `HasCondition` |
 | Enemy scaling by difficulty | `UCoreSubsystem::ScaleEnemyHP/ATK/DEF` |
-| XP curve and stat growth | `UCoreSubsystem` + `DT_GrowthCurve` / `DT_StatGrowth` |
+| XP curve and stat growth | `UCoreSubsystem` + `DT_GrowthCurve` / `DT_StatGrowth`. AGL follows the original's own formula (its divisor is `0x18C0`, not the other stats' `0x24C0`, and it stops at 280; fixed 2026-11-06, bug 63) |
 | Frame a group, orbit, camera shake | `UCameraSubsystem::FrameGroup` / `Orbit` / `PlayCameraShake` (`BattleWide` preset already declared) |
 | Resolve a DataTable with fallback | `UCoreSubsystem::ResolveDataTable` (`Private/Core/CoreSubsystem.cpp:33`) |
 | Event flags (gate encounters on progress) | `UWorldStateSubsystem` |
@@ -105,11 +130,11 @@ Each phase ends in something you can run and watch work.
 | **0** | Extract assets from the disc (RE release tools + `legaia-extract`) | **Done** |
 | **1** | Battle data (TOML → CSV → DataTable) | **Done** (2026-10-30) — `DT_Enemies` (179 rows), `DT_Arts` (81), `DT_Bosses` (30). Magic moved to Phase 8 |
 | **2** | PS1 3D assets (GLB → Blender → FBX → SkeletalMesh) | **Done** (2026-10-30) — all 179 monster models with sounds and notifies, the party's battle clips (real names, game speed, sounds), equipment pieces |
-| **3** | Enemies roaming the map (zone, roaming, trigger) | **Done** (2026-10-27) — `AJRPGFieldEnemy`, `AJRPGEncounterZone` (sphere/box/spline), tested in the editor |
+| **3** | Enemies roaming the map (zone, roaming, trigger) | **Done** (written 2026-10-26, the spline shape and the editor test 2026-10-27) — `AJRPGFieldEnemy`, `AJRPGEncounterZone` (sphere/box/spline), tested in the editor |
 | **4** | Battle stage (spawn, formation, camera) | **Done** (2026-10-27) — `AJRPGBattleArena` assembles the fight, `UJRPGBattleSceneSubsystem`, `BeginBattle`/`EndBattle`, `AJRPGBattlePawn`, `AJRPGBattleWaves` + JSON/Studio; tested in the editor and on the Muscle Dome map. Party-size scaling moved to Phase 8 |
-| **5** | Basic combat (turns, damage, death, victory) | **Written 2026-11-04, to build and test** — also closes Phase 6's in-fight part. "Done" only after it is built and played in the editor ([Guides/BATTLE.md](Guides/BATTLE.md)) |
-| **6** | Directional Arts + the new AP | **Done without a fight** (2026-11-04) — recognition, learning, Supers, AP, validator, tester `Input`, automation tests. In a fight: Phase 5 |
-| **7** | Remaining commands (item, escape, Spirit, formation advantage, drop / steal) and presentation (HUD, attack camera, VFX, the remaining sounds) | Not started |
+| **5** | Basic combat (turns, damage, death, victory) | **Played** — written 2026-11-04, built and tested in PIE, merged 2026-11-07 (PR #14). Also closes Phase 6's in-fight part and brought Spirit forward from Phase 7. Open bugs: [BATTLE_PHASE5_BUGS.md](BATTLE_PHASE5_BUGS.md), for a later fix ([Guides/BATTLE.md](Guides/BATTLE.md)) |
+| **6** | Directional Arts + the new AP | **Done** (2026-11-04 without a fight; in a fight with Phase 5) — recognition, learning, Supers, AP, validator, tester `Input`, automation tests |
+| **7** | Remaining commands (item, escape, formation advantage, drop / steal) and presentation (HUD, attack camera, VFX, the remaining sounds) | **In progress** — came with Phase 5: Spirit, formation advantage, the field-to-battle transition, the battle camera, the Arts voices, the battle music, the command menu, Escape from the menu (no roll yet). To do: item, the escape roll, drop / steal, the rest of the HUD, VFX, the victory screen |
 | **8** | Magic and Seru | Not started |
 
 ```
@@ -121,11 +146,11 @@ Phase 0 (extraction)
                                   ▼
                          Phase 4 (battle stage)
                                   ▼
-                         Phase 6 (Arts + new AP)       ← done without a fight
+                         Phase 6 (Arts + new AP)       ← done
                                   ▼
-                         Phase 5 (basic combat)        ← written, to build and test
+                         Phase 5 (basic combat)        ← played (2026-11-07)
                                   ▼
-                         Phase 7 (commands + presentation)
+                         Phase 7 (commands + presentation)   ← in progress
                                   ▼
                          Phase 8 (magic and Seru)
 ```
@@ -382,8 +407,9 @@ geometry + texture + **every** animation. 186 of 194 slots have a mesh. Actions 
 `Knocked Down`, `Getting Up`, `Block`, `Attack #1`, ...); the converter turns them into
 `AS_Gimard_Idle`, `AS_Gimard_KnockedDown`, `AS_Gimard_Attack1`, `AS_Gimard_Action_0x23`.
 
-Still to write: a batch over the 186 ids (export → convert → import), the import step
-through `UAssetImportTask` or the editor's MCP rather than by hand.
+The batch over every id (export → convert → import) is `Extras/ps1_monsters_batch.py` plus the
+editor scripts' `--all` (done 2026-10-30). It gives **179 models**, one per `DT_Enemies` row: of
+the 186 slots with a mesh, 7 are repeated blocks (176–178 repeat 140; 183–186 repeat 180, Cort).
 
 ### Heroes in battle form
 
@@ -498,6 +524,10 @@ any `AActor`.
 existing `UCoreSubsystem::ScaleEnemyHP/ATK/DEF`. The per-level curve is new and stays
 configurable — the disc table only supplies base values.
 
+**Not written yet:** the level is rolled and stored on the combatant, but no curve exists, so it
+changes nothing in the fight. It is defined together with the review of what the difficulties and
+New Game+ raise, not in a battle phase of its own.
+
 **Acceptance:** a standalone enemy and a zone (sphere, then box) in a host map; enemies wander
 inside it; enter the radius and get chased; touch one and see the rolled enemy list on screen;
 it disappears and respawns after the delay; a follower touching it does nothing.
@@ -548,8 +578,8 @@ dragged into the map:
 2. Outside every area: the nearest arena with `bUseAsFallback`.
 3. No arena in the map: none — the stage assembles the fight where the contact happened.
 
-The scene is assembled at the arena **under the transition** (a fade to black now, the
-screen shatter in Phase 7), so the jump is never seen. The field party is not moved: it is
+The scene is assembled at the arena **under the transition** (a fade to black at first; the
+original's screen shatter and its other styles came with Phase 5), so the jump is never seen. The field party is not moved: it is
 hidden where it stood and shown again there when the fight ends. `AJRPGFieldEnemy` picks the
 arena on contact (`FJRPGFieldEncounter::Arena`) and, with `bPrintDebug`, draws its formation
 in PIE for a few seconds. The Muscle Dome test map is the simplest case: one arena in the
@@ -702,9 +732,9 @@ input window inside a turn, damage per hit with each Art's power, AP on the comb
 > constants, order and truncation — and gets refined later, in play, if it needs to be. The
 > sections below cite the RE function and doc for each rule; read it before writing the code.
 
-**Written 2026-11-04 — to build and test.** Nothing below was compiled or run by the author (the build is manual);
-"Done" goes in this section only after the user builds, imports the new tables and plays it. Usage in
-[Guides/BATTLE.md](Guides/BATTLE.md). What the implementation settled that the draft left open:
+**Played** — written 2026-11-04, then built and tested in PIE pass after pass (2026-11-05 to 2026-11-07) and merged
+(PR #14). Every bug found, its fix and what is still open is in [BATTLE_PHASE5_BUGS.md](BATTLE_PHASE5_BUGS.md); the open ones
+go in a later fix. Usage in [Guides/BATTLE.md](Guides/BATTLE.md). What the implementation settled that the draft left open:
 
 - **The core is `FJRPGBattleResolver`** (no UObject): `Begin`, `SubmitCommand`, `SubmitInput`, `StepFrame`; `UBattleSubsystem` takes
   the snapshot, runs the clock (a fixed-step accumulator, 1/60 s a frame; the raw `DeltaTime` never reaches the rules) and
@@ -732,8 +762,21 @@ input window inside a turn, damage per hit with each Art's power, AP on the comb
   do, instead of the one `SwingHitFrame`. Default section (nothing equipped): Arms `0x18`, Ra-Seru `0x18` (Noa `0x1D`), High `0x18` (Vahn)
   or `0x0E` (Noa, Gala), Low `0x13`; the restricted ones (`0x13` Low, `0x0E` High) miss class 2 / class 3 targets, the boots that bring
   `0x1D` / `0x18` do not. Missing table or row: the default byte and the default frame, as before.
-- **Reach** is the original's range law by size class (`DT_Enemies.SizeClass`), knockback is per hit (the defender turns and slides back,
-  the attacker follows at each step), nobody walks back to a seat (confirmed by the RE, `battle-action.md`).
+- **Reach** is the original's range law by size class (`DT_Enemies.SizeClass`), measured on the body (actor + pose centroid). The
+  defender turns to the attacker and slides back by its reaction clip's own root speed and end step, read from the disc; the attacker
+  snaps to the edge of the reach at each step (forward or back) and backs off while it is inside it; nobody walks back to a seat
+  (confirmed by the RE, `battle-action.md`). Details in [Staying in the arena](#staying-in-the-arena).
+- **Angle and distance** (bug 26): the original's two approach terms are in the damage and in the block roll, spent by the first hit of
+  each action. The scene measures them at `ActionStart` (how far the defender is from facing the attacker, 0..`0x800`; the vsyncs the
+  attacker walked) and sends them with `SubmitApproach`; the resolver clamps and logs them (`FJRPGBattleState::Approaches`). In the
+  original a block is almost only possible face-on, and so it is here.
+- **Spirit** (brought forward from Phase 7): the `Guard` command, no target. From the commit to the next round start the hero's
+  defence counts ×3 and its side of the block roll ×3/2; the turn is the Spirit clip in place; it adds `SpiritAPGain` (32) AP; the next
+  round opens with `min(Max * 7/5 + 8, 288)` gauge.
+- **AP from a hit taken** (the original's, `FUN_801EC3E4`): every hit that connects on a hero adds `max(1, damage * 100 / MaxHP)` AP,
+  capped (the accessory bonuses come with the accessories).
+- **Formation advantage** (brought forward from Phase 7): rolled at the start from the fight's `Rng` (`UBattleFormulas::RollFormationAdvantage`),
+  never in a scripted fight; `FJRPGBattleSetup::FormationAdvantage` can force it.
 - **A refused command** (`OnCommandRefused`) shows on screen in red next to the prompt, with the reason.
 - **The monster's swings** are queued with the original's budget loop (a random candidate; it is queued if the AGL pool pays;
   15 swings or 16 unpaid draws); with a next swing queued and `Gate` 0 the clip is cut at beat + 3 and the later hits are lost. A monster
@@ -742,9 +785,10 @@ input window inside a turn, damage per hit with each Art's power, AP on the comb
   frame ≤ `FrameCount` − 1): such beats are dropped and the clip is not stretched; a row whose beats are all past the clip plays and deals no
   damage (logged once), still eligible and paying its AGL — `koru_05` / `koru_06` at beat 200 and `rogue_05` at 255, bosses whose damage is
   Phase 8 script. A flinch window is capped at its clip (`cort_juggernaut_02_Damaged`: beat 10, 7 frames).
-- **The party's timeline** reads the clip's length, `UJRPGAnimNotify_Hit` markers and Chain Cut as data through an optional provider;
-  the markers are not on the clips yet, so the per-kind defaults (`FJRPGTimelineDefaults`, editable on the subsystem) are the normal path
-  and are logged once per kind of step.
+- **The party's timeline** comes from the disc, like the monsters': the plain swings from `DT_HeroSwings` and the Arts from `DT_ArtHits`
+  (hit beats and rate of each record, generated by `generate_hero_battle_csv.py`). `UJRPGAnimNotify_Hit` and Chain Cut markers on a clip,
+  when they exist, win over the table: they are the authoring tool for Arts made by hand, not something the disc clips need. With neither
+  (a missing row, the Miracle Arts) the per-kind defaults apply (`FJRPGTimelineDefaults`, editable on the subsystem), logged once per kind.
 - **`AwardBattleXPToParticipants`** is the "overload with `TArray<FName>`": a differently named plain method, because UHT does not take an
   overloaded `UFUNCTION`.
 - **The parry** (`SubmitInput`): the input is validated (owner, alive, a stamp that is not from the future), stamped and kept in the state; it
@@ -758,10 +802,10 @@ input window inside a turn, damage per hit with each Art's power, AP on the comb
   band, then the victory / defeat test, then about 6 passes before the next actor (`FJRPGBattleState::FinishCheckFrame` /
   `NextActionNotBefore`; `FJRPGTimelineDefaults::DoneBandFrames`, `PassGapFrames`). The decided fight holds `VictoryHoldFrames` (256) or
   `DefeatHoldFrames` (322) before `EndBattle`.
-- **Not done**: Item, Escape, Spirit, formation advantage roll, drop / steal (Phase 7); magic and the scripted bosses (Phase 8); the
-  enemies' level scaling (the encounter's level is stored, no curve exists); the `UJRPGAnimNotify_Hit` markers on the party's clips
-  (content); rule 3 of "Staying in the arena" (minimum spacing) and rule 4 (the per-Art override) — the pawn walks to the reach, the
-  arena's area clamps the step, nobody walks back; the Rim Elm / Tetsu training row of `DT_Bosses` (the training is not in `bosses.toml`).
+- **Not done**: Item, the escape roll (Escape from the menu always works today), drop / steal (Phase 7); magic and the scripted bosses
+  (Phase 8); the enemies' level scaling (the encounter's level is stored, no curve exists; it goes with the difficulty / New Game+
+  review); rule 4 of "Staying in the arena" (the per-Art override); the Rim Elm / Tetsu training row of `DT_Bosses` (the training is
+  not in `bosses.toml`).
 
 ### 5.0 — Contracts first
 
@@ -773,8 +817,8 @@ single player and PvP alike.
 `UJRPGBattleRules` installs the stats and computes EXP / Gold for the rules picked by
 `EJRPGRuleset` ([Version rules](#version-rules--usa-or-japan)). *Phase 5 (written 2026-11-04):*
 `BeginBattle` snapshots each enemy through `InstallEnemyStats(row, Setup.bScriptedFight, ruleset)`
-and then the difficulty (`ScaleEnemyHP/ATK/DEF`); `FJRPGBattleSetup` gains `bScriptedFight`,
-`Seed` and `bNoRewards` (none of them exists today). The original's flag is per formation, not per
+and then the difficulty (`ScaleEnemyHP/ATK/DEF`); `FJRPGBattleSetup` has `bScriptedFight`,
+`Seed` and `bNoRewards`. The original's flag is per formation, not per
 boss, so `DT_Bosses` gets a column for it (Tetsu's training and Lapis are scripted fights with the
 random-encounter profile). A scripted fight also cannot be escaped and rolls no formation
 advantage (`ctx+0x287`).
@@ -785,7 +829,7 @@ advantage (`ctx+0x287`).
 
 | Data | From (RE) | For |
 |---|---|---|
-| Each monster's **action entries**: per clip the power bytes (`+0x00..+0x03`, one per hit), the hit frames (the event-frame list `+0x10..+0x13`), the AGL cost (`+0x74`), the playback rate (`+0x78`), the status selector (`+0x7A`), the tag (`0x0D..0x0F` attacks, `0x0B` block) | `docs/formats/monster-animation.md` › action entry; the monster archive (PROT 867) | The enemy's timeline, its damage, its AI budget, its block. A table (`DT_EnemyActions`, a row per monster clip), **not notifies** |
+| Each monster's **action entries**: per clip the power bytes (`+0x00..+0x03`, one per hit), the hit frames (the event-frame list `+0x10..+0x13`), the AGL cost (`+0x74`), the playback rate (`+0x78`), the status selector (`+0x7A`), the tag (`0x0B` block; `0x0C..0x1F` what the AI can roll, of which `0x0D` / `0x0E` / `0x0F` are the monster's plain attacks and the rest its specials) | `docs/formats/monster-animation.md` › action entry; the monster archive (PROT 867) | The enemy's timeline, its damage, its AI budget, its block. A table (`DT_EnemyActions`, a row per monster clip), **not notifies** |
 | Each monster's **target class** (record `+0x1E`: 2 = floating, the "Lower, misses floating" hits miss it; 3 = short, the "Upper, misses short" hits miss it; 0 = every hit reaches) | `battle-formulas.md` › "The limb-vs-height miss" | The miss by height. A column in `DT_Enemies` |
 | The **Ra-Seru tiers** as equipment rows (ATK, UDF, LDF, SPD per tier; weapon category with the Ra-Seru bit) | `docs/formats/equipment-table.md` (the ~24 per-tier entries the curated tables collapsed) | The Ra-Seru's ATK fold and its stats at load. The hero's tier is `SeruLevel` |
 | The party's **per-button cost** (`+0x74` of the weapon section: 30 / 42 / 54) | `arts-command-gauge.md` › "Where the cost comes from" | The input window's cost per button, per weapon |
@@ -800,7 +844,7 @@ mean "whose command is being entered" during Commands and "who is acting" during
 
 | Question | Contract |
 |---|---|
-| Where an action's frames come from | Built **when the action starts**, before anything plays, into a plain `FJRPGActionTimeline` (total frames, hit frames with their power byte, chain-cut frames). **Always from data, never from a notify firing.** Monsters: their `DT_EnemyActions` row, which is the disc's own action entry (hit frames, power, rate) — no notify at all. Party: the clip's length and rate plus the `UJRPGAnimNotify_Hit` markers, read as data off the asset (the authoring tool for Arts made by hand). Validated there: a hit frame past the clip's end, or fewer hits than `HitPower` says, is logged. The resolution only sees `FJRPGActionTimeline`, so the tests feed it directly, with no asset |
+| Where an action's frames come from | Built **when the action starts**, before anything plays, into a plain `FJRPGActionTimeline` (total frames, hit frames with their power byte, chain-cut frames). **Always from data, never from a notify firing.** Monsters: their `DT_EnemyActions` row, which is the disc's own action entry (hit frames, power, rate) — no notify at all. Party: the disc's swing and Art records (`DT_HeroSwings`, `DT_ArtHits`) plus the clip's length; `UJRPGAnimNotify_Hit` markers on the asset, read as data, win over the table (the authoring tool for Arts made by hand). Validated there: a hit frame past the clip's end, or fewer hits than `HitPower` says, is logged. The resolution only sees `FJRPGActionTimeline`, so the tests feed it directly, with no asset |
 | The pace | Whole frames at the game's pace: 15 × rate frames/s (scale 8). An Art plays at scale 4 and the special starter at 2 (half and a quarter; `SpeedScale` per step overrides it — Phase 6), so its frames count longer ([Guides/PS1_ASSETS.md](Guides/PS1_ASSETS.md)) |
 | A clip that is missing or broken | The timeline falls back to defaults per kind (swing, Art, enemy attack: one hit at a fixed frame, a fixed length), logs it, and the fight goes on. The fallback is data, not a guess at play time |
 | When the damage is committed | At the hit's frame, by `ResolveHit(N)`, with every input received up to that frame. Never earlier (the parry) and never by a notify |
@@ -826,12 +870,13 @@ resolution); the conditions themselves come with Phase 8.
 
 | | HP / MP | AP | Items used | Arts learned | EXP / Gold / drop | Then |
 |---|---|---|---|---|---|---|
-| **Victory** | Kept as they are | Kept | Gone | Kept | Paid once | Back to the field |
-| **Defeat** | — | — | — | — | Nothing | Game over (Muscle Dome: the waves stop) |
+| **Victory** | Kept as they are; the fallen get up with **1 HP** (the original). A level-up raises the maxima only | Kept | Gone | Kept | Paid once | Back to the field |
+| **Defeat** | Kept; everyone floored at **1 HP** (the original: a scripted loss returns to the field standing) | Not kept | — | Not kept | Nothing | Game over (Muscle Dome: the waves stop) |
 | **Escaped** | Kept; the fallen get up with **1 HP** (the original) | Kept | Gone | Kept | Nothing | Back to the field, grace period |
 | **Aborted** (debug, map change) | Untouched: as before the fight | Untouched | Not consumed | Not learned | Nothing | Back to the field |
 
-So the snapshot is written back only on Victory and Escaped, and `Aborted` throws it away. An Art
+So HP and MP are written back on Victory, Escaped **and Defeat** (bug 28; nothing is restored after a fight), AP and the
+learned Arts only on Victory and Escaped, and `Aborted` throws the snapshot away. An Art
 learned during the fight goes into the **combatant's** learned list (the resolution cannot write
 the roster: `UArtsSubsystem::CommitArtsChain` is the out-of-battle path) and reaches the save with
 the rest of the write-back, through `UArtsSubsystem`.
@@ -849,6 +894,11 @@ pay EXP to **the fight's heroes** who are alive — `AwardBattleXP` takes the pa
 `VictoryGold(raw golds, Golden Book, ruleset)`, then `ScaleGoldReward`, then `AddGold`.
 
 ### `Public/Battle/BattleTypes.h`
+
+> **This is the plan's sketch, kept for the reasoning.** The header is the source of truth: it has grown since
+> (the `ComboTotal` event, `GameSpeed` on the event, the reaction lengths and holds on the combatant, the approach
+> inputs and the finish / next-action frames in the state, the `Spirit` step, the transition style and the formation
+> advantage in the setup).
 
 ```cpp
 UENUM(BlueprintType) enum class EJRPGBattleSide       : uint8 { Party, Enemy };          // exists
@@ -967,18 +1017,21 @@ mixed-sign compare (`0x8000`+ never wins) is a bug and is not kept.
 
 **The AGL pool, per round** (`FUN_801D88CC`, before the keys): a combatant whose command was an
 attack / Arts, and every monster, gets `CommandGauge = MaxCommandGauge`; one that chose Spirit
-gets `min(Max * 7/5 + 8, 288)` (Phase 7); anyone else keeps what is left. A hero whose target died
+gets `min(Max * 7/5 + 8, 288)`; anyone else keeps what is left. A hero whose target died
 is re-pointed at the **lowest living enemy slot** (`FUN_801DB8B4`).
 
-**Formation advantage** (back attack / pre-emptive, `FUN_80051D84`) zeroes one side's keys for
-round one. It is the original's and comes in Phase 7 with the facing it needs; Phase 5 leaves the
-hook (`FJRPGBattleSetup` can carry the rolled result).
+**Formation advantage** (back attack / pre-emptive, `FUN_80051D84`) takes round one from one side,
+which starts turned away. It is the original's; written with Phase 5
+(`UBattleFormulas::RollFormationAdvantage`, `FJRPGBattleSetup::FormationAdvantage`;
+[Guides/BATTLE.md](Guides/BATTLE.md)).
 
 ### Damage formula
 
 The original's melee kernel (`FUN_801EC3E4`, RE `battle-formulas.md` › "Melee hit"), which every
 direction hit, every Art hit and every monster swing goes through, one call per hit. Kept as it
-is, minus the angle / distance terms ([Deliberate departures](#deliberate-departures-from-the-original)):
+is; the angle / distance terms (`AttackRamp`, `GuardRamp`) arrive as an input from the scene instead of
+being read from positions ([Deliberate departures](#deliberate-departures-from-the-original)), and only
+the first hit of an action spends them:
 
 **The power byte** of the hit (`b`, one per hit: the Art's `HitPower`, the monster action's
 `+0x00..+0x03`; a plain direction hit carries the 20 tier) gives both the scalar and the height:
@@ -1005,7 +1058,7 @@ is "the defender still stands on the accumulated total". The remake takes each h
 the gate is `defender HP > 0`):
 
 ```
-a = A.SPD + A.ATK*4/5;   d = D.SPD + D.ATK*4/5;   a = max(a, d)
+a = A.SPD + A.ATK*4/5 + AttackRamp;   d = D.SPD + D.ATK*4/5 + GuardRamp;   a = max(a, d)
 a += (Rng % a) * [6,4,4,4,2][(b - 0x0C) % 5] >> 1
 d += Rng % d
 D chose Spirit -> d = d*3/2;   A's hit is an Art -> a = a*3/2
@@ -1028,7 +1081,7 @@ the hit, not by the item:
 
 `BaseOffense = ATK + fold`. Noa is left-handed, but the fold follows the role (her Arms button
 folds her claws, her Ra-Seru button folds Terra). The Ra-Seru's ATK is the tier's equipment row
-(5.0 › Data the fight still needs), not `GetSeruBonus`.
+(5.0 › Data the fight needs from the disc), not `GetSeruBonus`.
 
 **Offense, Defense, damage** (`atk` = BaseOffense):
 
@@ -1036,13 +1089,15 @@ folds her claws, her Ra-Seru button folds Terra). The Ra-Seru's ATK is the tier'
 Offense  = (atk + Rng % (atk/8 + 1)) * Power >> 4
          + A.HP >> 8                          // the attacker's current HP
          + (Juggle * atk) >> 6
+         + (AttackRamp * atk) >> 16           // the angle: up to atk/32 more from behind
 Art:       Offense = Offense * 13/10, then * Elem / 100
 always:    Offense = Offense * Elem / 100     // so an Art takes the element twice
 Venom / Toxic on the attacker: * 9/10 / * 7/10   (Phase 8)
 
 def      = HighHit ? D.UDF : D.LDF
 Defense  = def + Rng % (def/8 + 1)
-Spirit:    Defense = Defense * 3                 (Phase 7)
+         + (def * GuardRamp) >> 10            // the distance the attacker walked
+Spirit:    Defense = Defense * 3
 Venom / Toxic on the defender: * 9/10 / * 7/10   (Phase 8)
 
 if not (Offense > Defense + Offense*Power/64 + Offense*Juggle/64 + Juggle):     // the underdog
@@ -1057,16 +1112,18 @@ Damage   = Offense - Defense
 ```
 
 There is no floor at 1: an attacker weaker than the defence still lands a hit that scales with
-its roll, and every hit that lands does at least 3. A zero-damage enemy hit is always a block.
+its roll, and the chip keeps it at 3 or more (5 for an Art). Only with very small numbers can a
+hit that wins outright do 1 or 2. A zero-damage enemy hit is always a block.
 
 **Element** — the original's 8×8 matrix (`0x801F53E8`, row = attacker), integer percent:
 
 | Pairing | % |
 |---|---|
-| Same element | 96 |
+| Same element (thunder against thunder included) | 96 |
 | Opposed: earth-wind, water-fire, light-dark | 104 |
-| Thunder attacking anything | 102 (98 against dark) |
-| Anything else, and neutral | 100 |
+| Thunder attacking earth, water, fire or wind | 102 |
+| Thunder attacking dark | 98 |
+| Anything else (thunder against light too), and neutral | 100 |
 
 Two things matter more than the rest:
 
@@ -1103,7 +1160,8 @@ So the action runs on a **logic timeline**: a fixed-step frame counter owned by 
 whole frames at the game's pace (15 × rate frames/s, [Guides/PS1_ASSETS.md](Guides/PS1_ASSETS.md#the-partys-clips-and-sounds)).
 Each clip's length, rate and hit frames are **data**, the same on every machine: for a monster,
 its action entry from the disc (`DT_EnemyActions`, the original's own event-frame list); for a
-hero, the `UJRPGAnimNotify_Hit` times on the `UAnimSequence`, read as data when the action starts
+hero, the disc's swing and Art records (`DT_HeroSwings`, `DT_ArtHits`), or the `UJRPGAnimNotify_Hit`
+times on a hand-made `UAnimSequence`, read as data when the action starts
 (never as a notify that fires). When the counter reaches hit N's
 frame, `ResolveHit(N)` runs with the fight's state, its RNG and every input received so far
 (a parry pressed before the window closed), and emits that hit's events. The state machine above
@@ -1144,13 +1202,17 @@ a set of rules, not trimming the Arts:
    RE confirmation of the rest of this section: "an action does not return its combatants to their authored formation
    seats ... there is no walk-home leg ... no recover backstep" (`battle-action.md`, "Where an action leaves its combatants").
 2. **The arena bounds clamp everyone.** Knockback, the arrival shove and the attacker's own root
-   movement are all clamped to the arena's area (`AJRPGBattleArena`). Knockback is what pushes the defender back on each hit
-   (the original does it through the reaction clip's root speed `+0x0C` and end step `+0x0E`; the remake uses a per-hit
-   distance, `FlinchKnockback` 45 cm / `KnockdownKnockback` 120 cm / `BlockKnockback` 20 cm on the pawn). A target pinned against the
-   edge stops the attacker by rule 1, so the whole fight stays inside.
-3. **Fighters keep their distance.** A minimum spacing between any two combatants (allies
-   included), so a party that drifted forward does not stack on the enemy line.
-4. **Per-Art override.** A new big Art can be marked to play in place (no root movement) or to
+   movement are all clamped to the arena's area (`AJRPGBattleArena`). Knockback is what pushes the defender back on each hit:
+   the reaction clip's own root speed (`+0x0C`) and end step (`+0x0E`), as in the original, exported from the disc into
+   `DT_EnemyActions`, `DT_HeroReactions`, `DT_HeroSwings` and `DT_ArtHits` (`bUseClipMotion`). The fixed distances on the pawn
+   (`FlinchKnockback` 45 cm / `KnockdownKnockback` 120 cm / `BlockKnockback` 20 cm) are only the fallback for a clip with no
+   data. A target pinned against the edge stops the attacker by rule 1, so the whole fight stays inside.
+3. **Fighters keep their distance** (done, bug 24; the original's four mechanisms, all on the presentation side). The
+   **separation** nudges apart any two bodies that are too close, every frame; bystanders **make way** for a walking attacker
+   (only who is in its lane: [Deliberate departures](#deliberate-departures-from-the-original)); the formation is **recentred**
+   at each action and at the round start, the battle camera following it (`bRecentreFormation`); the **arrival shove** pushes
+   the target to the edge of the reach when a walk closes. Tunables on `AJRPGBattleArena` (Formation).
+4. **Per-Art override** (not done). A new big Art can be marked to play in place (no root movement) or to
    cap its travel; the camera frames the action, wherever it is.
 
 Root movement itself is the disc's: per clip, a root speed (`+0x0C`) and an end step (`+0x0E`)
@@ -1166,7 +1228,7 @@ The original's generic core (`FUN_801E9FD4` + the target resolver `FUN_801E7320`
   Not weighted by HP — that is the RE port's non-faithful "smart monsters" toggle; it can come
   later as an option.
 - **Action:** the monster's swing entries (tags `0x0C..0x1F` with a real AGL cost, from
-  `DT_EnemyActions`), queued while its AGL pool pays their `+0x74` cost — which one each time,
+  `DT_EnemyActions`: the plain attacks `0x0D..0x0F` and the specials around them), queued while its AGL pool pays their `+0x74` cost — which one each time,
   as the RE's `pick_monster_action` does (read it before writing). Each swing hits with its own
   power byte at its own hit frames.
 - **Phase 8:** the magic roll (`Rng % (1 + live magic count)` over the record's three spell ids,
@@ -1230,8 +1292,8 @@ automation tests. What the work settled that the sketch below did not say:
 - **The gauge charges per button**, as the original does (pool = AGL, 30 a button, more for the
   weapon hand off its class; RE `arts-command-gauge.md`) — not the per-Art `CommandCost`, which
   stays a balance reference.
-- **The hit marker** is `UJRPGAnimNotify_Hit`; the validator checks its count. Placing it on the
-  party's Art clips is content for Phase 5.
+- **The hit marker** is `UJRPGAnimNotify_Hit`; the validator checks its count. The disc's Art
+  clips do not need it (their hit frames come from `DT_ArtHits`, Phase 5); it is for Arts made by hand.
 
 ### Two meters, not one
 
@@ -1241,7 +1303,8 @@ automation tests. What the work settled that the sketch below did not say:
 | `AP` | Persistent, `0..100`, already in `FJRPGPartyMember` | **Regular Arts add. Hyper / Super / Miracle spend.** This is the improvement |
 
 The original spent AP on every command, which is the complaint this remake fixes. Here the
-player builds AP by performing Arts and burns it on the big ones.
+player builds AP by performing Arts and burns it on the big ones. Two sources of AP are the
+original's and are kept: Spirit (+32) and every hit a hero takes (`max(1, damage * 100 / MaxHP)`).
 
 ### `UArtsSubsystem`
 
@@ -1297,7 +1360,13 @@ Recognition follows the original's tokenizer (`FUN_801EED1C`; RE `crates/art/src
 `docs/subsystems/battle-action-queue.md` › "Normalize arrows into art constants"), **not** a
 consuming longest-match:
 
-- **Arts overlap.** The original walks the input tail-first and restarts right after each
+- **Arts overlap — the shortened input.** This is the original's, and it stays: the end of one
+  Art can be the start of the next, so two Arts cost fewer buttons than typed apart (`↑↓↑↓↑` is
+  two Somersaults in five buttons, not six). Between Regular Arts the shared part is **1 or 2
+  buttons**: no pair in `DT_Arts` shares 3 (checked 2026-11-10), though nothing in the rules
+  forbids it for a new Art. A Hyper never shares (it takes its whole span). Where it lives:
+  `UJRPGArtsRules::BuildChain`; [Guides/ARTS.md › Recognition](Guides/ARTS.md#recognition--the-originals-tokenizer).
+  The original walks the input tail-first and restarts right after each
   match, so one button can belong to two Arts: Tri-Somersault is seven buttons because
   Somersault, Cyclone and Somersault share their ends. A greedy match that *consumes* the
   input would see Somersault and then lose the Arts that start on its last button. `ARTS.md`
@@ -1322,9 +1391,10 @@ find patterns of `crates/art/src/super_art.rs`; the RE derives the input the sam
 
 Choosing Arts opens the window, and the window is **local**: each button debits its cost from
 `CommandGauge` (the original's per-button price, 30 for most) and pushes a byte, with no round
-trip to the rules. `CommitArtsChain` closes
-it and sends the whole chain as **one** command (`FJRPGBattleCommand` with `ArtBytes`, through
-`SubmitCommand`); the rules recognize it again from the bytes (never trust the payload) and turn
+trip to the rules. Closing it sends the whole chain as **one** command: in a fight,
+`FJRPGBattleCommand` with `ArtBytes` through `SubmitCommand`; out of a fight (the Art tester),
+`UArtsSubsystem::CommitArtsChain`, which writes the learned Arts straight to the roster and is
+never called by the fight. Either way the rules recognize it again from the bytes (never trust the payload) and turn
 it into the turn's queue (`UJRPGArtSequenceLibrary`). Before Phase 5, the Art tester plays the
 same path without a fight: a gauge of its own, commit, recognition, queue.
 
@@ -1427,7 +1497,7 @@ validator flags a duplicated `Command` and a `Sequence` step that does not exist
 *Each item is a `JRPG.Arts.*` automation test (2026-11-04; run in the editor after the build); the
 animations are checked by eye with the Art Tester's `Input`.*
 
-**Acceptance, closed in Phase 5** (in a fight; written 2026-11-04, to be played: `JRPG.Battle.ArtsInFight` and
+**Acceptance, closed in Phase 5** (in a fight; played with Phase 5: `JRPG.Battle.ArtsInFight` and
 `SuperInFight` test it without a map): damage uses the Art's power per hit and AP
 **rises**; fill AP and fire a Super Art → AP **drops** and damage is much larger; with
 insufficient AP, the Super shows as blocked.
@@ -1446,14 +1516,17 @@ Two kinds of work, kept apart: the **rules** go through the combat core like Pha
 
 - **Item** — 5.0 › Items: reserved at command time, consumed when its action resolves, the
   effect applied to the combatant through `ApplyBattleItemEffect` (still a stub today).
-- **Escape** — the original's roll (`FUN_801E791C`: party `(SPD*3)>>1 + missingHP>>4` against the
-  enemies' `SPD + missingHP>>5`, two draws; it fails in a scripted fight), `EndBattle(Escaped)` and
-  what it keeps (5.0 › End of the fight). The monsters' own flee roll (`FUN_801EC0DC`) with it.
-- **Spirit** (the original's guard) — Defense × 3 in the kernel and the block bonus (Phase 5
-  already reads `bGuarding`), from the commit to the next round's sweep; the AGL pool
-  `min(Max * 7/5 + 8, 288)` next round; its AP charge.
-- **Formation advantage** — back attack / pre-emptive (`FUN_80051D84`): the roll at the start, the
-  losing side's keys at 0 for round one and its facing turned; none in scripted fights.
+- **Escape** — *partly done:* the menu's Escape ends the fight as `Escaped` (refused in a scripted
+  fight) and **always works**. *To do:* the original's roll (`FUN_801E791C`: party
+  `(SPD*3)>>1 + missingHP>>4` against the enemies' `SPD + missingHP>>5`, two draws), as a command
+  through the resolver, and the monsters' own flee roll (`FUN_801EC0DC`). What an escape keeps:
+  5.0 › End of the fight.
+- **Spirit** (the original's guard) — *done with Phase 5:* Defense × 3 in the kernel and the block
+  bonus, from the commit to the next round start; the AGL pool `min(Max * 7/5 + 8, 288)` next
+  round; +32 AP. The aura comes with the VFX.
+- **Formation advantage** — *done with Phase 5:* back attack / pre-emptive (`FUN_80051D84`), the
+  roll at the start, the losing side out of round one and turned away; none in scripted fights.
+  The accessory passives that change the roll come with the accessories.
 - **Rewards beyond EXP / Gold** — the drop roll (at most one item per fight, the original's
   `0x8004F3D8`) and the steal; `DropItem` / `StealItem` are already in `DT_Enemies`.
 
@@ -1469,13 +1542,19 @@ Two kinds of work, kept apart: the **rules** go through the combat core like Pha
   [Guides/BATTLE.md › Battle UI](Guides/BATTLE.md#13-battle-ui). It uses ONE bridge callback,
   `onbattleinput`, instead of the four listed above, and keeps the choices in a buffer sent on Begin. The
   enemy row, the AP bar with cost markers and the damage log below are still to do.*
-- **Attack camera.** `FocusOnActor` on turn start, `PlayCameraShake` on `Strike`, `Orbit`
-  on victory.
-- **Sound — the rest of it.** Phase 2 brought the monsters' sounds and the party clips' own cues;
-  everything else comes now: impacts, blocks and misses, the Art voice lines, the battle HUD's
-  sounds (cursor, confirm, the input window's buttons, the AP gauge), the victory fanfare and the
-  battle BGM. Extracted via the RE project's `vab` / `xa` crates, wired into `UAudioSubsystem`.
-  Driven by the events, like the rest of the presentation.
+- **Attack camera.** *Done with Phase 5:* the battle camera follows the original's framing cases
+  instead of the first sketch (`FocusOnActor` / `Orbit`): `JRPGBattleCamera.h`, the per-Art shots
+  in `DT_ArtCamera`, the near-camera ghost, and it follows the formation recentre. Still to do:
+  the camera shake on a hit and the victory shot.
+- **The field-to-battle transition.** *Done with Phase 5:* the original's styles (tile shatter,
+  spin-up, scatter, curtain, swirl) besides the fade
+  ([Guides/BATTLE_STAGE.md](Guides/BATTLE_STAGE.md#the-field-to-battle-transition)).
+- **Sound — the rest of it.** Phase 2 brought the monsters' sounds and the party clips' own cues.
+  *Done with Phase 5:* the Art voice lines and fanfares (`DT_BattleVoices`), the battle BGM
+  (`DT_BattleMusic`), the impact sound gated by the hit's result. *To do:* no impact sound on a
+  block (bug 86), the monster's death sound, the battle HUD's sounds (cursor, confirm, the input
+  window's buttons, the AP gauge), the victory fanfare. Driven by the events, like the rest of the
+  presentation.
 - **VFX.** The battle's visual effects in Niagara: hit sparks per element, the block, the Art and
   Super flashes, the after-image trail, death and the victory. The original's are effect scripts
   in each action entry (`+0x14..+0x53`, RE `docs/formats/monster-animation.md` › "Effect-script
@@ -1583,10 +1662,10 @@ out of animation notifies means rewriting the resolution.
 | Roll with `FMath::Rand` / `FMath::RandRange` or any global stream | Each machine rolls something different | One `FRandomStream` inside the battle state, seeded from `BeginBattle`'s `Seed`; only the resolution consumes it. Cosmetic randomness (which flinch clip, particles) uses a separate stream |
 | Keep presentation in the combatant (`EJRPGActionPhase Phase`, `float PhaseTimer` in `FJRPGCombatant`) | Ties the rules to frame time, and floats diverge between machines | `FJRPGCombatant` holds rules only, all integer; phase and timers live in the pawn / presentation — already the plan either way (Phase 5's sketch) |
 | Let the UI bridge mutate the battle directly (`SubmitCommand` straight from `UWebUIBridge`) | Online, the command has to travel to the host first; local co-op needs to know who sent it | Every command is a value struct (`FJRPGBattleCommand`: issuing player, slot, command, target, Art bytes) through one entry point that checks the issuer owns the slot and validates the rest (rule 22: never trust the payload) |
-| Send an Arts chain button by button to the rules | Each button would be a round trip | The input window stays local; `CommitArtsChain` sends the whole chain as one command |
+| Send an Arts chain button by button to the rules | Each button would be a round trip | The input window stays local; closing it sends the whole chain as one `FJRPGBattleCommand` (`ArtBytes`) through `SubmitCommand` |
 | Read `UPartySubsystem` / `UInventorySubsystem` / `UStatusSubsystem` during resolution | In PvP the opponent's party is not in your GameInstance | Snapshot everything into the combatants at `BeginBattle`; resolution reads only the battle state; write back (HP, XP, items used) at `EndBattle` |
 | Use `GetFirstPlayerController()` in battle code (`AJRPGBattleArena`, `UJRPGBattleSceneSubsystem` do it today) | On a listen server it is always the host's controller | Pass the player explicitly; which player owns which slot lives in the battle state |
-| Let positions feed the rules (traces, distance after root motion, "staying in the arena") | Actor positions differ per machine | Targeting, range and hits are decided by slot; spacing and arena clamping stay presentation |
+| Let the rules read positions (traces, distance after root motion, "staying in the arena") | Actor positions differ per machine | Targeting, range and hits are decided by slot; spacing and arena clamping stay presentation. The one thing the original takes from positions, the angle and the walk of the approach, enters as a clamped **input** (`FJRPGApproachInput`, `SubmitApproach`): only the authority measures it, and it travels with the commands |
 | Advance the logic by the frame's `DeltaTime`, or let time dilation / a menu pause stop it | Variable steps land a hit on a different frame per machine; the host cannot be paused for everyone | A fixed-step integer frame counter owned by the battle; online it never pauses (single player may) |
 | Run enemy AI outside the resolution | Each machine would pick different targets | AI is a step of the resolution, using the battle stream, on the host only |
 | Judge a parry on the host's clock | The defender sees the attack late by the network delay; a press on time on their screen would arrive late | The defender's machine judges the press against its own playback and sends "parried hit N"; the host holds hit N until that input or a deadline (see "The transport") |
@@ -1594,7 +1673,8 @@ out of animation notifies means rewriting the resolution.
 Phase 5 does **not** add replication, lobbies or EOS — it only keeps the core from closing the
 door.
 
-**Match setup in PvP (noted, not implemented).** `UBattleSubsystem::TimelineDefaults` (editable) and the times read from the party's clips
+**Match setup in PvP (noted, not implemented).** `UBattleSubsystem::TimelineDefaults` (editable), the timing tables (`DT_EnemyActions`,
+`DT_HeroSwings`, `DT_ArtHits`, `DT_HeroReactions`) and the times read from the party's clips
 (length, `UJRPGAnimNotify_Hit` and Chain Cut markers, through `ClipTiming`) feed the logic timeline, so the two machines must agree on them:
 they are part of the match's setup, to travel with the seed, the party snapshots and the ruleset. Today each machine reads its own.
 
@@ -1645,8 +1725,8 @@ already the same on every machine.
 **Damage formula.** Same formula (the plan already bans floats, which helps). `UBattleFormulas`
 functions take the `FRandomStream&` and the snapshot instead of asking a subsystem. The element
 matrix is integer percent (`* 104 / 100`, `* 96 / 100`, …) — a float from
-`GetElementMultiplier` can round differently per machine. The angle / distance terms are gone
-(positions).
+`GetElementMultiplier` can round differently per machine. The angle / distance terms are an input
+the authority measures and sends, never read from positions by the rules.
 
 **State machine.** Still there, but **in the pawn, as playback** of the logic timeline
 (Phase 5 › State machine, decided either way).
@@ -1691,12 +1771,12 @@ network-related.
 | ~~Skin injection rejected by Interchange~~ | Retired — the Blender → FBX converter works (Gimard + party) | Its own traps are rules 48–52 in [ARCHITECTURE.md](ARCHITECTURE.md) |
 | PS1 over-bright vertex colours (> 1.0) clamped by the 8-bit vertex colour | Low — flames and glowing blades look duller | Export the colour halved and double it in `M_PS1Monster` |
 | ATK double-counted (`GetEffectiveStat` already includes equipment) | **High**, because it is invisible — inflates damage uniformly | Explicit test: Vahn's combatant with a sword equipped must read `ATK == base`; the fold adds half of one piece per hit (all five for an Art) |
-| Hit frames taken from notifies firing | **High** for PvP — playback differs per machine | Monsters' frames come from the disc (`DT_EnemyActions`), the party's from the markers read as data when the action starts; the resolution only sees `FJRPGActionTimeline` |
+| Hit frames taken from notifies firing | **High** for PvP — playback differs per machine | Monsters' frames come from the disc (`DT_EnemyActions`), the party's too (`DT_HeroSwings`, `DT_ArtHits`; markers on a hand-made clip are read as data when the action starts); the resolution only sees `FJRPGActionTimeline` |
 | PS1 integer arithmetic translated as float | Medium | `int32`/`int64` throughout the damage kernel, no `FMath::` |
 | A version's factor applied twice, or baked into a table | **High**, invisible — the first `DT_Enemies` held EXP × 3/4 and `AwardBattleXP` cut it again (≈56% of the EXP) | The table is the raw record; every factor lives once, in `UJRPGBattleRules` (rule 53). Tests pin the RE's captures (Gaza, Gobu Gobu, Gimard, Zeto) |
-| Larger party breaking balance | Medium | `bScaleEnemiesWithPartySize` from Phase 4, multipliers exposed as `UPROPERTY` |
-| Regenerating a CSV wiping hand-made mesh/anim mapping | Medium, destructive | Merge by row name in the generator + timestamped `.bak` in `Docs/Data/_backup/` |
-| `bosses.toml` inline tables breaking the parser | Low | Dedicated regex; validate 30/30 rows |
+| Larger party breaking balance | Medium | `bScaleEnemiesWithPartySize` (Phase 8, with the Seru members), multipliers exposed as `UPROPERTY` |
+| Regenerating a CSV wiping hand-made mesh/anim mapping | Medium, destructive | Merge by row name in the generator + a timestamped copy of the old CSV in `Docs/Data/_backup/` |
+| ~~`bosses.toml` inline tables breaking the parser~~ | Retired — `Extras/legaia_toml.py` reads it with `tomllib`; 30/30 rows | |
 | ~~Importing 186 enemies by hand~~ | Retired — `Extras/ps1_monsters_batch.py` + the editor scripts' `--all` | |
 
 ---
@@ -1738,15 +1818,32 @@ network-related.
 
 ## Next concrete step
 
-**Phase 6 — done without a fight (2026-11-04):** `UJRPGArtsRules` (recognition with the
+**State (2026-11-07):** Phases 0 to 6 are in `dev`. Phase 5 was played and merged with part of
+Phase 7 (Spirit, formation advantage, the transition, the camera, voices, music, the command menu).
+
+**Next, in this order:**
+
+1. **A fix pass on Phase 5** — the bugs still open in
+   [BATTLE_PHASE5_BUGS.md](BATTLE_PHASE5_BUGS.md) (the hits that do not land, the long wait before
+   a round, the flinch missing on some Super hits, the light floor on night maps, the impact sound
+   on a block, the Ra-Seru equipped from the start, the dev menu's equipment tab).
+2. **The rest of Phase 7's rules** — Item (reserve, consume, `ApplyBattleItemEffect`), the escape
+   roll, drop / steal.
+3. **The rest of Phase 7's presentation** — the HUD (enemy row, AP bar with cost markers, HP
+   dropping as the hits land, damage log), VFX, the victory screen, the sounds still missing.
+4. **Phase 8** — magic and Seru.
+
+Apart from the phases: the enemies' level curve, with the difficulty / New Game+ review; the
+Classic / Modern combat option ([Deliberate departures](#classic-and-modern-combat-planned-not-scheduled));
+the parry (open question 5).
+
+**For the record — what Phase 6 delivered (2026-11-04):** `UJRPGArtsRules` (recognition with the
 original's overlap, learn-on-use, Supers, the AP walk), `UArtsSubsystem` (the learned list in the
 save, `LearnArt` / `HasLearnedArt`, commit from the bytes), `UJRPGArtsValidator` (+ Data
 Validation + `Extras/arts_rules.py`), the `Unlock` / `SpeedScale` columns and the Art Tester's
-`Input`. Run `JRPG.Arts.*` after the build.
+`Input`.
 
-**Phase 5 — written 2026-11-04, to build and test** ([Guides/BATTLE.md](Guides/BATTLE.md)): import the new tables, build,
-run `JRPG.Battle.*`, play `JRPG.Battle.Start gimard 2` + `JRPG.Battle.Auto`, then mark it Done. Next: the markers on the party's
-clips, then Phase 7. The plan it was written from, door open ([decided 2026-11-04](#pvp-online-and-co-op--door-open-decided-2026-11-04)):
+**For the record — the plan Phase 5 was written from**, door open ([decided 2026-11-04](#pvp-online-and-co-op--door-open-decided-2026-11-04)):
 first the contracts (5.0 — the round, the logic timeline and its fallback, items,
 end of the fight, who gets the EXP) and the disc data the fight still needs (5.0 › `DT_EnemyActions`,
 the target class, the Ra-Seru tiers, the per-button cost), then basic combat on the Muscle Dome —
@@ -1755,6 +1852,5 @@ melee kernel (miss by height, block, fold, underdog, element matrix), the action
 the original's physical enemy AI, victory / defeat. With it, Phase 6's in-fight part: the input
 window inside a turn (`CommandGauge` from AGL, the weapon's cost per button), `BuildChain` on the
 combatant's snapshot and the fight's `Rng`, damage per hit from each step's `HitPower`, and AP
-moving as the action reaches each Art. In parallel, the party's battle clips (attack, hit, KO) and
-the `UJRPGAnimNotify_Hit` markers on the Art clips that it needs. **Rule for all of it: what this
+moving as the action reaches each Art. **Rule for all of it: what this
 roadmap does not change on purpose follows the RE** ([Deliberate departures](#deliberate-departures-from-the-original)).
