@@ -272,9 +272,9 @@ The action SM stops on the signal; the sequencer runs every frame until its phas
 
 | Item | Original | Ours |
 |---|---|---|
-| Win pose | the **leader** (`ctx[+0x13]`, always seat 0) poses; clip from the SCUS table `0x800788A0` by HP-quarter tier, round count, weak-status mask; one of the eight base-archive records `0x11..0x18`, **held** through the 256 hold (loop window `+0x85..+0x86`) | **missing** (`VictoryHoldFrames` 256 holds on idle) |
-| Hero voice | the leader's victory clip from `monster.snd` (slot 7) | missing (section 9) |
-| Victory camera | load window: stand-off framing case 8 on the leader; from the results frame: case 6 battle-over arm, the per-character win-pose camera script advancing `8` a frame | missing (section 7) |
+| Win pose | the **leader** (`ctx[+0x13]`, always seat 0) poses; clip from the SCUS table `0x800788A0` by HP-quarter tier, round count, weak-status mask; one of the eight base-archive records `0x11..0x18`, **held** through the 256 hold (loop window `+0x85..+0x86`) | **have** (6.1, 2026-11-10, tested in PIE): `UJRPGBattleSceneSubsystem::UpdateVictory` -> `AJRPGBattlePawn::PlayVictoryPose`; the pick is `UJRPGBattleRules::VictoryPoseTier` / `VictoryPoseColumn`. Ours: a downed leader does not pose (the first hero standing does); the weak-status mask waits for Phase 8; the round count is taken as the rounds already closed |
+| Hero voice | the leader's victory clip from `monster.snd` (slot 7) | **have**: the notify already on the pose clip plays it |
+| Victory camera | load window: stand-off framing case 8 on the leader; from the results frame: case 6 battle-over arm, the per-character win-pose camera script advancing `8` a frame | **have** (`EJRPGBattleShot::Victory`, `AJRPGBattleCamera::BuildVictoryPose`); the load window is kept as `UBattleSubsystem::VictoryLoadFrames` (80) |
 | Result window | element `0x41`: `288 x 42` framed window sliding from `(16, 236)` to `(16, 160)`, "<leader> / team ... victory" text; level-up window `0x44 + mask` + cue `0x50` | WebUI results (check against this) |
 | Loss window | element `0x42`, same box, defeat text; HP floored at 1 on the fade frame; unscripted wipe -> title, cursor on CONTINUE, no GAME OVER art | `Defeat` result; check the routing |
 | Exit fade | kind 2 (subtractive) to black, `0x40` frames, then exit at phase `0x43` | scene `Fade` |
@@ -872,7 +872,7 @@ original's HUD look (ours is our own design).
 | 4. Remaining sounds | **Done, to build and test** (2026-11-06): the Arts shout, the starter fanfare and the block grunt (`FJRPGBattleVoices`, `DT_BattleVoices` + `DT_ArtVoices` from `Extras/ps1_battle_voices.py`), battle music from the disc (`DT_BattleMusic`, picked per boss / arena). Menu blips dropped: the WebUI's `SFX_*` already are the original's sounds (user). Level-up cue and victory voice go with step 6. |
 | 5. Battle start | **In progress** (2026-11-07), parts 5.1-5.3 below: 5.1 (rules) and 5.2 (intro) written, to build and test; 5.3 to do. |
 | 5b. Field-to-battle transition | **Written** (2026-11-07), 5b.1 and 5b.2 together, to build and test. |
-| 6. Battle end | To do, parts 6.1-6.3. |
+| 6. Battle end | **In progress** (2026-11-10): 6.1 (win pose, voice, victory camera) **done**, tested OK in PIE by the user; 6.2 and 6.3 to do. Rewards are still paid at `EndBattle` (after the hold), not on the results frame. |
 
 Open items that are not a step of their own (details in `Docs/BATTLE_PHASE5_BUGS.md`):
 
@@ -953,6 +953,11 @@ user. Data generators are listed where a step needs disc numbers (outside the re
      - **6.3 Result and loss windows** (our design) in the battle WebUI: `<leader>'s team won the battle!`, EXP and Gold gained,
        who levelled up; `<leader>'s team was annihilated.` / `<leader> is out of strength.`
 7. After that, order to decide:
+   - **the heroes' facial expressions in battle** (user's note, 2026-11-10, to do later): the faces change during the fight and
+     on the win poses. The user's reading of the RE, **not checked yet**: the face's texture tile is swapped for another part of
+     the sheet that holds a different expression. Start from the RE's `crates/actor-formats/src/face_anim.rs` and
+     `docs/subsystems/battle-actor-rendering.md` before deciding how to do it here (a UV offset or a texture swap on the face
+     material, driven per clip);
    - our HUD (10.1) with the **enemy HP bars**, replacing the debug text;
    - effects (8.5): the per-clip effect notifies and `DT_BattleEffects`, hit burst, dust, Spirit aura, hit tint, **the user's
      aura** at the Special starter dash and chained Arts, weapon trail, damage numbers, Arts banner;

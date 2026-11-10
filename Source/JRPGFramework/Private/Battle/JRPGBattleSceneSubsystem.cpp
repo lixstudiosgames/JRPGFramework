@@ -13,6 +13,7 @@
 #include "Battle/JRPGBattleArena.h"
 #include "Battle/JRPGBattlePawn.h"
 #include "Battle/JRPGBattleCamera.h"
+#include "Battle/JRPGBattleRules.h"
 #include "JRPGBattleIntroEffect.h"
 #include "JRPGBattleTransition.h"
 #include "Battle/EnemyData.h"
@@ -912,6 +913,70 @@ void UJRPGBattleSceneSubsystem::HandleLogicFrame(int32 Frame)
 	}
 	UpdateCameraGhost(Battle, Acting);
 	UpdateTargetHighlight();
+	if (Battle)
+	{
+		UpdateVictory(*Battle, *Current);
+	}
+}
+
+void UJRPGBattleSceneSubsystem::ResetVictory()
+{
+	VictoryStage = EJRPGBattleVictoryStage::None;
+	VictoryPawn = nullptr;
+	VictoryPoseColumn = 0;
+}
+
+void UJRPGBattleSceneSubsystem::UpdateVictory(const UBattleSubsystem& Battle, AJRPGBattleArena& Current)
+{
+	const FJRPGBattleState& State = Battle.GetState();
+	if (!Current.bVictorySequence || !State.bFinished || State.Result != EJRPGBattleResult::Victory
+		|| VictoryStage == EJRPGBattleVictoryStage::Pose)
+	{
+		return;
+	}
+
+	if (VictoryStage == EJRPGBattleVictoryStage::None)
+	{
+		// Quem posa: o líder (ctx[+0x13] = o lugar 0 no original). Nosso: com ele caído, o primeiro herói de pé (o original levanta
+		// o caído com 1 de HP no quadro dos resultados; aqui o caído fica no chão até a luta desmontar)
+		const FJRPGCombatant* Poser = nullptr;
+		AJRPGBattlePawn* PoserPawn = nullptr;
+		for (const FJRPGCombatant& Combatant : State.Combatants)
+		{
+			if (Combatant.Side != EJRPGBattleSide::Party || Combatant.HP <= 0 || (Poser && Combatant.SideIndex >= Poser->SideIndex))
+			{
+				continue;
+			}
+			AJRPGBattlePawn* Pawn = Current.GetPawnForSlot(Combatant.SlotIndex);
+			if (IsValid(Pawn) && !Pawn->IsHidden() && !Pawn->IsDefeated())
+			{
+				Poser = &Combatant;
+				PoserPawn = Pawn;
+			}
+		}
+		if (!Poser)
+		{
+			return;   // ninguém de pé para posar (não deveria numa vitória): o hold segue no plano geral
+		}
+		// O tier pelo HP de quem posa e pelas rodadas já fechadas; os status fracos (a máscara 0x107B) são da Fase 8. Os sorteios
+		// são cosméticos: fora do Rng das regras
+		const int32 Tier = UJRPGBattleRules::VictoryPoseTier(Poser->HP, Poser->MaxHP, FMath::Max(State.Round - 1, 0), false);
+		VictoryPoseColumn = UJRPGBattleRules::VictoryPoseColumn(Tier, FMath::Rand(), FMath::Rand());
+		VictoryPawn = PoserPawn;
+		VictoryStage = EJRPGBattleVictoryStage::StandOff;
+		UE_LOG(LogTemp, Log, TEXT("BattleScene: vitória — %s posa (HP %d/%d, rodada %d, tier %d): %s"), *Poser->Key.ToString(), Poser->HP,
+			Poser->MaxHP, State.Round, Tier, *UJRPGBattleRules::VictoryPoseClipName(VictoryPoseColumn).ToString());
+	}
+
+	// O quadro dos resultados: a pose entra (e a voz com ela, o notify do clip)
+	if (Battle.GetFramesSinceFinish() >= Battle.VictoryLoadFrames)
+	{
+		VictoryStage = EJRPGBattleVictoryStage::Pose;
+		if (AJRPGBattlePawn* Pawn = VictoryPawn.Get())
+		{
+			Pawn->PlayVictoryPose(UJRPGBattleRules::VictoryPoseClipName(VictoryPoseColumn));
+		}
+	}
 }
 
 void UJRPGBattleSceneSubsystem::UpdateTargetHighlight()
@@ -1250,6 +1315,7 @@ void UJRPGBattleSceneSubsystem::EnterBattleScene()
 	GhostMaterial = Arena.IsValid() && !Arena->CameraGhostMaterial.IsNull() ? Arena->CameraGhostMaterial.LoadSynchronous() : nullptr;
 	VoiceActionIndex = INDEX_NONE;
 	VoiceStepIndex = INDEX_NONE;
+	ResetVictory();
 	Phase = EPhase::Assembled;
 	if (GetTransitionTime() > 0.0f && bEntryFadeIn)
 	{
@@ -1452,6 +1518,7 @@ void UJRPGBattleSceneSubsystem::LeaveBattleScene()
 	GhostOpacity.Reset();
 	GhostHoldUntil.Reset();
 	GhostMaterial = nullptr;
+	ResetVictory();
 	if (AJRPGBattleArena* Current = Arena.Get())
 	{
 		Current->TeardownBattle();

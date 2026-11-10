@@ -37,6 +37,21 @@ enum class EJRPGBattleIntroStage : uint8
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJRPGBattleIntroStage, EJRPGBattleIntroStage, Stage);
 
 /**
+ * A sequência de vitória (o sequenciador de resultados FUN_8004E568; Docs/Reference/BATTLE_RE_SWEEP.md seções 4.6 e 7.8, parte 6.1):
+ * decidida a luta, a câmera para de frente para quem posa, e no quadro dos resultados ele toca a pose de vitória com a voz dele.
+ */
+UENUM(BlueprintType)
+enum class EJRPGBattleVictoryStage : uint8
+{
+	/** A luta anda, não foi vitória, ou a arena desligou a sequência. */
+	None,
+	/** A espera antes da pose (a janela de carga do CD do original): a câmera no "stand-off" do caso 8, o herói ainda no idle. */
+	StandOff,
+	/** A pose de vitória toca (o hold dos resultados e o fade de saída): a câmera no braço "battle-over" do caso 6. */
+	Pose
+};
+
+/**
  * UJRPGBattleSceneSubsystem
  * A ponte entre o UBattleSubsystem (que não conhece ator nenhum) e o mapa. Existe sozinho em todo
  * mapa jogado — não há nada para pôr na cena nem para configurar; quem é configurada é a arena.
@@ -96,6 +111,18 @@ public:
 	/** Segundos desde o começo da abertura (o relógio da varredura da câmera); 0 fora dela. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Scene")
 	float GetIntroElapsedSeconds() const;
+
+	/** Em que fase da sequência de vitória a luta está (None fora dela); fica em Pose até a cena desmontar. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Scene")
+	EJRPGBattleVictoryStage GetVictoryStage() const { return VictoryStage; }
+
+	/** Quem posa na vitória: o líder (o lugar 0 da party) ou, com ele caído, o primeiro herói de pé. Nulo fora da sequência. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Scene")
+	AJRPGBattlePawn* GetVictoryPawn() const { return VictoryPawn.Get(); }
+
+	/** A coluna da pose sorteada (UJRPGBattleRules::VictoryPoseColumn: 0-1 saudável, 2-3 alternativa, 4-5 fraca). */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Scene")
+	int32 GetVictoryPoseColumn() const { return VictoryPoseColumn; }
 
 	/** A arena da luta atual (pode ser a provisória); nula fora de luta. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Scene")
@@ -242,6 +269,17 @@ private:
 	/** Corta a abertura (a luta acabou no meio dela). */
 	void CancelIntro();
 	void SetIntroStage(EJRPGBattleIntroStage Stage);
+
+	/**
+	 * A sequência de vitória, um quadro lógico: na decisão escolhe quem posa e sorteia a pose (o tier pelo HP e pelas rodadas), e
+	 * depois de UBattleSubsystem::VictoryLoadFrames manda o pawn tocar o clip. A câmera da luta lê a fase daqui.
+	 */
+	void UpdateVictory(const UBattleSubsystem& Battle, AJRPGBattleArena& Current);
+	void ResetVictory();
+
+	EJRPGBattleVictoryStage VictoryStage = EJRPGBattleVictoryStage::None;
+	TWeakObjectPtr<AJRPGBattlePawn> VictoryPawn;
+	int32 VictoryPoseColumn = 0;
 
 	EJRPGBattleIntroStage IntroStage = EJRPGBattleIntroStage::None;
 	double IntroStartTime = 0.0;

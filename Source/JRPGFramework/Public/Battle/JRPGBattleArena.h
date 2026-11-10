@@ -325,6 +325,14 @@ public:
 	FLinearColor TransitionColor = FLinearColor::Black;
 
 	/**
+	 * A sequência de vitória do original (UJRPGBattleSceneSubsystem::GetVictoryStage): decidida a luta, a câmera para de frente para
+	 * o líder (UBattleSubsystem::VictoryLoadFrames) e então ele toca a pose de vitória com a voz dele, a câmera filmando a pose,
+	 * até a tela escurecer. Desligada, os heróis ficam no idle e a câmera no plano geral durante o hold.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Victory")
+	bool bVictorySequence = true;
+
+	/**
 	 * A abertura do original entre a tela abrir e o primeiro prompt (UJRPGBattleSceneSubsystem::GetIntroStage): a varredura da
 	 * câmera e os nomes dos inimigos. As regras e o menu esperam por ela. Desligada, a luta anda assim que a cena monta.
 	 */

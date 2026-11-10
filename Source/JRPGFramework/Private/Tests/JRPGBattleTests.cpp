@@ -1983,6 +1983,42 @@ bool FJRPGBattleVersionRulesTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// --- A pose de vitória: o tier pelo HP e pelas rodadas, a coluna pelos dois sorteios (FUN_8004E568) -------------------------
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattleVictoryPoseTest, "JRPG.Battle.VictoryPose", JRPG_BATTLE_TEST_FLAGS)
+bool FJRPGBattleVictoryPoseTest::RunTest(const FString& Parameters)
+{
+	// O tier pelos quartos do HP
+	TestEqual(TEXT("HP cheio"), UJRPGBattleRules::VictoryPoseTier(100, 100, 0, false), 0);
+	TestEqual(TEXT("3/4"), UJRPGBattleRules::VictoryPoseTier(75, 100, 0, false), 0);
+	TestEqual(TEXT("abaixo de 3/4"), UJRPGBattleRules::VictoryPoseTier(74, 100, 0, false), 1);
+	TestEqual(TEXT("metade"), UJRPGBattleRules::VictoryPoseTier(50, 100, 0, false), 1);
+	TestEqual(TEXT("abaixo da metade"), UJRPGBattleRules::VictoryPoseTier(49, 100, 0, false), 2);
+	TestEqual(TEXT("1/4"), UJRPGBattleRules::VictoryPoseTier(25, 100, 0, false), 2);
+	TestEqual(TEXT("abaixo de 1/4"), UJRPGBattleRules::VictoryPoseTier(24, 100, 0, false), 3);
+	// A luta longa envelhece: a rodada 2 leva o 0 ao 1, a segunda passada pede a 4; o 3 não passa disso; o status força o 4
+	TestEqual(TEXT("rodada 2"), UJRPGBattleRules::VictoryPoseTier(100, 100, 2, false), 1);
+	TestEqual(TEXT("rodada 4"), UJRPGBattleRules::VictoryPoseTier(100, 100, 4, false), 2);
+	TestEqual(TEXT("rodada 6"), UJRPGBattleRules::VictoryPoseTier(100, 100, 6, false), 2);
+	TestEqual(TEXT("o 3 não envelhece"), UJRPGBattleRules::VictoryPoseTier(1, 100, 9, false), 3);
+	TestEqual(TEXT("status fraco"), UJRPGBattleRules::VictoryPoseTier(100, 100, 0, true), 4);
+
+	// A coluna: o par pelo primeiro sorteio, o membro pelo segundo
+	TestEqual(TEXT("tier 0, passa, ímpar"), UJRPGBattleRules::VictoryPoseColumn(0, 1, 1), 1);
+	TestEqual(TEXT("tier 0, falha, par"), UJRPGBattleRules::VictoryPoseColumn(0, 4, 2), 2);
+	TestEqual(TEXT("tier 1, falha"), UJRPGBattleRules::VictoryPoseColumn(1, 2, 0), 2);
+	TestEqual(TEXT("tier 2, passa"), UJRPGBattleRules::VictoryPoseColumn(2, 1, 1), 3);
+	TestEqual(TEXT("tier 2, falha"), UJRPGBattleRules::VictoryPoseColumn(2, 2, 0), 4);
+	TestEqual(TEXT("tier 3, passa"), UJRPGBattleRules::VictoryPoseColumn(3, 1, 0), 4);
+	TestEqual(TEXT("tier 3, falha"), UJRPGBattleRules::VictoryPoseColumn(3, 4, 1), 3);
+	TestEqual(TEXT("tier 4 é sempre o fraco"), UJRPGBattleRules::VictoryPoseColumn(4, 0, 7), 5);
+
+	TestEqual(TEXT("o clip da coluna 0"), UJRPGBattleRules::VictoryPoseClipName(0), FName(TEXT("Victory1")));
+	TestEqual(TEXT("o clip da coluna 5"), UJRPGBattleRules::VictoryPoseClipName(5), FName(TEXT("VictoryWeak2")));
+	TestEqual(TEXT("fora da tabela"), UJRPGBattleRules::VictoryPoseClipName(6), FName(NAME_None));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattleDeterminismTest, "JRPG.Battle.Determinism", JRPG_BATTLE_TEST_FLAGS)
 bool FJRPGBattleDeterminismTest::RunTest(const FString& Parameters)
 {

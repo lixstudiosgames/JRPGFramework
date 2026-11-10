@@ -76,3 +76,52 @@ int32 UJRPGBattleRules::VictoryGold(const TArray<int32>& DefeatedEnemyGold, bool
 	}
 	return static_cast<int32>(FMath::Min<int64>(Acc, MAX_int32));
 }
+
+int32 UJRPGBattleRules::VictoryPoseTier(int32 HP, int32 MaxHP, int32 Round, bool bWeakStatus)
+{
+	if (bWeakStatus)
+	{
+		return 4;  // 0x8004E830: qualquer status da máscara 0x107B
+	}
+	const int32 Max = FMath::Max(MaxHP, 0);
+	int32 Tier = 0;
+	if (HP < (Max >> 1))
+	{
+		Tier = HP < (Max >> 2) ? 3 : 2;
+	}
+	else if (HP < ((Max * 3) >> 2))
+	{
+		Tier = 1;
+	}
+	// Duas passadas: a luta longa envelhece a pose
+	for (int32 Pass = 0; Pass < 2; ++Pass)
+	{
+		if (Round >= Tier * 2 + 2 && Tier < 3)
+		{
+			++Tier;
+		}
+	}
+	return Tier;
+}
+
+int32 UJRPGBattleRules::VictoryPoseColumn(int32 Tier, int32 PairRoll, int32 MemberRoll)
+{
+	int32 PairBase = 4;
+	switch (Tier)
+	{
+	case 0:  PairBase = (PairRoll & 3) != 0 ? 0 : 2; break;
+	case 1:  PairBase = (PairRoll & 1) != 0 ? 0 : 2; break;
+	case 2:  PairBase = (PairRoll & 1) != 0 ? 2 : 4; break;
+	case 3:  PairBase = (PairRoll & 3) != 0 ? 4 : 2; break;
+	default: break;
+	}
+	return PairBase + (MemberRoll & 1);
+}
+
+FName UJRPGBattleRules::VictoryPoseClipName(int32 Column)
+{
+	static const FName Names[6] = {
+		TEXT("Victory1"), TEXT("Victory2"), TEXT("VictoryAlt1"), TEXT("VictoryAlt2"), TEXT("VictoryWeak1"), TEXT("VictoryWeak2")
+	};
+	return Column >= 0 && Column < 6 ? Names[Column] : NAME_None;
+}

@@ -175,6 +175,7 @@ void AJRPGBattlePawn::InitCombatant(const FJRPGCombatant& InCombatant, const FJR
 	EnemyActions.Reset();
 	EnemyAnims = FJRPGMonsterAnimSet();
 	bDown = false;
+	bVictoryPose = false;
 	bActionActive = false;
 	Phase = EJRPGActionPhase::Idle;
 	ReactionQueue.Reset();
@@ -591,13 +592,53 @@ void AJRPGBattlePawn::ReturnToIdle()
 	{
 		ReactionRole = NAME_None;   // a reação acabou (ou a ação dele a cortou)
 	}
-	if (bDown || bActionActive)
+	if (bDown || bActionActive || bVictoryPose)
 	{
 		return;
 	}
 	// O passo do fim do clip vira posição, inteiro: o do disco (o Slash Kick termina 534 unidades à frente), sem trava de alcance.
 	// Quem acaba perto demais do alvo é afastado pelo recuo dentro do alcance e pela separação, como no original
 	SettleIntoIdle();
+}
+
+bool AJRPGBattlePawn::PlayVictoryPose(FName ClipRole)
+{
+	if (bDown || bActionActive || IsDefeated())
+	{
+		return false;
+	}
+	float Rate = 1.0f;
+	UAnimSequence* Clip = FindRoleClipExact(ClipRole, Rate);
+	if (!Clip)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("BattlePawn %s: sem o clip da pose de vitória %s (AS_<Herói>_Battle_%s): fica no idle"),
+			*Combatant.Key.ToString(), *ClipRole.ToString(), *ClipRole.ToString());
+		return false;
+	}
+	// O que sobrou da luta (uma reação no fim, o idle que esperava o último clip, o recuo de depois da ação) não toca por cima
+	ReactionQueue.Reset();
+	ReactionEndFrame = INDEX_NONE;
+	ReactionRole = NAME_None;
+	IdleHandoffFrame = INDEX_NONE;
+	bPostActionSpacing = false;
+	BeginClipMotion(FClipMotion(), LastLogicFrame, INDEX_NONE, UBattleFormulas::NormalGameSpeed, false);
+	bVictoryPose = true;
+	// De uma vez só: o trecho de laço do clip (255 voltas) segura a pose; a voz é o notify do clip
+	PlayClip(Clip, false, Rate);
+	UE_LOG(LogTemp, Log, TEXT("BattlePawn %s: pose de vitória %s (%s, rate %.2f) no quadro %d"),
+		*Combatant.Key.ToString(), *ClipRole.ToString(), *Clip->GetName(), Rate, LastLogicFrame);
+	return true;
+}
+
+float AJRPGBattlePawn::GetBodyHeightCm() const
+{
+	const float Half = Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 0.0f;
+	if (!Mesh || Mesh->GetComponentSpaceTransforms().Num() < 2)
+	{
+		return DisplayHeightCm * 0.5f;
+	}
+	const double FeetZ = GetActorLocation().Z - Half;
+	return static_cast<float>(FMath::Max(Mesh->GetComponentTransform().TransformPosition(PoseCentroid()).Z - FeetZ, 0.0));
 }
 
 FVector AJRPGBattlePawn::PoseCentroid() const
@@ -1560,6 +1601,7 @@ void AJRPGBattlePawn::BeginAction(const FJRPGActionTimeline& Timeline, AJRPGBatt
 	StrikesPlayed = 0;
 	TargetPawn = Target;
 	LastLogicFrame = Timeline.StartFrame;
+	bVictoryPose = false;
 	// Uma reação, um idle pendente ou os sons da ação anterior não passam para esta
 	ReactionQueue.Reset();
 	ReactionEndFrame = INDEX_NONE;

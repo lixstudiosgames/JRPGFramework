@@ -317,11 +317,22 @@ public:
 	/**
 	 * Quadros lógicos entre a luta decidida (a vitória é testada só depois da reação do alvo e da faixa Done de 60 vsyncs, no
 	 * fim da última ação) e o EndBattle. O original segura a tela de resultados com a pose de vitória por 0x100 = 256 vsyncs
-	 * (o gp+0xA54 conta até 0x100; os ~80 de antes são espera do CD, que não existe aqui). A pose de vitória do líder ainda não
-	 * é tocada: os pawns ficam no idle. O fade de saída do cenário vem depois disto (UJRPGBattleSceneSubsystem).
+	 * (o gp+0xA54 conta até 0x100). A pose de vitória do líder toca durante este hold (UJRPGBattleSceneSubsystem, a partir de
+	 * VictoryLoadFrames). O fade de saída do cenário vem depois disto (UJRPGBattleSceneSubsystem).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle", meta = (ClampMin = "0"))
 	int32 VictoryHoldFrames = 256;
+
+	/**
+	 * Quadros lógicos entre a luta decidida na vitória e o quadro dos resultados (a pose de vitória entra, o VictoryHoldFrames conta
+	 * daí). No original são uns 80 vsyncs de espera do CD (a voz do herói e o banco do level-up), com a câmera parada de frente para
+	 * o líder (o caso 8, o braço "stand-off"); aqui não há CD, mas a pausa antes da pose fica. 0 = a pose entra na hora.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle", meta = (ClampMin = "0"))
+	int32 VictoryLoadFrames = 80;
+
+	/** Passos lógicos desde a luta decidida (a vitória / derrota das regras); 0 enquanto ela anda. A cena sequencia o fim por aqui. */
+	int32 GetFramesSinceFinish() const { return FramesSinceFinish; }
 
 	/**
 	 * O mesmo na derrota: o original cai na última fase do mesmo sequenciador e gasta os 0x100 mais o fade de uns 66 vsyncs, uns

@@ -75,6 +75,7 @@ void AJRPGBattleCamera::InitForArena(AJRPGBattleArena* InArena)
 	ArtLatch = 0;
 	ArtCommitStepFrame = INDEX_NONE;
 	bArtTracksLoaded = false;
+	bVictoryCommitted = false;
 	if (BuildShotPose(Shot, 0.0f, Target))
 	{
 		SnapToTarget();
@@ -223,6 +224,18 @@ EJRPGBattleShot AJRPGBattleCamera::ChooseShot(int32& OutSlot, int32& OutTargetSl
 		if (Scene && Scene->GetIntroStage() != EJRPGBattleIntroStage::None)
 		{
 			return EJRPGBattleShot::Entry;
+		}
+	}
+
+	// A vitória: o sequenciador de resultados é dono da câmera depois do sinal de fim (o stand-off e a pose), até a tela escurecer
+	if (bVictoryShots)
+	{
+		const UJRPGBattleSceneSubsystem* Scene = World->GetSubsystem<UJRPGBattleSceneSubsystem>();
+		const AJRPGBattlePawn* Poser = Scene && Scene->GetVictoryStage() != EJRPGBattleVictoryStage::None ? Scene->GetVictoryPawn() : nullptr;
+		if (IsValid(Poser) && !Poser->IsHidden())
+		{
+			OutSlot = Poser->GetCombatant().SlotIndex;
+			return EJRPGBattleShot::Victory;
 		}
 	}
 
@@ -1108,6 +1121,8 @@ bool AJRPGBattleCamera::BuildShotPose(EJRPGBattleShot InShot, float DeltaSeconds
 		return BuildOnTargetPose(DeltaSeconds, OutPose);
 	case EJRPGBattleShot::Entry:
 		return BuildEntryPose(OutPose);
+	case EJRPGBattleShot::Victory:
+		return BuildVictoryPose(OutPose);
 	case EJRPGBattleShot::Far:
 	default:
 		return BuildFarPose(DeltaSeconds, OutPose);
@@ -1246,6 +1261,156 @@ bool AJRPGBattleCamera::BuildEntryPose(FJRPGBattleCameraPose& OutPose)
 		OutPose.Pitch = UnitsToDegrees(EntryPitchUnits);
 		OutPose.Offset = FVector(0.0, CameraUnitsToCm(EntryLiftUnits), CameraUnitsToCm(Prescale(EntryDepthUnits)) * DistanceScale);
 	}
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------------
+// A vitória (FUN_8004E568 chama FUN_801D5854 todo quadro: o caso 8 na espera, o caso 6 com a pose; o port do RE é
+// legaia-engine-battle-vm::battle_cam_script::battle_over_script)
+// ---------------------------------------------------------------------------------------------
+
+namespace
+{
+	/**
+	 * O id do clip (0x11..0x18) de cada coluna da tabela de poses de vitória da SCUS (0x800788A0, 6 bytes por herói: o par
+	 * saudável, o alternativo, o fraco), por herói (1 Vahn, 2 Noa, 3 Gala). É o que o script de câmera lê (+0x1DB); 0 fora da tabela.
+	 */
+	int32 VictoryPoseId(int32 Character, int32 Column)
+	{
+		static const uint8 Table[3][6] = {
+			{ 0x13, 0x14, 0x11, 0x12, 0x15, 0x16 },
+			{ 0x11, 0x13, 0x12, 0x14, 0x15, 0x16 },
+			{ 0x13, 0x14, 0x11, 0x12, 0x15, 0x16 },
+		};
+		return (Character >= 1 && Character <= 3 && Column >= 0 && Column < 6) ? Table[Character - 1][Column] : 0;
+	}
+
+	/**
+	 * O script de câmera da pose de vitória (0x801D5D50..0x801D645C): uma tabela de 8 braços por herói, pelo clip - 0x11 (a do Vahn
+	 * repete os braços 0 / 1 nas entradas 6 / 7; as outras duas o braço 1 na 7). Accum é o acumulador (ctx[+0x87C], 8 por quadro de
+	 * tela desde o commit do clip) e Ramp a rampa (ctx[+0x26E], até 0xC8): a tomada segue andando enquanto a pose toca. Tudo em
+	 * halfwords, como o original.
+	 */
+	void VictoryArm(int32 Character, int32 PoseIndex, int32 Accum, int32 Ramp, int32& Pitch, int32& Yaw, int32& TrY, int32& TrZ)
+	{
+		const int32 A3 = Accum >> 3;
+		const int32 A2 = Accum >> 2;
+		if (PoseIndex < 0 || PoseIndex > 7)
+		{
+			return;
+		}
+		if (Character == 1)
+		{
+			switch (PoseIndex)
+			{
+			case 0: case 6: TrY += 0x80; TrZ -= A3 + 0x280 - 3 * Ramp; break;
+			case 1: case 7: TrY += A3 - 3 * Ramp + 0x1D8; TrZ += 4 * Ramp - A2 - 0x320; break;
+			case 2: Pitch = 0x20; TrY += 0x30; Yaw -= A2 + 0x80; TrZ -= A2 + 0x480 - 6 * Ramp; break;
+			case 3: Pitch = -0x20; TrY += A3 - 0x40; TrZ -= A2; break;
+			case 4: Pitch = 0x80; Yaw += 0xC0 - A3; TrY -= 0x80; TrZ += A3; break;
+			case 5: TrY -= 0x40; Yaw += 0x80 - A3; TrZ += A3 - 0x100; break;
+			default: break;
+			}
+		}
+		else if (Character == 2)
+		{
+			switch (PoseIndex)
+			{
+			case 0: TrY = A3 + 0x480; Pitch = -0x20; TrZ -= A3 + 0x80; break;
+			case 1: case 7: TrY = A3 + 0x400; Pitch = -0x20; TrZ -= A3 + 0x80; Yaw -= A3 - 0x80; break;
+			case 2: TrY += A3 - 0x80; Pitch = -0x20; TrZ -= A3 + 0x100; break;
+			case 3: TrY -= 0x40; Pitch += 0xA0 - A3; TrZ += A3 - 0x200; break;
+			case 4: Pitch += 0x80 - A3; TrY += 0x40; TrZ -= A2; break;
+			case 5: TrY += A3 - 0xC0; Pitch = 0x100; TrZ -= A3 - 0x100; Yaw -= A3 - 0x40; break;
+			case 6: TrY += 0x80; TrZ += A3 - 0x280; break;
+			default: break;
+			}
+		}
+		else if (Character == 3)
+		{
+			switch (PoseIndex)
+			{
+			case 0: TrY += 0x108 - Ramp; TrZ += 3 * Ramp + A3 - 0x400; Yaw -= A3; break;
+			case 1: case 7: TrY += 0x148 - Ramp; Pitch = -0x20; TrZ -= A3 + 0x320 - 4 * Ramp; break;
+			case 2: TrY += A3 - 0xC0; TrZ -= A3; Yaw += A3 - 0x180; break;
+			case 3: TrY += A3; TrZ -= A3 + 0x100; break;
+			case 4: TrY += A3 - 0x80; TrZ -= A3 + 0x80; Yaw += A3 - 0x80; Pitch = -0x40; break;
+			case 5: TrY += A3 - 0x60; TrZ -= A3 + 0x320 - 4 * Ramp; break;
+			case 6: Pitch = -0x40; Yaw += A3 + 0x180; TrZ -= 0x500 - A3 - 4 * Ramp; break;
+			default: break;
+			}
+		}
+		Pitch = Half(Pitch);
+		Yaw = Half(Yaw);
+		TrY = Half(TrY);
+		TrZ = Half(TrZ);
+	}
+}
+
+bool AJRPGBattleCamera::BuildVictoryPose(FJRPGBattleCameraPose& OutPose)
+{
+	const UJRPGBattleSceneSubsystem* Scene = GetWorld() ? GetWorld()->GetSubsystem<UJRPGBattleSceneSubsystem>() : nullptr;
+	const AJRPGBattlePawn* Poser = Scene ? Scene->GetVictoryPawn() : nullptr;
+	if (!IsValid(Poser) || Poser->IsHidden())
+	{
+		return false;
+	}
+	// O foco dos dois braços: o par do corpo de quem posa (acompanha a pose), na altura do chão
+	OutPose.Focus = Poser->GetBodyLocation();
+	OutPose.Focus.Z = FeetOf(Poser).Z;
+	OutPose.bOneWayYaw = false;
+
+	if (Scene->GetVictoryStage() != EJRPGBattleVictoryStage::Pose)
+	{
+		// A espera (o caso 8 com o nó do alvo morto sumido, 0x801D6B9C): o alvo é virado para a frente de quem posa + 0x800, e o giro
+		// é -frente do alvo - ((coluna << 9) - 0x100) + a escada, ou seja (escada - 0x700 - coluna * 0x200) - a frente de quem posa
+		bVictoryCommitted = false;
+		OutPose.Pitch = 0.0f;
+		OutPose.Offset = FVector(0.0, CameraUnitsToCm(VictoryStandOffLiftUnits),
+			CameraUnitsToCm(Prescale(VictoryBodyRadiusUnits * 2.5f)) * DistanceScale);
+		// A opção Far não monta o giro do caso 8: fica onde está
+		OutPose.Yaw = CameraOption == EJRPGBattleCameraOption::Far
+			? Live.Yaw
+			: FacingRelativeYaw(Poser, LadderUnits - 1792.0f - static_cast<float>(ArtColumn) * 512.0f);
+		return true;
+	}
+
+	// O commit do clip da pose (FUN_8004AD80) zera a rampa e o acumulador; o Tick os anda 8 por quadro de tela
+	if (!bVictoryCommitted)
+	{
+		bVictoryCommitted = true;
+		ArtRamp = 0.0f;
+		ArtAccum = 0.0;
+		ArtLatch = 0;
+	}
+
+	const FName Key = Poser->GetCombatant().Key;
+	const int32 Character = Key == TEXT("Vahn") ? 1 : Key == TEXT("Noa") ? 2 : Key == TEXT("Gala") ? 3 : 0;
+	const int32 PoseId = VictoryPoseId(Character, Scene->GetVictoryPoseColumn());
+	const AJRPGBattleArena* CurrentArena = Arena.Get();
+	const float CmPerUnit = CurrentArena ? FMath::Max(CurrentArena->OriginalCmPerUnit, KINDA_SMALL_NUMBER) : 0.433005f;
+
+	// A base (0x801D5CFC..0x801D5D2C): inclinação 0, giro 0x800 - a frente, TR.y = 5 x a altura do centro do corpo, TR.z cru 0x500
+	int32 PitchUnits = 0;
+	int32 YawUnits = 0x800;
+	int32 TrY = Half(FMath::RoundToInt(VictoryHeightScale * Poser->GetBodyHeightCm() / CmPerUnit));
+	int32 TrZ = Half(FMath::RoundToInt(VictoryDepthUnits));
+	if (PoseId != 0)
+	{
+		VictoryArm(Character, PoseId - 0x11, static_cast<int32>(ArtAccum), FMath::FloorToInt(ArtRamp), PitchUnits, YawUnits, TrY, TrZ);
+	}
+	// O piso (0x801D6494..0x801D64BC; a Noa na pose 0x16 escapa dele): o olho não desce dele, e um quarto do que faltava vira inclinação
+	const int32 FloorUnits = FMath::RoundToInt(VictoryFloorUnits);
+	if (!(Character == 2 && PoseId == 0x16) && TrY <= FloorUnits)
+	{
+		PitchUnits = Half(PitchUnits + ((FloorUnits - TrY) >> 2));
+		TrY = FloorUnits;
+	}
+
+	OutPose.Yaw = FacingRelativeYaw(Poser, static_cast<float>(YawUnits));
+	OutPose.Pitch = FMath::Clamp(UnitsToDegrees(static_cast<float>(PitchUnits)), -89.0f, 89.0f);
+	OutPose.Offset = FVector(0.0, CameraUnitsToCm(static_cast<float>(TrY)),
+		FMath::Max(CameraUnitsToCm(Prescale(static_cast<float>(TrZ))) * DistanceScale, 20.0f));
 	return true;
 }
 

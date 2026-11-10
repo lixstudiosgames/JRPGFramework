@@ -89,4 +89,24 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "JRPG|Battle|Rules")
 	static int32 VictoryGold(const TArray<int32>& DefeatedEnemyGold, bool bGoldenBook, EJRPGRuleset Ruleset);
+
+	/**
+	 * O tier da pose de vitória de quem posa (FUN_8004E568, 0x8004E78C..0x8004E83C): 0 saudável (HP >= 3/4 do máximo), 1 (>= 1/2),
+	 * 2 (>= 1/4), 3 abaixo disso. Duas passadas envelhecem o tier em 1 enquanto Round >= tier * 2 + 2 e tier < 3 (uma luta longa
+	 * cansa a pose), e um status fraco (a máscara 0x107B do original) força o 4. Round = as rodadas já fechadas (0 na primeira).
+	 */
+	UFUNCTION(BlueprintPure, Category = "JRPG|Battle|Rules")
+	static int32 VictoryPoseTier(int32 HP, int32 MaxHP, int32 Round, bool bWeakStatus);
+
+	/**
+	 * A coluna da pose na tabela do herói (0x8004E870..0x8004EAEC): 0-1 o par saudável (Victory1 / 2), 2-3 o alternativo
+	 * (VictoryAlt1 / 2), 4-5 o fraco (VictoryWeak1 / 2). PairRoll escolhe o par (tier 0: saudável 3 em 4; 1: meio a meio com o
+	 * alternativo; 2: alternativo ou fraco; 3: fraco 3 em 4; 4: sempre fraco, sem gastar o sorteio) e MemberRoll o membro do par.
+	 * Os sorteios são cosméticos: quem chama usa um stream que não é o das regras.
+	 */
+	UFUNCTION(BlueprintPure, Category = "JRPG|Battle|Rules")
+	static int32 VictoryPoseColumn(int32 Tier, int32 PairRoll, int32 MemberRoll);
+
+	/** O nome do clip da coluna (o papel que o Extras/ps1_party_sounds.py deu: AS_<Herói>_Battle_<nome>); NAME_None fora de 0..5. */
+	static FName VictoryPoseClipName(int32 Column);
 };

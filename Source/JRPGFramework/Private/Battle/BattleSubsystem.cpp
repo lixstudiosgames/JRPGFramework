@@ -1142,7 +1142,7 @@ int32 UBattleSubsystem::FinishHoldFor(EJRPGBattleResult Result) const
 {
 	switch (Result)
 	{
-	case EJRPGBattleResult::Victory: return VictoryHoldFrames;
+	case EJRPGBattleResult::Victory: return VictoryLoadFrames + VictoryHoldFrames;   // a espera antes da pose + a pose
 	case EJRPGBattleResult::Defeat:  return DefeatHoldFrames;
 	default:                         return 0;
 	}
