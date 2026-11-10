@@ -112,7 +112,7 @@ JRPGFramework/
 │   │   │   ├── AudioSubsystem.h ✅              ← BGM persisting across maps with crossfade +
 │   │   │   │                                       4 volume channels (with effective getters),
 │   │   │   │                                       intro + loop music (GetIntroLoopSound)
-│   │   │   ├── BattleMusicData.h 🟡             ← FJRPGBattleMusicData (DT_BattleMusic: the battle tracks)
+│   │   │   ├── BattleMusicData.h ✅             ← FJRPGBattleMusicData (DT_BattleMusic: the battle tracks)
 │   │   │   └── JRPGSettingsSave.h ✅            ← settings USaveGame (slot "JRPGSettings")
 │   │   │
 │   │   ├── Party/ ✅
@@ -132,7 +132,7 @@ JRPGFramework/
 │   │   │                                           Owns the RULES: writes into the Party record,
 │   │   │                                           holds no state of its own
 │   │   │
-│   │   ├── Arts/ ✅                             ← Phase 6 without a fight; in a fight: Phase 5
+│   │   ├── Arts/ ✅                             ← Phase 6; played in a fight with Phase 5
 │   │   │   ├── ArtsData.h ✅                    ← FJRPGArtData (DT_Arts row: buttons, AP gain/cost,
 │   │   │   │                                       clip, per-hit power and target, Sequence for
 │   │   │   │                                       combined Arts, Unlock, SpeedScale). See Guides/ARTS.md
@@ -153,15 +153,15 @@ JRPGFramework/
 │   │   │                                           the save), LearnArt / HasLearnedArt, preview and
 │   │   │                                           commit out of battle, JRPG.Arts.* console
 │   │   │
-│   │   └── Battle/ 🟡
-│   │       ├── BattleSubsystem.h 🟡             ← TryStartEncounter, BeginBattle (the snapshot) / EndBattle
+│   │   └── Battle/ ✅
+│   │       ├── BattleSubsystem.h ✅             ← TryStartEncounter, BeginBattle (the snapshot) / EndBattle
 │   │       │                                       (write-back, rewards once), the fixed-step clock,
 │   │       │                                       SubmitCommand / SubmitInput, OnBattleEvent / OnSlotChanged
-│   │       │                                       (Phase 5, written - to build and test, Guides/BATTLE.md);
+│   │       │                                       (Phase 5, played; Guides/BATTLE.md);
 │   │       │                                       ApplyBattleItemEffect still TODO (Phase 7)
-│   │       ├── JRPGBattleResolver.h 🟡          ← FJRPGBattleResolver (no UObject): the round, the logic
+│   │       ├── JRPGBattleResolver.h ✅          ← FJRPGBattleResolver (no UObject): the round, the logic
 │   │       │                                       timeline, ResolveHit, the original's physical AI, Arts + AP
-│   │       ├── BattleFormulas.h 🟡              ← UBattleFormulas: the melee kernel, block, element matrix,
+│   │       ├── BattleFormulas.h ✅              ← UBattleFormulas: the melee kernel, block, element matrix,
 │   │       │                                       equipment fold, initiative, enemy swing queue (pure, integer)
 │   │       ├── BattleTypes.h ✅                 ← side, combatant type, result, FJRPGCombatant (the rules-only
 │   │       │                                       snapshot), command / input / event / state / timeline,
@@ -178,22 +178,22 @@ JRPGFramework/
 │   │       │                                       assembles it: formation preview + ground check,
 │   │       │                                       hand-drawn area, FindArenaFor, AssembleBattle /
 │   │       │                                       TeardownBattle (BATTLE_ROADMAP Phase 4)
-│   │       ├── JRPGBattleCamera.h 🟡            ← the battle camera (the original's framing cases, ease-out,
+│   │       ├── JRPGBattleCamera.h ✅            ← the battle camera (the original's framing cases, ease-out,
 │   │       │                                       orbit), spawned by the arena. Guides/BATTLE_STAGE.md
 │   │       ├── JRPGBattleSceneSubsystem.h ✅    ← world subsystem: picks the arena, fade, OnFieldHidden /
 │   │       │                                       OnFieldShown, console commands, battle music. Guides/BATTLE_STAGE.md
-│   │       ├── JRPGBattleVoices.h 🟡            ← the fight's voice channel: Arts shout, starter fanfare,
+│   │       ├── JRPGBattleVoices.h ✅            ← the fight's voice channel: Arts shout, starter fanfare,
 │   │       │                                       block grunt (Guides/AUDIO.md › Battle voices)
-│   │       ├── JRPGBattleMenu.h 🟡              ← the battle command menu's state machine (no UObject, no
+│   │       ├── JRPGBattleMenu.h ✅              ← the battle command menu's state machine (no UObject, no
 │   │       │                                       WebUI): FJRPGBattleMenu (Start / Tactics / Command /
 │   │       │                                       Attack / Target / Final), FJRPGBattleCommandPlan (the
 │   │       │                                       buffer sent on Begin), JRPGBattleTactics (the auto)
-│   │       ├── JRPGBattleUISubsystem.h 🟡       ← world subsystem: shows the menu in the command phase,
+│   │       ├── JRPGBattleUISubsystem.h ✅       ← world subsystem: shows the menu in the command phase,
 │   │       │                                       sends the buffer to SubmitCommand, auto timer, escape
 │   │       │                                       (Guides/BATTLE.md › Battle UI)
 │   │       ├── JRPGAnimNotify_ChainCut.h ✅     ← marker on a clip: where the game cuts it when another
 │   │       │                                       action is queued (swings chain at frame 10)
-│   │       ├── JRPGAnimNotify_LoopWindow.h 🟡   ← notify state: the stretch of a clip the original repeats
+│   │       ├── JRPGAnimNotify_LoopWindow.h ✅   ← notify state: the stretch of a clip the original repeats
 │   │       │                                       (+0x84 loops of [+0x85, +0x86]: the SpecialStarter's crouch)
 │   │       ├── JRPGAnimNotify_Hit.h ✅          ← marker on a clip: one per hit, in HitPower order (the
 │   │       │                                       fight reads the frames as data; not on the clips yet)
@@ -244,14 +244,14 @@ JRPGFramework/
 │       ├── Arts/ ✅        (ArtsSubsystem.cpp ✅, JRPGArtsRules.cpp ✅, JRPGArtsValidator.cpp ✅,
 │       │                    JRPGArtSequence.cpp ✅, JRPGArtTester.cpp ✅)
 │       ├── Tests/ ✅       (JRPGArtsTests.cpp ✅ — the JRPG.Arts.* automation tests, no map;
-│       │                    JRPGBattleTests.cpp 🟡 — the JRPG.Battle.* ones, written, to run;
-│       │                    JRPGBattleUITests.cpp 🟡 — JRPG.Battle.UI.*: the command menu, written, to run)
-│       └── Battle/ 🟡      (BattleSubsystem.cpp 🟡, JRPGBattleResolver.cpp 🟡, BattleFormulas.cpp 🟡,
-│                           JRPGBattleMenu.cpp 🟡, JRPGBattleUISubsystem.cpp 🟡,
-│                           JRPGBattleArena.cpp ✅, JRPGBattleCamera.cpp 🟡, JRPGBattleSceneSubsystem.cpp ✅,
+│       │                    JRPGBattleTests.cpp ✅ — the JRPG.Battle.* ones, no map;
+│       │                    JRPGBattleUITests.cpp ✅ — JRPG.Battle.UI.*: the command menu)
+│       └── Battle/ ✅      (BattleSubsystem.cpp ✅, JRPGBattleResolver.cpp ✅, BattleFormulas.cpp ✅,
+│                           JRPGBattleMenu.cpp ✅, JRPGBattleUISubsystem.cpp ✅,
+│                           JRPGBattleArena.cpp ✅, JRPGBattleCamera.cpp ✅, JRPGBattleSceneSubsystem.cpp ✅,
 │                           JRPGBattlePawn.cpp ✅, JRPGBattleWaves.cpp ✅, JRPGBattleRules.cpp ✅,
-│                           JRPGAnimNotify_Hit.cpp ✅, JRPGAnimNotify_HitSound.cpp ✅, JRPGBattleVoices.cpp 🟡,
-│                           JRPGAnimNotify_LoopWindow.cpp 🟡)
+│                           JRPGAnimNotify_Hit.cpp ✅, JRPGAnimNotify_HitSound.cpp ✅, JRPGBattleVoices.cpp ✅,
+│                           JRPGAnimNotify_LoopWindow.cpp ✅)
 │
 ├── Shaders/ ✅                                  ← mapped to /Plugin/JRPGFramework
 │   ├── UltralightBlitShader.usf ✅              ← full-screen blit of the Ultralight texture (JRPGWebBrowser)
@@ -373,8 +373,8 @@ JRPGFramework/
 | **WebUI** | ✅ complete | SPA shell, 7 screens, gamepad + keyboard + mouse with their own rules, responsive scaling |
 | **Party** | ✅ complete (data) | Roster vs formation, 3 states per character, XP split among survivors as in the original, level-up with jitter, whole-roster save. The UI does not follow the formation yet |
 | **Status** | ✅ complete (data) | Equipment in 7 slots (4 gear + 3 accessories) with `CanEquip` read from `DT_Items`, conditions, Ra-Seru (1..9), elemental affinity, and the original's `effective ( base )` display. The equip screen is still missing |
-| **Arts** | ✅ without a fight | Buttons → the turn as the original recognises it (overlapping Arts, Supers, Miracles), learning on use / taught / by chain / by the Ra-Seru, the learned list in the save, the new AP (Regulars add, specials spend, checked at each point of the chain), a validator for `DT_Arts` and the Art Tester's `Input`. A new Art is a row. Damage per hit and AP on the combatant come with combat (Phase 5). See [ARTS.md](Guides/ARTS.md) |
-| **Battle** | 🟡 basic combat written, to build and test | A fight is assembled over the current map and taken down ([BATTLE_STAGE.md](Guides/BATTLE_STAGE.md)) and **played** ([BATTLE.md](Guides/BATTLE.md)): commands then execution, the original's damage kernel hit by hit on a logic timeline, the physical enemy AI, Arts and AP, victory with the rewards paid once; `JRPG.Battle.*` tests and console commands to play without a HUD. A **placeholder command menu** (Start / Tactics / Attack inputs / Target / Final, with auto-battle tactics) drives the command phase without the console ([BATTLE.md › Battle UI](Guides/BATTLE.md#13-battle-ui)); the real HUD, items, the escape roll, Spirit and magic are still to come. `DT_Enemies` has 179 enemies, `DT_EnemyActions` 1753 clips ([ENEMIES.md](Guides/ENEMIES.md)), `DT_Arts` 81 Arts and pieces ([ARTS.md](Guides/ARTS.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
+| **Arts** | ✅ | Buttons → the turn as the original recognises it (overlapping Arts, Supers, Miracles), learning on use / taught / by chain / by the Ra-Seru, the learned list in the save, the new AP (Regulars add, specials spend, checked at each point of the chain), a validator for `DT_Arts` and the Art Tester's `Input`. A new Art is a row. Damage per hit and AP on the combatant are in the fight (Phase 5). See [ARTS.md](Guides/ARTS.md) |
+| **Battle** | ✅ playable (roadmap phases 0 to 6; phase 7 in progress) | A fight is assembled over the current map and taken down ([BATTLE_STAGE.md](Guides/BATTLE_STAGE.md)) and **played** ([BATTLE.md](Guides/BATTLE.md)): commands then execution, the original's damage kernel hit by hit on a logic timeline, the physical enemy AI, Arts and AP, Spirit, formation advantage, the original's transitions, camera, voices and music, victory with the rewards paid once; `JRPG.Battle.*` tests and console commands to play without a HUD. A **placeholder command menu** (Start / Tactics / Attack inputs / Target / Final, with auto-battle tactics) drives the command phase without the console ([BATTLE.md › Battle UI](Guides/BATTLE.md#13-battle-ui)); the real HUD, items, the escape roll, drop / steal, VFX and magic are still to come; the open bugs are in [BATTLE_PHASE5_BUGS.md](BATTLE_PHASE5_BUGS.md). `DT_Enemies` has 179 enemies, `DT_EnemyActions` 1753 clips ([ENEMIES.md](Guides/ENEMIES.md)), `DT_Arts` 81 Arts and pieces ([ARTS.md](Guides/ARTS.md)). See [BATTLE_ROADMAP.md](BATTLE_ROADMAP.md) |
 
 ---
 
