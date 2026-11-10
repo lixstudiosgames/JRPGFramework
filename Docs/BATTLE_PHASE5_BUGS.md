@@ -945,8 +945,18 @@ tables of 1c first.
     sides.
 87. **The party enters the fight with the Ra-Seru already equipped.** Maybe because of the test save; the default should be
     without them until the story gives them. Check where the starting equipment comes from (the new game / the dev setup).
-88. **Dev menu: an equipment tab.** Equip the Ra-Seru and any weapon / armour / accessory on any hero from the dev menu, to test
-    the equipment in a fight (the pieces, the swings of `DT_HeroSwings`, the stats).
+88. **Dev menu: an equipment tab** (a feature, not a bug). Equip the Ra-Seru and any weapon / armour / accessory on any hero from
+    the dev menu, to test the equipment in a fight (the pieces, the swings of `DT_HeroSwings`, the stats).
+
+#### Status of the open entries (user, 2026-11-10)
+
+The entries above keep the text of the day they were written. What the user confirmed since, playing:
+
+- **Fixed:** 29 (hits that did not land), 36 (the long wait before round 2), 44 (Noa's sprint), 46 (music underneath), 66 (the
+  voice of Vulture Blade and Burning Flare), 82 (no flinch on some hits of Neo Static Raising).
+- **Still open, for the next fix pass:** 85 (the light floor on night maps), 86 (the impact sound on a blocked hit), 87 (the
+  party enters the fight with the Ra-Seru equipped).
+- **To do, a feature:** 88 (the dev menu's equipment tab).
 
 ## Not bugs (checked)
 

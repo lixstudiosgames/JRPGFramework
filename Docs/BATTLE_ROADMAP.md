@@ -1551,10 +1551,11 @@ Two kinds of work, kept apart: the **rules** go through the combat core like Pha
   ([Guides/BATTLE_STAGE.md](Guides/BATTLE_STAGE.md#the-field-to-battle-transition)).
 - **Sound — the rest of it.** Phase 2 brought the monsters' sounds and the party clips' own cues.
   *Done with Phase 5:* the Art voice lines and fanfares (`DT_BattleVoices`), the battle BGM
-  (`DT_BattleMusic`), the impact sound gated by the hit's result. *To do:* no impact sound on a
-  block (bug 86), the monster's death sound, the battle HUD's sounds (cursor, confirm, the input
-  window's buttons, the AP gauge), the victory fanfare. Driven by the events, like the rest of the
-  presentation.
+  (`DT_BattleMusic`), the impact sound gated by the hit's result, the monster's death sound, and
+  the sounds of the placeholder command menu. *To do:* no impact sound on a block (bug 86), the
+  victory fanfare, and a review of the HUD's sounds (cursor, confirm, the input window's buttons,
+  the AP gauge) together with the real HUD, since today's menu is temporary. Driven by the events,
+  like the rest of the presentation.
 - **VFX.** The battle's visual effects in Niagara: hit sparks per element, the block, the Art and
   Super flashes, the after-image trail, death and the victory. The original's are effect scripts
   in each action entry (`+0x14..+0x53`, RE `docs/formats/monster-animation.md` › "Effect-script
@@ -1579,6 +1580,14 @@ Last on purpose: it depends on everything above being stable and carries the mos
 - **Spell power is missing** — it is not in `magic.toml`. It comes from the disc's
   move-power table (PROT 0898, stride 26), so an extra extraction pass produces
   `DT_MovePower`.
+- **The monsters' special attacks.** Many monsters have attacks that are not plain hits: their
+  own clip with its own effect (a breath, a status, a spell cast, a boss's scripted move). Today
+  the AI can only take the physical branch, so a special with an AGL cost is played as if it were a
+  plain swing (its power bytes and hit frames, no effect of its own), and the ones that are not
+  swings (the cast clips, tag `0x23`, and what the per-monster scripts stage) are never used at
+  all. What it takes: the magic roll and the per-monster `switch` ([Enemy AI](#enemy-ai)), the
+  status selector of each action entry (`DT_EnemyActions.StatusSelector`), the entries' effect
+  scripts for the VFX, and `SpecialAttacks` / `SpecialAttackMP` of `DT_Bosses`.
 - Seru capture in battle and learning the matching spells.
 - **Serus as party support members** — this is where Phase 4's larger party gets real
   content. With them: `bScaleEnemiesWithPartySize` (more heroes, more enemies rolled) and the
@@ -1823,10 +1832,10 @@ Phase 7 (Spirit, formation advantage, the transition, the camera, voices, music,
 
 **Next, in this order:**
 
-1. **A fix pass on Phase 5** — the bugs still open in
-   [BATTLE_PHASE5_BUGS.md](BATTLE_PHASE5_BUGS.md) (the hits that do not land, the long wait before
-   a round, the flinch missing on some Super hits, the light floor on night maps, the impact sound
-   on a block, the Ra-Seru equipped from the start, the dev menu's equipment tab).
+1. **A fix pass on Phase 5** — the three bugs still open in
+   [BATTLE_PHASE5_BUGS.md](BATTLE_PHASE5_BUGS.md): the light floor on night maps (85), the impact
+   sound on a blocked hit (86), the Ra-Seru equipped from the start (87). With it, one feature: the
+   dev menu's equipment tab (88).
 2. **The rest of Phase 7's rules** — Item (reserve, consume, `ApplyBattleItemEffect`), the escape
    roll, drop / steal.
 3. **The rest of Phase 7's presentation** — the HUD (enemy row, AP bar with cost markers, HP
