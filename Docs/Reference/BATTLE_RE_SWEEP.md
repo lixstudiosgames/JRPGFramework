@@ -876,11 +876,10 @@ original's HUD look (ours is our own design).
 
 Open items that are not a step of their own (details in `Docs/BATTLE_PHASE5_BUGS.md`):
 
-- **Re-test after the next build:** bugs 37-39 and 41-43 (Arts shout slow window, loop sounds, camera long arc, the doubled slow
-  on Miracle, a new Art entering by the SpecialStarter, AP on damage taken). 34b and 40 confirmed working by the user.
-- **Bug 29** (some hits do not land): diagnostics in (1d); still open until a repro is matched to a cause. Bug 40 (missing
-  low flinch on Gimard) may have been part of it.
-- **Bug 36** (a long wait before round 2 once): not investigated.
+- **Re-tested, all working** (user, 2026-11-10): bugs 37-39 and 41-43 (Arts shout slow window, loop sounds, camera long arc, the
+  doubled slow on Miracle, a new Art entering by the SpecialStarter, AP on damage taken), and 34b and 40 before them. The open
+  bugs are 85-87 (`Docs/BATTLE_PHASE5_BUGS.md`, "Status of the open entries").
+- **Bugs 29** (some hits do not land) **and 36** (a long wait before round 2): fixed, no longer happen in play (user, 2026-11-10).
 - **The dasher's speed** in the SpecialStarter is now the original's 1/4 (scale 2, the `0x1A` arm; user, 2026-11-06); it was 1/2.
   Re-test the Hyper / Super / Miracle / new-Art starters.
 - **Formation recentre** (`AJRPGBattleArena::bRecentreFormation`): the camera now follows `OnFormationShifted`, so turning it on

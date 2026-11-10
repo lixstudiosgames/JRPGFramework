@@ -413,7 +413,8 @@ Bug 20 (miss sound) confirmed fixed in PIE. Worked on in parts.
 
 #### PIE pass 6 (2026-11-05) — open, not looked at yet
 
-29. **Some hits do not land on the enemy** (no damage / no reaction where the swing should connect). Not investigated. Suspects:
+29. **Some hits do not land on the enemy** (no damage / no reaction where the swing should connect). **Fixed** (user, 2026-11-10:
+    no longer happens in play). Suspects at the time:
     the hit timing from `DT_ArtHits` / the approach wait, the arrival shove or separation moving the target out of the swing, or the
     reach clamp of the end step. Note which hero, which Art or swing, and which enemy.
 30. **Slash Kick still slides at the very end.** After the pass-5 change (end step slid over the idle crossfade, clamped to the edge
@@ -533,7 +534,8 @@ tables of 1c first.
 #### PIE pass 7 (2026-11-05) — open, not looked at yet
 
 36. **Long wait before round 2.** Once, the fight took noticeably longer than usual to go from the end of round 1 to round 2's
-    command phase; every animation played normally, only the gap was long. Not investigated. Suspects: the rules' reaction hold
+    command phase; every animation played normally, only the gap was long. **Fixed** (user, 2026-11-10: no longer happens in play).
+    Suspects at the time: the rules' reaction hold
     computed at the hit's (slow-motion) speed after an Art (`BATTLE_TIMING.md` 9, item 14: the next action can wait longer than the
     body needs); the idle hand-off wait of the last clip (`MaxIdleHandoffWait`); a monster's death fade holding the round end; the
     approach stall (`StallResolver`) of an action that did not walk. Note which hero / Art ended round 1 and whether a monster died.
@@ -952,8 +954,11 @@ tables of 1c first.
 
 The entries above keep the text of the day they were written. What the user confirmed since, playing:
 
-- **Fixed:** 29 (hits that did not land), 36 (the long wait before round 2), 44 (Noa's sprint), 46 (music underneath), 66 (the
+- **Fixed:** 30 (Slash Kick sliding at the very end), 31 (Gimard inside Vahn), 57 (the monster's death sound),
+  29 (hits that did not land), 36 (the long wait before round 2), 44 (Noa's sprint), 46 (music underneath), 66 (the
   voice of Vulture Blade and Burning Flare), 82 (no flinch on some hits of Neo Static Raising).
+- **Fixed, re-test done:** 37 (the Arts' shout slow), 38 (the Slime's walk sound), 39 (the action camera changing side), 41 (the
+  doubled slow on Miracle), 42 (the special starter of a new Art), 43 (AP on damage taken).
 - **Still open, for the next fix pass:** 85 (the light floor on night maps), 86 (the impact sound on a blocked hit), 87 (the
   party enters the fight with the Ra-Seru equipped).
 - **To do, a feature:** 88 (the dev menu's equipment tab).
