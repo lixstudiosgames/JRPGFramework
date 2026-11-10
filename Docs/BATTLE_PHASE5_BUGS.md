@@ -950,6 +950,16 @@ tables of 1c first.
 88. **Dev menu: an equipment tab** (a feature, not a bug). Equip the Ra-Seru and any weapon / armour / accessory on any hero from
     the dev menu, to test the equipment in a fight (the pieces, the swings of `DT_HeroSwings`, the stats).
 
+#### Pass 22 (2026-11-10) — the victory sequence, noted, not started
+
+89. **The wrong hero plays the win pose.** Noa killed the last enemy and Vahn (the leader) posed; it must be the hero who
+    defeated the last enemy (user, playing the original's behaviour). Ours picks the party's seat 0
+    (`UJRPGBattleSceneSubsystem::UpdateVictory`), from the RE's reading "the leader poses" (`battle-round-loop.md`, "The pose
+    actor is `ctx[+0x13]`"). The same RE file describes the other reading in its `0x5A` monster-wipe arm (`0x801E6688..0x801E6790`):
+    a **living acting actor keeps the pose slot**, a dead one re-rolls a random living party member, and the Songi fights force a
+    slot (first monster id `0xB3` -> slot 2, `0xB4` -> slot 1). To do: pose the hero whose action ended the fight (the last
+    action's actor when it is a living hero), with those fallbacks; the camera and the pose pick already follow whoever poses.
+
 #### Status of the open entries (user, 2026-11-10)
 
 The entries above keep the text of the day they were written. What the user confirmed since, playing:
@@ -959,8 +969,10 @@ The entries above keep the text of the day they were written. What the user conf
   voice of Vulture Blade and Burning Flare), 82 (no flinch on some hits of Neo Static Raising).
 - **Fixed, re-test done:** 37 (the Arts' shout slow), 38 (the Slime's walk sound), 39 (the action camera changing side), 41 (the
   doubled slow on Miracle), 42 (the special starter of a new Art), 43 (AP on damage taken).
+- **Fixed too:** 84 (two Hypers in a row, the second without its fanfare).
 - **Still open, for the next fix pass:** 85 (the light floor on night maps), 86 (the impact sound on a blocked hit), 87 (the
-  party enters the fight with the Ra-Seru equipped).
+  party enters the fight with the Ra-Seru equipped), 89 (the win pose goes to the leader instead of the hero who killed the
+  last enemy).
 - **To do, a feature:** 88 (the dev menu's equipment tab).
 
 ## Not bugs (checked)
