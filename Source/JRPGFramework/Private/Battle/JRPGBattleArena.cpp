@@ -203,6 +203,7 @@ void AJRPGBattleArena::OnConstruction(const FTransform& Transform)
 
 	SplineArea.Build(AreaSpline);
 	AreaSpline->SetVisibility(bUseArea);
+	bPreviewDirty = true;
 #if WITH_EDITOR
 	RebuildPreviewMeshes();
 #endif
@@ -240,10 +241,20 @@ void AJRPGBattleArena::Tick(float DeltaSeconds)
 		return;
 	}
 #endif
-	DrawFormation(GetFormation(PreviewPartyCount, PreviewEnemyCount), false, -1.0f);
-	if (bPreviewCameraOrbit)
+	// Os traces só quando a arena mudou ou de tempos em tempos (o cenário em volta pode mudar
+	// sem a arena saber); nos outros quadros só redesenha o que já foi testado
+	const double Now = FPlatformTime::Seconds();
+	if (bPreviewDirty || PreviewTracedAt < 0.0 || Now - PreviewTracedAt >= PreviewRefreshSeconds)
 	{
-		DrawDebugCameraOrbit(PreviewPartyCount, PreviewEnemyCount, -1.0f);
+		CachedPreviewSeats = GetFormation(PreviewPartyCount, PreviewEnemyCount);
+		bCachedPreviewOrbit = bPreviewCameraOrbit && TraceCameraOrbit(PreviewPartyCount, PreviewEnemyCount, CachedPreviewOrbit);
+		bPreviewDirty = false;
+		PreviewTracedAt = Now;
+	}
+	DrawFormation(CachedPreviewSeats, false, -1.0f);
+	if (bPreviewCameraOrbit && bCachedPreviewOrbit)
+	{
+		DrawCameraOrbit(CachedPreviewOrbit, -1.0f);
 	}
 }
 
@@ -531,11 +542,19 @@ bool AJRPGBattleArena::TraceCameraOrbit(int32 PartyCount, int32 EnemyCount, FJRP
 void AJRPGBattleArena::DrawDebugCameraOrbit(int32 PartyCount, int32 EnemyCount, float Duration) const
 {
 	FJRPGArenaCameraOrbit Orbit;
-	if (!TraceCameraOrbit(PartyCount, EnemyCount, Orbit))
+	if (TraceCameraOrbit(PartyCount, EnemyCount, Orbit))
+	{
+		DrawCameraOrbit(Orbit, Duration);
+	}
+}
+
+void AJRPGBattleArena::DrawCameraOrbit(const FJRPGArenaCameraOrbit& Orbit, float Duration) const
+{
+	const UWorld* World = GetWorld();
+	if (!World)
 	{
 		return;
 	}
-	const UWorld* World = GetWorld();
 	const FVector EyeCentre = Orbit.Focus + FVector(0.0, 0.0, Orbit.Height);
 	DrawDebugCrosshairs(World, Orbit.Focus, FRotator::ZeroRotator, 60.0f, FColor::White, false, Duration, 0);
 	DrawDebugLine(World, Orbit.Focus, EyeCentre, FColor::White, false, Duration, 0, 1.0f);

@@ -691,6 +691,8 @@ private:
 	/** A órbita do plano geral para essa formação, testada ponto a ponto. False sem a câmera da luta ou sem lugares. */
 	bool TraceCameraOrbit(int32 PartyCount, int32 EnemyCount, FJRPGArenaCameraOrbit& Out) const;
 	void DrawFormation(const TArray<FJRPGArenaSeat>& Seats, bool bPersistent, float Duration) const;
+	/** Desenha uma órbita já testada (TraceCameraOrbit). */
+	void DrawCameraOrbit(const FJRPGArenaCameraOrbit& Orbit, float Duration) const;
 	void Print(const FString& Message, const FColor& Color = FColor::Silver) const;
 	/** Problema na montagem: sempre no log e na tela, com ou sem bPrintDebug. */
 	void Warn(const FString& Message) const;
@@ -719,6 +721,18 @@ private:
 #endif
 
 	FJRPGSplineArea SplineArea;
+
+	/**
+	 * Preview do editor guardado: os traces da formação e do anel da câmera (centenas por vez) só são
+	 * refeitos quando a arena muda (OnConstruction marca bPreviewDirty) ou a cada PreviewRefreshSeconds,
+	 * para pegar o cenário mexido em volta. No meio, o Tick só redesenha.
+	 */
+	TArray<FJRPGArenaSeat> CachedPreviewSeats;
+	FJRPGArenaCameraOrbit CachedPreviewOrbit;
+	bool bCachedPreviewOrbit = false;
+	bool bPreviewDirty = true;
+	double PreviewTracedAt = -1.0;
+	static constexpr double PreviewRefreshSeconds = 0.5;
 
 	UPROPERTY(Transient, DuplicateTransient)
 	TArray<TObjectPtr<USkeletalMeshComponent>> PreviewMeshes;

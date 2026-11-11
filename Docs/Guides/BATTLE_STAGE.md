@@ -257,6 +257,10 @@ from there to the focus goes through something, and **red** when the eye is insi
 Ground** and Map Check list it as a problem. It is the formation at rest: in a fight the orbit shrinks while an attacker walks
 up to his target. Nothing is drawn with a hand-placed `BattleCamera` or with `bUseBattleCamera` off.
 
+The preview's traces (the formation on the ground and the ring, a few hundred per arena) are kept and only redone when
+the arena changes (moved, edited) or every 0.5 s, to catch the scenery around it moving; the frames in between only
+redraw. Tracing every frame cost ~2 ms of the editor's game thread per arena.
+
 **Field enemies:** `bStartBattle` (default on) — off, contact only announces the encounter, as
 in Phase 3.
 
