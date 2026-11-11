@@ -836,7 +836,7 @@ tables of 1c first.
     ~1 m, so the fallen body went that much under the floor. **Fixed:** `AJRPGBattlePawn::bGroundAtMeshRoot` (on): the mesh root
     is the floor; the capsule goes from the floor to the top of the body. Probably also the "Vahn goes through Vera" of this pass
     (her body was at his height); to re-test.
-82. **Open: still no flinch on some hits of Gala's Neo Static Raising on Xain** (with 80 built: the log shows the `battle.ap` AP
+82. **Fixed (closed by 83, confirmed in pass 20): still no flinch on some hits of Gala's Neo Static Raising on Xain** (with 80 built: the log shows the `battle.ap` AP
     refills). Checked and ruled out: the events reach the target every hit, an equal clip asked again restarts from frame 0, Xain
     has its flinch (tag 2, 13 keyframes at rate 1, beat 5), the knockdown only comes on the last hit, the original also commits each
     reaction at once (`+0x1DC |= 5`, `0x801EEC34`). **Diagnostic added:** `AJRPGBattlePawn::bLogReactions` (on) logs every reaction

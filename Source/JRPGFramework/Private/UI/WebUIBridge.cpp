@@ -625,8 +625,11 @@ void UWebUIBridge::PlaySFX(const FString& SoundName)
 	}
 	else
 	{
-		// O editor cria automaticamente assets uasset para os .wav importados no Content/UI/SFX
-		FString AssetPath = FString::Printf(TEXT("/JRPGFramework/UI/SFX/%s.%s"), *RealSoundName, *RealSoundName);
+		// O editor cria automaticamente assets uasset para os .wav importados no Content/UI/SFX. Um nome começando com '/' já é o
+		// caminho do asset (os sons do jogo que o C++ manda ao JS, como os da tela de resultados da vitória)
+		FString AssetPath = RealSoundName.StartsWith(TEXT("/"))
+			? RealSoundName
+			: FString::Printf(TEXT("/JRPGFramework/UI/SFX/%s.%s"), *RealSoundName, *RealSoundName);
 		Sound = Cast<USoundBase>(StaticLoadObject(USoundBase::StaticClass(), nullptr, *AssetPath));
 		if (Sound)
 		{

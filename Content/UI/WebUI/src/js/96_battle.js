@@ -313,7 +313,8 @@ window.JRPGBattle = (function () {
     // ------------------------------------------------------------------
 
     const api = {
-        open() {
+        /** opts.hidden: só o estado e o input, sem a seção do menu (a tela de resultados da vitória, que é do JRPGBattleHUD). */
+        open(opts) {
             if (!UIState.canOpen('battle')) {
                 log(`JRPGBattle.open ignorado: estado atual '${UIState.get()}' não permite.`);
                 return;
@@ -322,7 +323,7 @@ window.JRPGBattle = (function () {
             isOpen = true;
             view = null;
             const sec = section();
-            if (sec) sec.classList.add('active');
+            if (sec && !(opts && opts.hidden)) sec.classList.add('active');
             UIState.set('battle_open');
             // O C++ mostra o ponteiro ao focar a UI a cada rodada; quem vem jogando de teclado / controle não quer vê-lo de volta
             if (window.InputMode && !InputMode.isMouse()) {
@@ -358,6 +359,11 @@ window.JRPGBattle = (function () {
 
         /** teclado e gamepad chegam aqui (handleUIInput); o mouse vai direto ao send dos próprios elementos. */
         handleInput(action) {
+            // A tela de resultados da vitória está de pé: o confirmar / cancelar é o "pular" dela
+            if (window.JRPGBattleHUD && JRPGBattleHUD.resultsActive && JRPGBattleHUD.resultsActive()) {
+                JRPGBattleHUD.resultsInput(action);
+                return;
+            }
             if (!isOpen) return;
             switch (action) {
                 case 'up': case 'down': case 'left': case 'right': case 'confirm': case 'cancel':

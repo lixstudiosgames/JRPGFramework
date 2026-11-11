@@ -251,8 +251,10 @@ public:
 	/**
 	 * Abre a seção da luta e foca a UI (cursor + teclado/gamepad). Só do HudOnly: falso se outra tela está aberta (o menu de pausa,
 	 * por exemplo) ou se o shell não monta. Já aberto, devolve true sem refazer nada. Quem desenha é o UpdateBattleUI.
+	 * bShowMenu falso: só o input (o estado BattleOpen e o foco), sem a seção do menu na tela — a tela de resultados da vitória, que
+	 * desenha na camada do HUD e recebe o confirmar / cancelar por ela (JRPGBattleHUD.resultsInput).
 	 */
-	bool OpenBattleUI();
+	bool OpenBattleUI(bool bShowMenu = true);
 
 	/** Manda a view do menu (um objeto literal JS montado pelo FJRPGBattleMenu::BuildViewJS) para JRPGBattle.render. */
 	void UpdateBattleUI(const FString& ViewJS);

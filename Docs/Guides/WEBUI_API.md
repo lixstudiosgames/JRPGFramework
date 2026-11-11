@@ -168,15 +168,30 @@ Local, no CDN: `Content/UI/WebUI/fonts/` — **Cinzel** (general UI) and **Medie
 
 ## Battle HUD layer
 
-`97_battle_hud.*`: a layer that draws over the fight in **any** UI state (`hud_only` included), never takes input and never
-calls the bridge. The C++ calls it through `UWebUISubsystem::CallBattleHUD(JSCall)` (C++ only), which runs
-`JRPGBattleHUD.<JSCall>` if the layer exists. Today the battle intro uses it (`UJRPGBattleUISubsystem`); the end-of-battle windows
-come next (step 6 of `Reference/BATTLE_RE_SWEEP.md` 10.3).
+`97_battle_hud.*`: a layer that draws over the fight in **any** UI state (`hud_only` included) and takes no input of its own.
+The C++ calls it through `UWebUISubsystem::CallBattleHUD(JSCall)` (C++ only), which runs `JRPGBattleHUD.<JSCall>` if the layer
+exists. The battle intro uses it (`UJRPGBattleUISubsystem`), and the victory results screen (`UJRPGBattleSceneSubsystem`), which
+is the one part that talks back to the bridge.
 
 - `JRPGBattleHUD.intro({groups: [{name, x}], line})` — the enemy names of the intro: one label per group (`'Killer Bee * 3'`),
   centred at `x` (a 0..1 fraction of the screen width, where the group stands; the JS maps it onto the 1920 canvas), labels that
   touch pushed apart evenly, kept 36 px from the edges; `line` is the formation line across the top (`''` = none).
 - `JRPGBattleHUD.introHide()` · `JRPGBattleHUD.reset()` · `JRPGBattleHUD.preview()` (browser test only).
+- `JRPGBattleHUD.results({split, gold, sounds: {tick, levelUp}, cards: [{name, lvBefore, lvAfter, expBefore, gained,
+  thresholds, hp, maxHpBefore, maxHpAfter, mp, maxMpBefore, maxMpAfter}]})` — the victory results screen, on the whole window
+  (not the 1920 canvas; the card, Gold and Skip are drawn in canvas px scaled by `--scale-factor`): one column per card, in the
+  arena's `VictoryColumnOrder` (Noa, Vahn, Gala); with `split` the columns match the engine's split-screen views and only the
+  dividers between them have a border (menu gold). HP / MP are the menu's bars and colours (`bar-track`, `bar-fill`,
+  `hp-*-text`). After a short wait (the camera cut), one card at a time: the gained EXP counts down while `Next` counts down and
+  `Total` counts up, with the counter tick (`sounds.tick`, an asset path; `bridge.playsfx` loads a name starting with `/` as a
+  path); crossing `thresholds[i]` (the total EXP of each level from the current one + 1; empty at the cap) shows **LEVEL UP!**
+  (`sounds.levelUp`) and `Next` restarts. Gold counts up at the bottom centre with the first card. A floating **Skip** button
+  (click, or confirm / cancel) jumps to the end.
+  `resultsHide()` · `resultsActive()` · `resultsInput(action)` · `previewResults()` (browser test only).
+  - For the input the C++ opens the battle state without the menu section, `UWebUISubsystem::OpenBattleUI(false)` →
+    `JRPGBattle.open({hidden: true})`; `JRPGBattle.handleInput` hands confirm / cancel to `resultsInput` while the screen is up.
+  - JS → C++, through `bridge.onbattleinput`: `'results_done'` (the last card finished counting; the C++ waits
+    `VictoryResultsLingerSeconds` and leaves the fight) and `'results_skip'` (the fight leaves on the next frame).
 
 ## Contracts C++ calls in JS (do not rename)
 

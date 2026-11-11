@@ -466,6 +466,13 @@ protected:
 	bool BuildEntryPose(FJRPGBattleCameraPose& OutPose);
 	/** A vitória: o stand-off em quem posa e, com a pose tocando, o braço battle-over com o script da pose (zera rampa e acumulador no commit dela). */
 	bool BuildVictoryPose(FJRPGBattleCameraPose& OutPose);
+	/**
+	 * O braço battle-over do caso 6 com a pose tocando, para um herói e a coluna da pose dele (a rampa e o acumulador são os desta
+	 * câmera: todas as poses entram no mesmo quadro). A vista 0 e cada coluna da tela dividida usam este.
+	 */
+	bool BuildVictoryPoseFor(const AJRPGBattlePawn* Poser, int32 PoseColumn, FJRPGBattleCameraPose& OutPose) const;
+	/** As colunas 1..N-1 da tela dividida da vitória (UJRPGBattleSplitView): cada câmera extra na pose do herói dela, com o mesmo ease-out. */
+	void UpdateSplitViews(float DeltaSeconds, float Steps);
 
 	/**
 	 * A câmera própria da Art que toca (o override do original): monta a pose do braço dela e devolve os passos do ease-out dele
@@ -523,6 +530,8 @@ private:
 	void Chase(float DeltaSeconds, float Steps, bool bShotChanged, float AlphaOverride = -1.0f);
 	/** Põe o ator na pose Live. */
 	void ApplyLivePose();
+	/** Onde fica o olho e para onde ele olha numa pose (o ApplyLivePose e as câmeras da tela dividida). */
+	static FTransform PoseToTransform(const FJRPGBattleCameraPose& Pose);
 	void ApplyLens();
 
 	TWeakObjectPtr<AJRPGBattleArena> Arena;
@@ -546,6 +555,11 @@ private:
 	bool bEntryDrifting = false;
 	/** A pose de vitória já entrou para a câmera (o commit do clip zerou a rampa e o acumulador). */
 	bool bVictoryCommitted = false;
+	/** As poses vivas das colunas 1..N-1 da tela dividida (a 0 é Live), e se a divisão já foi vista (o primeiro quadro corta). */
+	TArray<FJRPGBattleCameraPose> SplitLive;
+	bool bSplitSeen = false;
+	/** Quantos quadros da tela dividida já foram para o log (o diagnóstico da travada na entrada). */
+	int32 SplitFramesLogged = 0;
 
 	// O estado da ação (UpdateActionState): quem age e o alvo, a ação (pelo índice), o tipo, a escada do giro, o ângulo sorteado,
 	// a distância, o primeiro golpe, a faixa do fim e o ramp da queda

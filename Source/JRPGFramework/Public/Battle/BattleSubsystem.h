@@ -40,6 +40,34 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnJRPGSlotChanged, int32, Slot, EJ
 /** Um comando foi recusado: o slot dele e por quê (o texto das regras, para mostrar ao lado do prompt). */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnJRPGCommandRefused, int32, Slot, const FString&, Why);
 
+/** Um herói na tela de resultados da vitória: a ficha antes e depois do EXP (UBattleSubsystem::SettleVictory). */
+struct FJRPGVictoryHeroResult
+{
+	FName Key;
+	int32 EXPGained = 0;
+	int32 LevelBefore = 1;
+	int32 LevelAfter = 1;
+	/** O EXP total da ficha antes e depois. */
+	int32 EXPBefore = 0;
+	int32 EXPAfter = 0;
+	/** O EXP total de cada level a partir de LevelBefore + 1, até o próximo depois de LevelAfter (vazio no teto). */
+	TArray<int32> LevelThresholds;
+	int32 HP = 0;
+	int32 MaxHPBefore = 0;
+	int32 MaxHPAfter = 0;
+	int32 MP = 0;
+	int32 MaxMPBefore = 0;
+	int32 MaxMPAfter = 0;
+};
+
+/** A recompensa de uma vitória já paga, para a tela de resultados (UBattleSubsystem::SettleVictory). */
+struct FJRPGVictoryResults
+{
+	bool bValid = false;
+	int32 Gold = 0;
+	TArray<FJRPGVictoryHeroResult> Heroes;
+};
+
 /**
  * UBattleSubsystem
  * Orquestra a batalha. Os encontros (TryStartEncounter), o começo e o fim de uma luta (BeginBattle /
@@ -119,6 +147,23 @@ public:
 	 * inimigos da luta, vivos também (a vitória de verdade só conta os derrotados). Para testar a recompensa.
 	 */
 	void EndBattleForDebug(EJRPGBattleResult Result, bool bPayEveryEnemy);
+
+	/**
+	 * O quadro dos resultados (nosso: o original paga ali, aqui pagava no EndBattle): numa vitória decidida, escreve a luta no roster
+	 * e paga o EXP e o Gold AGORA, guardando a ficha de cada herói antes e depois para a tela de resultados. Uma vez só; o EndBattle
+	 * da vitória não paga de novo. Fora de uma vitória decidida devolve um resultado inválido.
+	 */
+	const FJRPGVictoryResults& SettleVictory();
+
+	/** A recompensa já paga (bValid falso antes do SettleVictory). */
+	const FJRPGVictoryResults& GetVictoryResults() const { return VictoryResults; }
+
+	/**
+	 * A tela de resultados segura a saída: com bHold a vitória não fecha no fim do VictoryHoldFrames (a cena solta quando a tela
+	 * acaba). EndVictoryNow fecha no próximo quadro, sem esperar o resto do hold (o "pular" da tela).
+	 */
+	void HoldVictoryEnd(bool bHold) { bVictoryEndHeld = bHold; }
+	void EndVictoryNow() { bVictoryEndHeld = false; bEndVictoryNow = true; }
 
 	/** Dev (battle.ap on|off): o AP de todo herói fica no máximo (100) a cada quadro, nesta luta e nas próximas da sessão. */
 	void SetDebugFullAP(bool bOn) { bDebugFullAP = bOn; }
@@ -441,6 +486,13 @@ private:
 
 	/** O fim de debug em curso paga todos os inimigos (EndBattleForDebug). */
 	bool bDebugPayEveryEnemy = false;
+
+	/** A vitória já foi escrita e paga no quadro dos resultados (SettleVictory): o EndBattle não repete. */
+	bool bVictorySettled = false;
+	FJRPGVictoryResults VictoryResults;
+	/** A tela de resultados segura a saída da vitória / pediu a saída já (HoldVictoryEnd, EndVictoryNow). */
+	bool bVictoryEndHeld = false;
+	bool bEndVictoryNow = false;
 
 	/** Dev: o AP de todo herói fica no máximo (SetDebugFullAP). */
 	bool bDebugFullAP = false;

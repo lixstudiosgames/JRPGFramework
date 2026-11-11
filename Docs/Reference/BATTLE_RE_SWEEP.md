@@ -872,7 +872,7 @@ original's HUD look (ours is our own design).
 | 4. Remaining sounds | **Done, to build and test** (2026-11-06): the Arts shout, the starter fanfare and the block grunt (`FJRPGBattleVoices`, `DT_BattleVoices` + `DT_ArtVoices` from `Extras/ps1_battle_voices.py`), battle music from the disc (`DT_BattleMusic`, picked per boss / arena). Menu blips dropped: the WebUI's `SFX_*` already are the original's sounds (user). Level-up cue and victory voice go with step 6. |
 | 5. Battle start | **In progress** (2026-11-07), parts 5.1-5.3 below: 5.1 (rules) and 5.2 (intro) written, to build and test; 5.3 to do. |
 | 5b. Field-to-battle transition | **Written** (2026-11-07), 5b.1 and 5b.2 together, to build and test. |
-| 6. Battle end | **In progress** (2026-11-10): 6.1 (win pose, voice, victory camera) **done**, tested OK in PIE by the user; 6.2 and 6.3 to do. Rewards are still paid at `EndBattle` (after the hold), not on the results frame. |
+| 6. Battle end | **In progress** (2026-11-10): 6.1 (win pose, voice, victory camera) **done**, tested OK in PIE by the user. 2026-11-11, our design, written, to build and test: the **split-screen victory** (one column per standing hero, each posing with its own win-pose camera, `UJRPGBattleSplitView` on the engine's split screen, SSGI off in the columns) and **6.3's results screen** over it (cards counting EXP / Next with LEVEL UP!, Gold, a Skip button; the arena's `bVictorySplitScreen` / `bVictoryResults`). The rewards are now paid on the results frame (`UBattleSubsystem::SettleVictory`). 6.2 (defeat → game over → main menu, escape) to do. |
 
 Open items that are not a step of their own (details in `Docs/BATTLE_PHASE5_BUGS.md`):
 

@@ -14,6 +14,10 @@
 #include "Battle/JRPGBattlePawn.h"
 #include "Battle/JRPGBattleCamera.h"
 #include "Battle/JRPGBattleRules.h"
+#include "Battle/JRPGBattleSplitView.h"
+#include "UI/WebUIScripting.h"
+#include "UI/WebUISubsystem.h"
+#include "Party/CharacterData.h"
 #include "JRPGBattleIntroEffect.h"
 #include "JRPGBattleTransition.h"
 #include "Battle/EnemyData.h"
@@ -291,6 +295,14 @@ void UJRPGBattleSceneSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 		Battle->OnLogicFrame.AddDynamic(this, &UJRPGBattleSceneSubsystem::HandleLogicFrame);
 		Battle->OnCommandRefused.AddDynamic(this, &UJRPGBattleSceneSubsystem::HandleCommandRefused);
 	}
+	// O "pular" e o fim da contagem da tela de resultados chegam pelo input do menu da luta
+	if (const UGameInstance* GI = InWorld.GetGameInstance())
+	{
+		if (UWebUISubsystem* WebUI = GI->GetSubsystem<UWebUISubsystem>())
+		{
+			WebUI->OnBattleUIInput.AddUObject(this, &UJRPGBattleSceneSubsystem::HandleResultsInput);
+		}
+	}
 }
 
 void UJRPGBattleSceneSubsystem::Deinitialize()
@@ -320,6 +332,16 @@ void UJRPGBattleSceneSubsystem::Deinitialize()
 		Battle->OnSlotChanged.RemoveDynamic(this, &UJRPGBattleSceneSubsystem::HandleSlotChanged);
 		Battle->OnLogicFrame.RemoveDynamic(this, &UJRPGBattleSceneSubsystem::HandleLogicFrame);
 		Battle->OnCommandRefused.RemoveDynamic(this, &UJRPGBattleSceneSubsystem::HandleCommandRefused);
+	}
+	if (const UGameInstance* GI = World ? World->GetGameInstance() : nullptr)
+	{
+		if (UWebUISubsystem* WebUI = GI->GetSubsystem<UWebUISubsystem>())
+		{
+			WebUI->OnBattleUIInput.RemoveAll(this);
+		}
+	}
+	if (Battle)
+	{
 		// O mapa saiu no meio da luta: ela não pode ficar aberta no GameInstance
 		if (Battle->IsInBattle())
 		{
@@ -328,6 +350,11 @@ void UJRPGBattleSceneSubsystem::Deinitialize()
 	}
 	SetShoutDilation(1.0f);
 	Voices.End();
+	// A tela dividida fecha (os jogadores temporários saem e o split do projeto volta: o CDO dos settings vive a sessão do editor). Sem
+	// mexer no WebUI com o mundo saindo: o reset do shell na troca de mapa limpa os cards
+	bVictoryResultsUp = false;
+	bVictoryResultsInput = false;
+	ResetVictory();
 	FieldMusic = nullptr;
 	bBattleMusicStarted = false;
 	Arena = nullptr;
@@ -556,6 +583,8 @@ void UJRPGBattleSceneSubsystem::HandleBattleEnded(EJRPGBattleResult Result)
 {
 	// A luta acabou no meio da abertura (o JRPG.Battle.End): os nomes saem e a câmera para de varrer
 	CancelIntro();
+	// Ou com a tela de resultados de pé (o JRPG.Battle.End, um fim de fora): os cards saem e o input volta antes do fade
+	HideVictoryResults();
 	// A luta acabou no meio de uma Art: o tempo volta ao normal antes do fade (ele anda no tempo do mundo)
 	ShoutUntilRealTime = 0.0;
 	SetShoutDilation(1.0f);
@@ -924,6 +953,13 @@ void UJRPGBattleSceneSubsystem::ResetVictory()
 	VictoryStage = EJRPGBattleVictoryStage::None;
 	VictoryPawn = nullptr;
 	VictoryPoseColumn = 0;
+	VictoryViews.Reset();
+	VictoryStanding.Reset();
+	HideVictoryResults();
+	if (SplitView)
+	{
+		SplitView->Stop();
+	}
 }
 
 void UJRPGBattleSceneSubsystem::UpdateVictory(const UBattleSubsystem& Battle, AJRPGBattleArena& Current)
@@ -991,17 +1027,286 @@ void UJRPGBattleSceneSubsystem::UpdateVictory(const UBattleSubsystem& Battle, AJ
 		VictoryStage = EJRPGBattleVictoryStage::StandOff;
 		UE_LOG(LogTemp, Log, TEXT("BattleScene: vitória — %s posa (HP %d/%d, rodada %d, tier %d): %s"), *Poser->Key.ToString(), Poser->HP,
 			Poser->MaxHP, State.Round, Tier, *UJRPGBattleRules::VictoryPoseClipName(VictoryPoseColumn).ToString());
+
+		// Nosso (a tela dividida): cada herói de pé com a pose dele, sorteada como a de quem posa (o tier pelo HP dele)
+		VictoryStanding.Reset();
+		for (int32 Index = 0; Index < SeatStanding.Num(); ++Index)
+		{
+			if (!SeatStanding[Index] || !SeatCombatants[Index] || !SeatPawns[Index])
+			{
+				continue;
+			}
+			FVictoryView& View = VictoryStanding.AddDefaulted_GetRef();
+			View.Pawn = SeatPawns[Index];
+			if (Index == Seat)
+			{
+				View.PoseColumn = VictoryPoseColumn;
+			}
+			else
+			{
+				const FJRPGCombatant& Other = *SeatCombatants[Index];
+				const int32 OtherTier = UJRPGBattleRules::VictoryPoseTier(Other.HP, Other.MaxHP, FMath::Max(State.Round - 1, 0), false);
+				View.PoseColumn = UJRPGBattleRules::VictoryPoseColumn(OtherTier, FMath::Rand(), FMath::Rand());
+			}
+		}
 	}
 
 	// O quadro dos resultados: a pose entra (e a voz com ela, o notify do clip)
 	if (Battle.GetFramesSinceFinish() >= Battle.VictoryLoadFrames)
 	{
 		VictoryStage = EJRPGBattleVictoryStage::Pose;
-		if (AJRPGBattlePawn* Pawn = VictoryPawn.Get())
+		EnterVictoryPose(Current);
+	}
+}
+
+namespace
+{
+	/**
+	 * A ordem das colunas da vitória (AJRPGBattleArena::VictoryColumnOrder): quem está na lista primeiro, na ordem dela; o resto
+	 * depois, da esquerda para a direita como a câmera de trás da party vê (o +Y da arena, a direita da party).
+	 */
+	bool VictoryColumnBefore(const AJRPGBattleArena& Current, const AJRPGBattlePawn& A, const AJRPGBattlePawn& B)
+	{
+		const int32 RankA = Current.VictoryColumnOrder.IndexOfByKey(A.GetCombatant().Key);
+		const int32 RankB = Current.VictoryColumnOrder.IndexOfByKey(B.GetCombatant().Key);
+		const int32 KeyA = RankA == INDEX_NONE ? MAX_int32 : RankA;
+		const int32 KeyB = RankB == INDEX_NONE ? MAX_int32 : RankB;
+		if (KeyA != KeyB)
 		{
-			Pawn->PlayVictoryPose(UJRPGBattleRules::VictoryPoseClipName(VictoryPoseColumn));
+			return KeyA < KeyB;
+		}
+		const FVector Origin = Current.GetActorLocation();
+		const FVector Right = Current.GetActorRightVector();
+		return FVector::DotProduct(A.GetActorLocation() - Origin, Right) < FVector::DotProduct(B.GetActorLocation() - Origin, Right);
+	}
+}
+
+void UJRPGBattleSceneSubsystem::EnterVictoryPose(AJRPGBattleArena& Current)
+{
+	VictoryViews.Reset();
+	AJRPGBattleCamera* BattleCamera = Current.GetBattleCameraActor();
+	// A tela dividida precisa da câmera da luta (é ela que filma cada coluna); uma BattleCamera posta à mão fica na tela inteira
+	const bool bSplit = Current.bVictorySplitScreen && IsValid(BattleCamera) && VictoryStanding.Num() >= 2;
+	if (bSplit)
+	{
+		for (const FVictoryView& View : VictoryStanding)
+		{
+			if (View.Pawn.IsValid())
+			{
+				VictoryViews.Add(View);
+			}
+		}
+		// Na ordem das colunas da arena (Noa, Vahn, Gala), o resto da esquerda para a direita
+		VictoryViews.StableSort([&Current](const FVictoryView& A, const FVictoryView& B)
+		{
+			return VictoryColumnBefore(Current, *A.Pawn, *B.Pawn);
+		});
+	}
+	if (VictoryViews.Num() < 2)
+	{
+		VictoryViews.Reset();
+		VictoryViews.Add(FVictoryView{ VictoryPawn, VictoryPoseColumn });
+	}
+
+	if (VictoryViews.Num() >= 2)
+	{
+		if (!SplitView)
+		{
+			SplitView = NewObject<UJRPGBattleSplitView>(this);
+		}
+		if (!SplitView->Start(GetWorld(), VictoryViews.Num(), BattleCamera->GetCameraComponent()))
+		{
+			// Não abriu (co-op local, viewport): a vitória do original numa vista só
+			VictoryViews.Reset();
+			VictoryViews.Add(FVictoryView{ VictoryPawn, VictoryPoseColumn });
+		}
+		else if (SplitView->GetViewCount() < VictoryViews.Num())
+		{
+			VictoryViews.SetNum(SplitView->GetViewCount());   // abriu com menos colunas do que heróis (o limite do viewport)
 		}
 	}
+
+	// As poses: cada vista toca a dela; as vozes são notifies dos clips e tocam juntas, ninguém corta ninguém
+	for (const FVictoryView& View : VictoryViews)
+	{
+		if (AJRPGBattlePawn* Pawn = View.Pawn.Get())
+		{
+			Pawn->PlayVictoryPose(UJRPGBattleRules::VictoryPoseClipName(View.PoseColumn));
+		}
+	}
+
+	// A tela de resultados (o EXP e o Gold são pagos aqui)
+	if (Current.bVictoryResults)
+	{
+		StartVictoryResults(Current);
+	}
+}
+
+bool UJRPGBattleSceneSubsystem::StartVictoryResults(AJRPGBattleArena& Current)
+{
+	UWorld* World = GetWorld();
+	UBattleSubsystem* Battle = GetBattleSubsystem(World);
+	const UGameInstance* GI = World ? World->GetGameInstance() : nullptr;
+	UWebUISubsystem* WebUI = GI ? GI->GetSubsystem<UWebUISubsystem>() : nullptr;
+	if (!Battle || !WebUI)
+	{
+		return false;
+	}
+	// O quadro dos resultados: a vitória é escrita e paga agora, com a ficha de antes e depois de cada herói
+	const FJRPGVictoryResults& Results = Battle->SettleVictory();
+	if (!Results.bValid)
+	{
+		return false;   // luta sem recompensa (bNoRewards): fica o hold do original
+	}
+
+	// Um card por coluna da tela dividida; sem divisão, um por herói de pé, na ordem das colunas
+	TArray<const AJRPGBattlePawn*> CardPawns;
+	const bool bSplit = SplitView && SplitView->IsActive();
+	for (const FVictoryView& View : (bSplit ? VictoryViews : VictoryStanding))
+	{
+		if (const AJRPGBattlePawn* Pawn = View.Pawn.Get())
+		{
+			CardPawns.Add(Pawn);
+		}
+	}
+	if (!bSplit)
+	{
+		CardPawns.StableSort([&Current](const AJRPGBattlePawn& A, const AJRPGBattlePawn& B)
+		{
+			return VictoryColumnBefore(Current, A, B);
+		});
+	}
+
+	const UDataTable* Characters = UCoreSubsystem::ResolveDataTable(TEXT("DT_Characters"));
+	auto IntArray = [](const TArray<int32>& Values)
+	{
+		FString Out;
+		for (const int32 Value : Values)
+		{
+			Out += FString::Printf(TEXT("%s%d"), Out.IsEmpty() ? TEXT("") : TEXT(","), Value);
+		}
+		return FString::Printf(TEXT("[%s]"), *Out);
+	};
+	FString Cards;
+	for (const AJRPGBattlePawn* Pawn : CardPawns)
+	{
+		const FName Key = Pawn->GetCombatant().Key;
+		const FJRPGVictoryHeroResult* Hero = Results.Heroes.FindByPredicate([Key](const FJRPGVictoryHeroResult& H) { return H.Key == Key; });
+		if (!Hero)
+		{
+			continue;
+		}
+		FString Name = Key.ToString();
+		if (const FCharacterData* Row = Characters ? Characters->FindRow<FCharacterData>(Key, TEXT("VictoryResults"), false) : nullptr)
+		{
+			if (!Row->DisplayName.IsEmpty())
+			{
+				Name = Row->DisplayName.ToString();
+			}
+		}
+		Cards += FString::Printf(TEXT("%s{name:%s,lvBefore:%d,lvAfter:%d,expBefore:%d,gained:%d,thresholds:%s,hp:%d,maxHpBefore:%d,maxHpAfter:%d,mp:%d,maxMpBefore:%d,maxMpAfter:%d}"),
+			Cards.IsEmpty() ? TEXT("") : TEXT(","), *JRPGWebUI::ToJSStringLiteral(Name), Hero->LevelBefore, Hero->LevelAfter, Hero->EXPBefore,
+			Hero->EXPGained, *IntArray(Hero->LevelThresholds), Hero->HP, Hero->MaxHPBefore, Hero->MaxHPAfter, Hero->MP, Hero->MaxMPBefore,
+			Hero->MaxMPAfter);
+	}
+	if (Cards.IsEmpty())
+	{
+		return false;
+	}
+
+	// A saída da luta espera a tela; o input do WebUI (o "pular") sem a seção do menu
+	Battle->HoldVictoryEnd(true);
+	bVictoryResultsInput = WebUI->OpenBattleUI(false);
+	// Os sons vão como caminho de asset (o bridge.playsfx carrega um caminho começando com '/'); vazio = mudo
+	auto SoundPath = [](const TSoftObjectPtr<USoundBase>& Sound)
+	{
+		return JRPGWebUI::ToJSStringLiteral(Sound.IsNull() ? FString() : Sound.ToSoftObjectPath().ToString());
+	};
+	WebUI->CallBattleHUD(FString::Printf(TEXT("results({split:%s,gold:%d,sounds:{tick:%s,levelUp:%s},cards:[%s]})"),
+		bSplit ? TEXT("true") : TEXT("false"), Results.Gold, *SoundPath(Current.VictoryResultsTickSound),
+		*SoundPath(Current.VictoryResultsLevelUpSound), *Cards));
+	bVictoryResultsUp = true;
+	// A segurança: sem resposta da tela (o shell não carregou), a luta sai do mesmo jeito
+	World->GetTimerManager().SetTimer(VictoryResultsTimer, FTimerDelegate::CreateWeakLambda(this, [this]() { FinishVictoryResults(false); }),
+		FMath::Max(Current.VictoryResultsMaxSeconds, 1.0f), false);
+	UE_LOG(LogTemp, Log, TEXT("BattleScene: tela de resultados — %d card(s), Gold %d, input %s"), CardPawns.Num(), Results.Gold,
+		bVictoryResultsInput ? TEXT("aberto") : TEXT("ocupado (sem pular)"));
+	return true;
+}
+
+void UJRPGBattleSceneSubsystem::HandleResultsInput(const FString& Action, int32 A, int32 B)
+{
+	if (!bVictoryResultsUp)
+	{
+		return;
+	}
+	if (Action == TEXT("results_skip"))
+	{
+		FinishVictoryResults(true);
+	}
+	else if (Action == TEXT("results_done"))
+	{
+		// A contagem acabou: a tela fica parada mais um pouco antes de a luta sair
+		const AJRPGBattleArena* Current = Arena.Get();
+		const float Linger = Current ? FMath::Max(Current->VictoryResultsLingerSeconds, 0.0f) : 2.5f;
+		if (Linger <= 0.0f)
+		{
+			FinishVictoryResults(false);
+			return;
+		}
+		GetWorld()->GetTimerManager().SetTimer(VictoryResultsTimer, FTimerDelegate::CreateWeakLambda(this, [this]() { FinishVictoryResults(false); }),
+			Linger, false);
+	}
+}
+
+void UJRPGBattleSceneSubsystem::FinishVictoryResults(bool bSkip)
+{
+	if (!bVictoryResultsUp)
+	{
+		return;
+	}
+	HideVictoryResults();
+	if (UBattleSubsystem* Battle = GetBattleSubsystem(GetWorld()))
+	{
+		// Pulou: a luta sai no próximo quadro, sem o resto do hold. Senão o hold do original ainda conta, se faltar
+		if (bSkip)
+		{
+			Battle->EndVictoryNow();
+		}
+		else
+		{
+			Battle->HoldVictoryEnd(false);
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("BattleScene: tela de resultados %s"), bSkip ? TEXT("pulada") : TEXT("acabou"));
+}
+
+void UJRPGBattleSceneSubsystem::HideVictoryResults()
+{
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(VictoryResultsTimer);
+	}
+	if (!bVictoryResultsUp)
+	{
+		return;
+	}
+	bVictoryResultsUp = false;
+	const UGameInstance* GI = GetWorld() ? GetWorld()->GetGameInstance() : nullptr;
+	if (UWebUISubsystem* WebUI = GI ? GI->GetSubsystem<UWebUISubsystem>() : nullptr)
+	{
+		WebUI->CallBattleHUD(TEXT("resultsHide()"));
+		if (bVictoryResultsInput)
+		{
+			WebUI->CloseBattleUI();
+		}
+	}
+	bVictoryResultsInput = false;
+}
+
+AJRPGBattlePawn* UJRPGBattleSceneSubsystem::GetVictoryViewPawn(int32 View) const
+{
+	return VictoryStage == EJRPGBattleVictoryStage::Pose && VictoryViews.IsValidIndex(View) ? VictoryViews[View].Pawn.Get() : nullptr;
 }
 
 void UJRPGBattleSceneSubsystem::UpdateTargetHighlight()
@@ -1617,6 +1922,11 @@ void UJRPGBattleSceneSubsystem::Fade(bool bToBlack)
 	{
 		CameraManager->StartCameraFade(bToBlack ? 0.0f : 1.0f, bToBlack ? 1.0f : 0.0f, TransitionTime,
 			FadeColor, false, bToBlack);
+	}
+	// A tela dividida: o fade é de cada PlayerCameraManager, então as outras colunas escurecem junto
+	if (SplitView && SplitView->IsActive())
+	{
+		SplitView->FadeExtraViews(bToBlack ? 0.0f : 1.0f, bToBlack ? 1.0f : 0.0f, TransitionTime, FadeColor, bToBlack);
 	}
 }
 

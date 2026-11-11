@@ -764,6 +764,10 @@ bool UBattleSubsystem::BeginBattle(const FJRPGBattleSetup& Setup)
 	Accumulator = 0.0;
 	FlushedEvents = 0;
 	FramesSinceFinish = 0;
+	bVictorySettled = false;
+	VictoryResults = FJRPGVictoryResults();
+	bVictoryEndHeld = false;
+	bEndVictoryNow = false;
 	PresentationFrame = 0;
 	PresentationOffset = 0;
 	ResolverStallFrames = 0;
@@ -860,11 +864,17 @@ void UBattleSubsystem::EndBattle(EJRPGBattleResult Result)
 		}
 	}
 
-	WriteBack(Result);
-	if (Result == EJRPGBattleResult::Victory)
+	// A vitória já escrita e paga no quadro dos resultados (SettleVictory) não repete nada
+	if (!(Result == EJRPGBattleResult::Victory && bVictorySettled))
 	{
-		PayRewards();
+		WriteBack(Result);
+		if (Result == EJRPGBattleResult::Victory)
+		{
+			PayRewards();
+		}
 	}
+	bVictoryEndHeld = false;
+	bEndVictoryNow = false;
 
 	UE_LOG(LogTemp, Log, TEXT("BattleSubsystem: luta acabou (%s)"), *StaticEnum<EJRPGBattleResult>()->GetNameStringByValue(static_cast<int64>(Result)));
 	OnBattleEnded.Broadcast(Result);
@@ -984,7 +994,47 @@ void UBattleSubsystem::PayRewards()
 			Participants.Add(C.Key);
 		}
 	}
+	// A ficha de cada um antes do EXP (a tela de resultados conta de um para o outro)
+	VictoryResults = FJRPGVictoryResults();
+	VictoryResults.bValid = true;
+	for (const FName& Key : Participants)
+	{
+		FJRPGPartyMember Member;
+		if (Party->GetMember(Key, Member))
+		{
+			FJRPGVictoryHeroResult& Hero = VictoryResults.Heroes.AddDefaulted_GetRef();
+			Hero.Key = Key;
+			Hero.LevelBefore = Member.Level;
+			Hero.EXPBefore = Member.ExperienceTotal;
+			Hero.MaxHPBefore = Member.MaxHP;
+			Hero.MaxMPBefore = Member.MaxMP;
+		}
+	}
 	const int32 PerHero = Party ? Party->AwardBattleXPToParticipants(RawEXP, Participants) : 0;
+	// E depois: o level, o EXP, o HP / MP (o level-up sobe o máximo) e o EXP de cada level cruzado, mais o do próximo
+	for (FJRPGVictoryHeroResult& Hero : VictoryResults.Heroes)
+	{
+		FJRPGPartyMember Member;
+		if (!Party->GetMember(Hero.Key, Member))
+		{
+			continue;
+		}
+		Hero.LevelAfter = Member.Level;
+		Hero.EXPAfter = Member.ExperienceTotal;
+		Hero.EXPGained = FMath::Max(Hero.EXPAfter - Hero.EXPBefore, 0);
+		Hero.HP = Member.HP;
+		Hero.MaxHPAfter = Member.MaxHP;
+		Hero.MP = Member.MP;
+		Hero.MaxMPAfter = Member.MaxMP;
+		if (Core)
+		{
+			const int32 Top = FMath::Min(Hero.LevelAfter + 1, Core->GetMaxLevel());
+			for (int32 Level = Hero.LevelBefore + 1; Level <= Top; ++Level)
+			{
+				Hero.LevelThresholds.Add(Core->GetXPForLevelForSlot(Level, Member.XPCurveSlot));
+			}
+		}
+	}
 
 	// TODO(Fase 7): o Golden Book (o bônus de Gold) entra aqui quando o item e o equipamento dos heróis forem lidos
 	// da luta; até lá o Gold sai sempre sem ele.
@@ -998,6 +1048,7 @@ void UBattleSubsystem::PayRewards()
 			Core->AddGold(Gold);
 		}
 	}
+	VictoryResults.Gold = FMath::Max(Gold, 0);
 	UE_LOG(LogTemp, Log, TEXT("BattleSubsystem: recompensa — EXP cru %d (%d cada, %d herói(s) vivo(s)), Gold %d"), RawEXP, PerHero, Participants.Num(), Gold);
 }
 
@@ -1153,11 +1204,36 @@ void UBattleSubsystem::StepFrame()
 		++FramesSinceFinish;
 	}
 	OnLogicFrame.Broadcast(PresentationFrame);
-	// Segura a tela de resultados (a pose de vitória, 256 vsyncs no original) antes de fechar
-	if (bInBattle && Resolver.IsFinished() && FramesSinceFinish >= FinishHoldFor(Resolver.GetResult()))
+	// Segura a tela de resultados (a pose de vitória, 256 vsyncs no original) antes de fechar. Nossa tela de resultados segura mais
+	// (HoldVictoryEnd) ou pede a saída já (EndVictoryNow, o "pular")
+	if (bInBattle && Resolver.IsFinished())
 	{
-		EndBattle(Resolver.GetResult());
+		const bool bVictory = Resolver.GetResult() == EJRPGBattleResult::Victory;
+		if (bVictory && bEndVictoryNow)
+		{
+			EndBattle(Resolver.GetResult());
+		}
+		else if (FramesSinceFinish >= FinishHoldFor(Resolver.GetResult()) && !(bVictory && bVictoryEndHeld))
+		{
+			EndBattle(Resolver.GetResult());
+		}
 	}
+}
+
+const FJRPGVictoryResults& UBattleSubsystem::SettleVictory()
+{
+	if (!bInBattle || !Resolver.IsFinished() || Resolver.GetResult() != EJRPGBattleResult::Victory)
+	{
+		static const FJRPGVictoryResults Invalid;
+		return Invalid;
+	}
+	if (!bVictorySettled)
+	{
+		bVictorySettled = true;
+		WriteBack(EJRPGBattleResult::Victory);
+		PayRewards();
+	}
+	return VictoryResults;
 }
 
 int32 UBattleSubsystem::FinishHoldFor(EJRPGBattleResult Result) const

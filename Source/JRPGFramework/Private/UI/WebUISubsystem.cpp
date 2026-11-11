@@ -2018,7 +2018,7 @@ void UWebUISubsystem::OpenItemsScreen()
 // Menu de comandos da luta
 // ============================================================
 
-bool UWebUISubsystem::OpenBattleUI()
+bool UWebUISubsystem::OpenBattleUI(bool bShowMenu)
 {
 	if (CurrentState == EJRPGUIState::BattleOpen)
 	{
@@ -2038,7 +2038,7 @@ bool UWebUISubsystem::OpenBattleUI()
 	ApplyUIFocus();
 	SetStateInternal(EJRPGUIState::BattleOpen);
 	// O JS revalida via UIState.canOpen (defesa em profundidade); a view chega em seguida, por UpdateBattleUI
-	DispatchJS(TEXT("JRPGBattle.open();"));
+	DispatchJS(bShowMenu ? TEXT("JRPGBattle.open();") : TEXT("JRPGBattle.open({hidden:true});"));
 	return true;
 }
 
