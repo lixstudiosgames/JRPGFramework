@@ -34,8 +34,11 @@ public:
 	 *
 	 * Enquanto está aberta, nenhuma coluna usa o SSGI (o pós-processo das câmeras força a GI dinâmica em None; a da luta volta no
 	 * Stop): o SSGI da engine guarda um AO só para a tela inteira (o ensure "one AO texture per view" com mais de uma vista) e custa
-	 * de novo em cada coluna. Nem o Distance Field AO do sky light (o show flag do viewport, devolvido no Stop): cada coluna nova
-	 * monta o cache dele do zero, e eram ~450 ms de travada nos primeiros quadros da divisão (medido em PIE, 2026-11-11).
+	 * de novo em cada coluna. Nem os distance fields da cena (r.DistanceFieldAO 0, devolvido no Stop): cada coluna nova é um
+	 * FSceneViewState novo e monta o Global Distance Field do zero (os clipmaps, que o DFAO do sky light e o material da mist
+	 * usam), ~450 ms de travada nos primeiros quadros (render 170 ms, GPU 411 ms; medido em PIE, 2026-11-11). O show flag
+	 * DistanceFieldAO não basta: ele só tira o passe do AO, e a mist ainda pede o Global DF. Sem ele, a mist que depende do
+	 * distance field (o chão, as paredes) pode sumir nas colunas durante a pose.
 	 */
 	bool Start(UWorld* InWorld, int32 Count, UCameraComponent* MainLens);
 
@@ -77,6 +80,8 @@ private:
 	uint8 SavedThreeLayout = 0;
 	uint8 SavedFourLayout = 0;
 	bool bSavedForceDisable = false;
-	/** O show flag do Distance Field AO do viewport antes do Start. */
-	bool bSavedDistanceFieldAO = true;
+	/** O r.DistanceFieldAO antes do Start e quem o pôs (a prioridade é mantida ao desligar e ao devolver). */
+	int32 SavedDistanceFieldAO = 1;
+	uint32 SavedDistanceFieldAOSetBy = 0;
+	bool bDistanceFieldAOChanged = false;
 };

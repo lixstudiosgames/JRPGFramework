@@ -8,6 +8,7 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "GameMapsSettings.h"
+#include "HAL/IConsoleManager.h"
 
 bool UJRPGBattleSplitView::Start(UWorld* InWorld, int32 Count, UCameraComponent* MainLens)
 {
@@ -50,9 +51,19 @@ bool UJRPGBattleSplitView::Start(UWorld* InWorld, int32 Count, UCameraComponent*
 	{
 		Viewport->SetForceDisableSplitscreen(false);
 	}
-	// Sem o Distance Field AO do sky light enquanto a tela está dividida (ver o .h): antes de as colunas renderizarem
-	bSavedDistanceFieldAO = Viewport->EngineShowFlags.DistanceFieldAO != 0;
-	Viewport->EngineShowFlags.SetDistanceFieldAO(false);
+	// Sem os distance fields da cena enquanto a tela está dividida (ver o .h), antes de as colunas renderizarem. Com a mesma
+	// prioridade de quem pôs o valor: a escalabilidade ou o console continuam mandando nele depois
+	bDistanceFieldAOChanged = false;
+	if (IConsoleVariable* DistanceFieldAO = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DistanceFieldAO")))
+	{
+		SavedDistanceFieldAO = DistanceFieldAO->GetInt();
+		SavedDistanceFieldAOSetBy = static_cast<uint32>(DistanceFieldAO->GetFlags()) & static_cast<uint32>(ECVF_SetByMask);
+		if (SavedDistanceFieldAO != 0)
+		{
+			DistanceFieldAO->Set(0, static_cast<EConsoleVariableFlags>(SavedDistanceFieldAOSetBy));
+			bDistanceFieldAOChanged = true;
+		}
+	}
 
 	World = InWorld;
 	bActive = true;
@@ -197,7 +208,15 @@ void UJRPGBattleSplitView::Stop()
 	{
 		// O SetForceDisableSplitscreen refaz o layout: o jogador 0 volta para a tela inteira
 		Viewport->SetForceDisableSplitscreen(bSavedForceDisable);
-		Viewport->EngineShowFlags.SetDistanceFieldAO(bSavedDistanceFieldAO);
+	}
+	// Os distance fields voltam (a tela já está preta: o Global DF da vista do jogador se refaz sem ninguém ver)
+	if (bDistanceFieldAOChanged)
+	{
+		if (IConsoleVariable* DistanceFieldAO = IConsoleManager::Get().FindConsoleVariable(TEXT("r.DistanceFieldAO")))
+		{
+			DistanceFieldAO->Set(SavedDistanceFieldAO, static_cast<EConsoleVariableFlags>(SavedDistanceFieldAOSetBy));
+		}
+		bDistanceFieldAOChanged = false;
 	}
 	World = nullptr;
 	UE_LOG(LogTemp, Log, TEXT("BattleSplitView: tela inteira de novo"));
