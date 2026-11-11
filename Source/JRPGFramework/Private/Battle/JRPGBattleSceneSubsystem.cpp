@@ -13,6 +13,7 @@
 #include "Battle/JRPGBattleArena.h"
 #include "Battle/JRPGBattlePawn.h"
 #include "Battle/JRPGBattleCamera.h"
+#include "Battle/JRPGBattleRules.h"
 #include "JRPGBattleIntroEffect.h"
 #include "JRPGBattleTransition.h"
 #include "Battle/EnemyData.h"
@@ -912,6 +913,95 @@ void UJRPGBattleSceneSubsystem::HandleLogicFrame(int32 Frame)
 	}
 	UpdateCameraGhost(Battle, Acting);
 	UpdateTargetHighlight();
+	if (Battle)
+	{
+		UpdateVictory(*Battle, *Current);
+	}
+}
+
+void UJRPGBattleSceneSubsystem::ResetVictory()
+{
+	VictoryStage = EJRPGBattleVictoryStage::None;
+	VictoryPawn = nullptr;
+	VictoryPoseColumn = 0;
+}
+
+void UJRPGBattleSceneSubsystem::UpdateVictory(const UBattleSubsystem& Battle, AJRPGBattleArena& Current)
+{
+	const FJRPGBattleState& State = Battle.GetState();
+	if (!Current.bVictorySequence || !State.bFinished || State.Result != EJRPGBattleResult::Victory
+		|| VictoryStage == EJRPGBattleVictoryStage::Pose)
+	{
+		return;
+	}
+
+	if (VictoryStage == EJRPGBattleVictoryStage::None)
+	{
+		// Quem posa: o herói da última ação, se está de pé (o braço de vitória do 0x5A); senão um herói de pé sorteado; as lutas
+		// do Songi forçam o lugar (UJRPGBattleRules::VictoryPoseSeat). De pé = vivo e com o pawn em cena (o original levanta o
+		// caído com 1 de HP no quadro dos resultados; aqui o caído fica no chão até a luta desmontar)
+		TArray<const FJRPGCombatant*> SeatCombatants;
+		TArray<AJRPGBattlePawn*> SeatPawns;
+		TArray<bool> SeatStanding;
+		int32 FirstMonsterArchiveID = -1;
+		for (const FJRPGCombatant& Combatant : State.Combatants)
+		{
+			if (Combatant.Side != EJRPGBattleSide::Party)
+			{
+				if (Combatant.SideIndex == 0)
+				{
+					FJRPGEnemyData Row;
+					if (UJRPGEncounterLibrary::GetEnemyData(Combatant.Key, Row))
+					{
+						FirstMonsterArchiveID = Row.MonsterArchiveID;
+					}
+				}
+				continue;
+			}
+			if (Combatant.SideIndex < 0)
+			{
+				continue;
+			}
+			if (Combatant.SideIndex >= SeatStanding.Num())
+			{
+				SeatCombatants.SetNum(Combatant.SideIndex + 1);
+				SeatPawns.SetNum(Combatant.SideIndex + 1);
+				SeatStanding.SetNum(Combatant.SideIndex + 1);
+			}
+			AJRPGBattlePawn* Pawn = Current.GetPawnForSlot(Combatant.SlotIndex);
+			SeatCombatants[Combatant.SideIndex] = &Combatant;
+			SeatPawns[Combatant.SideIndex] = Pawn;
+			SeatStanding[Combatant.SideIndex] = Combatant.HP > 0 && IsValid(Pawn) && !Pawn->IsHidden() && !Pawn->IsDefeated();
+		}
+		// A última ação: o Finish só apaga o bActive, o Slot fica com quem agiu
+		const FJRPGCombatant* Acting = State.Combatants.IsValidIndex(State.Action.Slot) ? &State.Combatants[State.Action.Slot] : nullptr;
+		const int32 ActingSeat = Acting && Acting->Side == EJRPGBattleSide::Party ? Acting->SideIndex : -1;
+		const int32 Seat = UJRPGBattleRules::VictoryPoseSeat(ActingSeat, SeatStanding, FirstMonsterArchiveID, FMath::Rand());
+		const FJRPGCombatant* Poser = SeatCombatants.IsValidIndex(Seat) ? SeatCombatants[Seat] : nullptr;
+		AJRPGBattlePawn* PoserPawn = SeatPawns.IsValidIndex(Seat) ? SeatPawns[Seat] : nullptr;
+		if (!Poser || !PoserPawn)
+		{
+			return;   // ninguém de pé para posar (não deveria numa vitória): o hold segue no plano geral
+		}
+		// O tier pelo HP de quem posa e pelas rodadas já fechadas; os status fracos (a máscara 0x107B) são da Fase 8. Os sorteios
+		// são cosméticos: fora do Rng das regras
+		const int32 Tier = UJRPGBattleRules::VictoryPoseTier(Poser->HP, Poser->MaxHP, FMath::Max(State.Round - 1, 0), false);
+		VictoryPoseColumn = UJRPGBattleRules::VictoryPoseColumn(Tier, FMath::Rand(), FMath::Rand());
+		VictoryPawn = PoserPawn;
+		VictoryStage = EJRPGBattleVictoryStage::StandOff;
+		UE_LOG(LogTemp, Log, TEXT("BattleScene: vitória — %s posa (HP %d/%d, rodada %d, tier %d): %s"), *Poser->Key.ToString(), Poser->HP,
+			Poser->MaxHP, State.Round, Tier, *UJRPGBattleRules::VictoryPoseClipName(VictoryPoseColumn).ToString());
+	}
+
+	// O quadro dos resultados: a pose entra (e a voz com ela, o notify do clip)
+	if (Battle.GetFramesSinceFinish() >= Battle.VictoryLoadFrames)
+	{
+		VictoryStage = EJRPGBattleVictoryStage::Pose;
+		if (AJRPGBattlePawn* Pawn = VictoryPawn.Get())
+		{
+			Pawn->PlayVictoryPose(UJRPGBattleRules::VictoryPoseClipName(VictoryPoseColumn));
+		}
+	}
 }
 
 void UJRPGBattleSceneSubsystem::UpdateTargetHighlight()
@@ -1250,6 +1340,7 @@ void UJRPGBattleSceneSubsystem::EnterBattleScene()
 	GhostMaterial = Arena.IsValid() && !Arena->CameraGhostMaterial.IsNull() ? Arena->CameraGhostMaterial.LoadSynchronous() : nullptr;
 	VoiceActionIndex = INDEX_NONE;
 	VoiceStepIndex = INDEX_NONE;
+	ResetVictory();
 	Phase = EPhase::Assembled;
 	if (GetTransitionTime() > 0.0f && bEntryFadeIn)
 	{
@@ -1452,6 +1543,7 @@ void UJRPGBattleSceneSubsystem::LeaveBattleScene()
 	GhostOpacity.Reset();
 	GhostHoldUntil.Reset();
 	GhostMaterial = nullptr;
+	ResetVictory();
 	if (AJRPGBattleArena* Current = Arena.Get())
 	{
 		Current->TeardownBattle();

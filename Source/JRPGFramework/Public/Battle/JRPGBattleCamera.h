@@ -80,7 +80,13 @@ enum class EJRPGBattleShot : uint8
 	 * A abertura da luta (a varredura do FUN_80046A20, antes do tick da luta): de trás da party, a câmera sobe e se aproxima por
 	 * EntryDrift, depois fecha no centro da arena (o caso 2) e fica lá com os nomes dos inimigos.
 	 */
-	Entry
+	Entry,
+	/**
+	 * A vitória (o sequenciador FUN_8004E568, UJRPGBattleSceneSubsystem::GetVictoryStage): primeiro o "stand-off" do caso 8 em quem
+	 * posa (a espera antes da pose), depois o braço "battle-over" do caso 6, de frente para ele, movido pelo script de câmera da
+	 * pose de vitória de cada herói enquanto ela toca.
+	 */
+	Victory
 };
 
 /**
@@ -389,6 +395,36 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Action", meta = (ClampMin = "0.0"))
 	float DoneHoldSeconds = 1.0f;
 
+	// --- Vitória (UJRPGBattleSceneSubsystem::GetVictoryStage) -------------------------------------
+
+	/** Usar as tomadas da vitória. Desligado, o hold da vitória fica no plano geral. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Victory")
+	bool bVictoryShots = true;
+
+	/**
+	 * A espera antes da pose (o "stand-off" do caso 8, 0x801D6B9C): inclinação 0, TR (0, VictoryStandOffLiftUnits, raio * 5 / 2) com
+	 * o raio do corpo do herói (0x280 em todo membro da party), o giro pela escada da última ação.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Victory")
+	float VictoryStandOffLiftUnits = 1024.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Victory", meta = (ClampMin = "0.0"))
+	float VictoryBodyRadiusUnits = 640.0f;
+
+	/**
+	 * A pose (o braço "battle-over" do caso 6, 0x801D5CFC): de frente para o herói (0x800 - a frente dele), a distância crua
+	 * VictoryDepthUnits (0x500), o olho a VictoryHeightScale vezes a altura do centro do corpo, com o piso VictoryFloorUnits (0x280;
+	 * um quarto do que falta vira inclinação). O script de cada herói / pose soma a isto com o acumulador (8 por quadro de tela).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Victory", meta = (ClampMin = "0.0"))
+	float VictoryDepthUnits = 1280.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Victory")
+	float VictoryHeightScale = 5.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Victory")
+	float VictoryFloorUnits = 640.0f;
+
 	/** Mostrar na tela o enquadramento e a pose (debug no PIE). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Debug")
 	bool bPrintDebug = false;
@@ -415,6 +451,8 @@ protected:
 	bool BuildOnTargetPose(float DeltaSeconds, FJRPGBattleCameraPose& OutPose);
 	/** A varredura da abertura: a subida (bEntryDrifting, a pose de uma vez) e depois o caso 2. */
 	bool BuildEntryPose(FJRPGBattleCameraPose& OutPose);
+	/** A vitória: o stand-off em quem posa e, com a pose tocando, o braço battle-over com o script da pose (zera rampa e acumulador no commit dela). */
+	bool BuildVictoryPose(FJRPGBattleCameraPose& OutPose);
 
 	/**
 	 * A câmera própria da Art que toca (o override do original): monta a pose do braço dela e devolve os passos do ease-out dele
@@ -493,6 +531,8 @@ private:
 	bool bHasPose = false;
 	/** A varredura está na subida (a pose anda por conta própria, sem o ease-out). */
 	bool bEntryDrifting = false;
+	/** A pose de vitória já entrou para a câmera (o commit do clip zerou a rampa e o acumulador). */
+	bool bVictoryCommitted = false;
 
 	// O estado da ação (UpdateActionState): quem age e o alvo, a ação (pelo índice), o tipo, a escada do giro, o ângulo sorteado,
 	// a distância, o primeiro golpe, a faixa do fim e o ramp da queda

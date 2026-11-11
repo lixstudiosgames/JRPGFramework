@@ -89,4 +89,38 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "JRPG|Battle|Rules")
 	static int32 VictoryGold(const TArray<int32>& DefeatedEnemyGold, bool bGoldenBook, EJRPGRuleset Ruleset);
+
+	/**
+	 * O tier da pose de vitória de quem posa (FUN_8004E568, 0x8004E78C..0x8004E83C): 0 saudável (HP >= 3/4 do máximo), 1 (>= 1/2),
+	 * 2 (>= 1/4), 3 abaixo disso. Duas passadas envelhecem o tier em 1 enquanto Round >= tier * 2 + 2 e tier < 3 (uma luta longa
+	 * cansa a pose), e um status fraco (a máscara 0x107B do original) força o 4. Round = as rodadas já fechadas (0 na primeira).
+	 */
+	UFUNCTION(BlueprintPure, Category = "JRPG|Battle|Rules")
+	static int32 VictoryPoseTier(int32 HP, int32 MaxHP, int32 Round, bool bWeakStatus);
+
+	/**
+	 * A coluna da pose na tabela do herói (0x8004E870..0x8004EAEC): 0-1 o par saudável (Victory1 / 2), 2-3 o alternativo
+	 * (VictoryAlt1 / 2), 4-5 o fraco (VictoryWeak1 / 2). PairRoll escolhe o par (tier 0: saudável 3 em 4; 1: meio a meio com o
+	 * alternativo; 2: alternativo ou fraco; 3: fraco 3 em 4; 4: sempre fraco, sem gastar o sorteio) e MemberRoll o membro do par.
+	 * Os sorteios são cosméticos: quem chama usa um stream que não é o das regras.
+	 */
+	UFUNCTION(BlueprintPure, Category = "JRPG|Battle|Rules")
+	static int32 VictoryPoseColumn(int32 Tier, int32 PairRoll, int32 MemberRoll);
+
+	/** O nome do clip da coluna (o papel que o Extras/ps1_party_sounds.py deu: AS_<Herói>_Battle_<nome>); NAME_None fora de 0..5. */
+	static FName VictoryPoseClipName(int32 Column);
+
+	/** As lutas do Songi forçam quem posa pelo id do primeiro monstro (DT_Enemies.MonsterArchiveID): 0xB3 -> lugar 2, 0xB4 -> lugar 1. */
+	static constexpr int32 VictoryPoseSongiMonsterA = 0xB3;
+	static constexpr int32 VictoryPoseSongiMonsterB = 0xB4;
+
+	/**
+	 * O lugar do grupo (SideIndex) de quem posa na vitória: o braço de vitória do estado 0x5A (0x801E6688..0x801E676C, RE
+	 * battle-round-loop.md "Enemy-ally charm at the end-of-action gate"). Quem fez a última ação posa se está de pé (ActingSeat, -1
+	 * quando quem agiu não é um herói); senão Roll sorteia um herói de pé (o original repete rand % tamanho até cair num vivo: a
+	 * mesma chance para cada um). Depois as lutas do Songi forçam o lugar pelo primeiro monstro (FirstMonsterArchiveID). Nosso: o
+	 * lugar forçado e o de quem agiu só valem de pé (o original levanta o caído com 1 de HP; o nosso fica no chão). SeatStanding:
+	 * um por lugar do grupo. -1 = ninguém de pé. Roll é cosmético: quem chama usa um stream que não é o das regras.
+	 */
+	static int32 VictoryPoseSeat(int32 ActingSeat, const TArray<bool>& SeatStanding, int32 FirstMonsterArchiveID, int32 Roll);
 };

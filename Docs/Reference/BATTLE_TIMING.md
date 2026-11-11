@@ -254,8 +254,10 @@ the signal):
 | 336 | exit fade spawned (black, `0x40` frames) |
 | 402 | battle exits (`ctx[+0x6CE] >= 0x43`) |
 
-**CONFIRMED** (one capture; the 80 varies with the CD). The win pose is the party **leader's**, from a table keyed by the HP
-quarter tier, round count and a weak-status mask.
+**CONFIRMED** (one capture; the 80 varies with the CD). The win pose is played by the hero whose action ended the fight (the
+state `0x5A` victory arm, `0x801E6688..0x801E676C`: a living acting actor keeps the pose slot, a dead one re-rolls a living
+party member, the Songi fights force a slot; the capture had the leader acting last), from a table keyed by the HP quarter tier,
+round count and a weak-status mask.
 
 **Defeat.** The same sequencer lands on its last phase at once (no CD loads), shows the loss window, holds `0x100` and fades,
 flooring the party's HP at 1 on the fade frame: about 256 + 66 = **322 vsyncs** from the signal. **INFERRED** (not captured). A

@@ -272,9 +272,9 @@ The action SM stops on the signal; the sequencer runs every frame until its phas
 
 | Item | Original | Ours |
 |---|---|---|
-| Win pose | the **leader** (`ctx[+0x13]`, always seat 0) poses; clip from the SCUS table `0x800788A0` by HP-quarter tier, round count, weak-status mask; one of the eight base-archive records `0x11..0x18`, **held** through the 256 hold (loop window `+0x85..+0x86`) | **missing** (`VictoryHoldFrames` 256 holds on idle) |
-| Hero voice | the leader's victory clip from `monster.snd` (slot 7) | missing (section 9) |
-| Victory camera | load window: stand-off framing case 8 on the leader; from the results frame: case 6 battle-over arm, the per-character win-pose camera script advancing `8` a frame | missing (section 7) |
+| Win pose | the hero whose action ended the fight poses (the `0x5A` victory arm `0x801E6688..0x801E676C`: a living acting actor keeps the slot, a dead one re-rolls a living party member, first monster `0xB3` / `0xB4` force slot 2 / 1; the RE's earlier "always the leader" reading came from a capture where the leader acted last, bug 89); clip from the SCUS table `0x800788A0` by HP-quarter tier, round count, weak-status mask; one of the eight base-archive records `0x11..0x18`, **held** through the 256 hold (loop window `+0x85..+0x86`) | **have** (6.1, 2026-11-10, tested in PIE): `UJRPGBattleSceneSubsystem::UpdateVictory` -> `AJRPGBattlePawn::PlayVictoryPose`; the pick is `UJRPGBattleRules::VictoryPoseSeat` / `VictoryPoseTier` / `VictoryPoseColumn`. Ours: a downed hero never poses (the forced Songi slot only when standing; the original lifts the downed to 1 HP); the weak-status mask waits for Phase 8; the round count is taken as the rounds already closed |
+| Hero voice | the leader's victory clip from `monster.snd` (slot 7) | **have**: the notify already on the pose clip plays it |
+| Victory camera | load window: stand-off framing case 8 on the leader; from the results frame: case 6 battle-over arm, the per-character win-pose camera script advancing `8` a frame | **have** (`EJRPGBattleShot::Victory`, `AJRPGBattleCamera::BuildVictoryPose`); the load window is kept as `UBattleSubsystem::VictoryLoadFrames` (80) |
 | Result window | element `0x41`: `288 x 42` framed window sliding from `(16, 236)` to `(16, 160)`, "<leader> / team ... victory" text; level-up window `0x44 + mask` + cue `0x50` | WebUI results (check against this) |
 | Loss window | element `0x42`, same box, defeat text; HP floored at 1 on the fade frame; unscripted wipe -> title, cursor on CONTINUE, no GAME OVER art | `Defeat` result; check the routing |
 | Exit fade | kind 2 (subtractive) to black, `0x40` frames, then exit at phase `0x43` | scene `Fade` |
@@ -872,15 +872,14 @@ original's HUD look (ours is our own design).
 | 4. Remaining sounds | **Done, to build and test** (2026-11-06): the Arts shout, the starter fanfare and the block grunt (`FJRPGBattleVoices`, `DT_BattleVoices` + `DT_ArtVoices` from `Extras/ps1_battle_voices.py`), battle music from the disc (`DT_BattleMusic`, picked per boss / arena). Menu blips dropped: the WebUI's `SFX_*` already are the original's sounds (user). Level-up cue and victory voice go with step 6. |
 | 5. Battle start | **In progress** (2026-11-07), parts 5.1-5.3 below: 5.1 (rules) and 5.2 (intro) written, to build and test; 5.3 to do. |
 | 5b. Field-to-battle transition | **Written** (2026-11-07), 5b.1 and 5b.2 together, to build and test. |
-| 6. Battle end | To do, parts 6.1-6.3. |
+| 6. Battle end | **In progress** (2026-11-10): 6.1 (win pose, voice, victory camera) **done**, tested OK in PIE by the user; 6.2 and 6.3 to do. Rewards are still paid at `EndBattle` (after the hold), not on the results frame. |
 
 Open items that are not a step of their own (details in `Docs/BATTLE_PHASE5_BUGS.md`):
 
-- **Re-test after the next build:** bugs 37-39 and 41-43 (Arts shout slow window, loop sounds, camera long arc, the doubled slow
-  on Miracle, a new Art entering by the SpecialStarter, AP on damage taken). 34b and 40 confirmed working by the user.
-- **Bug 29** (some hits do not land): diagnostics in (1d); still open until a repro is matched to a cause. Bug 40 (missing
-  low flinch on Gimard) may have been part of it.
-- **Bug 36** (a long wait before round 2 once): not investigated.
+- **Re-tested, all working** (user, 2026-11-10): bugs 37-39 and 41-43 (Arts shout slow window, loop sounds, camera long arc, the
+  doubled slow on Miracle, a new Art entering by the SpecialStarter, AP on damage taken), and 34b and 40 before them. The open
+  bugs are 85-87 (`Docs/BATTLE_PHASE5_BUGS.md`, "Status of the open entries").
+- **Bugs 29** (some hits do not land) **and 36** (a long wait before round 2): fixed, no longer happen in play (user, 2026-11-10).
 - **The dasher's speed** in the SpecialStarter is now the original's 1/4 (scale 2, the `0x1A` arm; user, 2026-11-06); it was 1/2.
   Re-test the Hyper / Super / Miracle / new-Art starters.
 - **Formation recentre** (`AJRPGBattleArena::bRecentreFormation`): the camera now follows `OnFormationShifted`, so turning it on
@@ -942,7 +941,7 @@ user. Data generators are listed where a step needs disc numbers (outside the re
    - **5b.1** The frame: the capture, the overlay, the style pick, the timing, the fade ramps, the start cue (`0x1F`, `0x4D` on a
      scripted fight), the hand-off to the battle scene (replaces the plain `Fade` at the start), and the tile shatter (default).
    - **5b.2** The other four styles: scatter, spin-up (with its ring), curtain, swirl.
-6. **Battle end** (4.6): the loop window per clip (6.2), the leader's **win pose** held through the 256 hold, the victory camera
+6. **Battle end** (4.6): the loop window per clip (6.2), the **win pose** (the hero of the last action) held through the 256 hold, the victory camera
    (7.8), the victory voice and level-up cue (9.2), the result / loss screens (our design).
    - **Parts (2026-11-07):**
      - **6.1 Victory sequence.** The RE timeline (signal, 80-frame load window with case 8's stand-off on the leader, the results
@@ -953,6 +952,11 @@ user. Data generators are listed where a step needs disc numbers (outside the re
      - **6.3 Result and loss windows** (our design) in the battle WebUI: `<leader>'s team won the battle!`, EXP and Gold gained,
        who levelled up; `<leader>'s team was annihilated.` / `<leader> is out of strength.`
 7. After that, order to decide:
+   - **the heroes' facial expressions in battle** (user's note, 2026-11-10, to do later): the faces change during the fight and
+     on the win poses. The user's reading of the RE, **not checked yet**: the face's texture tile is swapped for another part of
+     the sheet that holds a different expression. Start from the RE's `crates/actor-formats/src/face_anim.rs` and
+     `docs/subsystems/battle-actor-rendering.md` before deciding how to do it here (a UV offset or a texture swap on the face
+     material, driven per clip);
    - our HUD (10.1) with the **enemy HP bars**, replacing the debug text;
    - effects (8.5): the per-clip effect notifies and `DT_BattleEffects`, hit burst, dust, Spirit aura, hit tint, **the user's
      aura** at the Special starter dash and chained Arts, weapon trail, damage numbers, Arts banner;

@@ -413,7 +413,8 @@ Bug 20 (miss sound) confirmed fixed in PIE. Worked on in parts.
 
 #### PIE pass 6 (2026-11-05) — open, not looked at yet
 
-29. **Some hits do not land on the enemy** (no damage / no reaction where the swing should connect). Not investigated. Suspects:
+29. **Some hits do not land on the enemy** (no damage / no reaction where the swing should connect). **Fixed** (user, 2026-11-10:
+    no longer happens in play). Suspects at the time:
     the hit timing from `DT_ArtHits` / the approach wait, the arrival shove or separation moving the target out of the swing, or the
     reach clamp of the end step. Note which hero, which Art or swing, and which enemy.
 30. **Slash Kick still slides at the very end.** After the pass-5 change (end step slid over the idle crossfade, clamped to the edge
@@ -533,7 +534,8 @@ tables of 1c first.
 #### PIE pass 7 (2026-11-05) — open, not looked at yet
 
 36. **Long wait before round 2.** Once, the fight took noticeably longer than usual to go from the end of round 1 to round 2's
-    command phase; every animation played normally, only the gap was long. Not investigated. Suspects: the rules' reaction hold
+    command phase; every animation played normally, only the gap was long. **Fixed** (user, 2026-11-10: no longer happens in play).
+    Suspects at the time: the rules' reaction hold
     computed at the hit's (slow-motion) speed after an Art (`BATTLE_TIMING.md` 9, item 14: the next action can wait longer than the
     body needs); the idle hand-off wait of the last clip (`MaxIdleHandoffWait`); a monster's death fade holding the round end; the
     approach stall (`StallResolver`) of an action that did not walk. Note which hero / Art ended round 1 and whether a monster died.
@@ -948,12 +950,32 @@ tables of 1c first.
 88. **Dev menu: an equipment tab** (a feature, not a bug). Equip the Ra-Seru and any weapon / armour / accessory on any hero from
     the dev menu, to test the equipment in a fight (the pieces, the swings of `DT_HeroSwings`, the stats).
 
+#### Pass 22 (2026-11-10) — the victory sequence, noted, not started
+
+89. **The wrong hero plays the win pose.** Noa killed the last enemy and Vahn (the leader) posed; it must be the hero who
+    defeated the last enemy (user, playing the original's behaviour). Ours picks the party's seat 0
+    (`UJRPGBattleSceneSubsystem::UpdateVictory`), from the RE's reading "the leader poses" (`battle-round-loop.md`, "The pose
+    actor is `ctx[+0x13]`"). The same RE file describes the other reading in its `0x5A` monster-wipe arm (`0x801E6688..0x801E6790`):
+    a **living acting actor keeps the pose slot**, a dead one re-rolls a random living party member, and the Songi fights force a
+    slot (first monster id `0xB3` -> slot 2, `0xB4` -> slot 1). To do: pose the hero whose action ended the fight (the last
+    action's actor when it is a living hero), with those fallbacks; the camera and the pose pick already follow whoever poses.
+    - **Fixed (re-test).** New rule `UJRPGBattleRules::VictoryPoseSeat` (the `0x5A` arm): the hero of the last action
+      (`State.Action.Slot`, kept after `Finish`) poses if standing; a downed actor or a monster acting last re-rolls a standing
+      hero (cosmetic `FMath::Rand`, same chance for each, like the original's `rand % count` loop); first monster
+      `MonsterArchiveID` `0xB3` / `0xB4` forces seat 2 / 1, only when that seat is standing (ours keeps the downed on the
+      floor). `UJRPGBattleSceneSubsystem::UpdateVictory` measures who is standing and calls it. Test `JRPG.Battle.VictoryPose`.
+
 #### Status of the open entries (user, 2026-11-10)
 
 The entries above keep the text of the day they were written. What the user confirmed since, playing:
 
-- **Fixed:** 29 (hits that did not land), 36 (the long wait before round 2), 44 (Noa's sprint), 46 (music underneath), 66 (the
+- **Fixed:** 30 (Slash Kick sliding at the very end), 31 (Gimard inside Vahn), 57 (the monster's death sound),
+  29 (hits that did not land), 36 (the long wait before round 2), 44 (Noa's sprint), 46 (music underneath), 66 (the
   voice of Vulture Blade and Burning Flare), 82 (no flinch on some hits of Neo Static Raising).
+- **Fixed, re-test done:** 37 (the Arts' shout slow), 38 (the Slime's walk sound), 39 (the action camera changing side), 41 (the
+  doubled slow on Miracle), 42 (the special starter of a new Art), 43 (AP on damage taken).
+- **Fixed too:** 84 (two Hypers in a row, the second without its fanfare).
+- **Fixed, to re-test:** 89 (the win pose goes to the hero who killed the last enemy; PR #17).
 - **Still open, for the next fix pass:** 85 (the light floor on night maps), 86 (the impact sound on a blocked hit), 87 (the
   party enters the fight with the Ra-Seru equipped).
 - **To do, a feature:** 88 (the dev menu's equipment tab).

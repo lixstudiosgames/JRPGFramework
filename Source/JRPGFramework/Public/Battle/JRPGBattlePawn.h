@@ -335,6 +335,23 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle")
 	bool IsDown() const { return bDown; }
 
+	/**
+	 * A pose de vitória (o quadro dos resultados do original: FUN_8004E568 põe o clip 0x11..0x18 em quem posa): toca o clip do papel
+	 * dado (UJRPGBattleRules::VictoryPoseClipName) uma vez e fica nele até o fim da luta, pelo trecho de laço do clip
+	 * (UJRPGAnimNotify_LoopWindow, 255 = até trocar) ou, sem ele, no último quadro. A voz do herói é um notify do próprio clip.
+	 * Falso (e nada muda) se ele está caído, agindo, ou não tem o clip.
+	 */
+	bool PlayVictoryPose(FName ClipRole);
+
+	/** Está na pose de vitória (nada o devolve ao idle até a luta desmontar). */
+	bool IsOnVictoryPose() const { return bVictoryPose; }
+
+	/**
+	 * A altura do centro do corpo acima dos pés, em cm, na pose de agora (o Y do "display position" +0x3E do original: o par vivo
+	 * mais o centroide da pose). A câmera da vitória põe o olho a 5 vezes isto.
+	 */
+	float GetBodyHeightCm() const;
+
 	// --- O que a câmera da luta lê ---------------------------------------------------------------
 
 	/** A timeline da ação em curso (nula fora de ação). */
@@ -868,6 +885,8 @@ private:
 	/** Quadros lógicos vistos com o idle tocando (a pose só é medida depois de a mistura de entrada acabar). */
 	int32 IdleFramesSeen = 0;
 	bool bDown = false;
+	/** Na pose de vitória (PlayVictoryPose): o idle não volta. */
+	bool bVictoryPose = false;
 
 	/** O último quadro lógico que o pawn viu (UpdatePlayback / BeginAction): a hora dos sons de clip e do log. */
 	int32 LastLogicFrame = 0;
