@@ -122,8 +122,8 @@ void UJRPGRandomEncounterSubsystem::Tick(float DeltaTime)
 		bHasTile = false;
 		if (Zone && Zone->bPrintDebug && GEngine)
 		{
-			GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Cyan, FString::Printf(TEXT("RandomEncounter: entrou em %s (taxa %d)"),
-				*Zone->GetActorNameOrLabel(), Zone->GetEffectiveEncounterRate()));
+			GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Cyan, FString::Printf(TEXT("RandomEncounter: entrou em %s (taxa %d, passo %.0f cm)"),
+				*Zone->GetActorNameOrLabel(), Zone->GetEffectiveEncounterRate(), Zone->GetStepLength(Player)));
 		}
 	}
 	if (!Zone)
@@ -131,8 +131,12 @@ void UJRPGRandomEncounterSubsystem::Tick(float DeltaTime)
 		return;
 	}
 
-	const double Step = FMath::Max(static_cast<double>(Zone->StepLength), 1.0);
-	const FIntPoint Tile(FMath::FloorToInt32(Location.X / Step), FMath::FloorToInt32(Location.Y / Step));
+	if (!bHasTile)
+	{
+		// O tamanho do passo fica o mesmo enquanto ele está nesta zona (a grade não muda debaixo dele)
+		StepLength = FMath::Max(static_cast<double>(Zone->GetStepLength(Player)), 1.0);
+	}
+	const FIntPoint Tile(FMath::FloorToInt32(Location.X / StepLength), FMath::FloorToInt32(Location.Y / StepLength));
 	if (!bHasTile)
 	{
 		LastTile = Tile;

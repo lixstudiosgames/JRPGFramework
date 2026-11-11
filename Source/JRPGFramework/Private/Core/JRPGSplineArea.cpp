@@ -86,6 +86,22 @@ float FJRPGSplineArea::DistanceOutside(const FVector& Point) const
 	return static_cast<float>(FMath::Sqrt(Best));
 }
 
+float FJRPGSplineArea::DistanceInside(const FVector& Point) const
+{
+	if (!IsValid() || !Contains(Point))
+	{
+		return 0.0f;
+	}
+	const FVector2D P(Point.X, Point.Y);
+	double Best = TNumericLimits<double>::Max();
+	for (int32 i = 0, j = Points.Num() - 1; i < Points.Num(); j = i++)
+	{
+		const FVector2D Closest = FMath::ClosestPointOnSegment2D(P, Points[j], Points[i]);
+		Best = FMath::Min(Best, FVector2D::DistSquared(P, Closest));
+	}
+	return static_cast<float>(FMath::Sqrt(Best));
+}
+
 bool FJRPGSplineArea::RandomPoint(FVector2D& OutPoint, int32 Attempts) const
 {
 	if (!IsValid())

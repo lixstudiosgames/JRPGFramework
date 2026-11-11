@@ -52,8 +52,9 @@ encounter's main enemy) and a **red icon** above it; zones show a red ring icon 
 and their shape — so they are easy to find on the map. Both are editor-only.
 - Speeds, radii and the rest below, if the defaults do not suit.
 
-The map needs a **NavMeshBoundsVolume** covering the area. Without a navmesh the enemies still
-work, walking straight at their target.
+The map needs a **NavMeshBoundsVolume** covering the area. A zone spawns only on navmesh
+reachable from its pivot (`bRequireNavmesh`, on by default); a single enemy without a navmesh
+still works, walking straight at its target.
 
 ### A single enemy
 
@@ -78,18 +79,23 @@ Drop a **`JRPGEncounterZone`**:
 | `MinAlive` / `MaxAlive` (*Spawn*) | How many walk the zone at once, rolled in this range when the zone starts (2..3) |
 | `MinSpacing` / `MaxSpacing` (*Spawn*) | A new enemy is at least `MinSpacing` (400 cm) from the others of the zone and, with `MaxSpacing` (0 = no limit), at most that from the nearest one, so the group neither stacks nor scatters |
 | `bAvoidObstacles` / `ObstacleClearance` (*Spawn*) | Never spawn inside objects: the enemy's capsule (+10 cm) at the drawn point must not touch anything static or dynamic (rocks, walls, crates) |
+| `EdgeMargin` (*Spawn*) | Nobody spawns, comes back or wanders closer than this to the zone's edge (200 cm): the spline is not exact |
+| `bRequireNavmesh` (*Spawn*) | Only navmesh points **reachable on foot from the zone's pivot**: nothing on top of a rock, on a navmesh island or off the navigation. Off, a map without navmesh still spawns on the traced floor |
 | `RespawnDelayMin/Max` (*Respawn*) | An enemy that touched the player comes back after this (40..70 s), at a new point |
 | `PostBattleNoChaseMin/Max` (*Respawn*) | After a fight, each enemy of the zone spends a time rolled in this range (7..15 s) without chasing the player; it still wanders |
 | `RequiredFlagID` / `bRequiredFlagValue` (*Unlock*) | The zone only works with this WorldState event flag at this value |
 | `DisableFlagID` (*Unlock*) | The zone switches **off** while this flag is set (an area cleared in the story). Works together with `RequiredFlagID`: a zone can open at one point of the story and close at another |
-| `bRandomEncounters` / `EncounterRate` / `StepLength` / `Priority` / `LowRateFlagID` / `LowRatePercent` (*Random Encounters*) | Random fights while the player walks in the zone, [below](#random-encounters) |
+| `bRandomEncounters` / `EncounterRate` / `StepMode` / `StepLength` / `Priority` / `LowRateFlagID` / `LowRatePercent` (*Random Encounters*) | Random fights while the player walks in the zone, [below](#random-encounters) |
 | `bPreviewSpawns` / `bPreviewMeshes` / `bPreviewOnlyWhenSelected`, **Reroll Preview** (*Preview*) | The editor preview, below |
 
 Enemies spawn on navmesh points **inside the shape**, wander inside it, and when they give up a
 chase they walk back into it. The zone's `Enemy` / Custom Encounter replaces each enemy's own.
 
-**Where they spawn.** Each spawn and respawn draws up to 16 floor points inside the shape and keeps
-the first one that is away from the player (outside his `DetectRadius` + 2 m), at `MinSpacing` /
+**Where they spawn.** The floor points come from the navmesh **reachable on foot from the zone's
+pivot** (the actor: place it on the zone's walkable ground; the preview marks where it found the
+navmesh with a cyan sphere), inside the shape and at least `EdgeMargin` from its edge; wandering
+uses the same points, so enemies also stay off the edge. Each spawn and respawn draws up to 16 of
+them and keeps the first one that is away from the player (outside his `DetectRadius` + 2 m), at `MinSpacing` /
 `MaxSpacing` from the enemies of the zone in view and, with `bAvoidObstacles`, with the capsule
 clear of objects. A point inside an object is never used; if no point meets the distances, the one
 that misses them by the least is used (with `bPrintDebug`, a yellow message says so: the zone is
@@ -105,8 +111,10 @@ around it (two circles that do not touch are at least `MinSpacing` apart) and, w
 `bPreviewMeshes`, the enemy's model (`Visuals`, or the `DT_Enemies` model of each enemy of the
 encounter in turn). **Green** = the `MinAlive` that always spawn, **blue** = the ones that may
 spawn (up to `MaxAlive`), **yellow** = no point met the spacing. The draw changes every time the
-zone is edited, and with **Reroll Preview**; in the game each start draws again. Points that found
-no floor at all are reported in the Output Log.
+zone is edited, and with **Reroll Preview**; in the game each start draws again. The cyan sphere
+is the navmesh point under the pivot that the draw starts from. Points that found no place at all
+(no reachable navmesh, an `EdgeMargin` too large for the zone, everything inside objects) are
+reported in the Output Log.
 
 **The details panel** has one section per actor — *Field Enemy*, *Encounter Zone*, *Battle
 Arena* — with at most one level of subsections (*Area*, *Respawn*, *Detection*…); rarely
@@ -154,10 +162,22 @@ rolled from the **same list** as its roaming enemies (`Enemy` / Custom Encounter
 
   The world map's story groups switch which regions are live, so the same map can feel faster or
   slower after an event.
-- **A step** is entering a neighbouring tile of `StepLength` (55.4 cm: the original's 128-unit
-  tile). Moving more than one tile at once (a door, a warp) is not a step. The steps above match
-  the original only on a map at the PS1 scale: a map built larger needs a `StepLength` larger by
-  the same factor.
+- **A step** is entering a neighbouring tile. The original counts 128-unit tiles, and what makes a
+  rate feel like it does is the **time** it takes to cross one walking: 16 vsyncs (0.27 s) in a town
+  or dungeon, and 39 vsyncs (0.65 s) on the world map, where the figure walks slower and never
+  runs (RE `world-map.md`, "Overworld walk speed and clip"). So `StepMode` measures the tile by the
+  player's walking speed (`AJRPGFieldCharacter::WalkSpeed`, per map with the map settings):
+  **`FieldWalk`** (default) = `WalkSpeed × 0.27 s` (≈ 80 cm at 300 cm/s), **`WorldMapWalk`** =
+  `WalkSpeed × 0.65 s` (≈ 195 cm): a fight comes after the same walking time as in the original,
+  at any map scale. **`FixedLength`** uses `StepLength` in cm. Sprinting covers more tiles per
+  second, so fights come sooner, as running does in the original. Moving more than one tile at
+  once (a door, a warp) is not a step. With `bPrintDebug`, entering the zone prints its step.
+
+  | Zone | `EncounterRate` / `StepMode` | Walking time per fight (average) |
+  |---|---|---|
+  | World map | 42 / `WorldMapWalk` | ~15 s |
+  | World map, quieter regions | 32 / `WorldMapWalk` | ~20 s |
+  | Most dungeons | 20 / `FieldWalk` | ~13 s |
 - **Steps that do not count**: with a menu or dialogue open, with the field control off (doors,
   scenes), during a fight and while the field is hidden, and in the encounter grace after a fight.
 - **`LowRateFlagID`** lowers this zone's rate to `LowRatePercent` (50 = half, like the original's

@@ -3,6 +3,8 @@
 #include "Battle/JRPGBattleSceneSubsystem.h"
 #include "Battle/BattleSubsystem.h"
 #include "Field/JRPGRandomEncounterSubsystem.h"
+#include "Field/JRPGFieldCharacter.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "World/WorldStateSubsystem.h"
 #include "Components/BillboardComponent.h"
 #include "Components/BoxComponent.h"
@@ -113,16 +115,21 @@ void AJRPGEncounterZone::Tick(float DeltaSeconds)
 	{
 		return;
 	}
-	float Radius = 40.0f;
+	float CapsuleRadius = 40.0f;
 	float HalfHeight = 90.0f;
-	GetSpawnCapsule(nullptr, Radius, HalfHeight);
+	GetSpawnCapsule(nullptr, CapsuleRadius, HalfHeight);
 	const int32 Always = FMath::Min(MinAlive, MaxAlive);
+	if (PreviewAnchor.IsSet())
+	{
+		// De onde o sorteio procura o navmesh alcançável
+		DrawDebugSphere(World, PreviewAnchor.GetValue() + FVector(0.0, 0.0, 20.0), 25.0f, 12, FColor::Cyan, false, -1.0f, 0, 2.0f);
+	}
 	for (int32 i = 0; i < PreviewPoints.Num(); ++i)
 	{
 		const FVector& Floor = PreviewPoints[i];
 		const FColor Color = PreviewImperfect.IsValidIndex(i) && PreviewImperfect[i] ? FColor(255, 210, 0)
 			: i < Always ? FColor(60, 220, 90) : FColor(80, 160, 255);
-		DrawDebugCapsule(World, Floor + FVector(0.0, 0.0, HalfHeight), HalfHeight, Radius, FQuat::Identity, Color, false, -1.0f, 0, 2.0f);
+		DrawDebugCapsule(World, Floor + FVector(0.0, 0.0, HalfHeight), HalfHeight, CapsuleRadius, FQuat::Identity, Color, false, -1.0f, 0, 2.0f);
 		if (MinSpacing > 0.0f)
 		{
 			DrawDebugCircle(World, Floor + FVector(0.0, 0.0, 3.0), MinSpacing * 0.5f, 32, Color, false, -1.0f, 0, 2.0f,
@@ -473,9 +480,9 @@ bool AJRPGEncounterZone::PickPointAmong(const TArray<FVector>& Others, const AJR
 		return false;
 	}
 
-	float Radius = 40.0f;
+	float CapsuleRadius = 40.0f;
 	float HalfHeight = 90.0f;
-	GetSpawnCapsule(Self, Radius, HalfHeight);
+	GetSpawnCapsule(Self, CapsuleRadius, HalfHeight);
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(JRPGEncounterZoneSpawn), false, this);
 	if (Self)
 	{
@@ -484,9 +491,9 @@ bool AJRPGEncounterZone::PickPointAmong(const TArray<FVector>& Others, const AJR
 	FCollisionObjectQueryParams Objects;
 	Objects.AddObjectTypesToQuery(ECC_WorldStatic);
 	Objects.AddObjectTypesToQuery(ECC_WorldDynamic);
-	const FCollisionShape Capsule = FCollisionShape::MakeCapsule(Radius + ObstacleClearance, HalfHeight + ObstacleClearance);
+	const FCollisionShape Capsule = FCollisionShape::MakeCapsule(CapsuleRadius + ObstacleClearance, HalfHeight + ObstacleClearance);
 	// A cápsula sobe um pouco do chão: o próprio chão (e uma rampa leve) não conta como obstáculo
-	const float Lift = HalfHeight + ObstacleClearance + Radius * 0.5f + 5.0f;
+	const float Lift = HalfHeight + ObstacleClearance + CapsuleRadius * 0.5f + 5.0f;
 
 	bool bFound = false;
 	float BestPenalty = TNumericLimits<float>::Max();
@@ -563,10 +570,16 @@ void AJRPGEncounterZone::RebuildPreview()
 	PreviewPoints.Reset();
 	PreviewImperfect.Reset();
 	PreviewMissing = 0;
+	PreviewAnchor.Reset();
 	UWorld* World = GetWorld();
 	if (!World || World->IsGameWorld() || IsTemplate() || !bPreviewSpawns)
 	{
 		return;
+	}
+	FVector Anchor;
+	if (FindNavAnchor(Anchor))
+	{
+		PreviewAnchor = Anchor;
 	}
 
 	// Os pontos, um por vez, com as regras do jogo: cada um conta os anteriores como "os outros"
@@ -585,7 +598,7 @@ void AJRPGEncounterZone::RebuildPreview()
 	}
 	if (PreviewMissing > 0)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("EncounterZone %s: %d de %d inimigo(s) do preview sem lugar (sem chão na zona, ou tudo dentro de objetos)"),
+		UE_LOG(LogTemp, Warning, TEXT("EncounterZone %s: %d de %d inimigo(s) do preview sem lugar (sem navmesh alcançável do pivô, a EdgeMargin grande para a zona, ou tudo dentro de objetos)"),
 			*GetActorNameOrLabel(), PreviewMissing, Count);
 	}
 
@@ -678,19 +691,110 @@ bool AJRPGEncounterZone::GetRandomFloorPointAway(const FVector& Avoid, float Min
 	return bFound;
 }
 
+float AJRPGEncounterZone::GetSearchHeight() const
+{
+	return GetEffectiveShape() == EJRPGEncounterZoneShape::Box ? FMath::Max(BoxExtent.Z, 100.0f) : FloorSearchDistance;
+}
+
+bool AJRPGEncounterZone::IsUsableFloor(const FVector& Point) const
+{
+	return DistanceInside(Point) >= FMath::Max(EdgeMargin, 1.0f)
+		&& FMath::Abs(Point.Z - GetActorLocation().Z) <= GetSearchHeight();
+}
+
+bool AJRPGEncounterZone::FindNavAnchor(FVector& OutAnchor) const
+{
+	const UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+	if (!Nav)
+	{
+		return false;
+	}
+	// O pivô primeiro (quem monta a zona põe o ator no chão andável dela); senão o centro da forma, na altura do ator
+	TArray<FVector> Tries = { GetActorLocation() };
+	if (GetEffectiveShape() == EJRPGEncounterZoneShape::Spline)
+	{
+		const FVector2D Centre = SplineArea.GetCenter();
+		Tries.Add(FVector(Centre.X, Centre.Y, GetActorLocation().Z));
+	}
+	const FVector Extent(150.0f, 150.0f, GetSearchHeight());
+	for (const FVector& Try : Tries)
+	{
+		FNavLocation OnNav;
+		if (Nav->ProjectPointToNavigation(Try, OnNav, Extent) && DistanceOutside(OnNav.Location) <= 0.0f)
+		{
+			OutAnchor = OnNav.Location;
+			return true;
+		}
+	}
+	return false;
+}
+
+float AJRPGEncounterZone::GetReachRadiusFrom(const FVector& From) const
+{
+	const FVector Scale = GetActorScale3D().GetAbs();
+	switch (GetEffectiveShape())
+	{
+	case EJRPGEncounterZoneShape::Spline:
+	{
+		// O canto mais longe da caixa do contorno
+		const FBox2D& Box = SplineArea.Bounds;
+		double Best = 0.0;
+		for (const FVector2D& Corner : { Box.Min, Box.Max, FVector2D(Box.Min.X, Box.Max.Y), FVector2D(Box.Max.X, Box.Min.Y) })
+		{
+			Best = FMath::Max(Best, FVector2D::Distance(FVector2D(From.X, From.Y), Corner));
+		}
+		return static_cast<float>(Best);
+	}
+	case EJRPGEncounterZoneShape::Box:
+		return static_cast<float>(FVector::Dist2D(From, GetActorLocation()) + FVector2D(BoxExtent.X * Scale.X, BoxExtent.Y * Scale.Y).Size());
+	default:
+		return static_cast<float>(FVector::Dist2D(From, GetActorLocation()) + Radius * FMath::Max(Scale.X, Scale.Y));
+	}
+}
+
 bool AJRPGEncounterZone::GetRandomFloorPoint(FVector& OutFloor) const
 {
 	const UWorld* World = GetWorld();
 	const UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
 	const FTransform& T = GetActorTransform();
 	const EJRPGEncounterZoneShape Effective = GetEffectiveShape();
-	const float SearchZ = Effective == EJRPGEncounterZoneShape::Box ? FMath::Max(BoxExtent.Z, 100.0f) : FloorSearchDistance;
+	const float SearchZ = GetSearchHeight();
+
+	// Com navmesh: só pontos ALCANÇÁVEIS a pé do pivô (nada em cima de rocha ou em ilha de navmesh), dentro da forma e longe
+	// da borda (EdgeMargin)
+	FVector Anchor;
+	if (Nav && FindNavAnchor(Anchor))
+	{
+		const float Reach = GetReachRadiusFrom(Anchor);
+		for (int32 i = 0; i < PointAttempts * 2; ++i)
+		{
+			FNavLocation Point;
+			if (Nav->GetRandomReachablePointInRadius(Anchor, Reach, Point) && IsUsableFloor(Point.Location))
+			{
+				OutFloor = Point.Location;
+				return true;
+			}
+		}
+		return false;   // a zona é pequena para a EdgeMargin, ou o navmesh alcançável quase não entra nela
+	}
+	if (bRequireNavmesh)
+	{
+		if (!bWarnedNoNavmesh)
+		{
+			bWarnedNoNavmesh = true;
+			// Aviso sempre, com ou sem bPrintDebug: é problema do mapa, não da zona
+			const FString Line = FString::Printf(TEXT("EncounterZone %s: sem navmesh embaixo do pivô da zona (Build > Build Paths, NavMeshBoundsVolume, ou o ator fora do chão andável) — nenhum inimigo nasce (bRequireNavmesh)"), *GetActorNameOrLabel());
+			UE_LOG(LogTemp, Warning, TEXT("%s"), *Line);
+			if (GEngine && World && World->IsGameWorld())
+			{
+				GEngine->AddOnScreenDebugMessage(-1, 8.0f, FColor::Orange, Line);
+			}
+		}
+		return false;
+	}
+
+	// Sem navmesh (bRequireNavmesh desligado): o chão achado por trace dentro da forma, longe da borda
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(JRPGEncounterZoneFloor), false, this);
-
-	// Chão achado mas fora do navmesh: serve se nenhum ponto cair no navmesh (mapa sem navmesh,
-	// ou ele ainda não foi gerado) — o inimigo anda reto quando não há caminho
-	TOptional<FVector> FloorWithoutNav;
-
 	for (int32 i = 0; i < PointAttempts; ++i)
 	{
 		FVector Candidate;
@@ -716,51 +820,54 @@ bool AJRPGEncounterZone::GetRandomFloorPoint(FVector& OutFloor) const
 
 		// O chão embaixo (ou em cima) do ponto: a zona pode estar no ar ou meio enterrada
 		FHitResult Hit;
-		const bool bFloor = World->LineTraceSingleByChannel(Hit, Candidate + FVector(0.0f, 0.0f, SearchZ),
-			Candidate - FVector(0.0f, 0.0f, SearchZ), ECC_Visibility, Params);
-
-		if (Nav)
-		{
-			// Com chão achado, projeta perto dele; sem, procura o navmesh na altura toda
-			const FVector From = bFloor ? FVector(Hit.ImpactPoint) : Candidate;
-			const FVector Extent(50.0f, 50.0f, bFloor ? 150.0f : SearchZ);
-			FNavLocation OnNav;
-			if (Nav->ProjectPointToNavigation(From, OnNav, Extent) && DistanceOutside(OnNav.Location) <= 0.0f)
-			{
-				OutFloor = OnNav.Location;
-				return true;
-			}
-			if (bFloor && !FloorWithoutNav.IsSet())
-			{
-				FloorWithoutNav = FVector(Hit.ImpactPoint);
-			}
-			continue;
-		}
-
-		if (bFloor)
+		if (World->LineTraceSingleByChannel(Hit, Candidate + FVector(0.0f, 0.0f, SearchZ), Candidate - FVector(0.0f, 0.0f, SearchZ),
+			ECC_Visibility, Params) && IsUsableFloor(Hit.ImpactPoint))
 		{
 			OutFloor = Hit.ImpactPoint;
 			return true;
 		}
 	}
-
-	if (FloorWithoutNav.IsSet())
-	{
-		if (!bWarnedNoNavmesh)
-		{
-			bWarnedNoNavmesh = true;
-			// Aviso sempre, com ou sem bPrintDebug: é problema do mapa, não da zona
-			const FString Line = FString::Printf(TEXT("EncounterZone %s: o navmesh não cobre a zona (Build > Build Paths, ou falta NavMeshBoundsVolume) — os inimigos nascem no chão e andam reto"), *GetActorNameOrLabel());
-			UE_LOG(LogTemp, Warning, TEXT("%s"), *Line);
-			if (GEngine)
-			{
-				GEngine->AddOnScreenDebugMessage(-1, 8.0f, FColor::Orange, Line);
-			}
-		}
-		OutFloor = FloorWithoutNav.GetValue();
-		return true;
-	}
 	return false;
+}
+
+float AJRPGEncounterZone::DistanceInside(const FVector& Point) const
+{
+	const EJRPGEncounterZoneShape Effective = GetEffectiveShape();
+	if (Effective == EJRPGEncounterZoneShape::Spline)
+	{
+		return SplineArea.DistanceInside(Point);
+	}
+	const FVector Scale = GetActorScale3D().GetAbs();
+	if (Effective == EJRPGEncounterZoneShape::Sphere)
+	{
+		const float ScaledRadius = Radius * FMath::Max(Scale.X, Scale.Y);
+		return FMath::Max(0.0f, ScaledRadius - static_cast<float>(FVector::Dist2D(Point, GetActorLocation())));
+	}
+	const FVector Local = GetActorTransform().InverseTransformPosition(Point);
+	const float Dx = (BoxExtent.X - FMath::Abs(static_cast<float>(Local.X))) * Scale.X;
+	const float Dy = (BoxExtent.Y - FMath::Abs(static_cast<float>(Local.Y))) * Scale.Y;
+	return FMath::Max(0.0f, FMath::Min(Dx, Dy));
+}
+
+float AJRPGEncounterZone::GetStepLength(const APawn* Player) const
+{
+	if (StepMode == EJRPGEncounterStepMode::FixedLength)
+	{
+		return FMath::Max(StepLength, 10.0f);
+	}
+	// A velocidade de andar do jogador aqui (a do personagem do Field; senão a do movimento)
+	float Speed = 300.0f;
+	if (const AJRPGFieldCharacter* Character = Cast<AJRPGFieldCharacter>(Player))
+	{
+		Speed = Character->WalkSpeed;
+	}
+	else if (const ACharacter* Other = Cast<ACharacter>(Player))
+	{
+		Speed = Other->GetCharacterMovement()->MaxWalkSpeed;
+	}
+	// O tempo que o original leva para cruzar um tile de 128 unidades andando: 16 vsyncs numa cidade, 39 no mapa-múndi
+	const float Seconds = StepMode == EJRPGEncounterStepMode::WorldMapWalk ? 39.0f / 60.0f : 16.0f / 60.0f;
+	return FMath::Max(Speed * Seconds, 10.0f);
 }
 
 float AJRPGEncounterZone::DistanceOutside(const FVector& Point) const

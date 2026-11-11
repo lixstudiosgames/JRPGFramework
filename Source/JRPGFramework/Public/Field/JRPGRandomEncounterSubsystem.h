@@ -12,8 +12,9 @@ class AJRPGEncounterZone;
  * das AJRPGEncounterZone com bRandomEncounters e, quando o contador global (UBattleSubsystem::GetEncounterCounter) chega a
  * zero, pede a luta à zona.
  *
- * - Um passo = entrar num tile vizinho (o tile tem o StepLength da zona; o do original, 128 unidades = 55.4 cm). Andar mais
- *   de um tile de uma vez (teletransporte, porta, warp) não é passo: não desconta nem sorteia.
+ * - Um passo = entrar num tile vizinho; o tile tem o GetStepLength da zona (o tempo que o original leva para cruzar 128
+ *   unidades andando, na velocidade de andar do jogador; ou um tamanho fixo). Andar mais de um tile de uma vez
+ *   (teletransporte, porta, warp) não é passo: não desconta nem sorteia.
  * - A zona do passo: a de maior Priority entre as que contêm o jogador (ContainsPoint), ligadas pelas flags; empate, a que
  *   se registrou primeiro. Fora de toda zona com taxa, nada conta (e nada desconta).
  * - Não conta nada (só guarda o tile) com menu ou diálogo aberto (WebUI fora de HudOnly), com o controle do Field
@@ -52,5 +53,7 @@ private:
 	TArray<TWeakObjectPtr<AJRPGEncounterZone>> Zones;
 	TWeakObjectPtr<AJRPGEncounterZone> CurrentZone;
 	FIntPoint LastTile = FIntPoint::ZeroValue;
+	/** O tamanho do passo da zona atual (AJRPGEncounterZone::GetStepLength), guardado ao entrar nela. */
+	double StepLength = 80.0;
 	bool bHasTile = false;
 };

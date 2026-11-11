@@ -29,6 +29,24 @@ enum class EJRPGEncounterZoneShape : uint8
 	Spline
 };
 
+/** O que é um passo dos encontros aleatórios (o tile de 128 unidades do original, medido em tempo de andar). */
+UENUM(BlueprintType)
+enum class EJRPGEncounterStepMode : uint8
+{
+	/**
+	 * O tile de uma cidade / dungeon do original: o que ele leva andando para cruzar 128 unidades (16 vsyncs, 0,27 s), na
+	 * velocidade de andar do jogador aqui (WalkSpeed). 300 cm/s = um passo a cada ~80 cm.
+	 */
+	FieldWalk,
+	/**
+	 * O tile do mapa-múndi: lá o boneco anda mais devagar e não corre, 39 vsyncs por tile (0,65 s). 300 cm/s = um passo a
+	 * cada ~195 cm.
+	 */
+	WorldMapWalk,
+	/** StepLength, em cm, fixo. */
+	FixedLength
+};
+
 /**
  * AJRPGEncounterZone
  * Área do mapa onde inimigos do Field nascem, passeiam e reaparecem.
@@ -145,10 +163,19 @@ public:
 	int32 EncounterRate = 20;
 
 	/**
-	 * O tamanho de um passo, em cm: o tile de 128 unidades do original (128 x 0.433005 = 55.4 cm). Cada vez que o jogador
-	 * entra num tile vizinho conta um passo. Mapas numa escala maior que a do PS1 pedem um passo maior.
+	 * O que conta como um passo. O original conta tiles de 128 unidades, e o tempo que se leva para cruzar um é o que faz a
+	 * taxa render o que rende: FieldWalk (cidades e dungeons, 0,27 s por tile) e WorldMapWalk (mapa-múndi, 0,65 s) medem o
+	 * passo pelo tempo de andar do jogador (WalkSpeed), então a luta sai no mesmo tempo de caminhada que no original em
+	 * qualquer escala de mapa. FixedLength usa o StepLength.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Random Encounters", meta = (ClampMin = "10.0", EditCondition = "bRandomEncounters"))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Random Encounters", meta = (EditCondition = "bRandomEncounters"))
+	EJRPGEncounterStepMode StepMode = EJRPGEncounterStepMode::FieldWalk;
+
+	/**
+	 * StepMode = FixedLength: o tamanho de um passo, em cm (o tile do original na escala dele: 128 x 0.433005 = 55.4 cm).
+	 * Cada vez que o jogador entra num tile vizinho conta um passo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Random Encounters", meta = (ClampMin = "10.0", EditCondition = "bRandomEncounters && StepMode == EJRPGEncounterStepMode::FixedLength", EditConditionHides))
 	float StepLength = 55.4246f;
 
 	/** Zonas sobrepostas: vale a de maior prioridade (empate: a que começou primeiro). */
@@ -193,6 +220,21 @@ public:
 	/** Folga a mais em volta da cápsula no teste de objetos (cm). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Spawn", meta = (ClampMin = "0.0", EditCondition = "bAvoidObstacles"))
 	float ObstacleClearance = 10.0f;
+
+	/**
+	 * Distância mínima (cm, no plano) da borda da zona para dentro: ninguém nasce, volta ou passeia colado no contorno (o
+	 * spline não é milimétrico). Zona pequena demais para a margem: nenhum ponto serve (o preview mostra).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Spawn", meta = (ClampMin = "0.0"))
+	float EdgeMargin = 200.0f;
+
+	/**
+	 * Só pontos do navmesh ALCANÇÁVEIS a pé a partir do pivô da zona (o ator): nada em cima de rocha, ilha de navmesh ou
+	 * fora da navegação. O pivô tem que estar no chão andável da zona (o preview marca de onde ele procura). Desligado, um
+	 * mapa sem navmesh ainda cria os inimigos no chão achado (eles andam reto).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Spawn")
+	bool bRequireNavmesh = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Respawn", meta = (ClampMin = "0.0"))
 	float RespawnDelayMin = 40.0f;
@@ -297,6 +339,14 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Encounter Zone")
 	bool ContainsPoint(const FVector& Point) const;
 
+	/** 0 fora; dentro, a distância no plano até a borda (o EdgeMargin compara com isto). */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Encounter Zone")
+	float DistanceInside(const FVector& Point) const;
+
+	/** O tamanho de um passo para este jogador (StepMode: pelo WalkSpeed dele, ou o StepLength). */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Encounter Zone")
+	float GetStepLength(const APawn* Player) const;
+
 	/** A taxa de agora: 0 sem bRandomEncounters ou com a zona desligada; com o LowRateFlagID ligado, a LowRatePercent dela. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Encounter Zone")
 	int32 GetEffectiveEncounterRate() const;
@@ -336,6 +386,14 @@ private:
 	void Respawn(TWeakObjectPtr<AJRPGFieldEnemy> Enemy);
 	/** A cápsula do inimigo (a dele, ou a do CDO do EnemyClass). */
 	void GetSpawnCapsule(const AJRPGFieldEnemy* Self, float& OutRadius, float& OutHalfHeight) const;
+	/** De onde o navmesh é procurado: o pivô da zona projetado no navmesh (senão o centro da forma). */
+	bool FindNavAnchor(FVector& OutAnchor) const;
+	/** Até onde, no plano, a forma vai a partir de um ponto (o raio do sorteio alcançável). */
+	float GetReachRadiusFrom(const FVector& From) const;
+	/** A altura de busca do chão (Box: BoxExtent.Z; senão FloorSearchDistance). */
+	float GetSearchHeight() const;
+	/** O ponto serve: dentro da forma a EdgeMargin da borda e na faixa de altura. */
+	bool IsUsableFloor(const FVector& Point) const;
 	/**
 	 * O miolo do PickSpawnPoint: o espaçamento conta de Others. OutPenalty = o quanto o ponto escolhido passa das distâncias
 	 * (0 = perfeito).
@@ -370,6 +428,8 @@ private:
 	TArray<FVector> PreviewPoints;
 	TArray<bool> PreviewImperfect;
 	int32 PreviewMissing = 0;
+	/** De onde o sorteio procura o navmesh (bRequireNavmesh); sem valor = não achou. */
+	TOptional<FVector> PreviewAnchor;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<USkeletalMeshComponent>> PreviewMeshes;
