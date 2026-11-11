@@ -196,3 +196,47 @@ TArray<FString> UJRPGEncounterLibrary::GetEnemyKeyOptions()
 	Out.Sort();
 	return Out;
 }
+
+// =================================================================================================
+// Encontros aleatórios: o contador de passos do original (FUN_801D9E1C)
+// =================================================================================================
+
+int32 UJRPGEncounterLibrary::RerollEncounterCounter(int32 RollA, int32 RollB)
+{
+	const int32 A = static_cast<int32>(static_cast<uint32>(RollA) % static_cast<uint32>(EncounterCounterMod));
+	const int32 B = static_cast<int32>(static_cast<uint32>(RollB) % static_cast<uint32>(EncounterCounterMod));
+	return EncounterCounterBase + A - B;
+}
+
+int32 UJRPGEncounterLibrary::TopUpEncounterCounter(int32 Counter, int32 RollA, int32 RollB)
+{
+	if (Counter >= EncounterCounterMod)
+	{
+		return Counter;
+	}
+	// (r + (r >>> 31)) >> 1: metade arredondando para zero (r é sempre positivo aqui)
+	return Counter + RerollEncounterCounter(RollA, RollB) / 2;
+}
+
+bool UJRPGEncounterLibrary::StepEncounterCounter(int32& Counter, int32 Rate)
+{
+	const int32 Next = Counter - FMath::Max(Rate, 0);
+	if (Next > 0)
+	{
+		Counter = Next;
+		return false;
+	}
+	Counter = Next;
+	return true;
+}
+
+int32 UJRPGEncounterLibrary::ScaleEncounterRate(int32 Rate, bool bLowRate, int32 LowRatePercent)
+{
+	const int32 Base = FMath::Max(Rate, 0);
+	return bLowRate ? Base * FMath::Max(LowRatePercent, 0) / 100 : Base;
+}
+
+bool UJRPGEncounterLibrary::IsEncounterStep(FIntPoint PrevTile, FIntPoint NowTile)
+{
+	return PrevTile != NowTile && FMath::Abs(PrevTile.X - NowTile.X) < 2 && FMath::Abs(PrevTile.Y - NowTile.Y) < 2;
+}

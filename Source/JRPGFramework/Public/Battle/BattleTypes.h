@@ -8,6 +8,7 @@
 #include "BattleTypes.generated.h"
 
 class USkeletalMesh;
+class AJRPGBattleArena;
 class UAnimSequence;
 class UAnimInstance;
 
@@ -566,6 +567,13 @@ struct JRPGFRAMEWORK_API FJRPGBattleSetup
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
 	FVector Location = FVector::ZeroVector;
+
+	/**
+	 * A arena escolhida por quem montou a luta (a BattleArena da AJRPGEncounterZone). Vazia, desligada ou de outro mundo:
+	 * AJRPGBattleArena::FindArenaFor(Location). Só a apresentação lê (UJRPGBattleSceneSubsystem); as regras nunca.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")
+	TSoftObjectPtr<AJRPGBattleArena> Arena;
 
 	/** Sem arena: para onde a party olha (o yaw de quem encostou até o inimigo). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle")

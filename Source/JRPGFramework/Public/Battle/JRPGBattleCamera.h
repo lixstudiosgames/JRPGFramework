@@ -429,6 +429,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Camera|Debug")
 	bool bPrintDebug = false;
 
+	/**
+	 * O plano geral (caso 9) para estes pés, sem o giro: o foco (centro da caixa da formação no plano da arena, no chão médio), a
+	 * inclinação e o TR em cm. A luta (BuildFarPose) e o preview da órbita na arena (AJRPGBattleArena::bPreviewCameraOrbit, pelo
+	 * CDO da BattleCameraClass) usam esta mesma conta. False sem pés.
+	 */
+	bool ComputeFarFraming(const AJRPGBattleArena& ForArena, const TArray<FVector>& Feet, FJRPGBattleCameraPose& OutPose) const;
+
+	/**
+	 * Onde o olho fica em relação ao foco, para qualquer giro: a distância no plano (o raio da órbita) e a altura acima do foco.
+	 * A mesma conta do ApplyLivePose.
+	 */
+	static void GetEyeRadiusAndHeight(const FJRPGBattleCameraPose& Pose, double& OutRadius, double& OutHeight);
+
 protected:
 	/**
 	 * O enquadramento de agora (e de quem: o slot do personagem e o do alvo, INDEX_NONE quando não há) e a pose alvo dele,

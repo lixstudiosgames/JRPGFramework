@@ -285,6 +285,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Detection", meta = (ClampMin = "0.0"))
 	float ReacquireDelay = 1.5f;
 
+	/**
+	 * Depois de uma luta, quando a tela abre de novo (OnFieldShown), ele passa um tempo sorteado nesta faixa sem perseguir o
+	 * jogador (passeia normalmente), cada inimigo o seu. Na zona, quem decide é a zona (PostBattleNoChaseMin / Max dela).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Detection", meta = (ClampMin = "0.0"))
+	float PostBattleNoChaseMin = 7.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Detection", meta = (ClampMin = "0.0"))
+	float PostBattleNoChaseMax = 15.0f;
+
 	/** Passeando e voltando. No mínimo 400: acima do andar do jogador (300), ele alcança quem só anda. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Movement", meta = (ClampMin = "400.0", UIMin = "400.0"))
 	float WalkSpeed = 400.0f;
@@ -317,10 +327,10 @@ public:
 	bool bRespawn = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Respawn", meta = (ClampMin = "0.0"))
-	float RespawnDelayMin = 30.0f;
+	float RespawnDelayMin = 40.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Respawn", meta = (ClampMin = "0.0"))
-	float RespawnDelayMax = 60.0f;
+	float RespawnDelayMax = 70.0f;
 
 	// --- Debug ---
 
@@ -364,6 +374,16 @@ public:
 	/** Chamado pela zona antes do FinishSpawning. */
 	void InitFromZone(AJRPGEncounterZone* InZone);
 
+	/**
+	 * A zona desligou (DisableFlagID / RequiredFlagID): some agora, sem agendar a volta (quem traz de volta é a zona, ao
+	 * religar). Não mexe em quem já está sumido.
+	 */
+	void HideForZone();
+
+	/** Ainda sem perseguir por causa da última luta (PostBattleNoChaseMin / Max). */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Field|Enemy")
+	bool IsInPostBattleNoChase() const;
+
 	virtual void OnConstruction(const FTransform& Transform) override;
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -380,6 +400,8 @@ private:
 	void StartChase(APawn* Player);
 	void StartReturn(const TCHAR* Why);
 	void ScheduleRespawn();
+	/** Some (o corpo do HideEnemy); bScheduleRespawn = agenda a volta (a zona desligando não agenda). */
+	void HideInternal(bool bScheduleRespawn);
 
 	/** Escolhe e aplica um visual (malha, animação, cápsula). */
 	void ApplyRandomVisual();
@@ -465,6 +487,8 @@ private:
 	float StateDeadline = 0.0f;
 	float LostTime = 0.0f;
 	float LastReturnTime = -100.0f;
+	/** Até quando (tempo do mundo) ele não persegue depois da última luta. */
+	float NoChaseUntil = -1.0f;
 	bool bFrozen = false;
 	bool bMenuOpen = false;
 	bool bInBattle = false;

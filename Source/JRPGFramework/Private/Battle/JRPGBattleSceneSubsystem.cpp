@@ -1571,7 +1571,10 @@ void UJRPGBattleSceneSubsystem::NoteFieldReturnedToBattleSubsystem()
 void UJRPGBattleSceneSubsystem::ChooseArena(const FJRPGBattleSetup& Setup)
 {
 	bOwnsArena = false;
-	Arena = AJRPGBattleArena::FindArenaFor(GetWorld(), Setup.Location);
+	// A arena que quem montou a luta escolheu (a da Encounter Zone); senão, a do ponto do encontro
+	AJRPGBattleArena* Chosen = Setup.Arena.Get();
+	Arena = IsValid(Chosen) && Chosen->bEnabled && Chosen->GetWorld() == GetWorld()
+		? Chosen : AJRPGBattleArena::FindArenaFor(GetWorld(), Setup.Location);
 	if (Arena.IsValid())
 	{
 		TransitionTime = Arena->TransitionTime;

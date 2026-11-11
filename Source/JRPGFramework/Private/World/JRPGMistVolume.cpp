@@ -1,5 +1,6 @@
 #include "World/JRPGMistVolume.h"
 #include "World/JRPGMistSubsystem.h"
+#include "World/JRPGMistBlocker.h"
 #include "Components/ArrowComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/DirectionalLightComponent.h"
@@ -10,8 +11,12 @@
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialParameterCollection.h"
 #include "Engine/Texture.h"
+#include "Engine/Texture2D.h"
+#include "Engine/World.h"
+#include "EngineUtils.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
+#include "UObject/Package.h"
 #include "UObject/UObjectIterator.h"
 
 // Parâmetros do M_JRPGMist. Os escalares vão empacotados em vetores para o Custom node
@@ -34,6 +39,9 @@ namespace JRPGMistParams
 	static const FName FlowDash(TEXT("FlowDash"));    // TrailLength, TrailFill, AvoidDistance, AvoidStrength
 	static const FName FlowEddy(TEXT("FlowEddy"));    // EddyStrength, EddySize, LineDensity, Layer
 	static const FName TrailTex(TEXT("TrailTex"));    // textura do rastro (UJRPGMistSubsystem)
+	static const FName BlockTex(TEXT("BlockTex"));    // áreas sem névoa (AJRPGMistBlocker), cobre BoxXY
+	static const FName Radial(TEXT("Radial"));        // Ligado, CentroX, CentroY, Swirl
+	static const FName Extra(TEXT("Extra"));          // OriginFalloff, OriginFalloffMin, -, -
 }
 
 AJRPGMistVolume::AJRPGMistVolume()
@@ -108,10 +116,30 @@ void AJRPGMistVolume::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 
+	UpdateBoxPlacement();
 	if (EnsureMistMID())
 	{
 		ApplyMistParameters();
+		// A caixa pode ter mudado de lugar ou de tamanho: as áreas sem névoa são refeitas
+		RefreshBlockers();
 	}
+}
+
+void AJRPGMistVolume::UpdateBoxPlacement()
+{
+	// O cubo da engine tem 100 uu com pivô no centro: +50 põe a base no pivô. Na chaminé o pivô
+	// é a boca e a caixa desce DripLength abaixo dela (a parte que escorre). A posição relativa
+	// é em unidades antes da escala do ator, por isso divide pela escala Z
+	const float Below = Mode == EJRPGMistMode::ChimneySmoke ? FMath::Max(DripLength, 0.0f) : 0.0f;
+	const float ScaleZ = FMath::Max(FMath::Abs(static_cast<float>(GetActorScale3D().Z)), KINDA_SMALL_NUMBER);
+	const FVector Relative(0.0f, 0.0f, 50.0f - Below / ScaleZ);
+	MistBox->SetRelativeLocation(Relative);
+#if WITH_EDITORONLY_DATA
+	if (EditorOutline)
+	{
+		EditorOutline->SetRelativeLocation(Relative);
+	}
+#endif
 }
 
 bool AJRPGMistVolume::EnsureMistMID()
@@ -177,8 +205,19 @@ void AJRPGMistVolume::ApplyMistParameters()
 	MistMID->SetVectorParameterValue(JRPGMistParams::BoxZ, FLinearColor(
 		Bounds.Max.Z, TopFade, bAir ? FMath::Max(AirCloudSize, 50.0f) : 0.0f, bAir ? AirStartPacked : 0.0f));
 
-	// Flow / FlowLines / FlowDash mudam de significado com o modo (ver JRPGMistFromPacked2)
-	if (Mode == EJRPGMistMode::PulseRings)
+	// Flow / FlowLines / FlowDash mudam de significado com o modo (ver JRPGMistFromPacked2 e
+	// JRPGMistEvaluateAll)
+	if (Mode == EJRPGMistMode::ChimneySmoke)
+	{
+		// ShapeB = direção do vento (para onde a fumaça inclina), Bend, Turbulence
+		const FVector Mouth = GetActorLocation();
+		const FVector2D Lean = GetFlowDirection();
+		MistMID->SetVectorParameterValue(JRPGMistParams::ShapeB, FLinearColor(Lean.X, Lean.Y, PlumeBend, PlumeTurbulence));
+		MistMID->SetVectorParameterValue(JRPGMistParams::Flow, FLinearColor(5.0f, Mouth.X, Mouth.Y, RiseSpeed));
+		MistMID->SetVectorParameterValue(JRPGMistParams::FlowLines, FLinearColor(PlumeRadius, PlumeSpread, PuffSize, 0.0f));
+		MistMID->SetVectorParameterValue(JRPGMistParams::FlowDash, FLinearColor(DripDensity, DripLength, DripSpeed, DripHug));
+	}
+	else if (Mode == EJRPGMistMode::PulseRings)
 	{
 		const FVector Center = GetActorLocation();
 		MistMID->SetVectorParameterValue(JRPGMistParams::Flow, FLinearColor(2.0f, Center.X, Center.Y, PulseSpeed));
@@ -207,6 +246,19 @@ void AJRPGMistVolume::ApplyMistParameters()
 	{
 		MistMID->SetTextureParameterValue(JRPGMistParams::TrailTex, TrailTexture);
 	}
+	if (BlockTexture)
+	{
+		MistMID->SetTextureParameterValue(JRPGMistParams::BlockTex, BlockTexture);
+	}
+
+	// Origem: a névoa inteira (chão, ar, linhas) sai do ponto. As velocidades continuam as do
+	// volume — a da névoa de chão / das nuvens já está em ShapeB.xy (o shader usa o comprimento)
+	const bool bSpread = IsSpreadingFromOrigin();
+	const FVector Origin = GetSpreadOrigin();
+	MistMID->SetVectorParameterValue(JRPGMistParams::Radial, bSpread
+		? FLinearColor(1.0f, Origin.X, Origin.Y, SpreadSwirl) : FLinearColor(0.0f, 0.0f, 0.0f, 0.0f));
+	MistMID->SetVectorParameterValue(JRPGMistParams::Extra, FLinearColor(
+		bSpread ? OriginFalloff : 0.0f, OriginFalloffMin, 0.0f, 0.0f));
 }
 
 void AJRPGMistVolume::SetTrailTexture(UTexture* Texture)
@@ -218,12 +270,164 @@ void AJRPGMistVolume::SetTrailTexture(UTexture* Texture)
 	}
 }
 
+FBox2D AJRPGMistVolume::GetMistBoundsXY() const
+{
+	// Igual ao BoxXY de ApplyMistParameters: a caixa alinhada aos eixos que envolve o cubo
+	const FBox Bounds = MistBox->CalcBounds(MistBox->GetComponentTransform()).GetBox();
+	return FBox2D(FVector2D(Bounds.Min.X, Bounds.Min.Y), FVector2D(Bounds.Max.X, Bounds.Max.Y));
+}
+
+void AJRPGMistVolume::HandleBlockerChanged(const AJRPGMistBlocker* Blocker, bool bShapeChanged, bool bRemoving)
+{
+	const bool bUses = BlockLayers.ContainsByPredicate([Blocker](const FBlockLayer& Layer) { return Layer.Blocker.Get() == Blocker; });
+	if (bShapeChanged || bRemoving)
+	{
+		// Refaz se ele encosta agora ou encostava antes (saiu de cima da caixa)
+		if (bUses || (!bRemoving && Blocker && GetMistBoundsXY().Intersect(Blocker->GetAreaBounds())))
+		{
+			RefreshBlockers(bRemoving ? Blocker : nullptr);
+		}
+		return;
+	}
+	if (bUses)
+	{
+		UpdateBlockMask();
+	}
+}
+
+void AJRPGMistVolume::RefreshBlockers(const AJRPGMistBlocker* Ignore)
+{
+	UWorld* World = GetWorld();
+	if (!World || !MistBox || !EnsureMistMID())
+	{
+		return;
+	}
+
+	BlockLayers.Reset();
+	const FBox2D Bounds = GetMistBoundsXY();
+	const FVector2D Size = Bounds.GetSize();
+	if (Size.X < 1.0 || Size.Y < 1.0)
+	{
+		return;
+	}
+	const int32 ResX = FMath::Clamp(FMath::CeilToInt(Size.X / BlockTexelSize), 4, 256);
+	const int32 ResY = FMath::Clamp(FMath::CeilToInt(Size.Y / BlockTexelSize), 4, 256);
+
+	for (TActorIterator<AJRPGMistBlocker> It(World); It; ++It)
+	{
+		const AJRPGMistBlocker* Blocker = *It;
+		if (Blocker == Ignore || !IsValid(Blocker))
+		{
+			continue;
+		}
+		const FBox2D Area = Blocker->GetAreaBounds();
+		if (!Area.bIsValid || !Area.Intersect(Bounds))
+		{
+			continue;
+		}
+		// Distância de cada texel (no centro dele) até a borda; fora da caixa do blocker nem calcula
+		FBlockLayer& Layer = BlockLayers.AddDefaulted_GetRef();
+		Layer.Blocker = Blocker;
+		Layer.Dist.SetNumUninitialized(ResX * ResY);
+		for (int32 y = 0; y < ResY; ++y)
+		{
+			for (int32 x = 0; x < ResX; ++x)
+			{
+				const FVector2D P = Bounds.Min + FVector2D((x + 0.5) / ResX * Size.X, (y + 0.5) / ResY * Size.Y);
+				Layer.Dist[y * ResX + x] = Area.IsInside(P) ? Blocker->GetSignedDistance(P) : -1.0f;
+			}
+		}
+	}
+
+	// Sem blocker: textura mínima zerada. Não dá para só deixar de ligar — o MID copiado do editor
+	// para o PIE ainda aponta para a textura do preview
+	const bool bAny = BlockLayers.Num() > 0;
+	EnsureBlockTexture(bAny ? ResX : 4, bAny ? ResY : 4);
+	UpdateBlockMask(true);
+}
+
+void AJRPGMistVolume::EnsureBlockTexture(int32 SizeX, int32 SizeY)
+{
+	if (!BlockTexture || BlockResX != SizeX || BlockResY != SizeY)
+	{
+		// G8 linear: o shader lê .r direto. Transient — não vira asset. Nome único: um volume por
+		// textura, e NewObject com um nome que já existe no pacote transient reaproveitaria a de outro
+		const FName Name = MakeUniqueObjectName(GetTransientPackage(), UTexture2D::StaticClass(), FName(TEXT("JRPGMistBlock")));
+		UTexture2D* NewTexture = UTexture2D::CreateTransient(SizeX, SizeY, PF_G8, Name);
+		if (!NewTexture)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("JRPGMistVolume '%s': não foi possível criar a textura das áreas sem névoa."), *GetName());
+			return;
+		}
+		NewTexture->SRGB = false;
+		NewTexture->Filter = TF_Bilinear;
+		NewTexture->AddressX = TA_Clamp;
+		NewTexture->AddressY = TA_Clamp;
+		NewTexture->UpdateResource();
+		BlockTexture = NewTexture;
+		BlockResX = SizeX;
+		BlockResY = SizeY;
+		BlockPixels.Reset();
+	}
+	if (MistMID)
+	{
+		MistMID->SetTextureParameterValue(JRPGMistParams::BlockTex, BlockTexture);
+	}
+}
+
+void AJRPGMistVolume::UpdateBlockMask(bool bForceUpload)
+{
+	if (!BlockTexture || !BlockTexture->GetResource() || BlockResX <= 0 || BlockResY <= 0)
+	{
+		return;
+	}
+
+	// Cada texel fica com o blocker que mais tira névoa ali
+	const int32 Count = BlockResX * BlockResY;
+	TArray<uint8> NewPixels;
+	NewPixels.SetNumZeroed(Count);
+	for (const FBlockLayer& Layer : BlockLayers)
+	{
+		const AJRPGMistBlocker* Blocker = Layer.Blocker.Get();
+		if (!Blocker || !Blocker->IsAffectingMist() || Layer.Dist.Num() != Count)
+		{
+			continue;
+		}
+		for (int32 i = 0; i < Count; ++i)
+		{
+			if (Layer.Dist[i] > 0.0f)
+			{
+				const uint8 Value = static_cast<uint8>(FMath::RoundToInt(Blocker->GetBlockAmount(Layer.Dist[i]) * 255.0f));
+				NewPixels[i] = FMath::Max(NewPixels[i], Value);
+			}
+		}
+	}
+	if (!bForceUpload && NewPixels == BlockPixels)
+	{
+		return;
+	}
+	BlockPixels = MoveTemp(NewPixels);
+
+	uint8* Data = new uint8[Count];
+	FMemory::Memcpy(Data, BlockPixels.GetData(), Count);
+	FUpdateTextureRegion2D* Region = new FUpdateTextureRegion2D(0, 0, 0, 0, BlockResX, BlockResY);
+	BlockTexture->UpdateTextureRegions(0, 1, Region, BlockResX, 1, Data,
+		[](uint8* SrcData, const FUpdateTextureRegion2D* Regions)
+		{
+			delete[] SrcData;
+			delete Regions;
+		});
+}
+
 void AJRPGMistVolume::ApplyModePreset(EJRPGMistMode NewMode)
 {
 	Mode = NewMode;
 
 	// Presets afinados olhando o resultado no editor (World Map / TestMap). A densidade é por
-	// metro; os modos de linha já multiplicam por 3 no shader
+	// metro; os modos de linha já multiplicam por 3 no shader. As bordas voltam ao padrão (a
+	// chaminé usa bordas mais curtas)
+	EdgeFade = 400.0f;
+	TopFade = 150.0f;
 	switch (NewMode)
 	{
 	case EJRPGMistMode::GroundAndFlow:
@@ -319,6 +523,24 @@ void AJRPGMistVolume::ApplyModePreset(EJRPGMistMode NewMode)
 		AvoidStrength = 1.0f;
 		break;
 
+	case EJRPGMistMode::ChimneySmoke:
+		// Uma caixa por chaminé: 1200 x 1200 uu, 1200 de altura (900 de pluma + 300 escorrendo)
+		Density = 3.0f;
+		EdgeFade = 150.0f;
+		TopFade = 300.0f;
+		PlumeRadius = 100.0f;
+		PlumeSpread = 0.25f;
+		RiseSpeed = 60.0f;
+		PuffSize = 140.0f;
+		PlumeBend = 0.25f;
+		PlumeTurbulence = 0.5f;
+		DripDensity = 0.7f;
+		DripLength = 300.0f;
+		DripSpeed = 30.0f;
+		DripHug = 70.0f;
+		SetActorScale3D(FVector(12.0f, 12.0f, 12.0f));
+		break;
+
 	case EJRPGMistMode::PulseRings:
 		Density = 2.0f;
 		Thickness = 180.0f;
@@ -350,6 +572,16 @@ void AJRPGMistVolume::PostEditChangeProperty(FPropertyChangedEvent& PropertyChan
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 #endif
+
+bool AJRPGMistVolume::IsSpreadingFromOrigin() const
+{
+	return bSpreadFromOrigin && Mode != EJRPGMistMode::PulseRings && Mode != EJRPGMistMode::ChimneySmoke;
+}
+
+FVector AJRPGMistVolume::GetSpreadOrigin() const
+{
+	return IsValid(SpreadOrigin) ? SpreadOrigin->GetActorLocation() : GetActorLocation();
+}
 
 FVector2D AJRPGMistVolume::GetFlowDirection() const
 {
@@ -421,6 +653,8 @@ void AJRPGMistVolume::BeginPlay()
 	if (EnsureMistMID())
 	{
 		ApplyMistParameters();
+		// Os blockers que já começaram avisam de novo no BeginPlay deles; os que ainda não, depois
+		RefreshBlockers();
 	}
 
 	if (const UGameInstance* GI = GetGameInstance())

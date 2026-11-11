@@ -47,6 +47,8 @@ JRPGFramework/
 │   │   │   ├── RevivalTreeState.h ✅
 │   │   │   ├── JRPGMistVolume.h ✅              ← box of living mist injected into the volumetric
 │   │   │   │                                       fog (shader in Shaders/JRPGMist.ush)
+│   │   │   ├── JRPGMistBlocker.h ✅             ← area the mist no longer enters (event flag / Revival
+│   │   │   │                                       Tree stage), with a transition
 │   │   │   ├── JRPGMistDisturberComponent.h ✅  ← goes on whatever moves and should stir the mist
 │   │   │   └── JRPGMistSubsystem.h ✅           ← picks the shader's 8 slots, writes MPC_JRPGMist,
 │   │   │                                           paints the trail texture
@@ -68,8 +70,11 @@ JRPGFramework/
 │   │   │   ├── JRPGFieldEnemyController.h ✅    ← AI controller of the field enemies (MoveTo)
 │   │   │   ├── JRPGFieldEnemyAnimInstance.h ✅  ← native anim instance, no Anim Blueprint: Idle/Walk/Run
 │   │   │   │                                       with crossfade, notifies fire; any skeleton
-│   │   │   ├── JRPGEncounterZone.h ✅           ← sphere/box/spline area keeping MaxAlive enemies,
-│   │   │   │                                       respawn, event-flag gate
+│   │   │   ├── JRPGEncounterZone.h ✅           ← sphere/box/spline area keeping MinAlive..MaxAlive enemies
+│   │   │   │                                       (spacing, clear of objects, editor preview), respawn,
+│   │   │   │                                       Required / Disable flags, its BattleArena, random encounters
+│   │   │   ├── JRPGRandomEncounterSubsystem.h ✅ ← counts the player's steps in zones with random
+│   │   │   │                                       encounters (the original's step counter)
 │   │   │   ├── JRPGFieldMapSettings.h ✅        ← one per map: base camera, controls, speeds,
 │   │   │   │                                       whether the party shows
 │   │   │   ├── JRPGInteractable.h ✅            ← interface: Interact(InteractingActor)
@@ -222,14 +227,14 @@ JRPGFramework/
 │       ├── Core/ ✅        (CoreSubsystem.cpp ✅, JRPGGameInstance.cpp ✅, JRPGSplineArea.cpp ✅)
 │       ├── Save/ ✅        (SaveSubsystem.cpp ✅, JRPGSaveGame.cpp ✅)
 │       ├── Inventory/ ✅   (InventorySubsystem.cpp ✅)
-│       ├── World/ ✅       (WorldStateSubsystem.cpp ✅, JRPGMistVolume.cpp ✅,
+│       ├── World/ ✅       (WorldStateSubsystem.cpp ✅, JRPGMistVolume.cpp ✅, JRPGMistBlocker.cpp ✅,
 │       │                    JRPGMistDisturberComponent.cpp ✅, JRPGMistSubsystem.cpp ✅)
 │       ├── Field/ ✅       (JRPGFieldCharacter.cpp ✅, JRPGFieldPlayerController.cpp ✅,
 │       │                    JRPGFieldPartyComponent.cpp ✅, JRPGPartyFollowerController.cpp ✅,
 │       │                    JRPGFieldMapSettings.cpp ✅, JRPGFieldTypes.cpp ✅,
 │       │                    JRPGInteractionComponent.cpp ✅, JRPGFieldEnemy.cpp ✅,
 │       │                    JRPGFieldEnemyController.cpp ✅, JRPGFieldEnemyAnimInstance.cpp ✅,
-│       │                    JRPGEncounterZone.cpp ✅)
+│       │                    JRPGEncounterZone.cpp ✅, JRPGRandomEncounterSubsystem.cpp ✅)
 │       ├── Shop/ ✅        (ShopSubsystem.cpp ✅)
 │       ├── Audio/ ✅       (AudioSubsystem.cpp ✅, JRPGSettingsSave.cpp ✅)
 │       ├── Camera/ ✅      (CameraSubsystem.cpp ✅, CameraData.cpp ✅, JRPGCameraActor.cpp ✅,
@@ -367,7 +372,7 @@ JRPGFramework/
 | **Save/Load** | ✅ complete | 15 slots, automatic gather/restore, map change + teleport, save versioning |
 | **Shop** | ✅ complete | `DT_Shops` (32), atomic buy/sell, featured items gated by platinum_card, flag gating |
 | **Audio** | ✅ complete | BGM persisting across maps with crossfade, 4 channels saved in `JRPGSettings` |
-| **Mist** | ✅ complete | Living volumetric mist: Ground Mist, Flow Lines, Pulse Rings, Ground + Flow and Air (clouds in a second box), with presets; follows terrain into holes, parts around the player and movers, trail painted into a texture (player and NPCs), self light for dark places. See [MIST.md](Guides/MIST.md) |
+| **Mist** | ✅ complete | Living volumetric mist: Ground Mist, Flow Lines, Pulse Rings, Ground + Flow, Air (clouds in a second box) and Chimney Smoke, with presets; one direction or spreading from an origin (an epicenter); follows terrain into holes, parts around the player and movers, trail painted into a texture (player and NPCs), self light for dark places, mist-free areas after story events (Mist Blocker). See [MIST.md](Guides/MIST.md) |
 | **Field character** | ✅ basic | `AJRPGFieldCharacter` + `AJRPGFieldPlayerController`: top-down camera with stacking camera zones, walk/sprint relative to the camera or a fixed yaw, interaction through `IJRPGInteractable`, mist trail, input with built-in defaults. The formation walks behind the leader (navmesh leash or trail follow, gathers beside it when stopped) and R3 switches who is controlled. See [PLAYER.md](Guides/PLAYER.md). **Enemies on the field**: wander, chase, start an encounter on contact and respawn, alone or from a sphere/box zone — [FIELD_ENEMIES.md](Guides/FIELD_ENEMIES.md) |
 | **Camera** | ✅ complete | 13 presets (+DOF), automatic restore when the UI closes, 8 shakes, manual camera + zone, conversation and FrameGroup/Orbit ready |
 | **WebUI** | ✅ complete | SPA shell, 7 screens, gamepad + keyboard + mouse with their own rules, responsive scaling |

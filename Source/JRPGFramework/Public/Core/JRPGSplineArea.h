@@ -12,7 +12,7 @@ class USplineComponent;
  *
  * O polígono fica em espaço de mundo: Build de novo se o dono se mexer (OnConstruction no
  * editor, BeginPlay no jogo). Quem usa: AJRPGEncounterZone (Shape = Spline) e
- * AJRPGBattleArena (a área de cada arena).
+ * AJRPGBattleArena (a área de cada arena) e AJRPGMistBlocker (Shape = Spline).
  */
 struct JRPGFRAMEWORK_API FJRPGSplineArea
 {
@@ -27,6 +27,9 @@ struct JRPGFRAMEWORK_API FJRPGSplineArea
 
 	/** 0 dentro; fora, a distância no plano até a borda mais próxima. */
 	float DistanceOutside(const FVector& Point) const;
+
+	/** 0 fora; dentro, a distância no plano até a borda mais próxima (o quanto o ponto está longe do contorno). */
+	float DistanceInside(const FVector& Point) const;
 
 	/** Um ponto XY ao acaso dentro do contorno. False se não achou (área inválida ou fina demais). */
 	bool RandomPoint(FVector2D& OutPoint, int32 Attempts = 32) const;
