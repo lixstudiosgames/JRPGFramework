@@ -12,7 +12,7 @@ class USplineComponent;
  *
  * O polígono fica em espaço de mundo: Build de novo se o dono se mexer (OnConstruction no
  * editor, BeginPlay no jogo). Quem usa: AJRPGEncounterZone (Shape = Spline) e
- * AJRPGBattleArena (a área de cada arena).
+ * AJRPGBattleArena (a área de cada arena) e AJRPGMistBlocker (Shape = Spline).
  */
 struct JRPGFRAMEWORK_API FJRPGSplineArea
 {

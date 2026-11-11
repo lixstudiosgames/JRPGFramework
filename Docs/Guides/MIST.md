@@ -12,6 +12,7 @@ and changes color with the time of day.
 |---|---|---|
 | `JRPGMist.ush` | `Shaders/` | The HLSL: domain warp, strands, height, distance field, parting and swirls |
 | `AJRPGMistVolume` | `Public/World/JRPGMistVolume.h` | The box you drop in a level. Holds every look parameter |
+| `AJRPGMistBlocker` | `Public/World/JRPGMistBlocker.h` | An area the mist no longer enters after a story event (event flag or Revival Tree stage), with a transition |
 | `UJRPGMistDisturberComponent` | `Public/World/JRPGMistDisturberComponent.h` | Goes on whatever moves and should stir the mist |
 | `UJRPGMistSubsystem` | `Public/World/JRPGMistSubsystem.h` | Picks who fills the shader's slots each frame and writes them to the MPC, and paints the player's trail into the trail texture |
 | `M_JRPGMist`, `MF_JRPGMist`, `MI_JRPGMist_Default`, `MPC_JRPGMist`, `T_JRPGMistNoise` | `Content/World/Mist/` | The material assets, shipped with the plugin |
@@ -32,6 +33,11 @@ its own parameters) and hides the other modes' options in Details. At runtime, c
 | **Pulse Rings** | Concentric rings sent out in pulses from the center, plus optional radial lines | The actor's pivot is the center |
 | **Ground + Flow** | Ground Mist and Flow Lines together, carried by **one** wind: point the arrow right and both go right. The mist drifts at `GroundDriftRatio` (30%) of the lines' speed, because fast broad mist smears under the fog's temporal reprojection | Same as Flow Lines |
 | **Air (Clouds + Flow)** | The ground mist (strands, pooling, flowing around objects, same settings) in small clouds, plus Flow Lines, **floating in the air**, filling the box. Goes in its **own box**, separate from the ground mist, so each has its own settings. Each air line sits at a random height | Same as Flow Lines |
+| **Chimney Smoke** | A wide plume rising from a chimney, plus smoke running down the chimney and the roof. One box per chimney | The pivot is the chimney's mouth; the plume leans toward the arrow / `FlowTarget` |
+
+Every mode except Pulse Rings and Chimney Smoke can also **spread from an origin** (`Origin` category):
+the whole mist, ground, air and lines, leaves one point in every direction with the same settings (see
+*Origin* below).
 
 Thin features blur in volumetric fog: one grid cell covers ~16 screen pixels. Keep `LineWidth` above
 ~30 uu and `RingWidth` above ~40 uu, or lines read as rain streaks.
@@ -74,6 +80,86 @@ place **two volumes**, each with its own settings (density, Flow Lines, wind):
 The cloud parameters ride in components the material didn't use yet (`BoxZ.z` = `AirCloudSize`,
 `BoxZ.w` = `AirStart` + `AirCoverage` as integer + fraction), so this mode needs **no change to the
 material assets**. See `JRPGMistFromPacked4`.
+
+### Origin: the whole mist leaving one point (Spread From Origin)
+
+For a place the mist **comes from** (a Mist Generator, for example), turn on **`Spread From Origin`**
+(`Origin` category, at the top of the volume) on the volumes already in the map. The mist keeps every
+setting it has (density, wind speed, strands, lines, clouds); the only change is the direction: instead
+of one direction, everything leaves the origin in every direction. Works in Ground Mist, Flow Lines,
+Ground + Flow and Air.
+
+- **Origin:** `SpreadOrigin` (any actor, e.g. the generator) or, if empty, the volume's pivot. Point the
+  ground volume and the air volume at the **same** actor and they spread from the same point, each with
+  its own settings (dense ground and light air, or the other way round). If the origin moves during play,
+  call `ApplyMistParameters()`.
+- **Speeds are the volume's:** Ground Mist uses the length of `Wind` (its direction is ignored), Ground
+  + Flow and Air use `FlowSpeed` × `GroundDriftRatio` for the mist and `FlowSpeed` for the lines.
+- **Optional:** `SpreadSwirl` turns it into a spiral (0 = straight out, 1 = 45°, negative = the other
+  way); `OriginFalloff` makes it denser near the origin (the density falls to `OriginFalloffMin` at that
+  distance). Off by default (0), so the density stays the volume's.
+- **The lines become rays.** Their number doubles each time the circle doubles, so they stay about
+  `LineSpacing` apart at any distance: a new ray fades in between two as they spread. A ray that exists
+  in both bands looks the same in both, so the switch doesn't show.
+- **The strands stretch along the ray** (`RibbonStretch`, as they stretch along the wind). Stretching in
+  XY doesn't work along a flow that leaves a point (it is the same scale in every direction), so they
+  are drawn in polar coordinates: the angle in a whole number of texture tiles per turn (no seam), with
+  two bands so they don't get wider far from the origin.
+- **The mist and the air clouds** use a two-phase *flow map*: with the direction changing from point to
+  point, the pattern can't be carried "wind × time" forever (it stretches without end). Each phase
+  drifts a little and restarts, half a cycle apart from the other, crossfaded so the restart never shows.
+- **Cost:** about 2.5× the noise reads of the directional mist (two phases, and two bands for the
+  strands), only in volumes with the origin on.
+
+### Chimney Smoke
+
+One box per chimney. **The pivot is the chimney's mouth**: the box goes `DripLength` below it (the part
+running down) and the rest above it (the plume). Choosing the mode loads its preset, including a scale of
+12 × 12 × 12 (1200 uu on each side: 900 of plume, 300 running down).
+
+Two parts in one mode, each with its own settings:
+
+| Part | Settings |
+|---|---|
+| **Plume**, rising | `Density`, `PlumeRadius` (100 uu at the mouth), `PlumeSpread` (+0.25 uu of radius per uu up), `RiseSpeed` (60 uu/s), `PuffSize` (140 uu), `PlumeBend` (how far it leans toward the arrow / `FlowTarget`: it leaves the mouth straight and bends with height), `PlumeTurbulence` (sway and frayed edges, 0..1) |
+| **Running down** the chimney and the roof | `DripDensity` (relative to `Density`, 0.7), `DripLength` (300 uu below the mouth), `DripSpeed` (30 uu/s), `DripHug` (stays within 70 uu of a surface). More of it on the downwind side |
+
+- The part running down hugs surfaces through the **distance field**: the chimney mesh needs one
+  (*Generate Mesh Distance Fields*), and with material quality Low only the plume shows.
+- Volumetric fog is coarse: keep `PlumeRadius` and `PuffSize` above ~80 uu, or the smoke turns into a
+  blur. Rise slowly, or it smears under temporal reprojection.
+- `EdgeFade` (150) and `TopFade` (300) fade the box's walls; give the plume room inside the box, on the
+  side it leans to.
+
+## Areas without mist (Mist Blocker)
+
+Some places stop having mist after a story event, for example once a Genesis Tree is revived. Drop an
+**`AJRPGMistBlocker`** there. It clears the mist of **every** volume it touches, in every mode, over the
+whole column (ground and air).
+
+- **Shape:** `Circle` (`Radius`), `Box` (`BoxExtent`, turns with the actor's yaw) or `Spline` (a closed
+  outline drawn by hand, the same as the Encounter Zone's; Alt+drag a point to add one). Only the shape
+  seen from above counts.
+- **Edge:** the mist never crosses the shape. At the line it is still whole, and it fades out over
+  `EdgeSoftness` (400 uu) **inside** the shape. `Strength` 1 removes it all; 0.5 only thins it.
+- **When:** with no condition it is always on. Otherwise every condition that is set must hold:
+  - `RequiredFlagID` at `bRequiredFlagValue`, and `DisableFlagID` off (the same rules as the Encounter
+    Zone's flags);
+  - `RevivalTreeID` at `RevivalTreeStage` or later (`UWorldStateSubsystem::SetRevivalTreeState`; a tree
+    with no state counts as Idle).
+- **Transition:** it checks every `FlagPollSeconds` (1 s). When the conditions change during play, the
+  mist leaves over `TransitionTime` (6 s): `Recede` clears from the middle of the area out to the edges
+  (and comes back from the edges in); `Fade` thins the whole area together. Entering the map, or
+  loading a save, starts in the right state with no transition. To skip the wait right after the event
+  sets the flag, call `RefreshState()` from Blueprint (`bInstant` skips the transition).
+- **Editor:** with `bPreviewInEditor` (on) the area shows clear in the viewport, as if the conditions held.
+  Turn it off to see the map as it is before the event.
+
+**How it reaches the shader.** Each volume paints the blockers that touch it into a small texture,
+`BlockTex` (G8, one texel per ~50 uu, up to 256² per volume), covering exactly the box's XY. The shader
+reads it once per froxel and skips the whole mist evaluation where the area is fully clear. The distance
+from every texel to the blocker's edge is worked out only when the shape or the volume changes; a
+transition only redoes the cheap part, for the volumes that blocker touches.
 
 ## How it works
 
@@ -169,15 +255,17 @@ Import `Extras/Mist/T_JRPGMistNoise.png` into `Content/World/Mist/` with sRGB **
 ```hlsl
 float4 S[8] = { Slot0, Slot1, Slot2, Slot3, Slot4, Slot5, Slot6, Slot7 };
 float4 D[8] = { Dir0, Dir1, Dir2, Dir3, Dir4, Dir5, Dir6, Dir7 };
-return JRPGMistFromPacked5(WorldPos, Time, NoiseTex, NoiseTexSampler, TrailTex, TrailTexSampler,
+return JRPGMistFromPacked6(WorldPos, Time, NoiseTex, NoiseTexSampler, TrailTex, TrailTexSampler,
+    BlockTex, BlockTexSampler,
     ShapeA, ShapeB, Ribbons, Scene, Interaction, BoxXY, Flow, FlowLines, FlowDash, FlowEddy, BoxZ,
-    SurfaceDist, SurfaceGrad, S, D);
+    Radial, Extra, SurfaceDist, SurfaceGrad, S, D);
 ```
 
-A graph still calling `JRPGMistFromPacked4` (no `TrailTex` input) keeps working, without the trail:
-only the circle around the player parts the mist.
+Older graphs keep working: `JRPGMistFromPacked5` (no `BlockTex`) has no mist-free areas, and
+`JRPGMistFromPacked4` (no `TrailTex` either) has no trail, so only the circle around the player parts
+the mist.
 
-**The 33 inputs**, named exactly:
+**The 36 inputs**, named exactly:
 
 | Input | Connected to |
 |---|---|
@@ -185,6 +273,8 @@ only the circle around the player parts the mist.
 | `Time` | Time |
 | `NoiseTex` | Texture Object `T_JRPGMistNoise`, sampler type **Masks** (a Masks texture in a Color sampler fails to compile) |
 | `TrailTex` | **Texture Object Parameter** named `TrailTex`, default `/Engine/EngineResources/Black`, sampler type **Color**. `AJRPGMistVolume` sets the trail texture at runtime; the Custom node reads it raw, so the sampler type only has to match the default |
+| `BlockTex` | **Texture Object Parameter** named `BlockTex`, default `/Engine/EngineResources/Black`, sampler type **Color**. Each `AJRPGMistVolume` sets its own mist-free mask; black = no blocker |
+| `Radial`, `Extra` | Vector Parameters with those names, default `(0,0,0,0)`. `Radial` = Spread From Origin on, origin X, origin Y, swirl; `Extra` = `OriginFalloff`, `OriginFalloffMin`, -, - (see `JRPGMistEvaluateAll`) |
 | `ShapeA`, `ShapeB`, `Ribbons`, `Scene`, `Interaction`, `BoxXY`, `Flow`, `FlowLines`, `FlowDash`, `FlowEddy`, `BoxZ` | Vector Parameters with the same names (`RGBA` output). `AJRPGMistVolume` overwrites them; `Flow`/`FlowLines`/`FlowDash` change meaning with the mode (see `JRPGMistFromPacked4` in the shader) |
 | `SurfaceDist` | Quality Switch: **Default** = `DistanceToNearestSurface`, **Low** = constant `100000` |
 | `SurfaceGrad` | Quality Switch: **Default** = `DistanceFieldGradient`, raw, **Low** = constant `(0,0,0)`. Don't add a `Normalize` node: the shader normalizes safely, and `Normalize` returns NaN wherever the gradient is zero |
@@ -302,6 +392,11 @@ material parameter (emissive = `RibbonGlow` × strands + `SelfLight` × density)
 eddies), `LineDensity` (lines vs. mist), `TrailLength` and `TrailFill` (the streaks), `AvoidDistance` and
 `AvoidStrength` (how the lines bend around objects). Ground + Flow and Air add `GroundDriftRatio`.
 
+**Origin** (`Origin` category): `bSpreadFromOrigin`, `SpreadOrigin`, `SpreadSwirl`, `OriginFalloff`,
+`OriginFalloffMin`. Everything else (speed, strands, lines, density) comes from the usual settings.
+
+**Chimney** (`Chimney` category, Chimney Smoke only): see *Chimney Smoke* above.
+
 **Air** (`Air` category, Air mode only): `AirCloudSize` (size of one cloud; 350 uu, blurs below
 ~150), `AirCoverage` (fraction of the air with clouds; 0.45), `AirStart` (fade width at the bottom of
 the box; 150 uu). Everything else (density, strands, pooling, lines) comes from the usual categories,
@@ -336,6 +431,16 @@ Target: **≤ ~1 ms** for the whole VolumetricFog pass at 1080p on a **GTX 1060 
 
 - **The shader itself is cheap.** It compiles to ~300 instructions with 4 texture reads and runs only
   inside the box. Most of the cost is the volumetric fog grid and the lights that cast volumetric shadows.
+- **Empty cells leave early.** Every mode first checks the cheap masks (above `Thickness`, the box's side
+  and top fades, inside a wall, a fully clear Mist Blocker area; in Chimney Smoke, outside the widest the
+  plume can reach) and returns before any noise read. A box taller than the mist, or a chimney box that is
+  mostly air, then costs little more than the distance field reads the material graph always does.
+  Measured in the editor on World Map (10 boxes: ground, air, 8 chimneys; grid 8 px × 128 slices):
+  `VoxelizeVolumePrimitives` 2.96 → 2.28 ms.
+- **Spread From Origin costs more** (about 2.5× the noise reads), only in the volumes that use it.
+- **Measure the game, not the editor.** In the editor the frame is usually limited by the CPU (Slate, editor
+  ticks), so hiding the mist doesn't change the FPS. Use PIE or Standalone with `stat unit`, and
+  `ProfileGPU` for the passes.
 - **Grid resolution is the main knob.**
   - `r.VolumetricFog.GridPixelSize`: 16 by default. 8–12 looks sharper and costs a lot more.
   - `r.VolumetricFog.GridSizeZ`: 64–128.
@@ -356,9 +461,13 @@ Target: **≤ ~1 ms** for the whole VolumetricFog pass at 1080p on a **GTX 1060 
 | Nothing shows | In order of likelihood: the pivot is under the terrain (the floor is the pivot), `Density` too low (it is per meter, start at 1), the volume beyond the height fog's Volumetric Fog *View Distance*, Volumetric Fog off on UDS's height fog, or `MI_JRPGMist_Default` missing (log: `JRPGMistVolume`) |
 | The box snaps back to its size | Fixed: size is the actor scale now. Older placed volumes saved with `BoxExtent` should be deleted and placed again |
 | Mist doesn't react to the player | `MPC_JRPGMist` missing or misnamed parameters (log: `JRPGMistSubsystem`), or no `UJRPGMistDisturberComponent` on the pawn |
+| A Mist Blocker doesn't clear anything | `MF_JRPGMist` still calls `JRPGMistFromPacked5`: switch to `JRPGMistFromPacked6` (see the recipe). Otherwise: `bPreviewInEditor` off, or in game the conditions don't hold yet (flag / tree stage) |
 | The mist parts around the player but leaves no trail | `MF_JRPGMist` still calls `JRPGMistFromPacked4`: add the `TrailTex` input and switch to `JRPGMistFromPacked5` (see the recipe) |
 | Ghosting / smearing | Wind or WarpSpin too fast for temporal reprojection. Slow them down |
 | Air box hides the ground | `Density` too high for the box height: the camera looks through all of it. Lower `Density` or `AirCoverage` |
+| Chimney smoke doesn't run down the chimney | The chimney mesh has no distance field, `DripHug` too small for the Global DF resolution there, or material quality Low |
+| Chimney plume cut at the side | It leans out of the box: move the box toward where it leans, widen it, or lower `PlumeBend` |
+| Mist from the origin "pulses" softly | The two flow-map phases crossfading. Slower `FlowSpeed` / `GroundDriftRatio`, or a larger `NoiseScale` (longer cycle) |
 | Air clouds stretched along Z | The air is in a ground-mode box with Follow Ground. Use a separate box in Air mode |
 | Shader edit doesn't show in the open editor | Run `recompileshaders changed` in the console, or restart the editor |
 | A hard wall of mist | Box pitched/rolled, or `EdgeFade` too small |

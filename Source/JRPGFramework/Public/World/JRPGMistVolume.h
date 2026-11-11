@@ -11,6 +11,8 @@ class UMaterialInterface;
 class UMaterialInstanceDynamic;
 class UMaterialParameterCollection;
 class UTexture;
+class UTexture2D;
+class AJRPGMistBlocker;
 
 /** O que o volume desenha. */
 UENUM(BlueprintType)
@@ -29,7 +31,13 @@ enum class EJRPGMistMode : uint8
 	 * caixa SEPARADA da névoa de chão (cada uma com a sua configuração): a de chão baixa, com
 	 * Follow Ground, e esta alta. A altura aqui é medida pelo pivô (base da caixa).
 	 */
-	AirMist UMETA(DisplayName = "Air (Clouds + Flow)")
+	AirMist UMETA(DisplayName = "Air (Clouds + Flow)"),
+	/**
+	 * Fumaça de chaminé: uma pluma larga subindo da boca (o pivô) e uma parte escorrendo pela
+	 * chaminé e pelo telhado. Vai numa caixa própria por chaminé; a caixa desce DripLength abaixo
+	 * do pivô.
+	 */
+	ChimneySmoke UMETA(DisplayName = "Chimney Smoke")
 };
 
 /**
@@ -46,12 +54,15 @@ enum class EJRPGMistMode : uint8
  * 100 uu. Default 40 x 40 x 4 = 4000 x 4000 x 400 uu. O contorno da caixa aparece no
  * editor (some no jogo). Os parâmetros atualizam o preview na hora.
  * Mode escolhe entre névoa de chão, Flow Lines (linhas de túnel de vento), Pulse Rings
- * (ondas circulares saindo do pivô), Ground + Flow (as duas juntas) e Air (nuvens e linhas
- * flutuando no ar, numa caixa separada da de chão). No Flow Lines a direção é a seta do ator
- * (gire em yaw) ou, com FlowTarget, do ator para o alvo.
+ * (ondas circulares saindo do pivô), Ground + Flow (as duas juntas), Air (nuvens e linhas
+ * flutuando no ar, numa caixa separada da de chão) e Chimney Smoke (fumaça de chaminé). Nos
+ * modos com fluxo a direção é a seta do ator (gire em yaw) ou, com FlowTarget, do ator para o
+ * alvo. Com bSpreadFromOrigin a névoa inteira (chão, ar e linhas) sai de um ponto (SpreadOrigin)
+ * para todos os lados, com as mesmas configurações — só a direção muda.
  *
  * Quem mexe a névoa (jogador, NPCs) precisa de UJRPGMistDisturberComponent; o cenário
- * estático é lido sozinho pelo distance field.
+ * estático é lido sozinho pelo distance field. Áreas onde a névoa não entra (depois de um evento
+ * da história) são AJRPGMistBlocker: o volume pinta os que o encostam na BlockTex.
  *
  * Guia: Docs/Guides/MIST.md.
  */
@@ -79,6 +90,40 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist")
 	TSoftObjectPtr<UMaterialParameterCollection> ParameterCollection;
 
+	// --- Origem (epicentro) ---
+	// Liga e a névoa inteira — névoa de chão, nuvens do ar e Flow Lines — sai de um ponto para
+	// todos os lados, com as MESMAS configurações (velocidade, fios, linhas, densidade). Só a
+	// direção muda. Vale em Ground Mist, Flow Lines, Ground + Flow e Air.
+
+	/**
+	 * A névoa sai do SpreadOrigin para todos os lados, em vez de ir numa direção. As linhas viram
+	 * raios. Para chão e ar juntos, ligue nos dois volumes com o mesmo SpreadOrigin.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Origin", meta = (DisplayName = "Spread From Origin", EditCondition = "Mode != EJRPGMistMode::PulseRings && Mode != EJRPGMistMode::ChimneySmoke", EditConditionHides))
+	bool bSpreadFromOrigin = false;
+
+	/**
+	 * De onde a névoa sai (ex.: o Mist Generator). Vazio = o pivô deste volume. Se ele se mexer no
+	 * jogo, chame ApplyMistParameters.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Origin", meta = (EditCondition = "bSpreadFromOrigin && Mode != EJRPGMistMode::PulseRings && Mode != EJRPGMistMode::ChimneySmoke", EditConditionHides))
+	TObjectPtr<AActor> SpreadOrigin;
+
+	/** Gira a saída em espiral (0 = reto para fora, 1 = 45°, negativo = o outro sentido). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Origin", meta = (ClampMin = "-3.0", ClampMax = "3.0", EditCondition = "bSpreadFromOrigin && Mode != EJRPGMistMode::PulseRings && Mode != EJRPGMistMode::ChimneySmoke", EditConditionHides))
+	float SpreadSwirl = 0.0f;
+
+	/**
+	 * Opcional: distância em uu em que a densidade cai de 1 (na origem) até OriginFalloffMin —
+	 * mais densa perto da origem. 0 = desligado (a densidade é a do volume em toda a caixa).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Origin", meta = (ClampMin = "0.0", EditCondition = "bSpreadFromOrigin && Mode != EJRPGMistMode::PulseRings && Mode != EJRPGMistMode::ChimneySmoke", EditConditionHides))
+	float OriginFalloff = 0.0f;
+
+	/** A densidade longe da origem (depois do OriginFalloff), em relação à de perto dela. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Origin", meta = (ClampMin = "0.0", ClampMax = "1.0", EditCondition = "bSpreadFromOrigin && Mode != EJRPGMistMode::PulseRings && Mode != EJRPGMistMode::ChimneySmoke", EditConditionHides))
+	float OriginFalloffMin = 0.3f;
+
 	// --- Aparência ---
 
 	/**
@@ -103,11 +148,11 @@ public:
 	 * Espessura da névoa em uu. Densa até perto dela, esmaecendo no topo (TopSoftness). Deixe a
 	 * caixa mais alta que isto — o que passa do topo da caixa é cortado.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Look", meta = (ClampMin = "1.0", EditCondition = "Mode != EJRPGMistMode::AirMist", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Look", meta = (ClampMin = "1.0", EditCondition = "Mode != EJRPGMistMode::AirMist && Mode != EJRPGMistMode::ChimneySmoke", EditConditionHides))
 	float Thickness = 200.0f;
 
 	/** Quanto da espessura é transição suave no topo (0.05..1). 1 = esmaece desde o chão. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Look", meta = (ClampMin = "0.05", ClampMax = "1.0", EditCondition = "Mode != EJRPGMistMode::AirMist", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Look", meta = (ClampMin = "0.05", ClampMax = "1.0", EditCondition = "Mode != EJRPGMistMode::AirMist && Mode != EJRPGMistMode::ChimneySmoke", EditConditionHides))
 	float TopSoftness = 0.7f;
 
 	/**
@@ -115,14 +160,17 @@ public:
 	 * desce em buracos e depressões. Para cobrir um buraco, ponha o pivô no fundo dele. Sem
 	 * distance field (preset Low) volta a medir pelo pivô.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Look", meta = (EditCondition = "Mode != EJRPGMistMode::AirMist", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Look", meta = (EditCondition = "Mode != EJRPGMistMode::AirMist && Mode != EJRPGMistMode::ChimneySmoke", EditConditionHides))
 	bool bFollowGround = true;
 
 	/** Tamanho de um "tile" do ruído em uu. Maior = redemoinhos maiores. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Look", meta = (ClampMin = "1.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Look", meta = (ClampMin = "1.0", EditCondition = "Mode != EJRPGMistMode::ChimneySmoke", EditConditionHides))
 	float NoiseScale = 2400.0f;
 
-	/** Vento em uu/s (XY). Devagar: animação rápida borra com o temporal reprojection. */
+	/**
+	 * Vento em uu/s (XY). Devagar: animação rápida borra com o temporal reprojection. Com Spread
+	 * From Origin só a velocidade (o comprimento) vale; a direção é para fora da origem.
+	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Look", meta = (EditCondition = "Mode == EJRPGMistMode::GroundMist", EditConditionHides))
 	FVector2D Wind = FVector2D(25.0f, 10.0f);
 
@@ -219,8 +267,11 @@ public:
 
 	// --- Flow Lines (Mode = Flow Lines) ---
 
-	/** Para onde as linhas vão. Vazio = na direção da seta do ator (gire o ator em yaw). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Flow", meta = (EditCondition = "Mode == EJRPGMistMode::FlowLines || Mode == EJRPGMistMode::GroundAndFlow || Mode == EJRPGMistMode::AirMist", EditConditionHides))
+	/**
+	 * Para onde as linhas vão. Vazio = na direção da seta do ator (gire o ator em yaw). Chimney
+	 * Smoke: para onde a fumaça inclina.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Flow", meta = (EditCondition = "!bSpreadFromOrigin && Mode != EJRPGMistMode::GroundMist && Mode != EJRPGMistMode::PulseRings", EditConditionHides))
 	TObjectPtr<AActor> FlowTarget;
 
 	/** Velocidade dos traços em uu/s. Cada linha varia ±25%. */
@@ -316,6 +367,56 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Air", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::AirMist", EditConditionHides))
 	float AirStart = 150.0f;
 
+	// --- Chaminé (Mode = Chimney Smoke). O pivô é a boca da chaminé ---
+	// A pluma e o que escorre têm densidades separadas (Density e DripDensity). A volumetric fog
+	// tem resolução baixa: fumaça abaixo de ~80 uu de largura vira borrão.
+
+	/** Raio da fumaça na boca, em uu. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Chimney", meta = (ClampMin = "10.0", EditCondition = "Mode == EJRPGMistMode::ChimneySmoke", EditConditionHides))
+	float PlumeRadius = 100.0f;
+
+	/** Quanto o raio cresce por uu de altura (0.25 = +25 uu a cada 100 uu subindo). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Chimney", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::ChimneySmoke", EditConditionHides))
+	float PlumeSpread = 0.25f;
+
+	/** Velocidade da subida em uu/s. Devagar: rápido borra com o temporal reprojection. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Chimney", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::ChimneySmoke", EditConditionHides))
+	float RiseSpeed = 60.0f;
+
+	/** Tamanho dos "puffs" da fumaça em uu. Abaixo de ~80 borra. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Chimney", meta = (ClampMin = "40.0", EditCondition = "Mode == EJRPGMistMode::ChimneySmoke", EditConditionHides))
+	float PuffSize = 140.0f;
+
+	/**
+	 * Quanto a fumaça inclina para o lado da seta do ator (ou do FlowTarget): sai reta da boca e
+	 * vai deitando até este tanto de uu para o lado por uu de altura. 0 = sobe reta.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Chimney", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::ChimneySmoke", EditConditionHides))
+	float PlumeBend = 0.25f;
+
+	/** Quanto a fumaça balança e se desfia (0..1). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Chimney", meta = (ClampMin = "0.0", ClampMax = "1.0", EditCondition = "Mode == EJRPGMistMode::ChimneySmoke", EditConditionHides))
+	float PlumeTurbulence = 0.5f;
+
+	/** Densidade da parte que escorre, em relação ao Density (0 = sem). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Chimney", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::ChimneySmoke", EditConditionHides))
+	float DripDensity = 0.7f;
+
+	/** Até onde ela escorre abaixo da boca, em uu. A caixa desce isto abaixo do pivô. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Chimney", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::ChimneySmoke", EditConditionHides))
+	float DripLength = 300.0f;
+
+	/** Velocidade com que ela desce, em uu/s. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Chimney", meta = (ClampMin = "0.0", EditCondition = "Mode == EJRPGMistMode::ChimneySmoke", EditConditionHides))
+	float DripSpeed = 30.0f;
+
+	/**
+	 * Até quantos uu de uma superfície (parede da chaminé, telhado) ela fica colada. Precisa do
+	 * distance field da malha (sem ele, preset Low, só a pluma aparece).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mist|Chimney", meta = (ClampMin = "1.0", EditCondition = "Mode == EJRPGMistMode::ChimneySmoke", EditConditionHides))
+	float DripHug = 70.0f;
+
 	// --- Pulse Rings (Mode = Pulse Rings). O centro é o pivô do ator ---
 
 	/** Segundos entre um pulso e o próximo. */
@@ -386,6 +487,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "JRPG|Mist")
 	FVector2D GetFlowDirection() const;
 
+	/** De onde a névoa sai com bSpreadFromOrigin (o SpreadOrigin, ou o pivô). */
+	UFUNCTION(BlueprintPure, Category = "JRPG|Mist")
+	FVector GetSpreadOrigin() const;
+
+	/** A névoa sai da origem agora? (bSpreadFromOrigin num modo que aceita: não Pulse Rings nem Chimney Smoke) */
+	UFUNCTION(BlueprintPure, Category = "JRPG|Mist")
+	bool IsSpreadingFromOrigin() const;
+
 	/**
 	 * Troca a luz própria fixa na hora (sem esperar o timer). Para dia dinâmico guiado por
 	 * evento: o sistema de horário chama isto quando a hora muda.
@@ -411,6 +520,25 @@ public:
 	/** Textura do rastro do jogador (o UJRPGMistSubsystem pinta e passa para cá). */
 	void SetTrailTexture(UTexture* Texture);
 
+	/** A caixa da névoa em XY do mundo (a mesma do BoxXY do material e da BlockTex). */
+	FBox2D GetMistBoundsXY() const;
+
+	/**
+	 * Refaz a máscara das áreas sem névoa (BlockTex): procura os AJRPGMistBlocker que encostam
+	 * na caixa e calcula a distância de cada texel até a borda deles. Ignore = um blocker que
+	 * está saindo (apagado).
+	 */
+	void RefreshBlockers(const AJRPGMistBlocker* Ignore = nullptr);
+
+	/**
+	 * Um AJRPGMistBlocker mudou. bShapeChanged = a forma ou o lugar (refaz as distâncias, se ele
+	 * encosta ou encostava); senão só a transição andou (refaz a máscara, conta barata).
+	 */
+	void HandleBlockerChanged(const AJRPGMistBlocker* Blocker, bool bShapeChanged, bool bRemoving);
+
+	/** Tamanho em uu de um texel da BlockTex (a resolução sai do tamanho da caixa, até 256). */
+	static constexpr float BlockTexelSize = 50.0f;
+
 	virtual void OnConstruction(const FTransform& Transform) override;
 
 protected:
@@ -422,6 +550,9 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+	/** Põe o cubo no lugar: base no pivô, ou DripLength abaixo dele no Chimney Smoke. */
+	void UpdateBoxPlacement();
+
 	/** Garante o MID no MistBox (cria ou recupera o que já está lá). False sem material. */
 	bool EnsureMistMID();
 
@@ -446,4 +577,26 @@ private:
 
 	float CurrentSelfLight = 0.0f;
 	FTimerHandle SelfLightTimer;
+
+	/** Recalcula os pixels da BlockTex a partir das distâncias guardadas e sobe se mudou. */
+	void UpdateBlockMask(bool bForceUpload = false);
+
+	/** Cria (ou recria, se o tamanho mudou) a BlockTex e liga no MID. */
+	void EnsureBlockTexture(int32 SizeX, int32 SizeY);
+
+	/** Um blocker que encosta na caixa: a distância de cada texel até a borda dele (< 0 = fora). */
+	struct FBlockLayer
+	{
+		TWeakObjectPtr<const AJRPGMistBlocker> Blocker;
+		TArray<float> Dist;
+	};
+	TArray<FBlockLayer> BlockLayers;
+
+	/** Áreas sem névoa (G8, transient): 0 = névoa, 1 = sem névoa. Cobre GetMistBoundsXY. */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> BlockTexture;
+
+	TArray<uint8> BlockPixels;
+	int32 BlockResX = 0;
+	int32 BlockResY = 0;
 };
