@@ -1,10 +1,15 @@
 #include "Field/JRPGEncounterZone.h"
+#include "Battle/JRPGBattleArena.h"
+#include "Battle/JRPGBattleSceneSubsystem.h"
 #include "World/WorldStateSubsystem.h"
 #include "Components/BillboardComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/SplineComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "DrawDebugHelpers.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -18,11 +23,17 @@ namespace
 {
 	/** Tentativas de achar um ponto de chão dentro da forma. */
 	constexpr int32 PointAttempts = 20;
+	/** Sorteios de um ponto de spawn (PickSpawnPoint) antes de ficar com o menos ruim. */
+	constexpr int32 SpawnAttempts = 16;
+	/** De quanto em quanto tempo a zona confere as flags. */
+	constexpr float FlagPollSeconds = 1.0f;
 }
 
 AJRPGEncounterZone::AJRPGEncounterZone()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	// Só no editor, para o preview; o BeginPlay desliga
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = true;
 
 	Root = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	SetRootComponent(Root);
@@ -81,6 +92,42 @@ void AJRPGEncounterZone::OnConstruction(const FTransform& Transform)
 	AreaSphere->SetVisibility(Shape == EJRPGEncounterZoneShape::Sphere);
 	AreaBox->SetVisibility(Shape == EJRPGEncounterZoneShape::Box);
 	AreaSpline->SetVisibility(Shape == EJRPGEncounterZoneShape::Spline);
+#if WITH_EDITOR
+	RebuildPreview();
+#endif
+}
+
+bool AJRPGEncounterZone::ShouldTickIfViewportsOnly() const
+{
+	return true;
+}
+
+void AJRPGEncounterZone::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+#if WITH_EDITOR
+	const UWorld* World = GetWorld();
+	if (!World || World->IsGameWorld() || !bPreviewSpawns || (bPreviewOnlyWhenSelected && !IsSelectedInEditor()))
+	{
+		return;
+	}
+	float Radius = 40.0f;
+	float HalfHeight = 90.0f;
+	GetSpawnCapsule(nullptr, Radius, HalfHeight);
+	const int32 Always = FMath::Min(MinAlive, MaxAlive);
+	for (int32 i = 0; i < PreviewPoints.Num(); ++i)
+	{
+		const FVector& Floor = PreviewPoints[i];
+		const FColor Color = PreviewImperfect.IsValidIndex(i) && PreviewImperfect[i] ? FColor(255, 210, 0)
+			: i < Always ? FColor(60, 220, 90) : FColor(80, 160, 255);
+		DrawDebugCapsule(World, Floor + FVector(0.0, 0.0, HalfHeight), HalfHeight, Radius, FQuat::Identity, Color, false, -1.0f, 0, 2.0f);
+		if (MinSpacing > 0.0f)
+		{
+			DrawDebugCircle(World, Floor + FVector(0.0, 0.0, 3.0), MinSpacing * 0.5f, 32, Color, false, -1.0f, 0, 2.0f,
+				FVector(1.0, 0.0, 0.0), FVector(0.0, 1.0, 0.0), false);
+		}
+	}
+#endif
 }
 
 void AJRPGEncounterZone::SnapAreaToGround()
@@ -102,26 +149,34 @@ void AJRPGEncounterZone::BeginPlay()
 {
 	Super::BeginPlay();
 
+	SetActorTickEnabled(false);   // o Tick é só o preview do editor
 	SplineArea.Build(AreaSpline);
 	if (Shape == EJRPGEncounterZoneShape::Spline && !SplineArea.IsValid())
 	{
 		Print(TEXT("Shape = Spline com menos de 3 pontos — usando o Radius como esfera"), FColor::Orange);
 	}
 
-	if (!IsUnlocked())
-	{
-		Print(FString::Printf(TEXT("travada pelo flag %s"), *RequiredFlagID.ToString()));
-		return;
-	}
+	DesiredAlive = FMath::RandRange(FMath::Min(MinAlive, MaxAlive), FMath::Max(MinAlive, MaxAlive));
 	if (GetEncounterSetup().Enemies.Num() == 0)
 	{
 		Print(TEXT("sem Enemy escolhido — os inimigos vão encostar e não fazer nada"), FColor::Orange);
 	}
-	for (int32 i = 0; i < MaxAlive; ++i)
+
+	bZoneActive = IsZoneActive();
+	if (bZoneActive)
 	{
-		SpawnEnemy();
+		FillToDesired();
+		Print(FString::Printf(TEXT("%d inimigo(s) criados (de %d..%d)"), Enemies.Num(), MinAlive, MaxAlive), FColor::Cyan);
 	}
-	Print(FString::Printf(TEXT("%d inimigo(s) criados"), Enemies.Num()), FColor::Cyan);
+	else
+	{
+		Print(FString::Printf(TEXT("desligada pelas flags (Required %s, Disable %s)"), *RequiredFlagID.ToString(), *DisableFlagID.ToString()));
+	}
+	// As flags mudam no meio do jogo (a história): a zona confere e liga / desliga sozinha
+	if (!RequiredFlagID.IsNone() || !DisableFlagID.IsNone())
+	{
+		GetWorldTimerManager().SetTimer(FlagPollTimer, this, &AJRPGEncounterZone::PollFlags, FlagPollSeconds, true);
+	}
 }
 
 void AJRPGEncounterZone::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -130,15 +185,81 @@ void AJRPGEncounterZone::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
-bool AJRPGEncounterZone::IsUnlocked() const
+bool AJRPGEncounterZone::IsZoneActive() const
 {
-	if (RequiredFlagID.IsNone())
+	if (RequiredFlagID.IsNone() && DisableFlagID.IsNone())
 	{
 		return true;
 	}
 	const UGameInstance* GI = GetGameInstance();
 	const UWorldStateSubsystem* World = GI ? GI->GetSubsystem<UWorldStateSubsystem>() : nullptr;
-	return World && World->GetEventFlagValue(RequiredFlagID) == bRequiredFlagValue;
+	if (!World)
+	{
+		return false;
+	}
+	if (!RequiredFlagID.IsNone() && World->GetEventFlagValue(RequiredFlagID) != bRequiredFlagValue)
+	{
+		return false;
+	}
+	return DisableFlagID.IsNone() || !World->GetEventFlagValue(DisableFlagID);
+}
+
+void AJRPGEncounterZone::PollFlags()
+{
+	// Durante uma luta o Field está guardado: a troca fica para quando ele voltar
+	const UWorld* World = GetWorld();
+	const UJRPGBattleSceneSubsystem* Scene = World ? World->GetSubsystem<UJRPGBattleSceneSubsystem>() : nullptr;
+	if (Scene && Scene->IsFieldHidden())
+	{
+		return;
+	}
+	const bool bNow = IsZoneActive();
+	if (bNow == bZoneActive)
+	{
+		return;
+	}
+	bZoneActive = bNow;
+	if (!bZoneActive)
+	{
+		// Desligou: todos somem, e ninguém volta sozinho
+		for (const TPair<TWeakObjectPtr<AJRPGFieldEnemy>, FTimerHandle>& Pair : RespawnTimers)
+		{
+			FTimerHandle Handle = Pair.Value;
+			GetWorldTimerManager().ClearTimer(Handle);
+		}
+		RespawnTimers.Reset();
+		for (AJRPGFieldEnemy* Enemy : GetEnemies())
+		{
+			Enemy->HideForZone();
+		}
+		Print(TEXT("desligou pelas flags — os inimigos sumiram"), FColor::Orange);
+		return;
+	}
+	// Religou: os sumidos voltam agora, e os que faltam nascem
+	for (AJRPGFieldEnemy* Enemy : GetEnemies())
+	{
+		if (Enemy->GetEnemyState() == EJRPGFieldEnemyState::Hidden)
+		{
+			Respawn(Enemy);
+		}
+	}
+	FillToDesired();
+	Print(TEXT("ligou pelas flags — os inimigos voltaram"), FColor::Cyan);
+}
+
+void AJRPGEncounterZone::FillToDesired()
+{
+	const int32 Missing = DesiredAlive - Enemies.Num();
+	for (int32 i = 0; i < Missing; ++i)
+	{
+		SpawnEnemy();
+	}
+}
+
+AJRPGBattleArena* AJRPGEncounterZone::GetBattleArena() const
+{
+	AJRPGBattleArena* Arena = BattleArena.Get();
+	return IsValid(Arena) && Arena->bEnabled && Arena->GetWorld() == GetWorld() ? Arena : nullptr;
 }
 
 FJRPGEncounterSetup AJRPGEncounterZone::GetEncounterSetup() const
@@ -149,10 +270,12 @@ FJRPGEncounterSetup AJRPGEncounterZone::GetEncounterSetup() const
 void AJRPGEncounterZone::SpawnEnemy()
 {
 	UClass* Class = EnemyClass ? EnemyClass.Get() : AJRPGFieldEnemy::StaticClass();
+	const AJRPGFieldEnemy* ClassCDO = Class->GetDefaultObject<AJRPGFieldEnemy>();
+	const APawn* Player = UGameplayStatics::GetPlayerPawn(this, 0);
 	FVector Floor;
-	if (!GetRandomFloorPoint(Floor))
+	if (!PickSpawnPoint(nullptr, Player, ClassCDO->DetectRadius + 200.0f, Floor))
 	{
-		Print(FString::Printf(TEXT("não achei chão dentro da zona para criar um inimigo (procurando %.0f acima e abaixo do ator — FloorSearchDistance)"),
+		Print(FString::Printf(TEXT("não achei um ponto livre dentro da zona para criar um inimigo (chão a %.0f acima e abaixo do ator — FloorSearchDistance; ou tudo dentro de objetos)"),
 			GetEffectiveShape() == EJRPGEncounterZoneShape::Box ? FMath::Max(BoxExtent.Z, 100.0f) : FloorSearchDistance), FColor::Red);
 		return;
 	}
@@ -176,8 +299,12 @@ void AJRPGEncounterZone::SpawnEnemy()
 
 void AJRPGEncounterZone::NotifyEnemyHidden(AJRPGFieldEnemy* Enemy)
 {
+	if (!bZoneActive)
+	{
+		return;   // a zona desligada traz de volta ao religar (PollFlags)
+	}
 	const float Delay = FMath::FRandRange(RespawnDelayMin, FMath::Max(RespawnDelayMin, RespawnDelayMax));
-	FTimerHandle Handle;
+	FTimerHandle& Handle = RespawnTimers.FindOrAdd(Enemy);
 	GetWorldTimerManager().SetTimer(Handle,
 		FTimerDelegate::CreateUObject(this, &AJRPGEncounterZone::Respawn, TWeakObjectPtr<AJRPGFieldEnemy>(Enemy)),
 		Delay, false);
@@ -186,26 +313,248 @@ void AJRPGEncounterZone::NotifyEnemyHidden(AJRPGFieldEnemy* Enemy)
 
 void AJRPGEncounterZone::Respawn(TWeakObjectPtr<AJRPGFieldEnemy> Enemy)
 {
-	if (!Enemy.IsValid())
+	if (FTimerHandle* Handle = RespawnTimers.Find(Enemy))
+	{
+		GetWorldTimerManager().ClearTimer(*Handle);
+		RespawnTimers.Remove(Enemy);
+	}
+	if (!Enemy.IsValid() || !bZoneActive)
 	{
 		return;
 	}
-	if (!IsUnlocked())
-	{
-		// O flag mudou enquanto ele estava sumido: tenta de novo mais tarde
-		NotifyEnemyHidden(Enemy.Get());
-		return;
-	}
-	// Longe do jogador: reaparecer em cima dele começaria outra luta na hora
+	// Longe do jogador (reaparecer em cima dele começaria outra luta na hora), espaçado dos outros e fora de objetos
 	const APawn* Player = UGameplayStatics::GetPlayerPawn(this, 0);
 	FVector Floor;
-	if (!(Player ? GetRandomFloorPointAway(Player->GetActorLocation(), Enemy->DetectRadius + 200.0f, Floor) : GetRandomFloorPoint(Floor)))
+	if (!PickSpawnPoint(Enemy.Get(), Player, Enemy->DetectRadius + 200.0f, Floor))
 	{
 		NotifyEnemyHidden(Enemy.Get());
 		return;
 	}
 	Enemy->RespawnAtFloor(Floor);
 }
+
+void AJRPGEncounterZone::GetSpawnCapsule(const AJRPGFieldEnemy* Self, float& OutRadius, float& OutHalfHeight) const
+{
+	const AJRPGFieldEnemy* From = Self;
+	if (!From)
+	{
+		UClass* Class = EnemyClass ? EnemyClass.Get() : AJRPGFieldEnemy::StaticClass();
+		From = Class->GetDefaultObject<AJRPGFieldEnemy>();
+	}
+	const UCapsuleComponent* Capsule = From ? From->GetCapsuleComponent() : nullptr;
+	OutRadius = Capsule ? Capsule->GetScaledCapsuleRadius() : 40.0f;
+	OutHalfHeight = Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 90.0f;
+}
+
+bool AJRPGEncounterZone::PickSpawnPoint(const AJRPGFieldEnemy* Self, const AActor* AvoidActor, float MinDistance, FVector& OutFloor) const
+{
+	// Os outros da zona à vista: o espaçamento conta deles
+	TArray<FVector> Others;
+	for (const TObjectPtr<AJRPGFieldEnemy>& Other : Enemies)
+	{
+		if (Other && Other != Self && Other->GetEnemyState() != EJRPGFieldEnemyState::Hidden && !Other->IsHidden())
+		{
+			Others.Add(Other->GetActorLocation());
+		}
+	}
+	float Penalty = 0.0f;
+	if (!PickPointAmong(Others, Self, AvoidActor, MinDistance, OutFloor, Penalty))
+	{
+		return false;
+	}
+	if (Penalty > 0.0f)
+	{
+		Print(FString::Printf(TEXT("sem ponto perfeito para nascer: ficou o que passa %.0f cm das distâncias (zona pequena para o MinSpacing / MaxSpacing?)"), Penalty), FColor::Yellow);
+	}
+	return true;
+}
+
+bool AJRPGEncounterZone::PickPointAmong(const TArray<FVector>& Others, const AJRPGFieldEnemy* Self, const AActor* AvoidActor, float MinDistance,
+	FVector& OutFloor, float& OutPenalty) const
+{
+	OutPenalty = 0.0f;
+	const UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	float Radius = 40.0f;
+	float HalfHeight = 90.0f;
+	GetSpawnCapsule(Self, Radius, HalfHeight);
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(JRPGEncounterZoneSpawn), false, this);
+	if (Self)
+	{
+		Params.AddIgnoredActor(Self);
+	}
+	FCollisionObjectQueryParams Objects;
+	Objects.AddObjectTypesToQuery(ECC_WorldStatic);
+	Objects.AddObjectTypesToQuery(ECC_WorldDynamic);
+	const FCollisionShape Capsule = FCollisionShape::MakeCapsule(Radius + ObstacleClearance, HalfHeight + ObstacleClearance);
+	// A cápsula sobe um pouco do chão: o próprio chão (e uma rampa leve) não conta como obstáculo
+	const float Lift = HalfHeight + ObstacleClearance + Radius * 0.5f + 5.0f;
+
+	bool bFound = false;
+	float BestPenalty = TNumericLimits<float>::Max();
+	for (int32 Attempt = 0; Attempt < SpawnAttempts; ++Attempt)
+	{
+		FVector Point;
+		if (!GetRandomFloorPoint(Point))
+		{
+			continue;
+		}
+		if (bAvoidObstacles && World->OverlapAnyTestByObjectType(Point + FVector(0.0f, 0.0f, Lift), FQuat::Identity, Objects, Capsule, Params))
+		{
+			continue;   // dentro de algo: nunca serve
+		}
+
+		// O quanto passa das distâncias (0 = perfeito)
+		float Penalty = 0.0f;
+		if (AvoidActor)
+		{
+			Penalty += FMath::Max(0.0f, MinDistance - static_cast<float>(FVector::Dist2D(Point, AvoidActor->GetActorLocation())));
+		}
+		if (Others.Num() > 0)
+		{
+			float Nearest = TNumericLimits<float>::Max();
+			for (const FVector& Other : Others)
+			{
+				Nearest = FMath::Min(Nearest, static_cast<float>(FVector::Dist2D(Point, Other)));
+			}
+			Penalty += FMath::Max(0.0f, MinSpacing - Nearest);
+			if (MaxSpacing > 0.0f)
+			{
+				Penalty += FMath::Max(0.0f, Nearest - FMath::Max(MaxSpacing, MinSpacing));
+			}
+		}
+		if (Penalty <= 0.0f)
+		{
+			OutFloor = Point;
+			return true;
+		}
+		if (Penalty < BestPenalty)
+		{
+			BestPenalty = Penalty;
+			OutFloor = Point;
+			bFound = true;
+		}
+	}
+	OutPenalty = bFound ? BestPenalty : 0.0f;
+	return bFound;
+}
+
+void AJRPGEncounterZone::RerollPreview()
+{
+#if WITH_EDITOR
+	RebuildPreview();
+#endif
+}
+
+#if WITH_EDITOR
+void AJRPGEncounterZone::ClearPreviewMeshes()
+{
+	for (USkeletalMeshComponent* Mesh : PreviewMeshes)
+	{
+		if (IsValid(Mesh))
+		{
+			Mesh->DestroyComponent();
+		}
+	}
+	PreviewMeshes.Reset();
+}
+
+void AJRPGEncounterZone::RebuildPreview()
+{
+	ClearPreviewMeshes();
+	PreviewPoints.Reset();
+	PreviewImperfect.Reset();
+	PreviewMissing = 0;
+	UWorld* World = GetWorld();
+	if (!World || World->IsGameWorld() || IsTemplate() || !bPreviewSpawns)
+	{
+		return;
+	}
+
+	// Os pontos, um por vez, com as regras do jogo: cada um conta os anteriores como "os outros"
+	const int32 Count = FMath::Max(MinAlive, MaxAlive);
+	for (int32 i = 0; i < Count; ++i)
+	{
+		FVector Floor;
+		float Penalty = 0.0f;
+		if (!PickPointAmong(PreviewPoints, nullptr, nullptr, 0.0f, Floor, Penalty))
+		{
+			++PreviewMissing;
+			continue;
+		}
+		PreviewPoints.Add(Floor);
+		PreviewImperfect.Add(Penalty > 0.0f);
+	}
+	if (PreviewMissing > 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("EncounterZone %s: %d de %d inimigo(s) do preview sem lugar (sem chão na zona, ou tudo dentro de objetos)"),
+			*GetActorNameOrLabel(), PreviewMissing, Count);
+	}
+
+	if (!bPreviewMeshes)
+	{
+		return;
+	}
+	// Os modelos: a lista Visuals, senão o do DT_Enemies de cada inimigo do encontro que tenha um, um por ponto
+	struct FPreviewVisual
+	{
+		USkeletalMesh* Mesh = nullptr;
+		float Scale = 1.0f;
+	};
+	TArray<FPreviewVisual> Models;
+	for (const FJRPGFieldEnemyVisual& Visual : Visuals)
+	{
+		if (USkeletalMesh* Mesh = Visual.Mesh.LoadSynchronous())
+		{
+			Models.Add({ Mesh, Visual.Scale });
+		}
+	}
+	if (Models.Num() == 0)
+	{
+		for (const FJRPGEncounterEnemy& Line : GetEncounterSetup().Enemies)
+		{
+			FJRPGEnemyData Data;
+			if (UJRPGEncounterLibrary::GetEnemyData(Line.EnemyKey, Data))
+			{
+				if (USkeletalMesh* Mesh = Data.Mesh.LoadSynchronous())
+				{
+					Models.Add({ Mesh, 1.0f });
+				}
+			}
+		}
+	}
+	if (Models.Num() == 0)
+	{
+		return;
+	}
+	UClass* Class = EnemyClass ? EnemyClass.Get() : AJRPGFieldEnemy::StaticClass();
+	const float MeshYaw = Class->GetDefaultObject<AJRPGFieldEnemy>()->MeshYawOffset;
+	for (int32 i = 0; i < PreviewPoints.Num(); ++i)
+	{
+		const FPreviewVisual& Model = Models[i % Models.Num()];
+		// Componente de construção, transitório e só do editor: nunca é salvo nem vai para o jogo
+		USkeletalMeshComponent* Mesh = NewObject<USkeletalMeshComponent>(this, NAME_None, RF_Transient | RF_TextExportTransient);
+		Mesh->CreationMethod = EComponentCreationMethod::UserConstructionScript;
+		Mesh->bIsEditorOnly = true;
+		Mesh->SetHiddenInGame(true);
+		Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Mesh->SetCastShadow(false);
+		Mesh->SetSkeletalMeshAsset(Model.Mesh);
+		Mesh->SetupAttachment(Root);
+		Mesh->RegisterComponent();
+		// Os pés no chão do ponto (como o ApplyVisual do inimigo: a base dos bounds da malha na sola)
+		const FBoxSphereBounds Bounds = Model.Mesh->GetBounds();
+		const double MinZ = (Bounds.Origin.Z - Bounds.BoxExtent.Z) * Model.Scale;
+		const float Yaw = static_cast<float>(i) * 137.5f + MeshYaw;
+		Mesh->SetWorldTransform(FTransform(FRotator(0.0f, Yaw, 0.0f), PreviewPoints[i] - FVector(0.0, 0.0, MinZ), FVector(Model.Scale)));
+		PreviewMeshes.Add(Mesh);
+	}
+}
+#endif
 
 bool AJRPGEncounterZone::GetRandomFloorPointAway(const FVector& Avoid, float MinDistance, FVector& OutFloor) const
 {

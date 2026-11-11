@@ -141,6 +141,18 @@ void AJRPGFieldEnemy::OnConstruction(const FTransform& Transform)
 void AJRPGFieldEnemy::InitFromZone(AJRPGEncounterZone* InZone)
 {
 	Zone = InZone;
+	if (Zone)
+	{
+		// Na zona, a calma depois da luta é a da zona (como o respawn)
+		PostBattleNoChaseMin = Zone->PostBattleNoChaseMin;
+		PostBattleNoChaseMax = Zone->PostBattleNoChaseMax;
+	}
+}
+
+bool AJRPGFieldEnemy::IsInPostBattleNoChase() const
+{
+	const UWorld* World = GetWorld();
+	return World && World->GetTimeSeconds() < NoChaseUntil;
 }
 
 FJRPGEncounterSetup AJRPGFieldEnemy::GetEncounterSetup() const
@@ -474,8 +486,9 @@ bool AJRPGFieldEnemy::CanDetect(const APawn* Player) const
 	{
 		return false;
 	}
-	// Depois de uma luta ninguém persegue por um tempo: o jogador sai de cima de quem estava ao lado
-	if (IsEncounterGraceActive())
+	// Depois de uma luta ninguém persegue por um tempo: o jogador sai de cima de quem estava ao lado (a carência curta do
+	// UBattleSubsystem, e a calma sorteada de cada um, PostBattleNoChaseMin..Max)
+	if (IsEncounterGraceActive() || IsInPostBattleNoChase())
 	{
 		return false;
 	}
@@ -801,7 +814,9 @@ void AJRPGFieldEnemy::TriggerEncounter()
 	Info.FieldEnemy = this;
 	Info.Zone = Zone;
 	Info.ContactLocation = GetActorLocation();
-	Info.Arena = AJRPGBattleArena::FindArenaFor(this, Info.ContactLocation);
+	// A arena da zona, se ela escolheu uma; senão a do ponto do toque
+	AJRPGBattleArena* ZoneArena = Zone ? Zone->GetBattleArena() : nullptr;
+	Info.Arena = ZoneArena ? ZoneArena : AJRPGBattleArena::FindArenaFor(this, Info.ContactLocation);
 
 	TArray<FString> Names;
 	for (const FJRPGEncounterCombatant& C : Enemies)
@@ -851,6 +866,7 @@ void AJRPGFieldEnemy::TriggerEncounter()
 	Setup.TransitionStyle = TransitionStyle;
 	Setup.TransitionSubStyle = TransitionSubStyle;
 	Setup.Location = Info.ContactLocation;
+	Setup.Arena = ZoneArena;
 	// Sem arena, a party olha de quem encostou para o inimigo
 	const APawn* Player = GetPlayerPawn();
 	Setup.FacingYaw = Player ? (Info.ContactLocation - Player->GetActorLocation()).Rotation().Yaw : GetActorRotation().Yaw + 180.0f;
@@ -862,6 +878,18 @@ void AJRPGFieldEnemy::TriggerEncounter()
 }
 
 void AJRPGFieldEnemy::HideEnemy()
+{
+	HideInternal(true);
+}
+
+void AJRPGFieldEnemy::HideForZone()
+{
+	bHideWhenFieldHidden = false;
+	HideInternal(false);
+	Print(TEXT("a zona desligou — sumiu até ela religar"), FColor::Silver);
+}
+
+void AJRPGFieldEnemy::HideInternal(bool bScheduleRespawn)
 {
 	if (State == EJRPGFieldEnemyState::Hidden)
 	{
@@ -876,7 +904,10 @@ void AJRPGFieldEnemy::HideEnemy()
 	// notifies continuariam tocando o passo no lugar do toque
 	GetMesh()->bPauseAnims = true;
 	StopClipSounds();
-	ScheduleRespawn();
+	if (bScheduleRespawn)
+	{
+		ScheduleRespawn();
+	}
 }
 
 void AJRPGFieldEnemy::PlayClipSound(USoundBase* Sound, float VolumeMultiplier, float PitchMultiplier, bool bFollow, FName AttachName)
@@ -1019,6 +1050,9 @@ void AJRPGFieldEnemy::HandleFieldShown()
 {
 	bInBattle = false;
 	bHiddenForBattle = false;
+	// A calma depois da luta: cada um sorteia a sua, contada de a tela abrir
+	NoChaseUntil = GetWorld()->GetTimeSeconds()
+		+ FMath::FRandRange(PostBattleNoChaseMin, FMath::Max(PostBattleNoChaseMin, PostBattleNoChaseMax));
 	if (bHideWhenFieldHidden)
 	{
 		// A luta acabou antes da tela ficar preta: quem encostou some agora, como sem luta
@@ -1042,9 +1076,7 @@ void AJRPGFieldEnemy::ResetToHome()
 	// Na zona, longe do jogador (a luta foi montada em cima dele): fora do raio de detecção, para ninguém estar colado
 	// quando a tela abrir
 	const APawn* Player = GetPlayerPawn();
-	const bool bPicked = Zone && (Player
-		? Zone->GetRandomFloorPointAway(Player->GetActorLocation(), DetectRadius + 200.0f, Floor)
-		: Zone->GetRandomFloorPoint(Floor));
+	const bool bPicked = Zone && Zone->PickSpawnPoint(this, Player, DetectRadius + 200.0f, Floor);
 	if (!bPicked)
 	{
 		Floor = HomeLocation - FVector(0.0f, 0.0f, Half);

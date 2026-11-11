@@ -59,7 +59,8 @@ work, walking straight at their target.
 
 Drop a `BP_FieldEnemy` in the map and pick its **Enemy**. Where it is placed is home: it
 wanders around it (`WanderRadius`), and after an encounter it comes back there after
-`RespawnDelayMin..Max` (unless `bRespawn` is off).
+`RespawnDelayMin..Max` (40..70 s; unless `bRespawn` is off). After a fight it spends
+`PostBattleNoChaseMin..Max` (7..15 s, rolled per enemy) without chasing the player.
 
 ### A zone
 
@@ -70,15 +71,41 @@ Drop a **`JRPGEncounterZone`**:
 | `Shape` | **Sphere** (`Radius`), **Box** (`BoxExtent`, rotates with the actor) or **Spline** (`AreaSpline`: a closed outline drawn by hand, any shape — concave included). Drawn in the editor |
 | `FloorSearchDistance` | Sphere/Spline: how far above and below the zone actor to look for the ground — the zone may float or sit half underground (2000) |
 | `Enemy` / `LevelMin` / `LevelMax` | Which `DT_Enemies` row walks the zone, and its level range — model and animations come from the row |
-| `MaxAlive` | How many walk the zone at once |
 | `Custom Encounter` (advanced) | A mixed group; replaces `Enemy` when it has lines |
 | `EnemyClass` (advanced) | `BP_FieldEnemy` |
 | `Visuals` (advanced) | Overrides the model for this zone's enemies |
-| `RespawnDelayMin/Max` | An enemy that touched the player comes back after this, at a new point |
-| `RequiredFlagID` / `bRequiredFlagValue` | The zone only spawns with this WorldState event flag at this value |
+| `BattleArena` (*Battle*) | The arena for this zone's fights: pick a `JRPGBattleArena` in the scene. Empty or disabled = the arena of the contact point |
+| `MinAlive` / `MaxAlive` (*Spawn*) | How many walk the zone at once, rolled in this range when the zone starts (2..3) |
+| `MinSpacing` / `MaxSpacing` (*Spawn*) | A new enemy is at least `MinSpacing` (400 cm) from the others of the zone and, with `MaxSpacing` (0 = no limit), at most that from the nearest one, so the group neither stacks nor scatters |
+| `bAvoidObstacles` / `ObstacleClearance` (*Spawn*) | Never spawn inside objects: the enemy's capsule (+10 cm) at the drawn point must not touch anything static or dynamic (rocks, walls, crates) |
+| `RespawnDelayMin/Max` (*Respawn*) | An enemy that touched the player comes back after this (40..70 s), at a new point |
+| `PostBattleNoChaseMin/Max` (*Respawn*) | After a fight, each enemy of the zone spends a time rolled in this range (7..15 s) without chasing the player; it still wanders |
+| `RequiredFlagID` / `bRequiredFlagValue` (*Unlock*) | The zone only works with this WorldState event flag at this value |
+| `DisableFlagID` (*Unlock*) | The zone switches **off** while this flag is set (an area cleared in the story). Works together with `RequiredFlagID`: a zone can open at one point of the story and close at another |
+| `bPreviewSpawns` / `bPreviewMeshes` / `bPreviewOnlyWhenSelected`, **Reroll Preview** (*Preview*) | The editor preview, below |
 
 Enemies spawn on navmesh points **inside the shape**, wander inside it, and when they give up a
 chase they walk back into it. The zone's `Enemy` / Custom Encounter replaces each enemy's own.
+
+**Where they spawn.** Each spawn and respawn draws up to 16 floor points inside the shape and keeps
+the first one that is away from the player (outside his `DetectRadius` + 2 m), at `MinSpacing` /
+`MaxSpacing` from the enemies of the zone in view and, with `bAvoidObstacles`, with the capsule
+clear of objects. A point inside an object is never used; if no point meets the distances, the one
+that misses them by the least is used (with `bPrintDebug`, a yellow message says so: the zone is
+small for its spacing).
+
+**The flags.** The zone checks `RequiredFlagID` and `DisableFlagID` every second (not during a
+fight). Switching off, its enemies disappear and their respawns are cancelled; switching on, the
+hidden ones come back at once and the missing ones spawn.
+
+**The preview.** In the editor the zone draws where its enemies would spawn: `MaxAlive` points
+drawn with the same rules as the game, each with the enemy's capsule, a circle of `MinSpacing / 2`
+around it (two circles that do not touch are at least `MinSpacing` apart) and, with
+`bPreviewMeshes`, the enemy's model (`Visuals`, or the `DT_Enemies` model of each enemy of the
+encounter in turn). **Green** = the `MinAlive` that always spawn, **blue** = the ones that may
+spawn (up to `MaxAlive`), **yellow** = no point met the spacing. The draw changes every time the
+zone is edited, and with **Reroll Preview**; in the game each start draws again. Points that found
+no floor at all are reported in the Output Log.
 
 **The details panel** has one section per actor — *Field Enemy*, *Encounter Zone*, *Battle
 Arena* — with at most one level of subsections (*Area*, *Respawn*, *Detection*…); rarely
@@ -93,9 +120,10 @@ not change the area. A spline with fewer than 3 points falls back to a sphere of
 
 ### Where the fight happens
 
-On contact the enemy picks the **battle arena** for the fight — the `JRPGBattleArena` whose
-area contains the contact point, or the nearest one — and passes it in
-`FJRPGFieldEncounter::Arena` (the battle stage picks the same one). With `bPrintDebug` it
+On contact the enemy picks the **battle arena** for the fight — its zone's `BattleArena` when the
+zone has one (enabled); otherwise the `JRPGBattleArena` whose area contains the contact point, or the
+nearest one — and passes it in `FJRPGFieldEncounter::Arena`. The zone's arena also goes in
+`FJRPGBattleSetup::Arena`, which the battle stage uses before looking by position. With `bPrintDebug` it
 prints the arena's name and draws its formation for a few seconds. See
 [BATTLE_ROADMAP.md](../BATTLE_ROADMAP.md#ajrpgbattlearena--where-on-the-map-written-2026-10-27).
 
@@ -165,7 +193,8 @@ one line `gimard`, weight 1, count 0–1; `EnemiesPerBattle` 1–2.
 2. `UBattleSubsystem::TryStartEncounter` — refused if another started less than
    `EncounterGraceTime` (3 s) ago, so two enemies touched together do not start two fights, and for
    `PostBattleGraceTime` (5 s) after the field is shown again from a fight (`IsInEncounterGrace`). In that grace
-   field enemies do not detect or chase the player; one that keeps touching him triggers when it ends. A zone also
+   field enemies do not detect or chase the player; one that keeps touching him triggers when it ends. On top of it,
+   each enemy rolls its own `PostBattleNoChaseMin..Max` (7..15 s) without chasing once the field is shown. A zone also
    respawns its enemies away from the player.
 3. `OnEncounterTriggered` (Blueprint event) and `OnContact` (override in `BP_FieldEnemy`: the
    place for the 90s screen shatter). `UBattleSubsystem::OnEncounterStarted` fires with the
