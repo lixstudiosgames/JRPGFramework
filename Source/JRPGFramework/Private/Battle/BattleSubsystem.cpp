@@ -207,6 +207,28 @@ void UBattleSubsystem::NoteFieldReturned()
 	PostBattleGraceUntil = FPlatformTime::Seconds() + PostBattleGraceTime;
 }
 
+bool UBattleSubsystem::ConsumeEncounterStep(int32 Rate)
+{
+	if (EncounterCounter < 0)
+	{
+		EncounterCounter = UJRPGEncounterLibrary::RerollEncounterCounter(FMath::Rand(), FMath::Rand());
+	}
+	if (!UJRPGEncounterLibrary::StepEncounterCounter(EncounterCounter, Rate))
+	{
+		return false;
+	}
+	// A luta sai: o contador volta a 488..1460 (os dois sorteios só no gatilho, como no original)
+	EncounterCounter = UJRPGEncounterLibrary::RerollEncounterCounter(FMath::Rand(), FMath::Rand());
+	return true;
+}
+
+void UBattleSubsystem::TopUpEncounterCounterOnMapEntry()
+{
+	EncounterCounter = EncounterCounter < 0
+		? UJRPGEncounterLibrary::RerollEncounterCounter(FMath::Rand(), FMath::Rand())
+		: UJRPGEncounterLibrary::TopUpEncounterCounter(EncounterCounter, FMath::Rand(), FMath::Rand());
+}
+
 // =================================================================================================
 // A foto
 // =================================================================================================

@@ -82,6 +82,7 @@ Drop a **`JRPGEncounterZone`**:
 | `PostBattleNoChaseMin/Max` (*Respawn*) | After a fight, each enemy of the zone spends a time rolled in this range (7..15 s) without chasing the player; it still wanders |
 | `RequiredFlagID` / `bRequiredFlagValue` (*Unlock*) | The zone only works with this WorldState event flag at this value |
 | `DisableFlagID` (*Unlock*) | The zone switches **off** while this flag is set (an area cleared in the story). Works together with `RequiredFlagID`: a zone can open at one point of the story and close at another |
+| `bRandomEncounters` / `EncounterRate` / `StepLength` / `Priority` / `LowRateFlagID` / `LowRatePercent` (*Random Encounters*) | Random fights while the player walks in the zone, [below](#random-encounters) |
 | `bPreviewSpawns` / `bPreviewMeshes` / `bPreviewOnlyWhenSelected`, **Reroll Preview** (*Preview*) | The editor preview, below |
 
 Enemies spawn on navmesh points **inside the shape**, wander inside it, and when they give up a
@@ -126,6 +127,53 @@ nearest one — and passes it in `FJRPGFieldEncounter::Arena`. The zone's arena 
 `FJRPGBattleSetup::Arena`, which the battle stage uses before looking by position. With `bPrintDebug` it
 prints the arena's name and draws its formation for a few seconds. See
 [BATTLE_ROADMAP.md](../BATTLE_ROADMAP.md#ajrpgbattlearena--where-on-the-map-written-2026-10-27).
+
+### Random encounters
+
+The original's random fights (`FUN_801D9E1C`, RE `docs/formats/encounter.md`): no enemy in view,
+a fight starts after a number of steps. Turn on **`bRandomEncounters`** on a zone; the fights are
+rolled from the **same list** as its roaming enemies (`Enemy` / Custom Encounter) and set up on its
+`BattleArena`. Both work at once; `MaxAlive` 0 leaves only the random ones.
+
+- **The counter.** One step counter for the whole game (`UBattleSubsystem::GetEncounterCounter`),
+  carried from zone to zone and map to map, as in the original. It starts at
+  `0x3ce + rng%0x1e7 - rng%0x1e7` (488..1460, 974 on average). Every step inside a zone takes the
+  zone's rate off it; at 0 or below the fight starts and the counter is drawn again. Entering a
+  map with the counter below 487 adds half a fresh draw (the original's scene-entry top-up).
+- **`EncounterRate`** is the disc's per-step number (the region's byte `+4`): on average one fight
+  every `974 / rate` steps. 0 = never (a counter already at 0 still fires there, as in the
+  original). Default 20. The values on the disc (read from every scene's MAN section 0):
+
+  | Where | Rate | Steps per fight |
+  |---|---|---|
+  | World map (`map01` / `map02` / `map03`) | 42 and 32, per region | ~23 and ~30 |
+  | Most dungeons (Bylon, Dolk, Conc, Nilboa, Jou, Rugi…) | 20 | ~49 |
+  | Rim Elm's surroundings, Cave, Retock | 24 | ~41 |
+  | Quieter areas (Deene, tunnels, Stone) | 10..18 | ~54..97 |
+  | Towns, interiors | 0 | never |
+
+  The world map's story groups switch which regions are live, so the same map can feel faster or
+  slower after an event.
+- **A step** is entering a neighbouring tile of `StepLength` (55.4 cm: the original's 128-unit
+  tile). Moving more than one tile at once (a door, a warp) is not a step. The steps above match
+  the original only on a map at the PS1 scale: a map built larger needs a `StepLength` larger by
+  the same factor.
+- **Steps that do not count**: with a menu or dialogue open, with the field control off (doors,
+  scenes), during a fight and while the field is hidden, and in the encounter grace after a fight.
+- **`LowRateFlagID`** lowers this zone's rate to `LowRatePercent` (50 = half, like the original's
+  system flag `0x1E`) while the flag is set. `DisableFlagID` / `RequiredFlagID` switch the random
+  fights off with the rest of the zone.
+- **Overlapping zones**: the one with the highest `Priority` counts the step (a tie: the one that
+  started first). Outside every zone with random encounters nothing is counted.
+- `OnRandomEncounter` (Blueprint event on the zone) fires with the rolled enemies;
+  `StartRandomEncounter` starts one at once (dev menu, tests). With `bPrintDebug` each step prints
+  the rate and the counter on one line, and the fight prints its enemies and arena.
+
+`UJRPGRandomEncounterSubsystem` (world subsystem) does the counting; the rules are pure functions
+in `UJRPGEncounterLibrary` (`RerollEncounterCounter`, `TopUpEncounterCounter`,
+`StepEncounterCounter`, `ScaleEncounterRate`, `IsEncounterStep`), tested by
+`JRPG.Encounter.RandomCounter`. Not yet: the original's encounter-rate option and the accessory
+passives (Bad Luck Bell ×4, Good Luck Bell ÷2) and the Incense window.
 
 ### The Custom Encounter
 

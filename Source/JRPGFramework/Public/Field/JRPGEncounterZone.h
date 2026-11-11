@@ -124,6 +124,45 @@ public:
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Encounter Zone|Battle")
 	TSoftObjectPtr<AJRPGBattleArena> BattleArena;
 
+	// --- Encontros aleatórios (o do original: FUN_801D9E1C, RE docs/formats/encounter.md) ---
+
+	/**
+	 * Lutas aleatórias enquanto o jogador anda dentro da zona, sem inimigo à vista, como no original. Sorteiam da mesma lista
+	 * dos inimigos que andam pelo mapa (Enemy / Custom Encounter) e montam na BattleArena. Os dois convivem: MaxAlive 0 deixa
+	 * só o aleatório.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Random Encounters")
+	bool bRandomEncounters = false;
+
+	/**
+	 * A taxa por passo, no número do disco (o byte +4 da região do original). Um contador global (UBattleSubsystem::
+	 * GetEncounterCounter) começa em 488..1460 (média 974) e perde isto a cada passo; em 0 sai a luta. Em média uma luta a
+	 * cada 974 / taxa passos. Os valores do disco: mapa-múndi 42 (~23 passos) e 32 (~30); a maioria das dungeons 20 (~49);
+	 * Rim Elm e arredores, Cave, Retock 24 (~41); áreas calmas 10..18; cidades 0. 0 = nunca (a zona ainda pode ter inimigos à
+	 * vista).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Random Encounters", meta = (ClampMin = "0", ClampMax = "255", EditCondition = "bRandomEncounters"))
+	int32 EncounterRate = 20;
+
+	/**
+	 * O tamanho de um passo, em cm: o tile de 128 unidades do original (128 x 0.433005 = 55.4 cm). Cada vez que o jogador
+	 * entra num tile vizinho conta um passo. Mapas numa escala maior que a do PS1 pedem um passo maior.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Random Encounters", meta = (ClampMin = "10.0", EditCondition = "bRandomEncounters"))
+	float StepLength = 55.4246f;
+
+	/** Zonas sobrepostas: vale a de maior prioridade (empate: a que começou primeiro). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Random Encounters", meta = (EditCondition = "bRandomEncounters"))
+	int32 Priority = 0;
+
+	/** Event flag que abaixa a taxa desta zona enquanto está ligada (LowRatePercent). None = nunca. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Random Encounters", meta = (EditCondition = "bRandomEncounters"))
+	FName LowRateFlagID;
+
+	/** A taxa com o LowRateFlagID ligado, em % da EncounterRate (50 = metade, como a flag 0x1E do original). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Encounter Zone|Random Encounters", meta = (ClampMin = "0", ClampMax = "100", EditCondition = "bRandomEncounters"))
+	int32 LowRatePercent = 50;
+
 	// --- Spawn ---
 
 	/** Quantos andam pela zona ao mesmo tempo: sorteado entre MinAlive e MaxAlive quando a zona começa. */
@@ -253,6 +292,26 @@ public:
 	/** As flags deixam a zona funcionar (RequiredFlagID no valor pedido e DisableFlagID desligada). */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Encounter Zone")
 	bool IsZoneActive() const;
+
+	/** O ponto está dentro da zona: a forma vista de cima, e na faixa de altura dela (FloorSearchDistance / BoxExtent.Z). */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Encounter Zone")
+	bool ContainsPoint(const FVector& Point) const;
+
+	/** A taxa de agora: 0 sem bRandomEncounters ou com a zona desligada; com o LowRateFlagID ligado, a LowRatePercent dela. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Encounter Zone")
+	int32 GetEffectiveEncounterRate() const;
+
+	/**
+	 * Começa uma luta aleatória desta zona agora, onde Player está (o contador já deu zero; o dev menu / testes também
+	 * chamam). Sorteia da lista da zona, pede o UBattleSubsystem::TryStartEncounter e monta na BattleArena. False se a lista
+	 * está vazia ou a luta foi recusada.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Encounter Zone")
+	bool StartRandomEncounter(APawn* Player);
+
+	/** Uma luta aleatória desta zona começou (FieldEnemy nulo). */
+	UPROPERTY(BlueprintAssignable, Category = "Encounter Zone")
+	FOnJRPGFieldEncounter OnRandomEncounter;
 
 	/** Spline: desce os pontos do contorno até o chão (só o desenho; a área é a mesma). */
 	UFUNCTION(CallInEditor, Category = "Encounter Zone|Area")

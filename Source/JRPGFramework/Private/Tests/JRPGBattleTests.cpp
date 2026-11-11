@@ -2566,6 +2566,47 @@ bool FJRPGBattleFormationAdvantageTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGRandomEncounterCounterTest, "JRPG.Encounter.RandomCounter", JRPG_BATTLE_TEST_FLAGS)
+bool FJRPGRandomEncounterCounterTest::RunTest(const FString& Parameters)
+{
+	// O sorteio do contador (FUN_801DDF48): 0x3ce + A % 0x1e7 - B % 0x1e7, de 488 a 1460
+	TestEqual(TEXT("centro"), UJRPGEncounterLibrary::RerollEncounterCounter(0, 0), 974);
+	TestEqual(TEXT("mínimo"), UJRPGEncounterLibrary::RerollEncounterCounter(0, 486), 488);
+	TestEqual(TEXT("máximo"), UJRPGEncounterLibrary::RerollEncounterCounter(486, 0), 1460);
+	TestEqual(TEXT("o módulo dá a volta"), UJRPGEncounterLibrary::RerollEncounterCounter(487, 487), 974);
+	TestEqual(TEXT("módulo sem sinal"), UJRPGEncounterLibrary::RerollEncounterCounter(-1, 0), 974 + static_cast<int32>(0xFFFFFFFFu % 487u));
+
+	// A entrada no mapa: abaixo de 487 ganha metade de um sorteio; de 487 para cima passa como está
+	TestEqual(TEXT("top-up abaixo de 487"), UJRPGEncounterLibrary::TopUpEncounterCounter(100, 0, 0), 100 + 487);
+	TestEqual(TEXT("487 passa"), UJRPGEncounterLibrary::TopUpEncounterCounter(487, 0, 0), 487);
+
+	// Um passo: desconta; em <= 0 dispara
+	int32 Counter = 40;
+	TestFalse(TEXT("40 - 16 não dispara"), UJRPGEncounterLibrary::StepEncounterCounter(Counter, 16));
+	TestEqual(TEXT("fica 24"), Counter, 24);
+	TestFalse(TEXT("24 - 16 não dispara"), UJRPGEncounterLibrary::StepEncounterCounter(Counter, 16));
+	TestTrue(TEXT("8 - 16 dispara"), UJRPGEncounterLibrary::StepEncounterCounter(Counter, 16));
+	Counter = 16;
+	TestTrue(TEXT("exatamente 0 dispara"), UJRPGEncounterLibrary::StepEncounterCounter(Counter, 16));
+	Counter = 5;
+	TestFalse(TEXT("taxa 0 não desconta"), UJRPGEncounterLibrary::StepEncounterCounter(Counter, 0));
+	TestEqual(TEXT("taxa 0 deixa o contador"), Counter, 5);
+	Counter = 0;
+	TestTrue(TEXT("contador em 0 dispara até com taxa 0"), UJRPGEncounterLibrary::StepEncounterCounter(Counter, 0));
+
+	// A taxa baixa da zona
+	TestEqual(TEXT("sem a flag"), UJRPGEncounterLibrary::ScaleEncounterRate(17, false, 50), 17);
+	TestEqual(TEXT("metade, para baixo"), UJRPGEncounterLibrary::ScaleEncounterRate(17, true, 50), 8);
+	TestEqual(TEXT("0%"), UJRPGEncounterLibrary::ScaleEncounterRate(17, true, 0), 0);
+
+	// O passo: um tile vizinho (diagonal também); pular dois tiles não é passo
+	TestTrue(TEXT("vizinho"), UJRPGEncounterLibrary::IsEncounterStep(FIntPoint(3, 3), FIntPoint(4, 3)));
+	TestTrue(TEXT("diagonal"), UJRPGEncounterLibrary::IsEncounterStep(FIntPoint(3, 3), FIntPoint(2, 4)));
+	TestFalse(TEXT("parado"), UJRPGEncounterLibrary::IsEncounterStep(FIntPoint(3, 3), FIntPoint(3, 3)));
+	TestFalse(TEXT("pulo (porta, warp)"), UJRPGEncounterLibrary::IsEncounterStep(FIntPoint(3, 3), FIntPoint(5, 3)));
+	return true;
+}
+
 } // namespace JRPGBattleTests
 
 #endif // WITH_DEV_AUTOMATION_TESTS

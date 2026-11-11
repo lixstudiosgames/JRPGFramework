@@ -278,6 +278,27 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Battle")
 	void NoteFieldReturned();
 
+	/**
+	 * O contador de passos dos encontros aleatórios (o _DAT_8007B5FC do original): um só para o jogo inteiro, passa de zona
+	 * em zona e de mapa em mapa. Cada passo numa AJRPGEncounterZone com bRandomEncounters desconta a taxa dela; em <= 0 sai a
+	 * luta e ele volta a 488..1460. -1 = ainda não sorteado.
+	 */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle|Random Encounters")
+	int32 GetEncounterCounter() const { return EncounterCounter; }
+
+	/** Debug: põe o contador num valor (1 = a próxima zona com taxa dispara no próximo passo). */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Battle|Random Encounters")
+	void SetEncounterCounter(int32 Value) { EncounterCounter = Value; }
+
+	/**
+	 * Um passo numa zona com esta taxa (já com os modificadores): true = a luta sai agora, e o contador já foi sorteado de
+	 * novo. O sorteio é cosmético (FMath::Rand), fora do Rng das lutas. Chamado pelo UJRPGRandomEncounterSubsystem.
+	 */
+	bool ConsumeEncounterStep(int32 Rate);
+
+	/** A entrada num mapa: o top-up do original (UJRPGEncounterLibrary::TopUpEncounterCounter); sem contador, sorteia um. */
+	void TopUpEncounterCounterOnMapEntry();
+
 	/** Quantos heróis entram numa luta (os Seru como membros de apoio aumentam isto). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle", meta = (ClampMin = "1"))
 	int32 MaxPartySlots = 3;
@@ -414,6 +435,9 @@ private:
 
 	/** FPlatformTime::Seconds() até quando vale a carência de depois da luta (NoteFieldReturned). */
 	double PostBattleGraceUntil = -1.0e9;
+
+	/** O contador de passos dos encontros aleatórios (GetEncounterCounter); -1 = ainda não sorteado. */
+	int32 EncounterCounter = -1;
 
 	/** O fim de debug em curso paga todos os inimigos (EndBattleForDebug). */
 	bool bDebugPayEveryEnemy = false;

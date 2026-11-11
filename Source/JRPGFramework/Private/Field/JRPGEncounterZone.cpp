@@ -1,6 +1,8 @@
 #include "Field/JRPGEncounterZone.h"
 #include "Battle/JRPGBattleArena.h"
 #include "Battle/JRPGBattleSceneSubsystem.h"
+#include "Battle/BattleSubsystem.h"
+#include "Field/JRPGRandomEncounterSubsystem.h"
 #include "World/WorldStateSubsystem.h"
 #include "Components/BillboardComponent.h"
 #include "Components/BoxComponent.h"
@@ -177,10 +179,29 @@ void AJRPGEncounterZone::BeginPlay()
 	{
 		GetWorldTimerManager().SetTimer(FlagPollTimer, this, &AJRPGEncounterZone::PollFlags, FlagPollSeconds, true);
 	}
+	// Os passos do jogador dentro dela: quem conta é o subsistema do mundo (um contador para todas as zonas)
+	if (bRandomEncounters)
+	{
+		if (UJRPGRandomEncounterSubsystem* Random = GetWorld()->GetSubsystem<UJRPGRandomEncounterSubsystem>())
+		{
+			Random->RegisterZone(this);
+		}
+		if (GetEncounterSetup().Enemies.Num() == 0)
+		{
+			Print(TEXT("bRandomEncounters sem Enemy escolhido — o contador dispara e nenhuma luta sai"), FColor::Orange);
+		}
+	}
 }
 
 void AJRPGEncounterZone::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (UWorld* World = GetWorld())
+	{
+		if (UJRPGRandomEncounterSubsystem* Random = World->GetSubsystem<UJRPGRandomEncounterSubsystem>())
+		{
+			Random->UnregisterZone(this);
+		}
+	}
 	GetWorldTimerManager().ClearAllTimersForObject(this);
 	Super::EndPlay(EndPlayReason);
 }
@@ -254,6 +275,79 @@ void AJRPGEncounterZone::FillToDesired()
 	{
 		SpawnEnemy();
 	}
+}
+
+bool AJRPGEncounterZone::ContainsPoint(const FVector& Point) const
+{
+	if (DistanceOutside(Point) > 0.0f)
+	{
+		return false;
+	}
+	// A faixa de altura: a mesma em que a zona procura o chão (mapas com andares, pontes)
+	const float Height = GetEffectiveShape() == EJRPGEncounterZoneShape::Box ? FMath::Max(BoxExtent.Z, 100.0f) : FloorSearchDistance;
+	return FMath::Abs(Point.Z - GetActorLocation().Z) <= Height;
+}
+
+int32 AJRPGEncounterZone::GetEffectiveEncounterRate() const
+{
+	if (!bRandomEncounters || !bZoneActive)
+	{
+		return 0;
+	}
+	bool bLowRate = false;
+	if (!LowRateFlagID.IsNone())
+	{
+		const UGameInstance* GI = GetGameInstance();
+		const UWorldStateSubsystem* WorldState = GI ? GI->GetSubsystem<UWorldStateSubsystem>() : nullptr;
+		bLowRate = WorldState && WorldState->GetEventFlagValue(LowRateFlagID);
+	}
+	return UJRPGEncounterLibrary::ScaleEncounterRate(EncounterRate, bLowRate, LowRatePercent);
+}
+
+bool AJRPGEncounterZone::StartRandomEncounter(APawn* Player)
+{
+	const TArray<FJRPGEncounterCombatant> Rolled = UJRPGEncounterLibrary::RollEncounter(GetEncounterSetup());
+	if (Rolled.Num() == 0)
+	{
+		Print(TEXT("encontro aleatório, mas a lista está vazia (Enemy / Custom Encounter) — nada a fazer"), FColor::Red);
+		return false;
+	}
+	const UGameInstance* GI = GetGameInstance();
+	UBattleSubsystem* Battle = GI ? GI->GetSubsystem<UBattleSubsystem>() : nullptr;
+	if (!Battle || !Battle->TryStartEncounter(Rolled))
+	{
+		return false;
+	}
+
+	const FVector Where = Player ? Player->GetActorLocation() : GetActorLocation();
+	FJRPGFieldEncounter Info;
+	Info.Enemies = Rolled;
+	Info.Zone = this;
+	Info.ContactLocation = Where;
+	AJRPGBattleArena* ZoneArena = GetBattleArena();
+	Info.Arena = ZoneArena ? ZoneArena : AJRPGBattleArena::FindArenaFor(this, Where);
+
+	TArray<FString> Names;
+	for (const FJRPGEncounterCombatant& C : Rolled)
+	{
+		FJRPGEnemyData Data;
+		Names.Add(UJRPGEncounterLibrary::GetEnemyData(C.EnemyKey, Data)
+			? FString::Printf(TEXT("%s Lv%d"), *Data.DisplayName.ToString(), C.Level)
+			: FString::Printf(TEXT("%s Lv%d (fora do DT_Enemies!)"), *C.EnemyKey.ToString(), C.Level));
+	}
+	Print(FString::Printf(TEXT("ENCONTRO ALEATÓRIO! %s%s"), *FString::Join(Names, TEXT(", ")),
+		Info.Arena ? *FString::Printf(TEXT(" — arena %s"), *Info.Arena->GetActorNameOrLabel()) : TEXT(" — sem arena, montada onde o jogador está")),
+		FColor::Red);
+	OnRandomEncounter.Broadcast(Info);
+
+	FJRPGBattleSetup Setup;
+	Setup.Enemies = Rolled;
+	Setup.bScriptedFight = UJRPGEncounterLibrary::ResolveScriptedFight(Rolled);
+	Setup.Location = Where;
+	Setup.Arena = ZoneArena;
+	// Sem arena, a party olha para onde o jogador olhava
+	Setup.FacingYaw = Player ? Player->GetActorRotation().Yaw : GetActorRotation().Yaw;
+	return Battle->BeginBattle(Setup);
 }
 
 AJRPGBattleArena* AJRPGEncounterZone::GetBattleArena() const

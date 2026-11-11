@@ -68,8 +68,11 @@ JRPGFramework/
 │   │   │   ├── JRPGFieldEnemyController.h ✅    ← AI controller of the field enemies (MoveTo)
 │   │   │   ├── JRPGFieldEnemyAnimInstance.h ✅  ← native anim instance, no Anim Blueprint: Idle/Walk/Run
 │   │   │   │                                       with crossfade, notifies fire; any skeleton
-│   │   │   ├── JRPGEncounterZone.h ✅           ← sphere/box/spline area keeping MaxAlive enemies,
-│   │   │   │                                       respawn, event-flag gate
+│   │   │   ├── JRPGEncounterZone.h ✅           ← sphere/box/spline area keeping MinAlive..MaxAlive enemies
+│   │   │   │                                       (spacing, clear of objects, editor preview), respawn,
+│   │   │   │                                       Required / Disable flags, its BattleArena, random encounters
+│   │   │   ├── JRPGRandomEncounterSubsystem.h ✅ ← counts the player's steps in zones with random
+│   │   │   │                                       encounters (the original's step counter)
 │   │   │   ├── JRPGFieldMapSettings.h ✅        ← one per map: base camera, controls, speeds,
 │   │   │   │                                       whether the party shows
 │   │   │   ├── JRPGInteractable.h ✅            ← interface: Interact(InteractingActor)
@@ -229,7 +232,7 @@ JRPGFramework/
 │       │                    JRPGFieldMapSettings.cpp ✅, JRPGFieldTypes.cpp ✅,
 │       │                    JRPGInteractionComponent.cpp ✅, JRPGFieldEnemy.cpp ✅,
 │       │                    JRPGFieldEnemyController.cpp ✅, JRPGFieldEnemyAnimInstance.cpp ✅,
-│       │                    JRPGEncounterZone.cpp ✅)
+│       │                    JRPGEncounterZone.cpp ✅, JRPGRandomEncounterSubsystem.cpp ✅)
 │       ├── Shop/ ✅        (ShopSubsystem.cpp ✅)
 │       ├── Audio/ ✅       (AudioSubsystem.cpp ✅, JRPGSettingsSave.cpp ✅)
 │       ├── Camera/ ✅      (CameraSubsystem.cpp ✅, CameraData.cpp ✅, JRPGCameraActor.cpp ✅,

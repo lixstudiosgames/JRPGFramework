@@ -128,4 +128,42 @@ public:
 	/** As keys do DT_Enemies, para o dropdown do EnemyKey no editor. */
 	UFUNCTION()
 	static TArray<FString> GetEnemyKeyOptions();
+
+	// --- Encontros aleatórios: o contador de passos do original (FUN_801D9E1C, RE docs/formats/encounter.md) ---------------
+
+	/** O centro do contador (0x3ce = 974) e o módulo de cada sorteio (0x1e7 = 487). */
+	static constexpr int32 EncounterCounterBase = 0x3CE;
+	static constexpr int32 EncounterCounterMod = 0x1E7;
+
+	/**
+	 * O contador depois de uma luta (FUN_801DDF48): 0x3ce + (A % 0x1e7) - (B % 0x1e7), de 488 a 1460 (média 974). RollA /
+	 * RollB: dois sorteios quaisquer (o módulo é sem sinal, como no original).
+	 */
+	UFUNCTION(BlueprintPure, Category = "JRPG|Encounter")
+	static int32 RerollEncounterCounter(int32 RollA, int32 RollB);
+
+	/**
+	 * A entrada num mapa (FUN_8003AB2C, 0x8003AC78..0x8003ACAC): com o contador abaixo de 487 soma metade de um sorteio novo
+	 * (arredondando para zero); de 487 para cima ele passa pela porta como está.
+	 */
+	UFUNCTION(BlueprintPure, Category = "JRPG|Encounter")
+	static int32 TopUpEncounterCounter(int32 Counter, int32 RollA, int32 RollB);
+
+	/**
+	 * Um passo: desconta Rate do contador. True = a luta sai (o contador ia a <= 0; quem chama sorteia o contador de novo com
+	 * RerollEncounterCounter). Enquanto fica positivo, só desconta. Um contador já em 0 dispara até com taxa 0 (o bgtz do
+	 * original em 0x801DA218 cai direto).
+	 */
+	static bool StepEncounterCounter(int32& Counter, int32 Rate);
+
+	/** A taxa com a flag de taxa baixa da zona: Rate * LowRatePercent / 100 (50 = o >> 1 da flag 0x1E do original). */
+	UFUNCTION(BlueprintPure, Category = "JRPG|Encounter")
+	static int32 ScaleEncounterRate(int32 Rate, bool bLowRate, int32 LowRatePercent);
+
+	/**
+	 * Mudar de tile é um passo só se andou no máximo um tile em cada eixo (o teste slti 0x2 em 0x801D9EF0 / 0x801D9F08): um
+	 * teletransporte ou uma porta não conta, nem desconta, nem sorteia.
+	 */
+	UFUNCTION(BlueprintPure, Category = "JRPG|Encounter")
+	static bool IsEncounterStep(FIntPoint PrevTile, FIntPoint NowTile);
 };
