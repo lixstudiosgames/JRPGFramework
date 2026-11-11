@@ -937,24 +937,49 @@ void UJRPGBattleSceneSubsystem::UpdateVictory(const UBattleSubsystem& Battle, AJ
 
 	if (VictoryStage == EJRPGBattleVictoryStage::None)
 	{
-		// Quem posa: o líder (ctx[+0x13] = o lugar 0 no original). Nosso: com ele caído, o primeiro herói de pé (o original levanta
-		// o caído com 1 de HP no quadro dos resultados; aqui o caído fica no chão até a luta desmontar)
-		const FJRPGCombatant* Poser = nullptr;
-		AJRPGBattlePawn* PoserPawn = nullptr;
+		// Quem posa: o herói da última ação, se está de pé (o braço de vitória do 0x5A); senão um herói de pé sorteado; as lutas
+		// do Songi forçam o lugar (UJRPGBattleRules::VictoryPoseSeat). De pé = vivo e com o pawn em cena (o original levanta o
+		// caído com 1 de HP no quadro dos resultados; aqui o caído fica no chão até a luta desmontar)
+		TArray<const FJRPGCombatant*> SeatCombatants;
+		TArray<AJRPGBattlePawn*> SeatPawns;
+		TArray<bool> SeatStanding;
+		int32 FirstMonsterArchiveID = -1;
 		for (const FJRPGCombatant& Combatant : State.Combatants)
 		{
-			if (Combatant.Side != EJRPGBattleSide::Party || Combatant.HP <= 0 || (Poser && Combatant.SideIndex >= Poser->SideIndex))
+			if (Combatant.Side != EJRPGBattleSide::Party)
+			{
+				if (Combatant.SideIndex == 0)
+				{
+					FJRPGEnemyData Row;
+					if (UJRPGEncounterLibrary::GetEnemyData(Combatant.Key, Row))
+					{
+						FirstMonsterArchiveID = Row.MonsterArchiveID;
+					}
+				}
+				continue;
+			}
+			if (Combatant.SideIndex < 0)
 			{
 				continue;
 			}
-			AJRPGBattlePawn* Pawn = Current.GetPawnForSlot(Combatant.SlotIndex);
-			if (IsValid(Pawn) && !Pawn->IsHidden() && !Pawn->IsDefeated())
+			if (Combatant.SideIndex >= SeatStanding.Num())
 			{
-				Poser = &Combatant;
-				PoserPawn = Pawn;
+				SeatCombatants.SetNum(Combatant.SideIndex + 1);
+				SeatPawns.SetNum(Combatant.SideIndex + 1);
+				SeatStanding.SetNum(Combatant.SideIndex + 1);
 			}
+			AJRPGBattlePawn* Pawn = Current.GetPawnForSlot(Combatant.SlotIndex);
+			SeatCombatants[Combatant.SideIndex] = &Combatant;
+			SeatPawns[Combatant.SideIndex] = Pawn;
+			SeatStanding[Combatant.SideIndex] = Combatant.HP > 0 && IsValid(Pawn) && !Pawn->IsHidden() && !Pawn->IsDefeated();
 		}
-		if (!Poser)
+		// A última ação: o Finish só apaga o bActive, o Slot fica com quem agiu
+		const FJRPGCombatant* Acting = State.Combatants.IsValidIndex(State.Action.Slot) ? &State.Combatants[State.Action.Slot] : nullptr;
+		const int32 ActingSeat = Acting && Acting->Side == EJRPGBattleSide::Party ? Acting->SideIndex : -1;
+		const int32 Seat = UJRPGBattleRules::VictoryPoseSeat(ActingSeat, SeatStanding, FirstMonsterArchiveID, FMath::Rand());
+		const FJRPGCombatant* Poser = SeatCombatants.IsValidIndex(Seat) ? SeatCombatants[Seat] : nullptr;
+		AJRPGBattlePawn* PoserPawn = SeatPawns.IsValidIndex(Seat) ? SeatPawns[Seat] : nullptr;
+		if (!Poser || !PoserPawn)
 		{
 			return;   // ninguém de pé para posar (não deveria numa vitória): o hold segue no plano geral
 		}

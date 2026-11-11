@@ -125,3 +125,40 @@ FName UJRPGBattleRules::VictoryPoseClipName(int32 Column)
 	};
 	return Column >= 0 && Column < 6 ? Names[Column] : NAME_None;
 }
+
+int32 UJRPGBattleRules::VictoryPoseSeat(int32 ActingSeat, const TArray<bool>& SeatStanding, int32 FirstMonsterArchiveID, int32 Roll)
+{
+	auto IsStanding = [&SeatStanding](int32 Seat) { return SeatStanding.IsValidIndex(Seat) && SeatStanding[Seat]; };
+
+	// 0x801E6688: quem agiu e está de pé fica com a pose
+	int32 Seat = -1;
+	if (IsStanding(ActingSeat))
+	{
+		Seat = ActingSeat;
+	}
+	else
+	{
+		// 0x801E66A4..0x801E6724: senão sorteia um de pé
+		TArray<int32> Standing;
+		for (int32 i = 0; i < SeatStanding.Num(); ++i)
+		{
+			if (SeatStanding[i])
+			{
+				Standing.Add(i);
+			}
+		}
+		if (Standing.IsEmpty())
+		{
+			return -1;
+		}
+		Seat = Standing[(Roll & MAX_int32) % Standing.Num()];
+	}
+
+	// 0x801E6728..0x801E676C: as lutas do Songi
+	const int32 Forced = FirstMonsterArchiveID == VictoryPoseSongiMonsterA ? 2 : FirstMonsterArchiveID == VictoryPoseSongiMonsterB ? 1 : -1;
+	if (IsStanding(Forced))
+	{
+		Seat = Forced;
+	}
+	return Seat;
+}

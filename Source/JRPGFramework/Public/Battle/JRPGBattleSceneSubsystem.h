@@ -116,7 +116,10 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Scene")
 	EJRPGBattleVictoryStage GetVictoryStage() const { return VictoryStage; }
 
-	/** Quem posa na vitória: o líder (o lugar 0 da party) ou, com ele caído, o primeiro herói de pé. Nulo fora da sequência. */
+	/**
+	 * Quem posa na vitória: o herói que fez a última ação (o que derrubou o último inimigo), de pé; senão um herói de pé sorteado;
+	 * as lutas do Songi forçam o lugar (UJRPGBattleRules::VictoryPoseSeat). Nulo fora da sequência.
+	 */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Scene")
 	AJRPGBattlePawn* GetVictoryPawn() const { return VictoryPawn.Get(); }
 

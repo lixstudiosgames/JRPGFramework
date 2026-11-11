@@ -2016,6 +2016,21 @@ bool FJRPGBattleVictoryPoseTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("o clip da coluna 0"), UJRPGBattleRules::VictoryPoseClipName(0), FName(TEXT("Victory1")));
 	TestEqual(TEXT("o clip da coluna 5"), UJRPGBattleRules::VictoryPoseClipName(5), FName(TEXT("VictoryWeak2")));
 	TestEqual(TEXT("fora da tabela"), UJRPGBattleRules::VictoryPoseClipName(6), FName(NAME_None));
+
+	// Quem posa (bug 89): quem fez a última ação, de pé; senão um de pé sorteado; o Songi força o lugar
+	const TArray<bool> AllUp = { true, true, true };
+	const TArray<bool> NoaDown = { true, false, true };
+	TestEqual(TEXT("a Noa matou o último: ela posa, não o líder"), UJRPGBattleRules::VictoryPoseSeat(1, AllUp, -1, 0), 1);
+	TestEqual(TEXT("o Gala matou o último"), UJRPGBattleRules::VictoryPoseSeat(2, AllUp, -1, 0), 2);
+	TestEqual(TEXT("quem agiu caiu: o sorteio, 1º de pé"), UJRPGBattleRules::VictoryPoseSeat(1, NoaDown, -1, 0), 0);
+	TestEqual(TEXT("quem agiu caiu: o sorteio, 2º de pé"), UJRPGBattleRules::VictoryPoseSeat(1, NoaDown, -1, 1), 2);
+	TestEqual(TEXT("um monstro agiu por último: o sorteio"), UJRPGBattleRules::VictoryPoseSeat(-1, AllUp, -1, 4), 1);
+	TestEqual(TEXT("sorteio negativo não sai da faixa"), UJRPGBattleRules::VictoryPoseSeat(-1, AllUp, -1, -7), 1);
+	TestEqual(TEXT("Songi 0xB3 força o lugar 2"), UJRPGBattleRules::VictoryPoseSeat(0, AllUp, 0xB3, 0), 2);
+	TestEqual(TEXT("Songi 0xB4 força o lugar 1"), UJRPGBattleRules::VictoryPoseSeat(2, AllUp, 0xB4, 0), 1);
+	TestEqual(TEXT("Songi com o lugar forçado caído: fica quem agiu"), UJRPGBattleRules::VictoryPoseSeat(2, NoaDown, 0xB4, 0), 2);
+	TestEqual(TEXT("grupo de 2, Songi 0xB3 sem lugar 2"), UJRPGBattleRules::VictoryPoseSeat(1, TArray<bool>{ true, true }, 0xB3, 0), 1);
+	TestEqual(TEXT("ninguém de pé"), UJRPGBattleRules::VictoryPoseSeat(0, TArray<bool>{ false, false }, -1, 0), -1);
 	return true;
 }
 

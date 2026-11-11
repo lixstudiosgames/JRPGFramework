@@ -272,7 +272,7 @@ The action SM stops on the signal; the sequencer runs every frame until its phas
 
 | Item | Original | Ours |
 |---|---|---|
-| Win pose | the **leader** (`ctx[+0x13]`, always seat 0) poses; clip from the SCUS table `0x800788A0` by HP-quarter tier, round count, weak-status mask; one of the eight base-archive records `0x11..0x18`, **held** through the 256 hold (loop window `+0x85..+0x86`) | **have** (6.1, 2026-11-10, tested in PIE): `UJRPGBattleSceneSubsystem::UpdateVictory` -> `AJRPGBattlePawn::PlayVictoryPose`; the pick is `UJRPGBattleRules::VictoryPoseTier` / `VictoryPoseColumn`. Ours: a downed leader does not pose (the first hero standing does); the weak-status mask waits for Phase 8; the round count is taken as the rounds already closed |
+| Win pose | the hero whose action ended the fight poses (the `0x5A` victory arm `0x801E6688..0x801E676C`: a living acting actor keeps the slot, a dead one re-rolls a living party member, first monster `0xB3` / `0xB4` force slot 2 / 1; the RE's earlier "always the leader" reading came from a capture where the leader acted last, bug 89); clip from the SCUS table `0x800788A0` by HP-quarter tier, round count, weak-status mask; one of the eight base-archive records `0x11..0x18`, **held** through the 256 hold (loop window `+0x85..+0x86`) | **have** (6.1, 2026-11-10, tested in PIE): `UJRPGBattleSceneSubsystem::UpdateVictory` -> `AJRPGBattlePawn::PlayVictoryPose`; the pick is `UJRPGBattleRules::VictoryPoseSeat` / `VictoryPoseTier` / `VictoryPoseColumn`. Ours: a downed hero never poses (the forced Songi slot only when standing; the original lifts the downed to 1 HP); the weak-status mask waits for Phase 8; the round count is taken as the rounds already closed |
 | Hero voice | the leader's victory clip from `monster.snd` (slot 7) | **have**: the notify already on the pose clip plays it |
 | Victory camera | load window: stand-off framing case 8 on the leader; from the results frame: case 6 battle-over arm, the per-character win-pose camera script advancing `8` a frame | **have** (`EJRPGBattleShot::Victory`, `AJRPGBattleCamera::BuildVictoryPose`); the load window is kept as `UBattleSubsystem::VictoryLoadFrames` (80) |
 | Result window | element `0x41`: `288 x 42` framed window sliding from `(16, 236)` to `(16, 160)`, "<leader> / team ... victory" text; level-up window `0x44 + mask` + cue `0x50` | WebUI results (check against this) |
@@ -941,7 +941,7 @@ user. Data generators are listed where a step needs disc numbers (outside the re
    - **5b.1** The frame: the capture, the overlay, the style pick, the timing, the fade ramps, the start cue (`0x1F`, `0x4D` on a
      scripted fight), the hand-off to the battle scene (replaces the plain `Fade` at the start), and the tile shatter (default).
    - **5b.2** The other four styles: scatter, spin-up (with its ring), curtain, swirl.
-6. **Battle end** (4.6): the loop window per clip (6.2), the leader's **win pose** held through the 256 hold, the victory camera
+6. **Battle end** (4.6): the loop window per clip (6.2), the **win pose** (the hero of the last action) held through the 256 hold, the victory camera
    (7.8), the victory voice and level-up cue (9.2), the result / loss screens (our design).
    - **Parts (2026-11-07):**
      - **6.1 Victory sequence.** The RE timeline (signal, 80-frame load window with case 8's stand-off on the leader, the results

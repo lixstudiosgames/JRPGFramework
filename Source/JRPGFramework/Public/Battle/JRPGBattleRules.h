@@ -109,4 +109,18 @@ public:
 
 	/** O nome do clip da coluna (o papel que o Extras/ps1_party_sounds.py deu: AS_<Herói>_Battle_<nome>); NAME_None fora de 0..5. */
 	static FName VictoryPoseClipName(int32 Column);
+
+	/** As lutas do Songi forçam quem posa pelo id do primeiro monstro (DT_Enemies.MonsterArchiveID): 0xB3 -> lugar 2, 0xB4 -> lugar 1. */
+	static constexpr int32 VictoryPoseSongiMonsterA = 0xB3;
+	static constexpr int32 VictoryPoseSongiMonsterB = 0xB4;
+
+	/**
+	 * O lugar do grupo (SideIndex) de quem posa na vitória: o braço de vitória do estado 0x5A (0x801E6688..0x801E676C, RE
+	 * battle-round-loop.md "Enemy-ally charm at the end-of-action gate"). Quem fez a última ação posa se está de pé (ActingSeat, -1
+	 * quando quem agiu não é um herói); senão Roll sorteia um herói de pé (o original repete rand % tamanho até cair num vivo: a
+	 * mesma chance para cada um). Depois as lutas do Songi forçam o lugar pelo primeiro monstro (FirstMonsterArchiveID). Nosso: o
+	 * lugar forçado e o de quem agiu só valem de pé (o original levanta o caído com 1 de HP; o nosso fica no chão). SeatStanding:
+	 * um por lugar do grupo. -1 = ninguém de pé. Roll é cosmético: quem chama usa um stream que não é o das regras.
+	 */
+	static int32 VictoryPoseSeat(int32 ActingSeat, const TArray<bool>& SeatStanding, int32 FirstMonsterArchiveID, int32 Roll);
 };

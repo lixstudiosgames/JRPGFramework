@@ -336,7 +336,7 @@ public:
 	bool IsDown() const { return bDown; }
 
 	/**
-	 * A pose de vitória (o quadro dos resultados do original: FUN_8004E568 põe o clip 0x11..0x18 no líder): toca o clip do papel
+	 * A pose de vitória (o quadro dos resultados do original: FUN_8004E568 põe o clip 0x11..0x18 em quem posa): toca o clip do papel
 	 * dado (UJRPGBattleRules::VictoryPoseClipName) uma vez e fica nele até o fim da luta, pelo trecho de laço do clip
 	 * (UJRPGAnimNotify_LoopWindow, 255 = até trocar) ou, sem ele, no último quadro. A voz do herói é um notify do próprio clip.
 	 * Falso (e nada muda) se ele está caído, agindo, ou não tem o clip.

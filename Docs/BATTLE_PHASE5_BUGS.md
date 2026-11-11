@@ -959,6 +959,11 @@ tables of 1c first.
     a **living acting actor keeps the pose slot**, a dead one re-rolls a random living party member, and the Songi fights force a
     slot (first monster id `0xB3` -> slot 2, `0xB4` -> slot 1). To do: pose the hero whose action ended the fight (the last
     action's actor when it is a living hero), with those fallbacks; the camera and the pose pick already follow whoever poses.
+    - **Fixed (re-test).** New rule `UJRPGBattleRules::VictoryPoseSeat` (the `0x5A` arm): the hero of the last action
+      (`State.Action.Slot`, kept after `Finish`) poses if standing; a downed actor or a monster acting last re-rolls a standing
+      hero (cosmetic `FMath::Rand`, same chance for each, like the original's `rand % count` loop); first monster
+      `MonsterArchiveID` `0xB3` / `0xB4` forces seat 2 / 1, only when that seat is standing (ours keeps the downed on the
+      floor). `UJRPGBattleSceneSubsystem::UpdateVictory` measures who is standing and calls it. Test `JRPG.Battle.VictoryPose`.
 
 #### Status of the open entries (user, 2026-11-10)
 
@@ -970,9 +975,9 @@ The entries above keep the text of the day they were written. What the user conf
 - **Fixed, re-test done:** 37 (the Arts' shout slow), 38 (the Slime's walk sound), 39 (the action camera changing side), 41 (the
   doubled slow on Miracle), 42 (the special starter of a new Art), 43 (AP on damage taken).
 - **Fixed too:** 84 (two Hypers in a row, the second without its fanfare).
+- **Fixed, to re-test:** 89 (the win pose goes to the hero who killed the last enemy; PR #17).
 - **Still open, for the next fix pass:** 85 (the light floor on night maps), 86 (the impact sound on a blocked hit), 87 (the
-  party enters the fight with the Ra-Seru equipped), 89 (the win pose goes to the leader instead of the hero who killed the
-  last enemy).
+  party enters the fight with the Ra-Seru equipped).
 - **To do, a feature:** 88 (the dev menu's equipment tab).
 
 ## Not bugs (checked)
