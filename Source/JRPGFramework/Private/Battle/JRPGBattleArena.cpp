@@ -241,6 +241,10 @@ void AJRPGBattleArena::Tick(float DeltaSeconds)
 	}
 #endif
 	DrawFormation(GetFormation(PreviewPartyCount, PreviewEnemyCount), false, -1.0f);
+	if (bPreviewCameraOrbit)
+	{
+		DrawDebugCameraOrbit(PreviewPartyCount, PreviewEnemyCount, -1.0f);
+	}
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -460,6 +464,96 @@ void AJRPGBattleArena::DrawDebugFormation(int32 PartyCount, int32 EnemyCount, fl
 	DrawFormation(GetFormation(PartyCount, EnemyCount), false, Duration);
 }
 
+bool AJRPGBattleArena::TraceCameraOrbit(int32 PartyCount, int32 EnemyCount, FJRPGArenaCameraOrbit& Out) const
+{
+	Out = FJRPGArenaCameraOrbit();
+	UWorld* World = GetWorld();
+	if (!World || !bUseBattleCamera || BattleCamera)
+	{
+		return false;   // a câmera posta à mão ou o FrameGroup parado não giram
+	}
+	const UClass* CameraClass = BattleCameraClass ? BattleCameraClass.Get() : AJRPGBattleCamera::StaticClass();
+	const AJRPGBattleCamera* Camera = CameraClass ? Cast<AJRPGBattleCamera>(CameraClass->GetDefaultObject()) : nullptr;
+	if (!Camera)
+	{
+		return false;
+	}
+	TArray<FVector> Feet;
+	for (const FJRPGArenaSeat& Seat : GetFormation(PartyCount, EnemyCount))
+	{
+		Feet.Add(Seat.Transform.GetLocation());
+	}
+	FJRPGBattleCameraPose Pose;
+	if (!Camera->ComputeFarFraming(*this, Feet, Pose))
+	{
+		return false;
+	}
+	AJRPGBattleCamera::GetEyeRadiusAndHeight(Pose, Out.Radius, Out.Height);
+	if (Out.Radius <= 1.0)
+	{
+		return false;
+	}
+	Out.Focus = Pose.Focus;
+
+	// O olho em cada ponto do anel: dentro de algo (uma esfera do tamanho do olho), ou com a vista até o foco tapada (o foco um
+	// pouco acima do chão, para o capim e o desnível não taparem tudo). As malhas de preview são componentes desta arena
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(JRPGArenaCameraOrbit), false, this);
+	const FCollisionObjectQueryParams Objects(FCollisionObjectQueryParams::AllStaticObjects);
+	const FCollisionShape Probe = FCollisionShape::MakeSphere(FMath::Max(PreviewCameraProbeRadius, 1.0f));
+	const FVector SightTarget = Out.Focus + FVector(0.0, 0.0, SeatHalfHeight);
+	const FVector EyeCentre = Out.Focus + FVector(0.0, 0.0, Out.Height);
+
+	const int32 Segments = FMath::Clamp(PreviewCameraSegments, 8, 256);
+	Out.Points.Reserve(Segments);
+	Out.Status.Reserve(Segments);
+	for (int32 i = 0; i < Segments; ++i)
+	{
+		const double Angle = 2.0 * UE_DOUBLE_PI * i / Segments;
+		const FVector Eye = EyeCentre + FVector(FMath::Cos(Angle) * Out.Radius, FMath::Sin(Angle) * Out.Radius, 0.0);
+		uint8 Status = 0;
+		FHitResult Hit;
+		if (World->OverlapAnyTestByObjectType(Eye, FQuat::Identity, Objects, Probe, Params))
+		{
+			Status = 2;
+			++Out.InsideCount;
+		}
+		else if (World->LineTraceSingleByObjectType(Hit, Eye, SightTarget, Objects, Params))
+		{
+			Status = 1;
+			++Out.BlockedCount;
+		}
+		Out.Points.Add(Eye);
+		Out.Status.Add(Status);
+	}
+	return true;
+}
+
+void AJRPGBattleArena::DrawDebugCameraOrbit(int32 PartyCount, int32 EnemyCount, float Duration) const
+{
+	FJRPGArenaCameraOrbit Orbit;
+	if (!TraceCameraOrbit(PartyCount, EnemyCount, Orbit))
+	{
+		return;
+	}
+	const UWorld* World = GetWorld();
+	const FVector EyeCentre = Orbit.Focus + FVector(0.0, 0.0, Orbit.Height);
+	DrawDebugCrosshairs(World, Orbit.Focus, FRotator::ZeroRotator, 60.0f, FColor::White, false, Duration, 0);
+	DrawDebugLine(World, Orbit.Focus, EyeCentre, FColor::White, false, Duration, 0, 1.0f);
+
+	// Verde livre, laranja com a vista tapada, vermelho com o olho dentro de algo; um trecho pega a pior das duas pontas
+	static const FColor Colors[3] = { FColor(60, 220, 90), FColor(255, 150, 0), FColor(235, 40, 40) };
+	const int32 Num = Orbit.Points.Num();
+	for (int32 i = 0; i < Num; ++i)
+	{
+		const int32 Next = (i + 1) % Num;
+		const uint8 Worst = FMath::Max(Orbit.Status[i], Orbit.Status[Next]);
+		DrawDebugLine(World, Orbit.Points[i], Orbit.Points[Next], Colors[Worst], false, Duration, 0, Worst == 0 ? 3.0f : 6.0f);
+	}
+	// A sombra do anel no chão do foco, para ver de cima por onde a câmera passa
+	DrawDebugCircle(World, Orbit.Focus + FVector(0.0, 0.0, 2.0), Orbit.Radius, FMath::Max(Num, 8), FColor(200, 200, 200), false, Duration,
+		0, 1.0f, FVector(1.0, 0.0, 0.0), FVector(0.0, 1.0, 0.0), false);
+}
+
 void AJRPGBattleArena::DrawFormation(const TArray<FJRPGArenaSeat>& Seats, bool bPersistent, float Duration) const
 {
 	const UWorld* World = GetWorld();
@@ -501,6 +595,12 @@ TArray<FString> AJRPGBattleArena::CollectProblems() const
 	if (bUseArea && !SplineArea.IsValid())
 	{
 		Problems.Add(TEXT("a área tem menos de 3 pontos"));
+	}
+	FJRPGArenaCameraOrbit Orbit;
+	if (bPreviewCameraOrbit && TraceCameraOrbit(PreviewPartyCount, PreviewEnemyCount, Orbit) && (Orbit.InsideCount > 0 || Orbit.BlockedCount > 0))
+	{
+		Problems.Add(FString::Printf(TEXT("a órbita da câmera (raio %.0f cm, olho %.0f cm acima do foco) passa dentro de algo em %d de %d pontos e tem a vista tapada em %d"),
+			Orbit.Radius, Orbit.Height, Orbit.InsideCount, Orbit.Points.Num(), Orbit.BlockedCount));
 	}
 	return Problems;
 }

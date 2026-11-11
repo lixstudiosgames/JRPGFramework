@@ -247,6 +247,16 @@ cut), `StartYaw` (relative to the arena; the original opens at 0, both rows in l
 `bArtShots`, `StarterLoopCount`, `StarterDiscRate`, `FieldOfView43`, `bEntryShots` and the `Entry*` numbers,
 `bPrintDebug` (shot, slots and pose on screen).
 
+**The orbit preview in the editor** (arena's `bPreviewCameraOrbit`, on by default; Preview group). The arena draws the far
+shot's orbit, the camera that turns while nobody acts: a ring at eye height around the focus of the preview formation
+(`PreviewPartyCount` / `PreviewEnemyCount`), with a shadow of it on the floor and a cross on the focus. It uses the battle
+camera's own maths (`AJRPGBattleCamera::ComputeFarFraming` on the `BattleCameraClass` default object, so `DistanceScale`,
+`FarSpanFactor`, `FarLiftUnits` and `FarPitchUnits` change it). Each stretch is **green** when free, **orange** when the view
+from there to the focus goes through something, and **red** when the eye is inside something (a sphere of
+`PreviewCameraProbeRadius`, against static geometry). `PreviewCameraSegments` sets how many points are tested. **Validate
+Ground** and Map Check list it as a problem. It is the formation at rest: in a fight the orbit shrinks while an attacker walks
+up to his target. Nothing is drawn with a hand-placed `BattleCamera` or with `bUseBattleCamera` off.
+
 **Field enemies:** `bStartBattle` (default on) — off, contact only announces the encounter, as
 in Phase 3.
 

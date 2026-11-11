@@ -1188,36 +1188,19 @@ AJRPGBattlePawn* AJRPGBattleCamera::PawnForSlot(int32 Slot) const
 bool AJRPGBattleCamera::BuildFarPose(float DeltaSeconds, FJRPGBattleCameraPose& OutPose)
 {
 	const AJRPGBattleArena* CurrentArena = Arena.Get();
-	const TArray<AJRPGBattlePawn*> Pawns = GetVisiblePawns();
-	if (!CurrentArena || Pawns.Num() == 0)
+	if (!CurrentArena)
 	{
 		return false;
 	}
-
-	// A caixa da formação no plano da arena (o caso 9 do original reconstrói a caixa e o centro a cada passo: o atacante que anda
-	// até o alvo encolhe a largura até o piso 0x800, e ela volta quando ele volta)
-	const FTransform ArenaXf(FRotator(0.0, CurrentArena->GetActorRotation().Yaw, 0.0), CurrentArena->GetActorLocation());
-	FBox2D Box(ForceInit);
-	double FloorZ = 0.0;
-	for (const AJRPGBattlePawn* Pawn : Pawns)
+	TArray<FVector> Feet;
+	for (const AJRPGBattlePawn* Pawn : GetVisiblePawns())
 	{
-		const FVector Feet = FeetOf(Pawn);
-		const FVector Local = ArenaXf.InverseTransformPosition(Feet);
-		Box += FVector2D(Local.X, Local.Y);
-		FloorZ += Feet.Z;
+		Feet.Add(FeetOf(Pawn));
 	}
-	FloorZ /= Pawns.Num();
-
-	const float CmPerUnit = CurrentArena->OriginalCmPerUnit;
-	const FVector2D Size = Box.GetSize();
-	const float SpanUnits = static_cast<float>(FMath::Max(Size.X, Size.Y)) / FMath::Max(CmPerUnit, KINDA_SMALL_NUMBER);
-	const float DepthUnits = Prescale(FMath::Max(SpanUnits * FarSpanFactor, FarMinSpanUnits));
-
-	const FVector2D Centre = Box.GetCenter();
-	OutPose.Focus = ArenaXf.TransformPosition(FVector(Centre.X, Centre.Y, 0.0));
-	OutPose.Focus.Z = FloorZ;
-	OutPose.Pitch = UnitsToDegrees(FarPitchUnits);
-	OutPose.Offset = FVector(0.0, CameraUnitsToCm(FarLiftUnits), CameraUnitsToCm(DepthUnits) * DistanceScale);
+	if (!ComputeFarFraming(*CurrentArena, Feet, OutPose))
+	{
+		return false;
+	}
 
 	// O giro passa direto (o caso 9 não o toca): é o relógio da órbita, que anda sozinho
 	if (bOrbit && bHasPose)
@@ -1226,6 +1209,50 @@ bool AJRPGBattleCamera::BuildFarPose(float DeltaSeconds, FJRPGBattleCameraPose& 
 	}
 	OutPose.Yaw = Live.Yaw;
 	return true;
+}
+
+bool AJRPGBattleCamera::ComputeFarFraming(const AJRPGBattleArena& ForArena, const TArray<FVector>& Feet, FJRPGBattleCameraPose& OutPose) const
+{
+	if (Feet.Num() == 0)
+	{
+		return false;
+	}
+	// A caixa da formação no plano da arena (o caso 9 do original reconstrói a caixa e o centro a cada passo: o atacante que anda
+	// até o alvo encolhe a largura até o piso 0x800, e ela volta quando ele volta)
+	const FTransform ArenaXf(FRotator(0.0, ForArena.GetActorRotation().Yaw, 0.0), ForArena.GetActorLocation());
+	FBox2D Box(ForceInit);
+	double FloorZ = 0.0;
+	for (const FVector& Foot : Feet)
+	{
+		const FVector Local = ArenaXf.InverseTransformPosition(Foot);
+		Box += FVector2D(Local.X, Local.Y);
+		FloorZ += Foot.Z;
+	}
+	FloorZ /= Feet.Num();
+
+	// As translações da câmera estão na escala 4x da luta (CameraUnitsToCm), aqui pela arena dada: o CDO não tem arena
+	const float CmPerUnit = FMath::Max(ForArena.OriginalCmPerUnit, KINDA_SMALL_NUMBER);
+	auto ToCm = [CmPerUnit](float Units) { return Units * 0.25f * CmPerUnit; };
+	const FVector2D Size = Box.GetSize();
+	const float SpanUnits = static_cast<float>(FMath::Max(Size.X, Size.Y)) / CmPerUnit;
+	const float DepthUnits = Prescale(FMath::Max(SpanUnits * FarSpanFactor, FarMinSpanUnits));
+
+	const FVector2D Centre = Box.GetCenter();
+	OutPose.Focus = ArenaXf.TransformPosition(FVector(Centre.X, Centre.Y, 0.0));
+	OutPose.Focus.Z = FloorZ;
+	OutPose.Pitch = UnitsToDegrees(FarPitchUnits);
+	OutPose.Offset = FVector(0.0, ToCm(FarLiftUnits), ToCm(DepthUnits) * DistanceScale);
+	return true;
+}
+
+void AJRPGBattleCamera::GetEyeRadiusAndHeight(const FJRPGBattleCameraPose& Pose, double& OutRadius, double& OutHeight)
+{
+	// ApplyLivePose: Eye = Focus - Forward * Z + Up * Y - Right * X, com o pitch -Pitch. No plano da vista o olho fica
+	// Z cos(P) - Y sin(P) atrás do foco e X de lado; na altura, Z sin(P) + Y cos(P) acima
+	const double P = FMath::DegreesToRadians(static_cast<double>(Pose.Pitch));
+	const double Behind = Pose.Offset.Z * FMath::Cos(P) - Pose.Offset.Y * FMath::Sin(P);
+	OutRadius = FMath::Sqrt(Behind * Behind + Pose.Offset.X * Pose.Offset.X);
+	OutHeight = Pose.Offset.Z * FMath::Sin(P) + Pose.Offset.Y * FMath::Cos(P);
 }
 
 bool AJRPGBattleCamera::BuildEntryPose(FJRPGBattleCameraPose& OutPose)

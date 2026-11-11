@@ -67,6 +67,21 @@ struct JRPGFRAMEWORK_API FJRPGArenaSeat
 	FString Problem;
 };
 
+/** A órbita do plano geral testada contra o cenário (AJRPGBattleArena::bPreviewCameraOrbit). */
+struct FJRPGArenaCameraOrbit
+{
+	FVector Focus = FVector::ZeroVector;
+	/** No plano, do foco ao olho (cm). */
+	double Radius = 0.0;
+	/** O olho acima do foco (cm). */
+	double Height = 0.0;
+	/** Os pontos do anel e o de cada um: 0 livre, 1 a vista até o foco tapada, 2 o olho dentro de algo. */
+	TArray<FVector> Points;
+	TArray<uint8> Status;
+	int32 InsideCount = 0;
+	int32 BlockedCount = 0;
+};
+
 /**
  * AJRPGBattleArena
  * O lugar do mapa onde uma luta é montada — e quem monta. Arraste para a cena: no editor ela já desenha onde
@@ -536,6 +551,25 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Preview")
 	bool bPreviewOnlyWhenSelected = false;
 
+	/**
+	 * Desenha no editor o caminho da câmera do plano geral (a órbita que gira enquanto ninguém age): um círculo na altura do olho,
+	 * em volta do foco da formação de preview (PreviewPartyCount / PreviewEnemyCount), com a conta da câmera da luta
+	 * (AJRPGBattleCamera::ComputeFarFraming, o CDO da BattleCameraClass: DistanceScale, FarSpanFactor...). Cada trecho:
+	 * verde livre, vermelho com o olho dentro de algo (rocha, parede), laranja com a vista até o foco tapada. É a formação
+	 * parada: na luta a órbita encolhe quando um atacante anda até o alvo. Só com a câmera da luta (bUseBattleCamera, sem
+	 * BattleCamera posta à mão).
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Preview")
+	bool bPreviewCameraOrbit = true;
+
+	/** O tamanho do olho no teste do círculo (uma esfera deste raio, em cm): mais = mais folga das paredes. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Preview", meta = (ClampMin = "1.0", EditCondition = "bPreviewCameraOrbit"))
+	float PreviewCameraProbeRadius = 20.0f;
+
+	/** Quantos trechos o círculo tem (mais = o teste pega pedras menores, custa mais no editor). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Preview", meta = (ClampMin = "8", ClampMax = "256", EditCondition = "bPreviewCameraOrbit"))
+	int32 PreviewCameraSegments = 64;
+
 #if WITH_EDITORONLY_DATA
 	/** Opcional: uma malha em cada lugar de herói (ex.: o Vahn de batalha). */
 	UPROPERTY(EditAnywhere, Category = "Battle Arena|Preview")
@@ -582,6 +616,9 @@ public:
 	/** Desenha a formação no mundo por Duration segundos (debug no PIE). */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|Battle Arena")
 	void DrawDebugFormation(int32 PartyCount, int32 EnemyCount, float Duration = 5.0f) const;
+
+	/** O círculo da órbita do plano geral para essa formação (ver bPreviewCameraOrbit). Duration < 0 = só este quadro. */
+	void DrawDebugCameraOrbit(int32 PartyCount, int32 EnemyCount, float Duration = -1.0f) const;
 
 	// --- A luta montada aqui ------------------------------------------------------------------
 
@@ -651,6 +688,8 @@ private:
 	TOptional<double> GetReferenceFloorZ() const;
 	/** Os lugares não-Ok da formação de preview, uma linha cada. */
 	TArray<FString> CollectProblems() const;
+	/** A órbita do plano geral para essa formação, testada ponto a ponto. False sem a câmera da luta ou sem lugares. */
+	bool TraceCameraOrbit(int32 PartyCount, int32 EnemyCount, FJRPGArenaCameraOrbit& Out) const;
 	void DrawFormation(const TArray<FJRPGArenaSeat>& Seats, bool bPersistent, float Duration) const;
 	void Print(const FString& Message, const FColor& Color = FColor::Silver) const;
 	/** Problema na montagem: sempre no log e na tela, com ou sem bPrintDebug. */
