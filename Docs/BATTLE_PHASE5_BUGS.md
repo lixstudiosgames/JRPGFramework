@@ -965,6 +965,35 @@ tables of 1c first.
       `MonsterArchiveID` `0xB3` / `0xB4` forces seat 2 / 1, only when that seat is standing (ours keeps the downed on the
       floor). `UJRPGBattleSceneSubsystem::UpdateVictory` measures who is standing and calls it. Test `JRPG.Battle.VictoryPose`.
 
+#### Pass 23 (2026-11-11) — after the split-screen victory (PR #19), noted, not started
+
+The split-screen victory and its results screen were played and work; the split no longer hitches (the scene distance fields off
+while split). What the user noted in the same play:
+
+90. **The battle music comes in too early, under the transition sound.** The field-to-battle transition's start cue (`0x1F`, `0x4D`
+    on a scripted fight) masks the first bars of the battle BGM. The music must start at the very end of the fade-in (the battle
+    scene opening), not with the transition.
+91. **A field-enemy fight does not reset the random-encounter counter.** After a fight started by touching a roaming enemy
+    (`AJRPGFieldEnemy`, not a random encounter), back on the field one step can already start a random fight. Any fight must reset
+    the random counter (`UBattleSubsystem::GetEncounterCounter`, re-rolled) so it starts counting again.
+92. **Field enemies chase the player while a menu is open.** With any menu up (pause menu, shop, dialogue...) no field enemy may
+    detect, chase or touch the player.
+93. **Field enemies chase a player who has not moved since the fight.** After a fight, while the player stands still with no input,
+    no field enemy may chase; they only start once the player moves. Today it is a timer (`PostBattleGraceTime`, 5 s), so an enemy
+    standing next to the player starts chasing when the time runs out.
+94. **Results screen: replace the EXP tick sound.** The counter tick (today the Sol slot machine's payout cue `0x209`,
+    `AJRPGBattleArena::VictoryResultsTickSound`) is to be swapped for a sound the user will provide.
+95. **Results screen: the gained EXP in gold / yellow, not green** (`.bh-rs-gain b` in `97_battle_hud.css`).
+
+**Idea, not a bug — the split screen in a Dual / Triple Art (user, 2026-11-11):** two or three heroes dash forward, the screen
+splits and they play the starter together, one column each, then the fight's orbit camera comes back. Open points before doing it:
+the split today turns `r.DistanceFieldAO` off while it is open (each new column is a new `FSceneViewState` that rebuilds the Global
+Distance Field from scratch), so in the middle of a fight the mist that relies on the distance field would vanish in the columns, and
+turning it back on could cost a little when the orbit camera returns (the player's view keeps its own clipmaps, so it should only
+update, not rebuild). The likely way: open the extra columns once at the start of the fight, under the black transition (the warm-up
+cost hidden), and keep them alive, not drawn, until the fight ends; the fight stays in the same arena, so their clipmaps barely change.
+To measure before deciding.
+
 #### Status of the open entries (user, 2026-11-10)
 
 The entries above keep the text of the day they were written. What the user confirmed since, playing:
@@ -979,6 +1008,9 @@ The entries above keep the text of the day they were written. What the user conf
 - **Still open, for the next fix pass:** 85 (the light floor on night maps), 86 (the impact sound on a blocked hit), 87 (the
   party enters the fight with the Ra-Seru equipped).
 - **To do, a feature:** 88 (the dev menu's equipment tab).
+- **Noted 2026-11-11 (pass 23), open:** 90 (the battle music under the transition sound), 91 (a field-enemy fight does not reset the
+  random counter), 92 (field enemies chase during menus), 93 (field enemies chase a player standing still after a fight), 94 (the
+  results tick sound, the user's file), 95 (the gained EXP in gold).
 
 ## Not bugs (checked)
 
