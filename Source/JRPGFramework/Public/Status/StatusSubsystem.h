@@ -144,13 +144,21 @@ public:
 	// RA-SERU
 	// ============================================================
 
-	/** Level do Ra-Seru (o registro é do Party; a leitura passa por aqui). */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Status|Seru")
-	int32 GetSeruLevel(FName Character) const;
+	/** Level do Ra-Seru (o registro é do Party; a leitura passa por aqui). 0 = ainda não tem. */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Status|RaSeru")
+	int32 GetRaSeruLevel(FName Character) const;
 
-	/** Sobe o level do Ra-Seru, limitado a SeruMaxLevel. */
-	UFUNCTION(BlueprintCallable, Category = "JRPG|Status|Seru")
-	bool RaiseSeruLevel(FName Character, int32 Levels = 1);
+	/** Tem o Ra-Seru (RaSeruLevel > 0). */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Status|RaSeru")
+	bool HasRaSeru(FName Character) const;
+
+	/** Sobe o level do Ra-Seru, limitado a RaSeruMaxLevel. Sem o Ra-Seru (0), subir 1 é recebê-lo. */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Status|RaSeru")
+	bool RaiseRaSeruLevel(FName Character, int32 Levels = 1);
+
+	/** Põe o level do Ra-Seru (0 = tira, 1 = a história o dá; até RaSeruMaxLevel). False se não está no roster ou já era esse. */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|Status|RaSeru")
+	bool SetRaSeruLevel(FName Character, int32 Level);
 
 	/**
 	 * O que o level do Ra-Seru CONCEDE de atributo.
@@ -160,12 +168,15 @@ public:
 	 * abaixo é uma decisão nossa, mantida pequena e num lugar só para ser fácil
 	 * de mudar ou remover.
 	 */
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Status|Seru")
-	int32 GetSeruBonus(FName Character, FName Stat) const;
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Status|RaSeru")
+	int32 GetRaSeruBonus(FName Character, FName Stat) const;
 
-	/** Teto do level do Ra-Seru. 9 é o do original. */
-	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Status|Seru")
-	int32 SeruMaxLevel = 9;
+	/**
+	 * Teto do level do Ra-Seru, o mesmo para os três. O original para em Meta 9, Terra 8, Ozma 7; o remake vai até 10, pronto para
+	 * expandir. Acima do teto original de cada um, a luta repete o último tier dele (o braço, o golpe e o ATK).
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Status|RaSeru")
+	int32 RaSeruMaxLevel = 10;
 
 	// ============================================================
 	// AFINIDADE ELEMENTAL

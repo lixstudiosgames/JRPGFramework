@@ -10,10 +10,10 @@ class USoundBase;
 /**
  * FJRPGRaSeruTierData
  * O ATK do Ra-Seru de um herói, por tier (linha da DataTable DT_RaSeruTiers, gerada por
- * Extras/generate_hero_battle_csv.py). O row name é o herói ("Vahn"); o tier é o SeruLevel dele.
+ * Extras/generate_hero_battle_csv.py). O row name é o herói ("Vahn"); o tier é o RaSeruLevel dele (0 = sem o Ra-Seru: 0 de ATK).
  *
  * No original o Ra-Seru é o item do slot 3 ("Ra-Seru Meta $1..$9" na tabela de equipamentos do SCUS), com
- * ATK próprio; aqui o SeruLevel é um número no registro, e este ATK entra na luta como uma das cinco peças do
+ * ATK próprio; aqui o RaSeruLevel é um número no registro, e este ATK entra na luta como uma das cinco peças do
  * herói (FJRPGCombatant::PieceATK): ½ dele no golpe do botão Ra-Seru e em toda Art. Meta é do Vahn, Terra
  * da Noa, Ozma do Gala. Os tiers não trazem UDF, LDF nem SPD.
  */
@@ -62,7 +62,7 @@ struct JRPGFRAMEWORK_API FJRPGWeaponCostData : public FTableRowBase
  * os dois chutes (Low e High). O row name é <Herói>_<Item>_<Botão> (Gala_war_god_boots_Low).
  *
  * Item é a key do DT_Items; "default" é a seção padrão (nada equipado, ou o item que a tabela não traz); "seru_N" é o tier
- * N do Ra-Seru (o Ra-Seru aqui é o SeruLevel do herói, não um item). A luta usa a linha do item equipado e, sem ela, a
+ * N do Ra-Seru (o Ra-Seru aqui é o RaSeruLevel do herói, não um item; 0 = sem ele, vai a "default"). A luta usa a linha do item equipado e, sem ela, a
  * "default" do mesmo botão; sem a tabela, o byte padrão (UBattleFormulas::DefaultSwingPowerByte) e o quadro padrão
  * (FJRPGTimelineDefaults::SwingHitFrame).
  */

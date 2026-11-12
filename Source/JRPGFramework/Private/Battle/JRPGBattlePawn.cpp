@@ -2073,6 +2073,11 @@ void AJRPGBattlePawn::ResolveSound(const FJRPGBattleSoundSpec& Spec, EJRPGBattle
 		PlayNotifySound(Mesh, Whiff, Spec.VolumeMultiplier, Spec.PitchMultiplier, Spec.bFollow, Spec.AttachName);
 		return;
 	}
+	if (Result == EJRPGBattleEventType::Block)
+	{
+		// Bloqueado: o original pula o cue do impacto (BATTLE_RE_SWEEP.md 9.2 linha 1, bug 86); o grunhido do block é da voz
+		return;
+	}
 	PlayNotifySound(Mesh, Spec.HitSound, Spec.VolumeMultiplier, Spec.PitchMultiplier, Spec.bFollow, Spec.AttachName);
 }
 

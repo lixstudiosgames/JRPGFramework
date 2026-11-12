@@ -144,7 +144,7 @@ bool UBattleSubsystem::TryStartEncounter(const TArray<FJRPGEncounterCombatant>& 
 	return true;
 }
 
-void UBattleSubsystem::ApplyHeroSwings(FJRPGCombatant& Hero, const UDataTable* Table, FName Weapon, FName Shoes, int32 SeruLevel)
+void UBattleSubsystem::ApplyHeroSwings(FJRPGCombatant& Hero, const UDataTable* Table, FName Weapon, FName Shoes, int32 RaSeruLevel)
 {
 	if (!Table || Table->GetRowStruct() != FJRPGHeroSwingData::StaticStruct())
 	{
@@ -152,8 +152,10 @@ void UBattleSubsystem::ApplyHeroSwings(FJRPGCombatant& Hero, const UDataTable* T
 	}
 	static const TCHAR* const ButtonNames[4] = { TEXT("Arms"), TEXT("RaSeru"), TEXT("High"), TEXT("Low") };
 	static const FName DefaultItem(TEXT("default"));
-	// O item que dirige cada botão, na ordem de EJRPGArtButton (Arms, Ra-Seru, High, Low)
-	const FName Items[4] = { Weapon, FName(*FString::Printf(TEXT("seru_%d"), FMath::Max(SeruLevel, 1))), Shoes, Shoes };
+	// O item que dirige cada botão, na ordem de EJRPGArtButton (Arms, Ra-Seru, High, Low). Sem o Ra-Seru (level 0) o braço dele é
+	// um braço vazio, como a mão sem arma: a linha <Herói>_default_RaSeru
+	const FName RaSeruItem = RaSeruLevel > 0 ? FName(*FString::Printf(TEXT("seru_%d"), RaSeruLevel)) : NAME_None;
+	const FName Items[4] = { Weapon, RaSeruItem, Shoes, Shoes };
 
 	Hero.SwingBytes.Init(0, 4);
 	Hero.SwingProfiles.SetNum(4);
@@ -173,6 +175,11 @@ void UBattleSubsystem::ApplyHeroSwings(FJRPGCombatant& Hero, const UDataTable* T
 			return Table->FindRow<FJRPGHeroSwingData>(RowKey, TEXT("BattleSnapshot"), false);
 		};
 		const FJRPGHeroSwingData* OwnRow = FindRow(Items[Index]);
+		// O Ra-Seru acima do teto original do herói (Terra 8, Ozma 7; o remake vai até 10): o golpe do último tier que ele tem
+		for (int32 Tier = RaSeruLevel - 1; !OwnRow && Index == static_cast<int32>(EJRPGArtButton::RaSeru) && Tier >= 1; --Tier)
+		{
+			OwnRow = FindRow(FName(*FString::Printf(TEXT("seru_%d"), Tier)));
+		}
 		const FJRPGHeroSwingData* Row = OwnRow ? OwnRow : FindRow(DefaultItem);
 		if (!Row || Row->PowerBytes.IsEmpty())
 		{
@@ -394,15 +401,19 @@ FJRPGCombatant UBattleSubsystem::MakeHeroCombatant(FName Key, int32 SideIndex) c
 	}
 	C.MaxCommandGauge = C.AGL;
 	C.CommandGauge = C.AGL;
-	C.Element = Row ? Row->RaSeruElement : EJRPGElement::None;
+	// O Ra-Seru: 0 = ainda não tem (o começo do jogo; fora do roster também). O elemento do herói é o dele
+	const int32 RaSeruLevel = bInRoster ? Member.RaSeruLevel : 0;
+	C.Element = Row && RaSeruLevel > 0 ? Row->RaSeruElement : EJRPGElement::None;
 	C.bLeftHanded = Row && Row->bLeftHanded;
 
-	// As cinco peças, cada uma com o ATK do equipamento do papel dela (o Ra-Seru é o do tier)
+	// As cinco peças, cada uma com o ATK do equipamento do papel dela (o Ra-Seru é o do tier; sem ele, 0)
 	C.PieceATK.Init(0, UBattleFormulas::PieceCount);
 	auto EquippedAt = [&](EJRPGEquipSlot Slot) -> FName
 	{
 		return bInRoster && Member.Equipment.IsValidIndex(static_cast<int32>(Slot)) ? Member.Equipment[static_cast<int32>(Slot)] : NAME_None;
 	};
+	// O que a tela de comando mostra em cada braço: Arms com arma, Ra-Seru com ele, senão Left / Right
+	C.bHasWeapon = !EquippedAt(EJRPGEquipSlot::Weapon).IsNone();
 	if (Inventory)
 	{
 		auto SlotATK = [&](EJRPGEquipSlot Slot)
@@ -419,10 +430,9 @@ FJRPGCombatant UBattleSubsystem::MakeHeroCombatant(FName Key, int32 SideIndex) c
 	if (const UDataTable* Tiers = UCoreSubsystem::ResolveDataTable(TEXT("DT_RaSeruTiers")))
 	{
 		const FJRPGRaSeruTierData* Tier = Tiers->FindRow<FJRPGRaSeruTierData>(Key, TEXT("BattleSnapshot"), false);
-		if (Tier && !Tier->TierATK.IsEmpty())
+		if (Tier && !Tier->TierATK.IsEmpty() && RaSeruLevel > 0)
 		{
-			const int32 Level = bInRoster ? Member.SeruLevel : 1;
-			C.PieceATK[UBattleFormulas::PieceRaSeru] = Tier->TierATK[FMath::Clamp(Level - 1, 0, Tier->TierATK.Num() - 1)];
+			C.PieceATK[UBattleFormulas::PieceRaSeru] = Tier->TierATK[FMath::Clamp(RaSeruLevel - 1, 0, Tier->TierATK.Num() - 1)];
 		}
 	}
 	else
@@ -453,7 +463,7 @@ FJRPGCombatant UBattleSubsystem::MakeHeroCombatant(FName Key, int32 SideIndex) c
 	// padrão do herói e o quadro padrão da timeline, como antes
 	if (const UDataTable* Swings = UCoreSubsystem::ResolveDataTable(TEXT("DT_HeroSwings")))
 	{
-		ApplyHeroSwings(C, Swings, EquippedAt(EJRPGEquipSlot::Weapon), EquippedAt(EJRPGEquipSlot::Shoes), bInRoster ? Member.SeruLevel : 1);
+		ApplyHeroSwings(C, Swings, EquippedAt(EJRPGEquipSlot::Weapon), EquippedAt(EJRPGEquipSlot::Shoes), RaSeruLevel);
 	}
 	else
 	{
@@ -494,7 +504,7 @@ FJRPGCombatant UBattleSubsystem::MakeHeroCombatant(FName Key, int32 SideIndex) c
 	else
 	{
 		C.KnownArts = bInRoster ? Member.LearnedArts : TArray<FName>();
-		C.bHasRaSeru = Row && !Row->RaSeru.IsNone();
+		C.bHasRaSeru = Row && !Row->RaSeru.IsNone() && RaSeruLevel > 0;
 	}
 
 	// Os heróis têm os clips de block e de levantar; a janela de reação é a do original (Vahn: beat 3 / rate 1)
@@ -760,10 +770,17 @@ bool UBattleSubsystem::BeginBattle(const FJRPGBattleSetup& Setup)
 	};
 
 	bInBattle = true;
+	// Toda luta (aleatória, inimigo do Field, de script) sorteia de novo o contador dos encontros aleatórios: senão, depois de uma
+	// luta por toque, um passo no Field já podia disparar outra (bug 91). Cosmético, fora do Rng da luta
+	EncounterCounter = UJRPGEncounterLibrary::RerollEncounterCounter(FMath::Rand(), FMath::Rand());
 	bLogicHeld = false;
 	Accumulator = 0.0;
 	FlushedEvents = 0;
 	FramesSinceFinish = 0;
+	bVictorySettled = false;
+	VictoryResults = FJRPGVictoryResults();
+	bVictoryEndHeld = false;
+	bEndVictoryNow = false;
 	PresentationFrame = 0;
 	PresentationOffset = 0;
 	ResolverStallFrames = 0;
@@ -860,11 +877,17 @@ void UBattleSubsystem::EndBattle(EJRPGBattleResult Result)
 		}
 	}
 
-	WriteBack(Result);
-	if (Result == EJRPGBattleResult::Victory)
+	// A vitória já escrita e paga no quadro dos resultados (SettleVictory) não repete nada
+	if (!(Result == EJRPGBattleResult::Victory && bVictorySettled))
 	{
-		PayRewards();
+		WriteBack(Result);
+		if (Result == EJRPGBattleResult::Victory)
+		{
+			PayRewards();
+		}
 	}
+	bVictoryEndHeld = false;
+	bEndVictoryNow = false;
 
 	UE_LOG(LogTemp, Log, TEXT("BattleSubsystem: luta acabou (%s)"), *StaticEnum<EJRPGBattleResult>()->GetNameStringByValue(static_cast<int64>(Result)));
 	OnBattleEnded.Broadcast(Result);
@@ -984,7 +1007,47 @@ void UBattleSubsystem::PayRewards()
 			Participants.Add(C.Key);
 		}
 	}
+	// A ficha de cada um antes do EXP (a tela de resultados conta de um para o outro)
+	VictoryResults = FJRPGVictoryResults();
+	VictoryResults.bValid = true;
+	for (const FName& Key : Participants)
+	{
+		FJRPGPartyMember Member;
+		if (Party->GetMember(Key, Member))
+		{
+			FJRPGVictoryHeroResult& Hero = VictoryResults.Heroes.AddDefaulted_GetRef();
+			Hero.Key = Key;
+			Hero.LevelBefore = Member.Level;
+			Hero.EXPBefore = Member.ExperienceTotal;
+			Hero.MaxHPBefore = Member.MaxHP;
+			Hero.MaxMPBefore = Member.MaxMP;
+		}
+	}
 	const int32 PerHero = Party ? Party->AwardBattleXPToParticipants(RawEXP, Participants) : 0;
+	// E depois: o level, o EXP, o HP / MP (o level-up sobe o máximo) e o EXP de cada level cruzado, mais o do próximo
+	for (FJRPGVictoryHeroResult& Hero : VictoryResults.Heroes)
+	{
+		FJRPGPartyMember Member;
+		if (!Party->GetMember(Hero.Key, Member))
+		{
+			continue;
+		}
+		Hero.LevelAfter = Member.Level;
+		Hero.EXPAfter = Member.ExperienceTotal;
+		Hero.EXPGained = FMath::Max(Hero.EXPAfter - Hero.EXPBefore, 0);
+		Hero.HP = Member.HP;
+		Hero.MaxHPAfter = Member.MaxHP;
+		Hero.MP = Member.MP;
+		Hero.MaxMPAfter = Member.MaxMP;
+		if (Core)
+		{
+			const int32 Top = FMath::Min(Hero.LevelAfter + 1, Core->GetMaxLevel());
+			for (int32 Level = Hero.LevelBefore + 1; Level <= Top; ++Level)
+			{
+				Hero.LevelThresholds.Add(Core->GetXPForLevelForSlot(Level, Member.XPCurveSlot));
+			}
+		}
+	}
 
 	// TODO(Fase 7): o Golden Book (o bônus de Gold) entra aqui quando o item e o equipamento dos heróis forem lidos
 	// da luta; até lá o Gold sai sempre sem ele.
@@ -998,6 +1061,7 @@ void UBattleSubsystem::PayRewards()
 			Core->AddGold(Gold);
 		}
 	}
+	VictoryResults.Gold = FMath::Max(Gold, 0);
 	UE_LOG(LogTemp, Log, TEXT("BattleSubsystem: recompensa — EXP cru %d (%d cada, %d herói(s) vivo(s)), Gold %d"), RawEXP, PerHero, Participants.Num(), Gold);
 }
 
@@ -1153,11 +1217,36 @@ void UBattleSubsystem::StepFrame()
 		++FramesSinceFinish;
 	}
 	OnLogicFrame.Broadcast(PresentationFrame);
-	// Segura a tela de resultados (a pose de vitória, 256 vsyncs no original) antes de fechar
-	if (bInBattle && Resolver.IsFinished() && FramesSinceFinish >= FinishHoldFor(Resolver.GetResult()))
+	// Segura a tela de resultados (a pose de vitória, 256 vsyncs no original) antes de fechar. Nossa tela de resultados segura mais
+	// (HoldVictoryEnd) ou pede a saída já (EndVictoryNow, o "pular")
+	if (bInBattle && Resolver.IsFinished())
 	{
-		EndBattle(Resolver.GetResult());
+		const bool bVictory = Resolver.GetResult() == EJRPGBattleResult::Victory;
+		if (bVictory && bEndVictoryNow)
+		{
+			EndBattle(Resolver.GetResult());
+		}
+		else if (FramesSinceFinish >= FinishHoldFor(Resolver.GetResult()) && !(bVictory && bVictoryEndHeld))
+		{
+			EndBattle(Resolver.GetResult());
+		}
 	}
+}
+
+const FJRPGVictoryResults& UBattleSubsystem::SettleVictory()
+{
+	if (!bInBattle || !Resolver.IsFinished() || Resolver.GetResult() != EJRPGBattleResult::Victory)
+	{
+		static const FJRPGVictoryResults Invalid;
+		return Invalid;
+	}
+	if (!bVictorySettled)
+	{
+		bVictorySettled = true;
+		WriteBack(EJRPGBattleResult::Victory);
+		PayRewards();
+	}
+	return VictoryResults;
 }
 
 int32 UBattleSubsystem::FinishHoldFor(EJRPGBattleResult Result) const

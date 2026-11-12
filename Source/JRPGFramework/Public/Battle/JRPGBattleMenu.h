@@ -52,6 +52,11 @@ namespace JRPGBattleMenuText
 	inline constexpr const TCHAR* SpiritLabel = TEXT("Spirit");
 	inline constexpr const TCHAR* TargetLabel = TEXT("Target");
 	inline constexpr const TCHAR* RaSeruFallbackLabel = TEXT("Ra-Seru");
+	/** Os braços na janela de entrada: Arms com arma, Ra-Seru com o Ra-Seru; vazio, o lado (a mão do herói decide qual é qual). */
+	inline constexpr const TCHAR* ArmsLabel = TEXT("Arms");
+	inline constexpr const TCHAR* RaSeruArmLabel = TEXT("Ra-Seru");
+	inline constexpr const TCHAR* LeftLabel = TEXT("Left");
+	inline constexpr const TCHAR* RightLabel = TEXT("Right");
 }
 
 /** As teclas semânticas do menu (teclado, gamepad e clique chegam todos como uma delas). */
@@ -125,6 +130,9 @@ struct JRPGFRAMEWORK_API FJRPGBattleMenuHero
 	/** O custo de cada botão no gauge, indexado por EJRPGArtButton (FJRPGCombatant::ButtonCost). */
 	TArray<int32> ButtonCost;
 	bool bLeftHanded = false;
+	/** Tem arma (o braço dela se chama Arms) e o Ra-Seru (o braço dele se chama Ra-Seru); sem, o braço é Left / Right. */
+	bool bHasWeapon = true;
+	bool bHasRaSeru = true;
 	bool bAlive = true;
 	/** Este jogador comanda o herói e ele ainda não comandou nesta rodada (o núcleo vai pedir o comando dele). */
 	bool bNeedsCommand = false;
@@ -138,6 +146,12 @@ struct JRPGFRAMEWORK_API FJRPGBattleMenuHero
 
 	/** O custo de um botão; 30 quando a lista não diz (o 0x1E do original). */
 	int32 CostOf(EJRPGArtButton Button) const;
+
+	/**
+	 * O nome do botão na janela de entrada: High / Low; o braço da arma é Arms só com arma, o do Ra-Seru é Ra-Seru só com ele, e um
+	 * braço vazio é o lado dele na tela (Left / Right, pela mão: o Arms da Noa é a direita).
+	 */
+	FString ButtonLabel(EJRPGArtButton Button) const;
 };
 
 /** Um inimigo como o menu o vê. */

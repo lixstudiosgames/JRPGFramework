@@ -312,6 +312,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "0.0"))
 	float TransitionRevealSeconds = 0.5f;
 
+	/**
+	 * A música da luta entra tantos segundos ANTES de a tela terminar de abrir (o fim do fade da transição ou da câmera). 0 = só com a
+	 * tela aberta. Ajustado no jogo (bug 90): 1 s, o fim do som da transição já não cobre o começo dela.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "0.0"))
+	float BattleMusicLeadSeconds = 1.0f;
+
 	/** A velocidade do efeito: 1 = os 60 quadros por segundo do port (2,2 s; o swirl 4,2 s). Menos = mais devagar. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "0.05", ClampMax = "4.0"))
 	float TransitionPlaybackRate = 1.0f;
@@ -346,6 +353,52 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Victory")
 	bool bVictorySequence = true;
+
+	/**
+	 * Nosso (protótipo, QoL dos dois modos): na entrada da pose a tela se divide em uma coluna por herói de pé (3, 2; com 1 fica a
+	 * tela inteira), cada um tocando a pose dele com a câmera de vitória dele (UJRPGBattleSplitView, o split screen da engine).
+	 * Desligado: a vitória do original, só quem fez a última ação posa.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Victory", meta = (EditCondition = "bVictorySequence"))
+	bool bVictorySplitScreen = true;
+
+	/**
+	 * A ordem das colunas da tela dividida e dos cards de resultado, da esquerda para a direita, por herói (DT_Characters). Quem está
+	 * de pé segue esta ordem (2 de pé: os dois, na ordem; Vahn no meio com os 3); quem não está na lista vai depois, pelo lugar na
+	 * formação.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Victory", meta = (EditCondition = "bVictorySequence"))
+	TArray<FName> VictoryColumnOrder = { FName(TEXT("Noa")), FName(TEXT("Vahn")), FName(TEXT("Gala")) };
+
+	/**
+	 * Nosso: a tela de resultados na entrada da pose (UJRPGBattleSceneSubsystem; o EXP e o Gold são pagos ali, UBattleSubsystem::
+	 * SettleVictory). Um card por herói de pé (o de cada coluna com a tela dividida): o EXP ganho descendo para o total, o "Next" até
+	 * o próximo level e o "LEVEL UP!" quando passa, um herói depois do outro; o Gold numa faixa. A luta só sai depois (mais
+	 * VictoryResultsLingerSeconds) ou no "pular" (confirmar / clique), que acaba tudo e já volta para o mapa. Desligado: o hold do original.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Victory", meta = (EditCondition = "bVictorySequence"))
+	bool bVictoryResults = true;
+
+	/** Segundos que a tela de resultados fica parada depois da contagem do último herói, antes de a luta sair. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Victory", meta = (EditCondition = "bVictoryResults", ClampMin = "0.0"))
+	float VictoryResultsLingerSeconds = 2.5f;
+
+	/**
+	 * O "tic" da contagem do EXP e do Gold na tela de resultados: a cue 0x209 da slot machine do cassino de Sol (o pagamento
+	 * contando moeda por moeda), tirada do disco por Extras/ps1_results_sounds.py. Vazio = mudo.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Victory", meta = (EditCondition = "bVictoryResults"))
+	TSoftObjectPtr<USoundBase> VictoryResultsTickSound = TSoftObjectPtr<USoundBase>(
+		FSoftObjectPath(TEXT("/Game/Legaia/Battle/Sounds/Results/SFX_ExpTick.SFX_ExpTick")));
+
+	/** O jingle do LEVEL UP! num card: a cue 0x50 do original (o banco de recompensa PROT 0889). Vazio = mudo. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Victory", meta = (EditCondition = "bVictoryResults"))
+	TSoftObjectPtr<USoundBase> VictoryResultsLevelUpSound = TSoftObjectPtr<USoundBase>(
+		FSoftObjectPath(TEXT("/Game/Legaia/Battle/Sounds/Results/SFX_LevelUp.SFX_LevelUp")));
+
+	/** Segurança: a luta sai depois disto mesmo que a tela de resultados não responda (o shell não carregou, por exemplo). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Victory", meta = (EditCondition = "bVictoryResults", ClampMin = "1.0"))
+	float VictoryResultsMaxSeconds = 40.0f;
 
 	/**
 	 * A abertura do original entre a tela abrir e o primeiro prompt (UJRPGBattleSceneSubsystem::GetIntroStage): a varredura da

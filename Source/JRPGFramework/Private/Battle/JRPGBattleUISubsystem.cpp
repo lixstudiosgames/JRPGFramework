@@ -461,6 +461,8 @@ FJRPGBattleMenuContext UJRPGBattleUISubsystem::BuildContext(const UBattleSubsyst
 		Hero.Gauge = C.CommandGauge;
 		Hero.ButtonCost = C.ButtonCost;
 		Hero.bLeftHanded = C.bLeftHanded;
+		Hero.bHasWeapon = C.bHasWeapon;
+		Hero.bHasRaSeru = C.bHasRaSeru;
 		Hero.bAlive = C.bAlive;
 		// Só os heróis deste jogador, ainda sem comando nesta rodada, entram no buffer (o dono do slot é conferido pelo núcleo)
 		Hero.bNeedsCommand = C.bAlive && C.OwnerPlayer == LocalPlayerIndex && State.Commands.IsValidIndex(C.SlotIndex)

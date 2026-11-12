@@ -154,13 +154,17 @@ struct JRPGFRAMEWORK_API FJRPGPartyMember
 	TArray<FName> Conditions;
 
 	/**
-	 * Level do Ra-Seru que o personagem carrega (1..9 no original).
+	 * Level do Ra-Seru que o personagem carrega: 0 = ainda não tem (o começo do jogo: a história o dá com
+	 * UStatusSubsystem::SetRaSeruLevel / RaiseRaSeruLevel), 1..10 (o original para em Meta 9, Terra 8, Ozma 7; acima disso a luta
+	 * repete o último tier do herói).
+	 * Não confundir com os Serus das magias (Fase 8): este é o Ra-Seru do braço.
 	 *
 	 * Fica no registro porque é progressão do personagem, como o level dele.
-	 * O que esse level CONCEDE é o Status que calcula.
+	 * O que esse level CONCEDE é o Status que calcula; na luta ele escolhe a peça do braço
+	 * (<Herói>_RaSeru_Lv<N>), o ATK do tier (DT_RaSeruTiers) e o golpe do botão (seru_N).
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Party|Progressão")
-	int32 SeruLevel = 1;
+	int32 RaSeruLevel = 0;
 
 	/**
 	 * As Arts que o personagem já sabe (keys do DT_Arts), na ordem em que aprendeu: as Regular feitas

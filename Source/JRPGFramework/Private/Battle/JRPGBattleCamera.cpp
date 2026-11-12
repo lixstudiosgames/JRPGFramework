@@ -2,6 +2,8 @@
 #include "Battle/JRPGBattleArena.h"
 #include "Battle/JRPGBattlePawn.h"
 #include "Battle/JRPGBattleSceneSubsystem.h"
+#include "Battle/JRPGBattleSplitView.h"
+#include "Camera/CameraActor.h"
 #include "Battle/JRPGBattleUISubsystem.h"
 #include "Battle/BattleSubsystem.h"
 #include "Battle/HeroBattleData.h"
@@ -14,6 +16,9 @@
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "DynamicRHI.h"
+#include "HAL/IConsoleManager.h"
+#include "RenderTimer.h"
 
 namespace
 {
@@ -21,6 +26,11 @@ namespace
 	constexpr float ChaseStepsPerSecond = 30.0f;
 	/** A chave da linha de debug na tela. */
 	const int32 DebugMessageKey = 0x4A424331; // "JBC1"
+
+	/** Diagnóstico da travada na entrada da tela dividida: N > 0 dispara um ProfileGPU (só no log) no quadro N dela. */
+	TAutoConsoleVariable<int32> CVarSplitProfileGPU(
+		TEXT("JRPG.Battle.SplitProfileGPU"), 0,
+		TEXT("Tela dividida da vitória: N > 0 roda ProfileGPU (só no log, sem a janela) no quadro N depois de dividir; 0 = desligado."));
 }
 
 AJRPGBattleCamera::AJRPGBattleCamera(const FObjectInitializer& ObjectInitializer)
@@ -196,6 +206,8 @@ void AJRPGBattleCamera::Tick(float DeltaSeconds)
 		ApplyLivePose();
 		PrevShot = Shot;
 	}
+	// A tela dividida da vitória: as outras colunas, com o mesmo ease-out
+	UpdateSplitViews(DeltaSeconds, Steps);
 
 	if (bPrintDebug && GEngine)
 	{
@@ -1411,9 +1423,27 @@ bool AJRPGBattleCamera::BuildVictoryPose(FJRPGBattleCameraPose& OutPose)
 		ArtLatch = 0;
 	}
 
+	// Com a pose tocando a vista 0 é a da primeira coluna (sem tela dividida, a única: quem posa)
+	if (const AJRPGBattlePawn* ViewPawn = Scene->GetVictoryViewPawn(0))
+	{
+		return BuildVictoryPoseFor(ViewPawn, Scene->GetVictoryViewPoseColumn(0), OutPose);
+	}
+	return BuildVictoryPoseFor(Poser, Scene->GetVictoryPoseColumn(), OutPose);
+}
+
+bool AJRPGBattleCamera::BuildVictoryPoseFor(const AJRPGBattlePawn* Poser, int32 PoseColumn, FJRPGBattleCameraPose& OutPose) const
+{
+	if (!IsValid(Poser) || Poser->IsHidden())
+	{
+		return false;
+	}
+	OutPose.Focus = Poser->GetBodyLocation();
+	OutPose.Focus.Z = FeetOf(Poser).Z;
+	OutPose.bOneWayYaw = false;
+
 	const FName Key = Poser->GetCombatant().Key;
 	const int32 Character = Key == TEXT("Vahn") ? 1 : Key == TEXT("Noa") ? 2 : Key == TEXT("Gala") ? 3 : 0;
-	const int32 PoseId = VictoryPoseId(Character, Scene->GetVictoryPoseColumn());
+	const int32 PoseId = VictoryPoseId(Character, PoseColumn);
 	const AJRPGBattleArena* CurrentArena = Arena.Get();
 	const float CmPerUnit = CurrentArena ? FMath::Max(CurrentArena->OriginalCmPerUnit, KINDA_SMALL_NUMBER) : 0.433005f;
 
@@ -1525,14 +1555,82 @@ void AJRPGBattleCamera::Chase(float DeltaSeconds, float Steps, bool bShotChanged
 
 void AJRPGBattleCamera::ApplyLivePose()
 {
-	const FRotator Rotation(-Live.Pitch, Live.Yaw, 0.0);
+	const FTransform Eye = PoseToTransform(Live);
+	SetActorLocationAndRotation(Eye.GetLocation(), Eye.Rotator());
+}
+
+FTransform AJRPGBattleCamera::PoseToTransform(const FJRPGBattleCameraPose& Pose)
+{
+	const FRotator Rotation(-Pose.Pitch, Pose.Yaw, 0.0);
 	const FRotationMatrix Axes(Rotation);
 	const FVector Forward = Axes.GetUnitAxis(EAxis::X);
 	const FVector Right = Axes.GetUnitAxis(EAxis::Y);
 	const FVector Up = Axes.GetUnitAxis(EAxis::Z);
 	// No espaço da vista o foco está em (TR.x, TR.y para baixo, TR.z à frente): o olho fica atrás, acima e do outro lado
-	const FVector Eye = Live.Focus - Forward * Live.Offset.Z + Up * Live.Offset.Y - Right * Live.Offset.X;
-	SetActorLocationAndRotation(Eye, Rotation);
+	const FVector Eye = Pose.Focus - Forward * Pose.Offset.Z + Up * Pose.Offset.Y - Right * Pose.Offset.X;
+	return FTransform(Rotation, Eye);
+}
+
+void AJRPGBattleCamera::UpdateSplitViews(float DeltaSeconds, float Steps)
+{
+	const UJRPGBattleSceneSubsystem* Scene = GetWorld() ? GetWorld()->GetSubsystem<UJRPGBattleSceneSubsystem>() : nullptr;
+	const UJRPGBattleSplitView* Split = Scene ? Scene->GetSplitView() : nullptr;
+	if (Shot != EJRPGBattleShot::Victory || !Split || !Split->IsActive())
+	{
+		bSplitSeen = false;
+		SplitLive.Reset();
+		return;
+	}
+	if (!bSplitSeen)
+	{
+		// A tela acabou de se dividir: um corte em todas as colunas (a 0 também; senão ela deslizava do stand-off com as outras paradas)
+		SnapToTarget();
+		SplitFramesLogged = 0;
+	}
+	// Diagnóstico da travada na entrada da divisão: o tempo dos primeiros quadros
+	if (SplitFramesLogged < 10)
+	{
+		// O tempo de cada thread no último quadro medido pela engine (o do stat unit): mostra quem trava
+		UE_LOG(LogTemp, Log, TEXT("BattleCamera: tela dividida, quadro %d: %.2f ms (game %.2f, render %.2f, RHI %.2f, GPU %.2f)"),
+			SplitFramesLogged, DeltaSeconds * 1000.0f, FPlatformTime::ToMilliseconds(GGameThreadTime),
+			FPlatformTime::ToMilliseconds(GRenderThreadTime), FPlatformTime::ToMilliseconds(GRHIThreadTime),
+			FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles(0)));
+		const int32 ProfileFrame = CVarSplitProfileGPU.GetValueOnGameThread();
+		if (GEngine && ProfileFrame > 0 && ProfileFrame == SplitFramesLogged)
+		{
+			UE_LOG(LogTemp, Log, TEXT("BattleCamera: ProfileGPU no quadro %d da tela dividida"), SplitFramesLogged);
+			GEngine->Exec(GetWorld(), TEXT("r.ProfileGPU.ShowUI 0"));
+			GEngine->Exec(GetWorld(), TEXT("ProfileGPU"));
+		}
+		++SplitFramesLogged;
+	}
+	const int32 Count = FMath::Min(Split->GetViewCount(), Scene->GetVictoryViewCount());
+	SplitLive.SetNum(FMath::Max(Count - 1, 0));
+	// O mesmo ease-out do Chase (cada passo de 30 Hz cobre 1/Steps do que falta)
+	const float Alpha = Steps <= 1.0f ? 1.0f : 1.0f - FMath::Pow(1.0f - 1.0f / Steps, DeltaSeconds * ChaseStepsPerSecond);
+	for (int32 View = 1; View < Count; ++View)
+	{
+		ACameraActor* Camera = Split->GetExtraCamera(View);
+		FJRPGBattleCameraPose Want;
+		if (!Camera || !BuildVictoryPoseFor(Scene->GetVictoryViewPawn(View), Scene->GetVictoryViewPoseColumn(View), Want))
+		{
+			continue;
+		}
+		FJRPGBattleCameraPose& Pose = SplitLive[View - 1];
+		if (!bSplitSeen)
+		{
+			Pose = Want;
+		}
+		else
+		{
+			Pose.Focus = FMath::Lerp(Pose.Focus, Want.Focus, Alpha);
+			Pose.Offset = FMath::Lerp(Pose.Offset, Want.Offset, Alpha);
+			Pose.Pitch = FMath::Lerp(Pose.Pitch, Want.Pitch, Alpha);
+			Pose.Yaw = static_cast<float>(FRotator::NormalizeAxis(Pose.Yaw + FMath::FindDeltaAngleDegrees(Pose.Yaw, Want.Yaw) * Alpha));
+		}
+		Camera->SetActorTransform(PoseToTransform(Pose));
+	}
+	bSplitSeen = true;
 }
 
 void AJRPGBattleCamera::ApplyLens()

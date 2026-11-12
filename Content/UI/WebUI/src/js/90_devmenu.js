@@ -65,6 +65,7 @@ window.JRPGDev = (function () {
         plevel: 'dev-plevel',
         pstat:  'dev-pstat',
         pval:   'dev-pval',
+        raseru: 'dev-raseru',
         enemy:  'dev-enemy',
         ecount: 'dev-ecount',
         elevel: 'dev-elevel',

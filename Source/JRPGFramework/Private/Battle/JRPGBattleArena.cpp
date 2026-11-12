@@ -112,7 +112,8 @@ namespace
 			case EJRPGBattlePiece::Head:   return EquippedIn(Member, EJRPGEquipSlot::Helmet);
 			case EJRPGBattlePiece::Weapon: return EquippedIn(Member, EJRPGEquipSlot::Weapon);
 			case EJRPGBattlePiece::Feet:   return EquippedIn(Member, EJRPGEquipSlot::Shoes);
-			case EJRPGBattlePiece::RaSeru: return FName(*FString::Printf(TEXT("Lv%d"), Member.SeruLevel));
+			// Sem o Ra-Seru (0): o braço padrão; com ele, o braço do tier (cresce com o level)
+			case EJRPGBattlePiece::RaSeru: return Member.RaSeruLevel > 0 ? FName(*FString::Printf(TEXT("Lv%d"), Member.RaSeruLevel)) : NAME_None;
 			default:                       return NAME_None;
 			}
 		};
@@ -127,6 +128,11 @@ namespace
 
 			const FName Item = ItemFor(Piece);
 			const FJRPGEquipVisualRow* Equipped = Item.IsNone() ? nullptr : FindRow(Piece, Item.ToString());
+			// O Ra-Seru acima do teto original do herói (Terra 8, Ozma 7; o remake vai até 10): o braço do último tier que ele tem
+			for (int32 Tier = Member.RaSeruLevel - 1; !Equipped && Piece == EJRPGBattlePiece::RaSeru && Tier >= 1; --Tier)
+			{
+				Equipped = FindRow(Piece, FString::Printf(TEXT("Lv%d"), Tier));
+			}
 			if (!Equipped && !Item.IsNone() && Default)
 			{
 				UE_LOG(LogTemp, Warning, TEXT("BattleArena: %s — sem malha de %s na DT_EquipVisuals; vai a parte padrão."),

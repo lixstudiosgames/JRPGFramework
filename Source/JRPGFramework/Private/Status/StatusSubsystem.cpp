@@ -384,7 +384,7 @@ int32 UStatusSubsystem::GetEffectiveStat(FName Character, FName Stat) const
 	// base + bônus fixo do equipamento + o que o Ra-Seru concede
 	int64 Valor = GetBaseStat(Character, Stat)
 	            + GetEquipmentBonus(Character, Stat)
-	            + GetSeruBonus(Character, Stat);
+	            + GetRaSeruBonus(Character, Stat);
 
 	// Percentuais de acessório entram POR ÚLTIMO, sobre o total — é o que faz
 	// um anel de +20% valer mais quanto melhor for o equipamento.
@@ -573,15 +573,39 @@ void UStatusSubsystem::ClearConditions(FName Character)
 // RA-SERU
 // ============================================================
 
-int32 UStatusSubsystem::GetSeruLevel(FName Character) const
+int32 UStatusSubsystem::GetRaSeruLevel(FName Character) const
 {
 	UGameInstance* GI = GetGameInstance();
 	UPartySubsystem* Party = GI ? GI->GetSubsystem<UPartySubsystem>() : nullptr;
 	FJRPGPartyMember M;
-	return (Party && Party->GetMember(Character, M)) ? M.SeruLevel : 0;
+	return (Party && Party->GetMember(Character, M)) ? M.RaSeruLevel : 0;
 }
 
-bool UStatusSubsystem::RaiseSeruLevel(FName Character, int32 Levels)
+bool UStatusSubsystem::HasRaSeru(FName Character) const
+{
+	return GetRaSeruLevel(Character) > 0;
+}
+
+bool UStatusSubsystem::SetRaSeruLevel(FName Character, int32 Level)
+{
+	UGameInstance* GI = GetGameInstance();
+	UPartySubsystem* Party = GI ? GI->GetSubsystem<UPartySubsystem>() : nullptr;
+	FJRPGPartyMember* M = Party ? Party->FindMemberForWrite(Character) : nullptr;
+	if (!M)
+	{
+		return false;
+	}
+	const int32 Clamped = FMath::Clamp(Level, 0, RaSeruMaxLevel);
+	if (M->RaSeruLevel == Clamped)
+	{
+		return false;
+	}
+	M->RaSeruLevel = Clamped;
+	Party->NotifyMemberChanged();
+	return true;
+}
+
+bool UStatusSubsystem::RaiseRaSeruLevel(FName Character, int32 Levels)
 {
 	UGameInstance* GI = GetGameInstance();
 	UPartySubsystem* Party = GI ? GI->GetSubsystem<UPartySubsystem>() : nullptr;
@@ -591,17 +615,17 @@ bool UStatusSubsystem::RaiseSeruLevel(FName Character, int32 Levels)
 	}
 
 	FJRPGPartyMember* M = Party->FindMemberForWrite(Character);
-	if (!M || M->SeruLevel >= SeruMaxLevel)
+	if (!M || M->RaSeruLevel >= RaSeruMaxLevel)
 	{
 		return false;
 	}
 
-	M->SeruLevel = FMath::Min(M->SeruLevel + Levels, SeruMaxLevel);
+	M->RaSeruLevel = FMath::Min(M->RaSeruLevel + Levels, RaSeruMaxLevel);
 	Party->NotifyMemberChanged();
 	return true;
 }
 
-int32 UStatusSubsystem::GetSeruBonus(FName Character, FName Stat) const
+int32 UStatusSubsystem::GetRaSeruBonus(FName Character, FName Stat) const
 {
 	// NÃO VEM DO DISCO — ver o comentário da declaração.
 	//
@@ -613,7 +637,7 @@ int32 UStatusSubsystem::GetSeruBonus(FName Character, FName Stat) const
 		return 0;
 	}
 
-	const int32 Level = GetSeruLevel(Character);
+	const int32 Level = GetRaSeruLevel(Character);
 	if (Level <= 1)
 	{
 		return 0;

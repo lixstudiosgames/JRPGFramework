@@ -180,6 +180,8 @@ rolled from the **same list** as its roaming enemies (`Enemy` / Custom Encounter
   | Most dungeons | 20 / `FieldWalk` | ~13 s |
 - **Steps that do not count**: with a menu or dialogue open, with the field control off (doors,
   scenes), during a fight and while the field is hidden, and in the encounter grace after a fight.
+- **Every fight re-rolls the counter** (488..1460, in `UBattleSubsystem::BeginBattle`): a random one, a field enemy's or a
+  scripted one, so the first steps after any fight never start another.
 - **`LowRateFlagID`** lowers this zone's rate to `LowRatePercent` (50 = half, like the original's
   system flag `0x1E`) while the flag is set. `DisableFlagID` / `RequiredFlagID` switch the random
   fights off with the rest of the zone.
@@ -233,7 +235,9 @@ one line `gimard`, weight 1, count 0–1; `EnemiesPerBattle` 1–2.
   path following brakes near the end of the path, and when chasing the end is the player —
   which the enemy never quite reaches, the capsules meet first — so it would trail a player
   walking straight. `HandlePostProcessMove` turns that braking off during the chase only.
-- While a menu is open (WebUI state other than `HudOnly`) every enemy freezes.
+- While a menu is open (WebUI state other than `HudOnly`), or while the player's field control is off
+  (`AJRPGFieldPlayerController::IsFieldInputEnabled` false: doors, scenes, a project dialogue that does not go through the
+  WebUI state), every enemy freezes: nothing detects, chases or touches the player.
 - The clips switch by speed: Idle stopped, Walk moving, Run (or Walk sped up) chasing, with a
   **crossfade** of `AnimBlendTime` (0.2 s) instead of a hard cut. This is
   `UJRPGFieldEnemyAnimInstance`, a native anim instance with no Anim Blueprint: every PS1
@@ -262,8 +266,10 @@ one line `gimard`, weight 1, count 0–1; `EnemiesPerBattle` 1–2.
    `EncounterGraceTime` (3 s) ago, so two enemies touched together do not start two fights, and for
    `PostBattleGraceTime` (5 s) after the field is shown again from a fight (`IsInEncounterGrace`). In that grace
    field enemies do not detect or chase the player; one that keeps touching him triggers when it ends. On top of it,
-   each enemy rolls its own `PostBattleNoChaseMin..Max` (7..15 s) without chasing once the field is shown. A zone also
-   respawns its enemies away from the player.
+   each enemy rolls its own `PostBattleNoChaseMin..Max` (7..15 s) without chasing once the field is shown. And besides
+   the timers, no enemy chases or touches the player **while he stands still** where the field was shown: he has to move
+   more than `PostBattleMoveTolerance` (25 cm) first (switching hero with R3 counts). The timers still apply once he
+   moves. A zone also respawns its enemies away from the player.
 3. `OnEncounterTriggered` (Blueprint event) and `OnContact` (override in `BP_FieldEnemy`: the
    place for the 90s screen shatter). `UBattleSubsystem::OnEncounterStarted` fires with the
    rolled enemies.

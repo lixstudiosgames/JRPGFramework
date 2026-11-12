@@ -2,6 +2,7 @@
 #include "Field/JRPGEncounterZone.h"
 #include "Field/JRPGFieldEnemyController.h"
 #include "Field/JRPGFieldEnemyAnimInstance.h"
+#include "Field/JRPGFieldPlayerController.h"
 #include "Battle/BattleSubsystem.h"
 #include "Battle/JRPGBattleArena.h"
 #include "Battle/JRPGBattleSceneSubsystem.h"
@@ -427,6 +428,14 @@ void AJRPGFieldEnemy::Tick(float DeltaSeconds)
 	{
 		return;
 	}
+	// O controle do Field desligado (porta, cena, um diálogo do projeto que não passa pelo estado da UI) também congela: nada
+	// detecta, persegue nem encosta no jogador enquanto ele não pode andar (bug 92). Não tem evento: olha a cada quadro
+	const bool bInputHeldNow = IsFieldInputHeld();
+	if (bInputHeldNow != bFieldInputHeld)
+	{
+		bFieldInputHeld = bInputHeldNow;
+		UpdateFrozen();
+	}
 	if (bFrozen)
 	{
 		// Parado pela luta: sem decidir nem andar, mas a animação passa para o Idle
@@ -492,6 +501,11 @@ bool AJRPGFieldEnemy::CanDetect(const APawn* Player) const
 	{
 		return false;
 	}
+	// E, passados os tempos, ainda não enquanto o jogador continuar parado onde a tela abriu (bug 93; Think atualiza)
+	if (bWaitingForPlayerMove)
+	{
+		return false;
+	}
 	if (FVector::Dist2D(Player->GetActorLocation(), GetActorLocation()) > DetectRadius)
 	{
 		return false;
@@ -523,10 +537,11 @@ void AJRPGFieldEnemy::Think()
 
 	const float Now = GetWorld()->GetTimeSeconds();
 	APawn* Player = GetPlayerPawn();
+	const bool bWaitMove = UpdateWaitingForPlayerMove();
 
 	// Encostou durante a carência (o encontro foi recusado) e continua encostando: o evento de overlap não repete, então
-	// quem decide é aqui, quando a carência acaba
-	if (Player && ContactSphere && ContactSphere->IsOverlappingActor(Player) && !IsEncounterGraceActive())
+	// quem decide é aqui, quando a carência acaba (e o jogador já saiu do lugar onde a tela abriu)
+	if (Player && ContactSphere && ContactSphere->IsOverlappingActor(Player) && !IsEncounterGraceActive() && !bWaitMove)
 	{
 		TriggerEncounter();
 		return;
@@ -767,8 +782,9 @@ void AJRPGFieldEnemy::HandleContactOverlap(UPrimitiveComponent* OverlappedCompon
 	{
 		return;
 	}
-	// Só o pawn que o jogador controla: seguidor da party encostando não conta
-	if (OtherActor && OtherActor == GetPlayerPawn())
+	// Só o pawn que o jogador controla: seguidor da party encostando não conta. Parado onde a tela abriu depois da luta, ninguém
+	// o pega (bug 93): o Think decide quando ele andar, se ainda estiverem encostados
+	if (OtherActor && OtherActor == GetPlayerPawn() && !UpdateWaitingForPlayerMove())
 	{
 		TriggerEncounter();
 	}
@@ -1053,6 +1069,12 @@ void AJRPGFieldEnemy::HandleFieldShown()
 	// A calma depois da luta: cada um sorteia a sua, contada de a tela abrir
 	NoChaseUntil = GetWorld()->GetTimeSeconds()
 		+ FMath::FRandRange(PostBattleNoChaseMin, FMath::Max(PostBattleNoChaseMin, PostBattleNoChaseMax));
+	// E ninguém persegue enquanto o jogador ficar parado onde está agora (bug 93), mesmo depois dos tempos
+	if (const APawn* Player = GetPlayerPawn())
+	{
+		bWaitingForPlayerMove = true;
+		PlayerLocationAtFieldShown = Player->GetActorLocation();
+	}
 	if (bHideWhenFieldHidden)
 	{
 		// A luta acabou antes da tela ficar preta: quem encostou some agora, como sem luta
@@ -1090,15 +1112,37 @@ void AJRPGFieldEnemy::ResetToHome()
 
 void AJRPGFieldEnemy::UpdateFrozen()
 {
-	SetFrozen(bMenuOpen || bInBattle);
+	SetFrozen(bMenuOpen || bInBattle || bFieldInputHeld);
 }
 
 void AJRPGFieldEnemy::SetFrozen(bool bFreeze)
 {
 	bFrozen = bFreeze;
-	// Menu aberto: o mundo pausa (dilatação 0 para movimento e animação). Luta: ele só para de
-	// decidir e andar — a animação continua, para ele ficar em Idle e não travado no meio do passo
-	CustomTimeDilation = bMenuOpen ? 0.0f : 1.0f;
+	// Menu aberto (ou o controle do Field desligado fora da luta): o mundo pausa (dilatação 0 para movimento e animação). Luta:
+	// ele só para de decidir e andar — a animação continua, para ele ficar em Idle e não travado no meio do passo
+	CustomTimeDilation = (bMenuOpen || (bFieldInputHeld && !bInBattle)) ? 0.0f : 1.0f;
+}
+
+bool AJRPGFieldEnemy::IsFieldInputHeld() const
+{
+	const APawn* Player = GetPlayerPawn();
+	const AJRPGFieldPlayerController* FieldPC = Player ? Cast<AJRPGFieldPlayerController>(Player->GetController()) : nullptr;
+	return FieldPC && !FieldPC->IsFieldInputEnabled();
+}
+
+bool AJRPGFieldEnemy::UpdateWaitingForPlayerMove()
+{
+	if (!bWaitingForPlayerMove)
+	{
+		return false;
+	}
+	// Saiu do lugar (ou trocou de personagem com o R3, que também é input): a calma depois da luta fica só com os tempos
+	const APawn* Player = GetPlayerPawn();
+	if (!Player || FVector::Dist2D(Player->GetActorLocation(), PlayerLocationAtFieldShown) > PostBattleMoveTolerance)
+	{
+		bWaitingForPlayerMove = false;
+	}
+	return bWaitingForPlayerMove;
 }
 
 

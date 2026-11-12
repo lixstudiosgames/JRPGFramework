@@ -84,6 +84,7 @@ line cannot.
 | `party.levelup <key> [n]` | `party.levelup Noa 5` — **actually levels up**, applying growth at each level, and prints the before/after of all 8 stats |
 | `party.setlevel <key> <n>` | `party.setlevel Gala 30` — simulates level by level; going down replays from 1 |
 | `party.stat <key> <stat> [value]` | `party.stat Vahn ATK 400`. HP and MP write the **maximum** |
+| `party.raseru <key> [level]` | `party.raseru Vahn 3` — reads or sets the Ra-Seru level (0 = without it, 1..10; above the hero's original top the last tier repeats); the next fight uses it (arm piece, tier ATK, the button's swing and name, Hyper / Miracle) |
 | `party.unrecruit <key>` | Deletes the roster record |
 
 Parsing is space-separated, so arguments cannot contain spaces — the screen's fields

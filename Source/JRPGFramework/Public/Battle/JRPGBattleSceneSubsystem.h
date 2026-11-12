@@ -12,6 +12,7 @@ class UBattleSubsystem;
 class USoundBase;
 class UMaterialInterface;
 class UJRPGBattleTransition;
+class UJRPGBattleSplitView;
 class UAudioComponent;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnJRPGBattleSceneEvent);
@@ -127,6 +128,18 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Scene")
 	int32 GetVictoryPoseColumn() const { return VictoryPoseColumn; }
 
+	/**
+	 * As vistas da pose (fase Pose): uma por coluna da tela dividida (AJRPGBattleArena::bVictorySplitScreen), da esquerda para a
+	 * direita; sem divisão, uma só (quem posa). 0 fora da fase Pose. A vista 0 é a câmera da luta, as outras as do UJRPGBattleSplitView.
+	 */
+	int32 GetVictoryViewCount() const { return VictoryStage == EJRPGBattleVictoryStage::Pose ? VictoryViews.Num() : 0; }
+	/** O herói da vista View (nulo fora). */
+	AJRPGBattlePawn* GetVictoryViewPawn(int32 View) const;
+	/** A coluna da pose (UJRPGBattleRules::VictoryPoseColumn) do herói da vista View. */
+	int32 GetVictoryViewPoseColumn(int32 View) const { return VictoryViews.IsValidIndex(View) ? VictoryViews[View].PoseColumn : 0; }
+	/** A tela dividida da vitória (nula até a primeira; GetViewCount 1 fechada). */
+	UJRPGBattleSplitView* GetSplitView() const { return SplitView; }
+
 	/** A arena da luta atual (pode ser a provisória); nula fora de luta. */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|Battle Scene")
 	AJRPGBattleArena* GetArena() const;
@@ -234,12 +247,25 @@ private:
 	UPROPERTY()
 	FJRPGBattleVoices Voices;
 
-	/** A música da luta entra (corte seco), guardando a do Field; sai e devolve a do Field. */
+	/**
+	 * A música da luta no toque: escolhe a faixa, guarda a do Field e a corta (o som da transição toca sozinho). A faixa da luta
+	 * entra AJRPGBattleArena::BattleMusicLeadSeconds antes de a tela terminar de abrir (ScheduleBattleMusic, agendada no toque), e
+	 * não junto com o som da transição (bug 90).
+	 */
 	void StartBattleMusic(const FJRPGBattleSetup& Setup);
+	/** A faixa escolhida no StartBattleMusic entra daqui a DelaySeconds (0 = agora), em corte seco. */
+	void ScheduleBattleMusic(float DelaySeconds);
+	void PlayPendingBattleMusic();
+	/** Sai da luta: devolve a música do Field (e desiste da faixa da luta que ainda não tinha entrado). */
 	void RestoreFieldMusic();
 	UPROPERTY()
 	TObjectPtr<USoundBase> FieldMusic;
+	/** A faixa da luta esperando a tela abrir (nula depois que entra). */
+	UPROPERTY()
+	TObjectPtr<USoundBase> PendingBattleMusic;
+	FTimerHandle BattleMusicTimer;
 	bool bFieldMusicPersistent = false;
+	/** A luta é dona da música (cortou a do Field): a saída a devolve. */
 	bool bBattleMusicStarted = false;
 
 	/** O make-way: os outros saem da linha entre Attacker e Target. */
@@ -284,6 +310,41 @@ private:
 	TWeakObjectPtr<AJRPGBattlePawn> VictoryPawn;
 	int32 VictoryPoseColumn = 0;
 
+	/** Uma vista da pose: o herói e a coluna da pose dele. */
+	struct FVictoryView
+	{
+		TWeakObjectPtr<AJRPGBattlePawn> Pawn;
+		int32 PoseColumn = 0;
+	};
+	/** As vistas da pose, da esquerda para a direita (GetVictoryViewCount). */
+	TArray<FVictoryView> VictoryViews;
+	/** Os heróis de pé na decisão, com a coluna da pose de cada um (a de quem posa é a VictoryPoseColumn). */
+	TArray<FVictoryView> VictoryStanding;
+
+	/** A entrada da pose: as vistas (uma por herói de pé, ou só quem posa), a tela dividida e as poses. */
+	void EnterVictoryPose(AJRPGBattleArena& Current);
+
+	/** A tela dividida da vitória (criada na primeira vez). */
+	UPROPERTY()
+	TObjectPtr<UJRPGBattleSplitView> SplitView;
+
+	/**
+	 * A tela de resultados (AJRPGBattleArena::bVictoryResults): paga a vitória (UBattleSubsystem::SettleVictory), segura a saída
+	 * da luta, abre o input do WebUI (o "pular") e manda os cards para JRPGBattleHUD.results. Falso sem nada para mostrar.
+	 */
+	bool StartVictoryResults(AJRPGBattleArena& Current);
+	/** A tela acabou (bSkip falso: depois da espera) ou o jogador pulou (bSkip: a luta sai já). Solta a saída da luta. */
+	void FinishVictoryResults(bool bSkip);
+	/** Os cards saem da tela e o input volta ao jogo, sem mexer na luta (a cena desmontando). */
+	void HideVictoryResults();
+	/** O JS da tela de resultados: 'results_done' (a contagem acabou) e 'results_skip' (o "pular"). */
+	void HandleResultsInput(const FString& Action, int32 A, int32 B);
+	bool bVictoryResultsUp = false;
+	/** A tela abriu o input do WebUI (o menu da luta em BattleOpen) e tem de devolvê-lo. */
+	bool bVictoryResultsInput = false;
+	/** A espera depois da contagem, e a segurança de quando a tela não responde. */
+	FTimerHandle VictoryResultsTimer;
+
 	EJRPGBattleIntroStage IntroStage = EJRPGBattleIntroStage::None;
 	double IntroStartTime = 0.0;
 	FTimerHandle IntroTimer;
@@ -291,7 +352,7 @@ private:
 	void ChooseArena(const FJRPGBattleSetup& Setup);
 	void ReleaseArena();
 	float GetTransitionTime() const { return TransitionTime; }
-	/** O fade da câmera para FadeColor (bToBlack) ou dela para a cena. */
+	/** O fade da câmera para FadeColor (bToBlack) ou dela para a cena (com a tela dividida, todas as colunas). */
 	void Fade(bool bToBlack);
 
 	/**

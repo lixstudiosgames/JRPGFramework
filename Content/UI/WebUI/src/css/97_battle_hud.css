@@ -82,3 +82,211 @@
     0%   { opacity: 0; }
     100% { opacity: 1; }
 }
+
+/* --------------------------------------------------------- a tela de resultados da vitória
+   Na janela inteira (não no canvas 1920): as colunas têm de casar com as vistas do split da engine, que dividem a janela em
+   partes iguais. Com a tela dividida (.split) só os divisores do meio têm borda, no dourado dos menus. O card, o Gold e o
+   botão de pular são desenhados em px do canvas 1920 e escalados pelo --scale-factor, como as outras telas. As barras de
+   HP / MP usam as classes do menu (bar-track, bar-fill, bar-values, hp-*-text: 10_menu.css). */
+#bh-results {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    font-family: 'Cinzel', Georgia, serif;
+    color: #ffffff;
+}
+
+#bh-results.active {
+    display: block;
+}
+
+.bh-rs-cols {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+}
+
+.bh-rs-col {
+    position: relative;
+    flex: 1 1 0;
+    box-sizing: border-box;
+}
+
+#bh-results.split .bh-rs-col + .bh-rs-col {
+    border-left: 3px solid #B88A44;
+}
+
+.bh-rs-card {
+    position: absolute;
+    left: 50%;
+    bottom: 15%;
+    width: 540px;
+    box-sizing: border-box;
+    padding: 18px 26px 20px;
+    background: linear-gradient(180deg, rgba(27, 30, 117, 0.94) 0%, rgba(18, 21, 88, 0.94) 50%, rgba(12, 14, 69, 0.94) 100%);
+    border: 2px solid #B88A44;
+    border-radius: 12px;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+    transform: translateX(-50%) scale(var(--scale-factor, 1));
+    transform-origin: bottom center;
+}
+
+.bh-rs-col.current .bh-rs-card {
+    box-shadow: 0 0 22px rgba(244, 180, 26, 0.45);
+}
+
+.bh-rs-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+}
+
+.bh-rs-name {
+    font-size: 42px;
+    font-weight: 700;
+}
+
+.bh-rs-lv {
+    font-size: 30px;
+}
+
+.bh-rs-lv b {
+    font-size: 40px;
+}
+
+.bh-rs-col.leveled .bh-rs-lv b {
+    color: #F4B41A;
+}
+
+/* As barras do menu, em linha: rótulo | trilha | valores */
+.bh-rs-bar {
+    display: grid;
+    grid-template-columns: 64px 1fr auto;
+    align-items: center;
+    gap: 14px;
+    margin: 6px 0;
+}
+
+.bh-rs-bar .bar-values {
+    min-width: 150px;
+    font-size: 30px;
+}
+
+.bh-rs-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 30px;
+    margin: 4px 0;
+}
+
+.bh-rs-row b {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+/* O EXP ganho: maior e em dourado (o amarelo do LEVEL UP e do Gold) */
+.bh-rs-gain {
+    font-size: 34px;
+}
+
+.bh-rs-gain b {
+    font-size: 44px;
+    color: #F4B41A;
+    text-shadow: 0 0 10px rgba(244, 180, 26, 0.45), 0 2px 3px rgba(0, 0, 0, 0.85);
+}
+
+.bh-rs-sep {
+    height: 2px;
+    margin: 12px 0 8px;
+    background: rgba(184, 138, 68, 0.6);
+}
+
+.bh-rs-levelup {
+    position: absolute;
+    left: 50%;
+    top: -50px;
+    transform: translateX(-50%);
+    padding: 8px 24px;
+    font-size: 36px;
+    font-weight: 700;
+    color: #F4B41A;
+    white-space: nowrap;
+    background: rgba(12, 14, 69, 0.95);
+    border: 2px solid #B88A44;
+    border-radius: 10px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.bh-rs-levelup.show {
+    animation: bhLevelUp 1.4s ease-out both;
+}
+
+.bh-rs-levelup.stay {
+    opacity: 1;
+}
+
+@keyframes bhLevelUp {
+    0%   { opacity: 0; transform: translate(-50%, 20%) scale(0.7); }
+    15%  { opacity: 1; transform: translate(-50%, 0) scale(1.12); }
+    30%  { transform: translate(-50%, 0) scale(1); }
+    100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+/* O Gold: embaixo, no centro da tela */
+.bh-rs-gold {
+    position: absolute;
+    left: 50%;
+    bottom: 3%;
+    padding: 10px 34px;
+    font-size: 36px;
+    white-space: nowrap;
+    background: linear-gradient(180deg, #1B1E75 0%, #121558 50%, #0C0E45 100%);
+    border: 2px solid #B88A44;
+    border-radius: 12px;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.85);
+    transform: translateX(-50%) scale(var(--scale-factor, 1));
+    transform-origin: bottom center;
+}
+
+.bh-rs-gold b {
+    color: #F4B41A;
+}
+
+/* O "pular": um botão flutuante (clique, ou confirmar / cancelar no teclado e no controle) */
+.bh-rs-skip {
+    position: absolute;
+    right: 28px;
+    bottom: 3%;
+    padding: 10px 22px;
+    font-size: 26px;
+    background: rgba(12, 14, 69, 0.92);
+    border: 2px solid #B88A44;
+    border-radius: 24px;
+    pointer-events: auto;
+    cursor: pointer;
+    transform: scale(var(--scale-factor, 1));
+    transform-origin: bottom right;
+}
+
+.bh-rs-skip:hover {
+    background: rgba(27, 30, 117, 0.96);
+}
+
+.bh-rs-key {
+    display: inline-block;
+    padding: 0 10px;
+    margin-right: 8px;
+    font-size: 20px;
+    color: #0C0E45;
+    background: #F4B41A;
+    border-radius: 4px;
+}

@@ -836,7 +836,7 @@ tables of 1c first.
     ~1 m, so the fallen body went that much under the floor. **Fixed:** `AJRPGBattlePawn::bGroundAtMeshRoot` (on): the mesh root
     is the floor; the capsule goes from the floor to the top of the body. Probably also the "Vahn goes through Vera" of this pass
     (her body was at his height); to re-test.
-82. **Open: still no flinch on some hits of Gala's Neo Static Raising on Xain** (with 80 built: the log shows the `battle.ap` AP
+82. **Fixed (closed by 83, confirmed in pass 20): still no flinch on some hits of Gala's Neo Static Raising on Xain** (with 80 built: the log shows the `battle.ap` AP
     refills). Checked and ruled out: the events reach the target every hit, an equal clip asked again restarts from frame 0, Xain
     has its flinch (tag 2, 13 keyframes at rate 1, beat 5), the knockdown only comes on the last hit, the original also commits each
     reaction at once (`+0x1DC |= 5`, `0x801EEC34`). **Diagnostic added:** `AJRPGBattlePawn::bLogReactions` (on) logs every reaction
@@ -965,6 +965,69 @@ tables of 1c first.
       `MonsterArchiveID` `0xB3` / `0xB4` forces seat 2 / 1, only when that seat is standing (ours keeps the downed on the
       floor). `UJRPGBattleSceneSubsystem::UpdateVictory` measures who is standing and calls it. Test `JRPG.Battle.VictoryPose`.
 
+#### Pass 23 (2026-11-11) — after the split-screen victory (PR #19), noted, not started
+
+The split-screen victory and its results screen were played and work; the split no longer hitches (the scene distance fields off
+while split). What the user noted in the same play:
+
+90. **The battle music comes in too early, under the transition sound.** The field-to-battle transition's start cue (`0x1F`, `0x4D`
+    on a scripted fight) masks the first bars of the battle BGM. The music must start at the very end of the fade-in (the battle
+    scene opening), not with the transition.
+91. **A field-enemy fight does not reset the random-encounter counter.** After a fight started by touching a roaming enemy
+    (`AJRPGFieldEnemy`, not a random encounter), back on the field one step can already start a random fight. Any fight must reset
+    the random counter (`UBattleSubsystem::GetEncounterCounter`, re-rolled) so it starts counting again.
+92. **Field enemies chase the player while a menu is open.** With any menu up (pause menu, shop, dialogue...) no field enemy may
+    detect, chase or touch the player.
+93. **Field enemies chase a player who has not moved since the fight.** After a fight, while the player stands still with no input,
+    no field enemy may chase; they only start once the player moves. Today it is a timer (`PostBattleGraceTime`, 5 s), so an enemy
+    standing next to the player starts chasing when the time runs out.
+94. **Results screen: replace the EXP tick sound.** The counter tick (today the Sol slot machine's payout cue `0x209`,
+    `AJRPGBattleArena::VictoryResultsTickSound`) is to be swapped for a sound the user will provide.
+95. **Results screen: the gained EXP in gold / yellow, not green** (`.bh-rs-gain b` in `97_battle_hud.css`).
+
+**Fix pass (2026-11-12), not built yet, to re-test:**
+
+- **86 fixed.** `AJRPGBattlePawn::ResolveSound` plays nothing on a `Block` (the impact cue is skipped, like the original); the
+  `Miss` keeps its whiff, a landed hit its impact. Both sides go through it (heroes and monsters are battle pawns). The block grunt
+  is a voice line and still plays.
+- **90 fixed.** `UJRPGBattleSceneSubsystem::StartBattleMusic` now only picks the track and stops the field music at the touch; the
+  track comes in (`ScheduleBattleMusic` / `PlayPendingBattleMusic`, hard cut) when the screen has finished opening: the transition's
+  reveal fade (`HandleTransitionReveal` + `TransitionRevealSeconds`), or the camera fade (`TransitionTime`), or at once on a cut. A
+  fight that ends before that drops the pending track (`RestoreFieldMusic`).
+- **91 fixed.** `UBattleSubsystem::BeginBattle` re-rolls the random-encounter counter (488..1460) for every fight.
+- **92 fixed (guard added, cause not reproduced).** The enemies already froze with the WebUI state off `HudOnly`; now they also
+  freeze while the player's field control is off (`AJRPGFieldEnemy::IsFieldInputHeld`, polled each frame: doors, scenes, a project
+  dialogue that does not touch the WebUI state). If one still chases with a menu up, note which menu.
+- **93 fixed.** The 5 s grace and the per-enemy calm stay; on top of them, after a fight no enemy chases or touches the player until
+  he moves more than `PostBattleMoveTolerance` (25 cm) from where he stood when the field was shown (`UpdateWaitingForPlayerMove`,
+  in `Think`, `CanDetect` and the contact overlap). Once he moves, the timers still count.
+- **95 fixed.** The gained EXP is `#F4B41A` (the LEVEL UP / Gold yellow); `shell.html` rebuilt.
+- **87 fixed (user's design, 2026-11-12).** `FJRPGPartyMember::SeruLevel` is now **`RaSeruLevel`** (not to be mixed up with the
+  magic Serus of Phase 8), and **0 = no Ra-Seru yet**, the new-game default; the story gives it with
+  `UStatusSubsystem::SetRaSeruLevel` / `RaiseRaSeruLevel` (`GetRaSeruLevel`, `HasRaSeru`, `GetRaSeruBonus`, `RaSeruMaxLevel`).
+  `SaveVersion` 7: a v6 save loads with nobody holding it. With 0 the fight uses the `Default` arm piece (the `Lv<N>` arm grows with
+  the level), 0 ATK for the Ra-Seru piece (the tier's ATK does grow with the level: `DT_RaSeruTiers`, Meta 10..100), the
+  `<Hero>_default_RaSeru` swing, no element, and Hyper / Miracle stay locked. The attack screen names the arms by what they hold
+  (`FJRPGBattleMenuHero::ButtonLabel`): `Arms` on the weapon's side with a weapon, `Ra-Seru` on its side with the Ra-Seru, else
+  `Left` / `Right` (Noa mirrored); High and Low unchanged. Dev menu: Party tab › Ra-Seru, or `party.raseru <hero> [level]`. Test
+  `JRPG.Battle.UI.ArmLabels`.
+- **Re-tested by the user (2026-11-12):** 86, 91, 92, 93 and 95 work. 90: the music now comes in 1 s before (user, after trying 2 s) the screen has
+  finished opening (`AJRPGBattleArena::BattleMusicLeadSeconds`, scheduled at the touch from the transition's remaining time,
+  `UJRPGBattleTransition::GetSecondsUntilOpen`).
+- **87, second pass (user, 2026-11-12):** `RaSeruMaxLevel` is 10 for the three (the original stops at Meta 9, Terra 8, Ozma 7; the
+  remake goes to 10). Above a hero's original top the fight repeats his last tier: the arm piece (`Lv<N>` down to the highest row
+  he has), the `seru_N` swing (the same) and the tier's ATK (already clamped). Before, Noa at 9 fell to the empty arm.
+- **Still open:** 85 (light floor), 88 (the full equipment tab), 94 (waits for the user's sound).
+
+**Idea, not a bug — the split screen in a Dual / Triple Art (user, 2026-11-11):** two or three heroes dash forward, the screen
+splits and they play the starter together, one column each, then the fight's orbit camera comes back. Open points before doing it:
+the split today turns `r.DistanceFieldAO` off while it is open (each new column is a new `FSceneViewState` that rebuilds the Global
+Distance Field from scratch), so in the middle of a fight the mist that relies on the distance field would vanish in the columns, and
+turning it back on could cost a little when the orbit camera returns (the player's view keeps its own clipmaps, so it should only
+update, not rebuild). The likely way: open the extra columns once at the start of the fight, under the black transition (the warm-up
+cost hidden), and keep them alive, not drawn, until the fight ends; the fight stays in the same arena, so their clipmaps barely change.
+To measure before deciding.
+
 #### Status of the open entries (user, 2026-11-10)
 
 The entries above keep the text of the day they were written. What the user confirmed since, playing:
@@ -975,10 +1038,11 @@ The entries above keep the text of the day they were written. What the user conf
 - **Fixed, re-test done:** 37 (the Arts' shout slow), 38 (the Slime's walk sound), 39 (the action camera changing side), 41 (the
   doubled slow on Miracle), 42 (the special starter of a new Art), 43 (AP on damage taken).
 - **Fixed too:** 84 (two Hypers in a row, the second without its fanfare).
-- **Fixed, to re-test:** 89 (the win pose goes to the hero who killed the last enemy; PR #17).
-- **Still open, for the next fix pass:** 85 (the light floor on night maps), 86 (the impact sound on a blocked hit), 87 (the
-  party enters the fight with the Ra-Seru equipped).
+- **Closed:** 89 (user, 2026-11-12: the end of the fight now frames the three heroes together, the split-screen victory).
+- **Done:** the level-up sound on the results screen (`AJRPGBattleArena::VictoryResultsLevelUpSound`).
+- **Still open, for the next fix pass:** 85 (the light floor on night maps). 86 and 87: fixed 2026-11-12, see pass 23.
 - **To do, a feature:** 88 (the dev menu's equipment tab).
+- **Noted 2026-11-11 (pass 23):** 90-93 and 95 fixed 2026-11-12 (to re-test); 94 (the results tick sound) waits for the user's file.
 
 ## Not bugs (checked)
 

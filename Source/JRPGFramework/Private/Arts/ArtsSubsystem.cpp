@@ -236,14 +236,16 @@ FJRPGArtsContext UArtsSubsystem::MakeContext(FName Character) const
 	Context.LearnOnUseChance = LearnOnUseChance;
 	FJRPGPartyMember Member;
 	const UPartySubsystem* Party = GetParty();
-	if (Party && Party->GetMember(Character, Member))
+	const bool bInRoster = Party && Party->GetMember(Character, Member);
+	if (bInRoster)
 	{
 		Context.KnownArts = Member.LearnedArts;
 		Context.AP = Member.AP;
 	}
-	// O Ra-Seru do original é um byte de equipamento; aqui, o Ra-Seru fundido ao herói no DT_Characters
+	// O Ra-Seru do original é um byte de equipamento; aqui, o Ra-Seru do herói no DT_Characters, e só depois que a história o deu
+	// (RaSeruLevel > 0)
 	const FCharacterData* Row = CharacterRow(Character);
-	Context.bHasRaSeru = Row && !Row->RaSeru.IsNone();
+	Context.bHasRaSeru = Row && !Row->RaSeru.IsNone() && bInRoster && Member.RaSeruLevel > 0;
 	return Context;
 }
 

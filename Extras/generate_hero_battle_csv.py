@@ -13,11 +13,11 @@ generate_hero_battle_csv.py — gera as tabelas pequenas que a luta lê do disco
 
     python Extras/generate_hero_battle_csv.py --extracted <LegaiaRE/extracted> --tool <asset.exe> [--lzs-tool <lzs-decode.exe>] [--dry-run]
 
-O Ra-Seru NÃO é um slot de equipamento aqui (o SeruLevel é um número), mas no original é o item do slot 3 — 24
+O Ra-Seru NÃO é um slot de equipamento aqui (o RaSeruLevel é um número), mas no original é o item do slot 3 — 24
 linhas "Ra-Seru Meta $1..$9", "Ra-Seru Terra $1..$8", "Ra-Seru Ozma $1..$7" na tabela de equipamentos do
 SCUS_942.54 (docs/formats/equipment-table.md, do legend-of-legaia-re). O ATK dele entra na luta como uma das
 cinco peças do herói: a luta dobra ½ dele no golpe do botão Ra-Seru e em toda Art (BATTLE_ROADMAP.md › Damage
-formula › Equipment fold). Meta é do Vahn, Terra da Noa, Ozma do Gala; o tier é o SeruLevel do herói. Os tiers não
+formula › Equipment fold). Meta é do Vahn, Terra da Noa, Ozma do Gala; o tier é o RaSeruLevel do herói. Os tiers não
 trazem UDF, LDF nem SPD (todos 0 no disco), só o ATK.
 
 O custo do botão de Arms está no arquivo de batalha de cada herói (PROT 863 Vahn, 864 Noa, 865 Gala): a seção de
@@ -31,7 +31,7 @@ O DT_HeroSwings lê o MESMO registro de golpe que o custo (o registro que o item
 quantidade dos bytes de poder, 1 ou 2 no disco), `[+0x78]` o rate do clip e `[+0x74]` o custo do botão. Uma linha por
 herói + item + botão: a arma dirige o Arms (na Noa, canhota, é a seção 3), o tier do Ra-Seru o Ra-Seru (na Noa é a seção
 2), o calçado os dois chutes (o 1º registro é o Low, o 2º o High). Item = a key do DT_Items; `default` = a seção padrão
-(nada equipado, id 0); `seru_N` = o tier N do Ra-Seru (o Ra-Seru aqui é o SeruLevel, não um item). Sai a mesma tabela que
+(nada equipado, id 0); `seru_N` = o tier N do Ra-Seru (o Ra-Seru aqui é o RaSeruLevel, não um item). Sai a mesma tabela que
 o RE documenta (docs/reference/glitches/turn-order-and-arts.md, os calçados do Gala).
 
 O DT_HeroReactions lê a `record[0]` de cada arquivo de batalha (PROT 0863 Vahn, 0864 Noa, 0865 Gala, 0866 Terra), o bloco LZS em

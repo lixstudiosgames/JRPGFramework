@@ -131,7 +131,7 @@ nothing added. The number the player sees in battle is the **effective** one, co
 |---|---|---|
 | **Owns** | the RECORD | the RULES |
 | Roster, level, XP, base stats, vitals | ✅ | reads |
-| `Equipment` / `Conditions` / `SeruLevel` | stores | **writes** |
+| `Equipment` / `Conditions` / `RaSeruLevel` | stores | **writes** |
 | Equipping, conditions, Ra-Seru, affinity, effective stats | — | ✅ |
 | Goes into the save | ✅ (a single array) | nothing |
 
@@ -156,8 +156,10 @@ bypasses `CanEquip` validation and the delegate the UI listens to.
   when the story calls `RecruitCharacter`.
 - **Save**: the whole roster goes into `UJRPGSaveGame::Party`. `PartyDisplay` (what the
   Save/Load screen reads) is a projection of the formation only.
-  **`SaveVersion` is at 4** (v2 added the roster, v3 the inventory's `AcquiredOrder`, v4
-  `SeruLevel` and the 5 `Equipment` slots). Older saves are treated as empty.
+  **`SaveVersion` is at 7** (v2 added the roster, v3 the inventory's `AcquiredOrder`, v4
+  `SeruLevel` and the 5 `Equipment` slots, v5 seven slots, v6 `LearnedArts`, v7 `SeruLevel` renamed
+  `RaSeruLevel` with 0 = no Ra-Seru, the new-game default: a v6 save loads with nobody holding it).
+  Saves older than v2 are treated as empty.
 - **Items**: `ApplyConsumableEffect` really applies `HealHP` / `HealMP` / `bHealAP` /
   `bCureStatus` / `bRevive`.
 - **DataTable**: `DT_Characters` resolves itself (`/Game/Data/DT_Characters`, falling back to

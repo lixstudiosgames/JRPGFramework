@@ -98,6 +98,26 @@ int32 FJRPGBattleMenuHero::CostOf(EJRPGArtButton Button) const
 	return ButtonCost.IsValidIndex(Index) ? ButtonCost[Index] : UJRPGArtsRules::DefaultButtonCost;
 }
 
+FString FJRPGBattleMenuHero::ButtonLabel(EJRPGArtButton Button) const
+{
+	const bool bArm = Button == EJRPGArtButton::Arms || Button == EJRPGArtButton::RaSeru;
+	if (!bArm)
+	{
+		return UJRPGArtsRules::ButtonName(Button);
+	}
+	if (Button == EJRPGArtButton::Arms && bHasWeapon)
+	{
+		return JRPGBattleMenuText::ArmsLabel;
+	}
+	if (Button == EJRPGArtButton::RaSeru && bHasRaSeru)
+	{
+		return JRPGBattleMenuText::RaSeruArmLabel;
+	}
+	// O braço vazio: o lado do d-pad em que ele está
+	const bool bLeft = UJRPGArtsRules::ButtonForPad(bLeftHanded, EJRPGPadButton::Left) == Button;
+	return bLeft ? JRPGBattleMenuText::LeftLabel : JRPGBattleMenuText::RightLabel;
+}
+
 const FJRPGBattleMenuHero* FJRPGBattleMenuContext::FindHero(int32 Slot) const
 {
 	return Heroes.FindByPredicate([Slot](const FJRPGBattleMenuHero& Hero) { return Hero.Slot == Slot; });
@@ -1087,7 +1107,7 @@ FString FJRPGBattleMenu::BuildViewJS(const FString& Sfx) const
 				const EJRPGArtButton Button = UJRPGArtsRules::ButtonForPad(Focus->bLeftHanded, Pad);
 				const int32 Cost = Focus->CostOf(Button);
 				const bool bFits = Buttons.Num() < UJRPGArtsRules::MaxChainButtons && (Focus->Gauge <= 0 || Cost <= GaugeLeft);
-				return PadButton(UJRPGArtsRules::ButtonName(Button), bFits, Cost);
+				return PadButton(Focus->ButtonLabel(Button), bFits, Cost);
 			};
 			Left = ButtonPad(EJRPGPadButton::Left);
 			Up = ButtonPad(EJRPGPadButton::Up);
@@ -1117,7 +1137,7 @@ FString FJRPGBattleMenu::BuildViewJS(const FString& Sfx) const
 		Out += TEXT("art:{chips:[");
 		for (int32 i = 0; i < Buttons.Num(); ++i)
 		{
-			Out += FString::Printf(TEXT("%s{label:%s,cost:%d}"), i > 0 ? TEXT(",") : TEXT(""), *Lit(UJRPGArtsRules::ButtonName(Buttons[i])), Focus->CostOf(Buttons[i]));
+			Out += FString::Printf(TEXT("%s{label:%s,cost:%d}"), i > 0 ? TEXT(",") : TEXT(""), *Lit(Focus->ButtonLabel(Buttons[i])), Focus->CostOf(Buttons[i]));
 		}
 		Out += FString::Printf(TEXT("],gauge:%d,left:%d,slots:%d,slotsLeft:%d},"), bLimited ? Focus->Gauge : 0, bLimited ? GaugeLeft : 0, Slots, SlotsLeft);
 	}

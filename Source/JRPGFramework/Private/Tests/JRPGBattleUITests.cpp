@@ -168,6 +168,36 @@ namespace JRPGBattleUITests
 		return true;
 	}
 
+	// --- Os nomes dos braços na janela de entrada (bug 87) ---------------------------------------
+
+	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattleUIArmLabelsTest, "JRPG.Battle.UI.ArmLabels", JRPG_BATTLE_UI_TEST_FLAGS)
+	bool FJRPGBattleUIArmLabelsTest::RunTest(const FString& Parameters)
+	{
+		// Vahn (destro) sem arma e sem o Ra-Seru: High, Left, Right, Low
+		FJRPGBattleMenuHero Vahn = MakeHero(0, TEXT("Vahn"), false);
+		Vahn.bHasWeapon = false;
+		Vahn.bHasRaSeru = false;
+		TestEqual(TEXT("o braço da arma, vazio, é a esquerda"), Vahn.ButtonLabel(Ar), FString(TEXT("Left")));
+		TestEqual(TEXT("o braço do Ra-Seru, vazio, é a direita"), Vahn.ButtonLabel(Se), FString(TEXT("Right")));
+		TestEqual(TEXT("High"), Vahn.ButtonLabel(Hi), FString(TEXT("High")));
+		TestEqual(TEXT("Low"), Vahn.ButtonLabel(Lo), FString(TEXT("Low")));
+
+		// Com arma: Arms do lado dela; com o Ra-Seru: Ra-Seru do lado dele
+		Vahn.bHasWeapon = true;
+		TestEqual(TEXT("com arma, Arms"), Vahn.ButtonLabel(Ar), FString(TEXT("Arms")));
+		TestEqual(TEXT("o outro braço continua Right"), Vahn.ButtonLabel(Se), FString(TEXT("Right")));
+		Vahn.bHasRaSeru = true;
+		TestEqual(TEXT("com o Ra-Seru, Ra-Seru"), Vahn.ButtonLabel(Se), FString(TEXT("Ra-Seru")));
+
+		// Noa (canhota): a arma é a direita, o Ra-Seru a esquerda
+		FJRPGBattleMenuHero Noa = MakeHero(1, TEXT("Noa"), true);
+		Noa.bHasWeapon = false;
+		Noa.bHasRaSeru = false;
+		TestEqual(TEXT("Noa: o braço da arma é a direita"), Noa.ButtonLabel(Ar), FString(TEXT("Right")));
+		TestEqual(TEXT("Noa: o braço do Ra-Seru é a esquerda"), Noa.ButtonLabel(Se), FString(TEXT("Left")));
+		return true;
+	}
+
 	// --- O fluxo inteiro -----------------------------------------------------------------------
 
 	IMPLEMENT_SIMPLE_AUTOMATION_TEST(FJRPGBattleUIFlowTest, "JRPG.Battle.UI.Flow", JRPG_BATTLE_UI_TEST_FLAGS)

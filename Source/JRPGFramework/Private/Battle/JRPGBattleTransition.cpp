@@ -108,6 +108,21 @@ bool UJRPGBattleTransition::Start(UWorld* World, int32 Style, int32 Sub, int32 C
 	return true;
 }
 
+float UJRPGBattleTransition::GetSecondsUntilOpen() const
+{
+	if (!bRunning)
+	{
+		return 0.0f;
+	}
+	const float After = Timing.HoldSeconds + Timing.RevealSeconds;
+	if (bFinished)
+	{
+		return FMath::Max(After - AfterSeconds, 0.0f);
+	}
+	const int32 FramesLeft = FMath::Max(TotalFrames - Effect.GetFrame(), 0);
+	return static_cast<float>(FramesLeft) / (60.0f * Timing.PlaybackRate) + After;
+}
+
 void UJRPGBattleTransition::Stop()
 {
 	if (TickHandle.IsValid())

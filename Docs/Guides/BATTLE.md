@@ -106,7 +106,7 @@ Party, Status or Inventory subsystems again.
 | HP / MP / AP | the roster's current | `InstallEnemyStats` (+ difficulty) |
 | **ATK** | the **base** stat, with nothing equipped (the equipment is folded **per hit**; reading `GetEffectiveStat("ATK")` would inflate every hit) | `InstallEnemyStats` + `ScaleEnemyATK` |
 | UDF LDF SPD INT AGL | `GetEffectiveStat` (equipment and Ra-Seru already in, as the original's loader does) | `InstallEnemyStats` + `ScaleEnemyDEF` on UDF / LDF |
-| `PieceATK` | weapon, Ra-Seru tier, shoes, body, head — each piece's `AttackBonus` (Ra-Seru: `DT_RaSeruTiers[SeruLevel]`) | — |
+| `PieceATK` | weapon, Ra-Seru tier, shoes, body, head — each piece's `AttackBonus` (Ra-Seru: `DT_RaSeruTiers[RaSeruLevel]`) | — |
 | Element | `RaSeruElement` (Vahn fire, Noa wind, Gala thunder) | `DT_Enemies.Element` |
 | Command gauge | AGL; cost per button 30, the Arms button by weapon | AGL; spent by the swings it queues |
 | Reactions | flinch 3/1 (12 frames), block the same; they have a get-up | the monster's flinch / block / get-up rows |
