@@ -126,7 +126,7 @@ JRPGFramework/
 │   │   │   │                                       8 level-1 stats + EJRPGElement
 │   │   │   ├── JRPGPartyTypes.h ✅              ← FJRPGPartyMember: one character's record
 │   │   │   │                                       (3 states, level/XP, 8 stats, equipment,
-│   │   │   │                                       conditions, SeruLevel) + EJRPGEquipSlot (7 slots:
+│   │   │   │                                       conditions, RaSeruLevel) + EJRPGEquipSlot (7 slots:
 │   │   │   │                                       4 gear + 3 accessories)
 │   │   │   └── PartySubsystem.h ✅              ← roster vs formation, recruit/activate/bench,
 │   │   │                                           XP split among survivors, level-up, vitals, save

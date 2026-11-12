@@ -468,9 +468,13 @@ struct JRPGFRAMEWORK_API FJRPGCombatant
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	TArray<FName> KnownArts;
 
-	/** Herói: tem o Ra-Seru (destrava a Hyper e a Miracle, Fase 6). */
+	/** Herói: tem o Ra-Seru (RaSeruLevel > 0; destrava a Hyper e a Miracle, Fase 6, e dá o nome "Ra-Seru" ao botão dele). */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
 	bool bHasRaSeru = true;
+
+	/** Herói: tem arma equipada (o botão dela se chama "Arms"; sem ela, "Left" / "Right" pela mão). */
+	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
+	bool bHasWeapon = true;
 
 	/** Herói: a chance, em %, de uma Regular desconhecida ser aprendida ao ser feita. */
 	UPROPERTY(BlueprintReadOnly, Category = "JRPG|Battle")
@@ -1084,7 +1088,7 @@ enum class EJRPGBattlePiece : uint8
 	Body,    // EJRPGEquipSlot::Armor
 	Head,    // EJRPGEquipSlot::Helmet
 	Weapon,  // EJRPGEquipSlot::Weapon
-	RaSeru,  // o SeruLevel (1..9) — não é slot de equipamento
+	RaSeru,  // o RaSeruLevel (0 = a parte padrão, 1..9 = Lv<N>) — não é slot de equipamento
 	Feet,    // EJRPGEquipSlot::Shoes
 
 	MAX      UMETA(Hidden)

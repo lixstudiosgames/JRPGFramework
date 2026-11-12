@@ -312,6 +312,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "0.0"))
 	float TransitionRevealSeconds = 0.5f;
 
+	/**
+	 * A música da luta entra tantos segundos ANTES de a tela terminar de abrir (o fim do fade da transição ou da câmera). 0 = só com a
+	 * tela aberta. Ajustado no jogo (bug 90): 1 s, o fim do som da transição já não cobre o começo dela.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "0.0"))
+	float BattleMusicLeadSeconds = 1.0f;
+
 	/** A velocidade do efeito: 1 = os 60 quadros por segundo do port (2,2 s; o swirl 4,2 s). Menos = mais devagar. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Arena|Transition", meta = (ClampMin = "0.05", ClampMax = "4.0"))
 	float TransitionPlaybackRate = 1.0f;

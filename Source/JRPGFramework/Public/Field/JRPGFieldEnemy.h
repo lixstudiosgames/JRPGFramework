@@ -295,6 +295,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Detection", meta = (ClampMin = "0.0"))
 	float PostBattleNoChaseMax = 15.0f;
 
+	/**
+	 * Depois de uma luta, além dos tempos acima, ninguém persegue nem encosta no jogador enquanto ele não sair do lugar onde a tela
+	 * abriu (bug 93): parado, sem input, está seguro mesmo depois dos tempos. Quanto ele precisa andar (cm, no plano) para contar.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Detection", meta = (ClampMin = "0.0"))
+	float PostBattleMoveTolerance = 25.0f;
+
 	/** Passeando e voltando. No mínimo 400: acima do andar do jogador (300), ele alcança quem só anda. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Field Enemy|Movement", meta = (ClampMin = "400.0", UIMin = "400.0"))
 	float WalkSpeed = 400.0f;
@@ -448,8 +455,12 @@ private:
 	/** Teleporta para casa (avulso) ou um ponto ao acaso da zona, parado e sem perseguir. */
 	void ResetToHome();
 
-	/** Congela com menu aberto ou durante uma luta. */
+	/** Congela com menu aberto, durante uma luta ou com o controle do Field desligado. */
 	void UpdateFrozen();
+	/** O controle do Field do jogador está desligado (porta, cena, diálogo do projeto, a luta montando). */
+	bool IsFieldInputHeld() const;
+	/** Depois da luta: true enquanto o jogador ainda não saiu do lugar onde a tela abriu (e para de esperar quando ele sai). */
+	bool UpdateWaitingForPlayerMove();
 	void SetFrozen(bool bFreeze);
 
 	void Print(const FString& Message, const FColor& Color = FColor::Silver) const;
@@ -492,6 +503,11 @@ private:
 	bool bFrozen = false;
 	bool bMenuOpen = false;
 	bool bInBattle = false;
+	/** O controle do Field desligado (IsFieldInputHeld), visto no último Tick. */
+	bool bFieldInputHeld = false;
+	/** Depois da luta, esperando o jogador sair do lugar (PostBattleMoveTolerance); onde ele estava quando a tela abriu. */
+	bool bWaitingForPlayerMove = false;
+	FVector PlayerLocationAtFieldShown = FVector::ZeroVector;
 	/** Escondido pela luta (entre OnFieldHidden e OnFieldShown da cena). */
 	bool bHiddenForBattle = false;
 	/** Foi ele que encostou: parado à vista até a tela ficar preta, aí some e agenda o respawn. */

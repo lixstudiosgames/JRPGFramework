@@ -134,9 +134,11 @@ sound). Every place that picks music names a **row**:
 | `AJRPGBattleArena` | `BattleMusic` (default `Battle1`), `bKeepFieldMusic` | ordinary fights here; `bKeepFieldMusic` keeps the field track (a boss with its own music still swaps) |
 | `AJRPGFieldEnemy`, `AJRPGBattleWaves` | `BattleMusic`, `bKeepCurrentMusic` | copied into the setup they build |
 
-Order: setup → boss → arena. When the battle scene opens, the scene subsystem remembers the current
-BGM and plays the track with a **hard cut**, like the original; when the scene closes the field
-track comes back (or the BGM stops if there was none).
+Order: setup → boss → arena. When the fight starts, the scene subsystem remembers the current BGM
+and stops it (the transition's start sound plays alone); the battle track starts with a **hard cut**,
+like the original, `AJRPGBattleArena::BattleMusicLeadSeconds` (1 s) before the screen has finished
+opening (the end of the transition's reveal fade, or of the camera fade; at once on a cut). When the scene closes the field track comes back (or the BGM stops if there was
+none).
 
 **How the original picks** (RE `docs/subsystems/audio.md`, "The battle sound set picks the
 fight's track"): the field script stores a "sound set" `N` (op `0x35` sub-op 7, `-1` = keep the

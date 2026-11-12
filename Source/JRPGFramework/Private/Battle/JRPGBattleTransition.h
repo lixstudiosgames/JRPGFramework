@@ -57,6 +57,9 @@ public:
 
 	bool IsRunning() const { return bRunning; }
 
+	/** Segundos até a tela terminar de abrir (o fim do efeito, a espera e o fade), contando do agora; 0 parada. */
+	float GetSecondsUntilOpen() const;
+
 	/** O overlay desenha (chamado pelo widget). */
 	int32 Paint(const FGeometry& Geometry, FSlateWindowElementList& OutElements, int32 LayerId) const;
 

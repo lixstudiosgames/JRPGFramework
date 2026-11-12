@@ -356,6 +356,7 @@ void UJRPGBattleSceneSubsystem::Deinitialize()
 	bVictoryResultsInput = false;
 	ResetVictory();
 	FieldMusic = nullptr;
+	PendingBattleMusic = nullptr;
 	bBattleMusicStarted = false;
 	Arena = nullptr;
 	Phase = EPhase::Idle;
@@ -399,27 +400,35 @@ void UJRPGBattleSceneSubsystem::HandleBattleStarted(const FJRPGBattleSetup& Setu
 		Current->StopFieldForBattle();
 	}
 
-	// O começo do overlay PROT 0979: o som do começo da luta (fase 0) e a música da luta (fase 2) já no primeiro quadro, em corte seco
+	// O começo do overlay PROT 0979: o som do começo da luta (fase 0) no primeiro quadro; a música do Field sai aqui e a da luta só
+	// entra quando a tela termina de abrir (ScheduleBattleMusic), senão o som da transição cobre o começo dela (bug 90)
 	PlayTransitionSound(Setup);
 	StartBattleMusic(Setup);
 
 	// A transição do original sobre a captura do último quadro do Field; ela chama a montagem quando a tela fica toda na cor final
 	FadeColor = TransitionColor;
 	bEntryFadeIn = true;
+	const AJRPGBattleArena* MusicArena = Arena.Get();
+	const float MusicLead = MusicArena ? MusicArena->BattleMusicLeadSeconds : 0.0f;
 	bEnteredByTransition = StartFieldTransition(Setup);
 	if (bEnteredByTransition)
 	{
+		// A música da luta: MusicLead antes de a tela terminar de abrir (o efeito, a espera e o fade do overlay)
+		ScheduleBattleMusic(FMath::Max(Transition->GetSecondsUntilOpen() - MusicLead, 0.0f));
 		return;
 	}
 	int32 IgnoredSub = 0;
 	if (GetTransitionTime() > 0.0f && ResolveTransitionStyle(Setup, IgnoredSub) != EJRPGBattleTransitionStyle::Cut)
 	{
+		// O fade para o preto e o que abre a luta: a música MusicLead antes do fim do segundo
+		ScheduleBattleMusic(FMath::Max(2.0f * GetTransitionTime() - MusicLead, 0.0f));
 		Fade(true);
 		Timers.SetTimer(TransitionTimer, FTimerDelegate::CreateUObject(this, &UJRPGBattleSceneSubsystem::EnterBattleScene), GetTransitionTime(), false);
 	}
 	else
 	{
-		bEntryFadeIn = false;   // o corte seco: a luta aparece direto
+		bEntryFadeIn = false;   // o corte seco: a luta aparece direto, e a música com ela
+		ScheduleBattleMusic(0.0f);
 		EnterBattleScene();
 	}
 }
@@ -1587,15 +1596,55 @@ void UJRPGBattleSceneSubsystem::StartBattleMusic(const FJRPGBattleSetup& Setup)
 	{
 		return;
 	}
-	// O original troca em corte seco (o fim da entrada da luta carrega o bundle do sound set e começa a partitura)
+	// A do Field sai já no toque (o som da transição toca sozinho); a da luta entra em corte seco quando a tela termina de abrir
+	// (ScheduleBattleMusic; o original começa a partitura no fim da entrada da luta, BATTLE_RE_SWEEP.md 9.2 linha 9)
 	FieldMusic = Audio->GetCurrentBGM();
 	bFieldMusicPersistent = Audio->IsBGMPersistent();
-	Audio->PlayBGM(Track, false, 0.0f);
+	Audio->StopBGM(0.0f);
+	PendingBattleMusic = Track;
 	bBattleMusicStarted = true;
+}
+
+void UJRPGBattleSceneSubsystem::ScheduleBattleMusic(float DelaySeconds)
+{
+	UWorld* World = GetWorld();
+	if (!PendingBattleMusic || !World)
+	{
+		return;
+	}
+	World->GetTimerManager().ClearTimer(BattleMusicTimer);
+	if (DelaySeconds <= 0.0f)
+	{
+		PlayPendingBattleMusic();
+		return;
+	}
+	World->GetTimerManager().SetTimer(BattleMusicTimer,
+		FTimerDelegate::CreateUObject(this, &UJRPGBattleSceneSubsystem::PlayPendingBattleMusic), DelaySeconds, false);
+}
+
+void UJRPGBattleSceneSubsystem::PlayPendingBattleMusic()
+{
+	USoundBase* Track = PendingBattleMusic;
+	PendingBattleMusic = nullptr;
+	// Pode entrar ainda na transição (BattleMusicLeadSeconds antes de a tela abrir); a luta que já saiu não toca
+	if (!Track || !bBattleMusicStarted || Phase == EPhase::Idle)
+	{
+		return;
+	}
+	UAudioSubsystem* Audio = GetWorld() && GetWorld()->GetGameInstance() ? GetWorld()->GetGameInstance()->GetSubsystem<UAudioSubsystem>() : nullptr;
+	if (Audio)
+	{
+		Audio->PlayBGM(Track, false, 0.0f);
+	}
 }
 
 void UJRPGBattleSceneSubsystem::RestoreFieldMusic()
 {
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(BattleMusicTimer);
+	}
+	PendingBattleMusic = nullptr;
 	if (!bBattleMusicStarted)
 	{
 		return;

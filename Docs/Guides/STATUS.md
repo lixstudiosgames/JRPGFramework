@@ -25,7 +25,7 @@ That is exactly the split between the two subsystems:
 | Roster, level, XP | ✅ | — |
 | **Base** stats | ✅ | reads |
 | `Equipment` / `Conditions` fields | stores | **writes** |
-| `SeruLevel` | stores | **writes** |
+| `RaSeruLevel` | stores | **writes** |
 | **Effective** stats | — | ✅ computes |
 | Equip / unequip | — | ✅ |
 | Conditions, elemental affinity | — | ✅ |
@@ -36,7 +36,7 @@ That is exactly the split between the two subsystems:
 lists to keep in sync — and one day they would diverge.
 
 > Rule of thumb: **ask Status, save Party.** Nothing other than `UStatusSubsystem` should
-> write to `Equipment`, `Conditions` or `SeruLevel`.
+> write to `Equipment`, `Conditions` or `RaSeruLevel`.
 
 ---
 
@@ -173,11 +173,22 @@ the UI redraws.
 
 | Function | Behavior |
 |---|---|
-| `GetSeruLevel(Key)` | 1..9 |
-| `RaiseSeruLevel(Key, N)` | Raises it, clamped to `SeruMaxLevel` (9, as in the original) |
-| `GetSeruBonus(Key, Stat)` | What that level **grants** in stats |
+| `GetRaSeruLevel(Key)` | 0..10 — **0 = the hero does not have the Ra-Seru yet** (the start of the game) |
+| `HasRaSeru(Key)` | `GetRaSeruLevel > 0` |
+| `SetRaSeruLevel(Key, N)` | Sets it (0 takes it away, 1 = the story gives it), clamped to `RaSeruMaxLevel` |
+| `RaiseRaSeruLevel(Key, N)` | Raises it, clamped to `RaSeruMaxLevel`; from 0, raising is receiving it |
+| `GetRaSeruBonus(Key, Stat)` | What that level **grants** in stats |
 
-> **`GetSeruBonus` does not come from the disc.** In the original, Seru level feeds magic
+`RaSeruMaxLevel` is **10 for the three**. The original stops at Meta 9, Terra 8, Ozma 7; the remake goes to 10, ready to be
+expanded. Above a hero's original top, the fight repeats his last tier (the arm piece, the swing and the tier's ATK).
+
+Named `RaSeru*` (it was `Seru*`) so it is not mixed up with the Serus of the magic (Phase 8). In a fight
+the level picks the arm piece (`<Hero>_RaSeru_Lv<N>`, the arm grows with it; 0 = the `Default` arm), the
+tier's ATK (`DT_RaSeruTiers`, 0 without it), the Ra-Seru button's swing (`seru_N`, the `default` row
+without it), the hero's element (none without it) and whether Hyper and Miracle Arts unlock. The
+attack screen calls that arm `Ra-Seru` only with it, otherwise by its side (`Left` / `Right`).
+
+> **`GetRaSeruBonus` does not come from the disc.** In the original, Seru level feeds magic
 > power (`FUN_801dd864`), not the character's stats. Today's bonus — **+2% INT per level
 > above the first, and nothing on the other seven** — is our decision, kept small and in
 > **one place** so it is easy to change or remove.

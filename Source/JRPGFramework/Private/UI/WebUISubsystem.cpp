@@ -11,6 +11,7 @@
 #include "World/WorldStateSubsystem.h"
 #include "Party/PartySubsystem.h"
 #include "Party/CharacterData.h"
+#include "Status/StatusSubsystem.h"
 #include "Field/JRPGFieldCharacter.h"
 #include "Field/JRPGFieldPartyComponent.h"
 #include "Field/JRPGFieldPlayerController.h"
@@ -988,6 +989,28 @@ void UWebUISubsystem::RunDevCommand(const FString& Command)
 		Out = FString::Printf(TEXT("%s: HP %d/%d MP %d/%d AP %d | ATK %d UDF %d LDF %d SPD %d INT %d AGL %d"),
 			*Who.ToString(), M.HP, M.MaxHP, M.MP, M.MaxMP, M.AP,
 			M.ATK, M.UDF, M.LDF, M.SPD, M.INT, M.AGL);
+	}
+	// party.raseru <herói> [level]: lê ou põe o level do Ra-Seru (0 = sem ele). Vale da próxima luta em diante
+	else if (Verb == TEXT("party.raseru") && Party)
+	{
+		UStatusSubsystem* Status = GI ? GI->GetSubsystem<UStatusSubsystem>() : nullptr;
+		const FName Who(*DevArgStr(Args, 0, TEXT("Vahn")));
+		FJRPGPartyMember M;
+		if (!Status || !Party->GetMember(Who, M))
+		{
+			Out = FString::Printf(TEXT("party.raseru: %s não está no roster"), *Who.ToString());
+		}
+		else
+		{
+			if (Args.IsValidIndex(1))
+			{
+				Status->SetRaSeruLevel(Who, DevArgInt(Args, 1, 0));
+			}
+			const int32 Level = Status->GetRaSeruLevel(Who);
+			Out = Level > 0
+				? FString::Printf(TEXT("%s: Ra-Seru level %d (de %d)"), *Who.ToString(), Level, Status->RaSeruMaxLevel)
+				: FString::Printf(TEXT("%s: sem o Ra-Seru"), *Who.ToString());
+		}
 	}
 	else if (Verb == TEXT("party.unrecruit") && Party)
 	{

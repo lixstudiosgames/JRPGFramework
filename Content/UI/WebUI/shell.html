@@ -5891,15 +5891,15 @@ html.kbd-mode #screen-dev * {
     font-variant-numeric: tabular-nums;
 }
 
-/* O EXP ganho: maior e de outra cor */
+/* O EXP ganho: maior e em dourado (o amarelo do LEVEL UP e do Gold) */
 .bh-rs-gain {
     font-size: 34px;
 }
 
 .bh-rs-gain b {
     font-size: 44px;
-    color: #7CFF9B;
-    text-shadow: 0 0 10px rgba(124, 255, 155, 0.45), 0 2px 3px rgba(0, 0, 0, 0.85);
+    color: #F4B41A;
+    text-shadow: 0 0 10px rgba(244, 180, 26, 0.45), 0 2px 3px rgba(0, 0, 0, 0.85);
 }
 
 .bh-rs-sep {
@@ -6848,6 +6848,14 @@ html.kbd-mode #screen-dev * {
                     <input id="dev-plevel" type="number" value="20" min="1" max="500">
                     <button class="dev-btn alvo" data-tpl="party.setlevel {member} {plevel}">Aplicar</button>
                     <span class="dev-note">Simula level por level. Para BAIXAR, refaz do 1 &mdash; n&atilde;o d&aacute; para desrolar o jitter j&aacute; ganho.</span>
+                </div>
+
+                <div class="dev-row">
+                    <label>Ra-Seru</label>
+                    <input id="dev-raseru" type="number" value="1" min="0" max="10">
+                    <button class="dev-btn alvo" data-tpl="party.raseru {member} {raseru}">Aplicar</button>
+                    <button class="dev-btn alvo" data-tpl="party.raseru {member}">Ler</button>
+                    <span class="dev-note">0 = sem o Ra-Seru (o come&ccedil;o do jogo). 1..10 = o level: o bra&ccedil;o, o ATK do tier e o golpe do bot&atilde;o mudam com ele (acima do teto original do her&oacute;i &mdash; Meta 9, Terra 8, Ozma 7 &mdash; repete o &uacute;ltimo).</span>
                 </div>
 
                 <div class="dev-row">
@@ -11870,6 +11878,7 @@ window.JRPGDev = (function () {
         plevel: 'dev-plevel',
         pstat:  'dev-pstat',
         pval:   'dev-pval',
+        raseru: 'dev-raseru',
         enemy:  'dev-enemy',
         ecount: 'dev-ecount',
         elevel: 'dev-elevel',

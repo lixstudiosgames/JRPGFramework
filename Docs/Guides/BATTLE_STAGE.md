@@ -47,7 +47,9 @@ A fight, start to end:
    enemies back at home (a zone enemy goes to a point of the zone **away from the player**, farther than its detect
    radius); the screen opens. The grace period counts **from this moment** (`NoteFieldReturned`):
    for `PostBattleGraceTime` (5 s) no new encounter starts and no field enemy chases, and one that was already touching the
-   player when the grace ends triggers then. `EncounterGraceTime` (3 s) still separates two encounters.
+   player when the grace ends triggers then. `EncounterGraceTime` (3 s) still separates two encounters. Field enemies also
+   wait for the player to move away from where he stands when the screen opens
+   ([FIELD_ENEMIES.md](FIELD_ENEMIES.md) › On contact).
 
 ---
 
@@ -75,7 +77,7 @@ five **pieces**, each a skeletal mesh on the same skeleton as `BattleMesh`
 | `Body` | `Armor` slot | `<Hero>_Body_<item key>` |
 | `Head` | `Helmet` slot | `<Hero>_Head_<item key>` |
 | `Weapon` | `Weapon` slot | `<Hero>_Weapon_<item key>` |
-| `RaSeru` | `SeruLevel` (not an equip slot) | `<Hero>_RaSeru_Lv<N>` |
+| `RaSeru` | `RaSeruLevel` (not an equip slot; 0 = no Ra-Seru yet) | `<Hero>_RaSeru_Lv<N>` (the arm grows with the level; above the hero's last row — Vahn 9, Noa 8, Gala 7 — the last one); `Default` at 0 |
 | `Feet` | `Shoes` slot | `<Hero>_Feet_<item key>` |
 
 An empty slot, or an item with no row, uses `<Hero>_<Piece>_Default` (a warning is logged for
@@ -135,7 +137,9 @@ A map with no arena uses these defaults on the temporary one.
 The original's overlay PROT 0979 (`Reference/BATTLE_RE_SWEEP.md` 10.3, step 5b; the RE's `battle-stage-camera.md` "Field-to-battle
 intro presentation" and `cutscene.md` "Field-to-battle transition"). When a fight starts, `UJRPGBattleSceneSubsystem`:
 
-1. plays the battle-start sound and switches to the battle music (the original does both on the transition's first frames);
+1. plays the battle-start sound and stops the field music; the battle music comes in `BattleMusicLeadSeconds` (1 s, on the
+   arena) before the screen has finished opening (the end of the reveal fade), not with the start sound that would cover its
+   first bars;
 2. captures the last frame of the viewport and draws one of five styles over it, on a black base, at 60 frames a second, for
    **132 frames** (2.2 s; the swirl 252, 4.2 s), each with its fade ramp at the end (white for spin-up, swirl and scatter sub 2,
    black for the rest);

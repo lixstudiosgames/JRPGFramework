@@ -247,12 +247,25 @@ private:
 	UPROPERTY()
 	FJRPGBattleVoices Voices;
 
-	/** A música da luta entra (corte seco), guardando a do Field; sai e devolve a do Field. */
+	/**
+	 * A música da luta no toque: escolhe a faixa, guarda a do Field e a corta (o som da transição toca sozinho). A faixa da luta
+	 * entra AJRPGBattleArena::BattleMusicLeadSeconds antes de a tela terminar de abrir (ScheduleBattleMusic, agendada no toque), e
+	 * não junto com o som da transição (bug 90).
+	 */
 	void StartBattleMusic(const FJRPGBattleSetup& Setup);
+	/** A faixa escolhida no StartBattleMusic entra daqui a DelaySeconds (0 = agora), em corte seco. */
+	void ScheduleBattleMusic(float DelaySeconds);
+	void PlayPendingBattleMusic();
+	/** Sai da luta: devolve a música do Field (e desiste da faixa da luta que ainda não tinha entrado). */
 	void RestoreFieldMusic();
 	UPROPERTY()
 	TObjectPtr<USoundBase> FieldMusic;
+	/** A faixa da luta esperando a tela abrir (nula depois que entra). */
+	UPROPERTY()
+	TObjectPtr<USoundBase> PendingBattleMusic;
+	FTimerHandle BattleMusicTimer;
 	bool bFieldMusicPersistent = false;
+	/** A luta é dona da música (cortou a do Field): a saída a devolve. */
 	bool bBattleMusicStarted = false;
 
 	/** O make-way: os outros saem da linha entre Attacker e Target. */

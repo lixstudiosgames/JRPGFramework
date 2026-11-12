@@ -284,9 +284,9 @@
 <rect class="ok" x="363.4" y="153.3" width="9.4" height="9.4"><title>HasCondition · StatusSubsystem.h</title></rect>
 <rect class="ok" x="373.7" y="153.3" width="9.4" height="9.4"><title>GetConditions · StatusSubsystem.h</title></rect>
 <rect class="ok" x="384.0" y="153.3" width="9.4" height="9.4"><title>ClearConditions · StatusSubsystem.h</title></rect>
-<rect class="ok" x="394.3" y="153.3" width="9.4" height="9.4"><title>GetSeruLevel · StatusSubsystem.h</title></rect>
-<rect class="ok" x="404.6" y="153.3" width="9.4" height="9.4"><title>RaiseSeruLevel · StatusSubsystem.h</title></rect>
-<rect class="ok" x="414.9" y="153.3" width="9.4" height="9.4"><title>GetSeruBonus · StatusSubsystem.h</title></rect>
+<rect class="ok" x="394.3" y="153.3" width="9.4" height="9.4"><title>GetRaSeruLevel · StatusSubsystem.h</title></rect>
+<rect class="ok" x="404.6" y="153.3" width="9.4" height="9.4"><title>RaiseRaSeruLevel · StatusSubsystem.h</title></rect>
+<rect class="ok" x="414.9" y="153.3" width="9.4" height="9.4"><title>GetRaSeruBonus · StatusSubsystem.h</title></rect>
 <rect class="ok" x="425.2" y="153.3" width="9.4" height="9.4"><title>GetElementMultiplier · StatusSubsystem.h</title></rect>
 <text class="t2" x="229.5" y="177.6" font-size="10">Áudio <tspan class="t2" fill-opacity=".8">(17)</tspan></text>
 <rect class="ok" x="229.5" y="180.6" width="9.4" height="9.4"><title>PlayBGM · AudioSubsystem.h</title></rect>

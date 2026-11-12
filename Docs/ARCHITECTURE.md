@@ -70,7 +70,7 @@ for Blueprints.
 (WorldState); the shop UI talks to it through WebUISubsystem/Bridge.
 
 **Party vs Status.** One record, two owners. Party stores it; Status writes `Equipment`,
-`Conditions` and `SeruLevel` through `FindMemberForWrite()`. See
+`Conditions` and `RaSeruLevel` through `FindMemberForWrite()`. See
 [`Guides/STATUS.md`](Guides/STATUS.md).
 
 ---
@@ -207,7 +207,7 @@ problem someone already paid for.
     array of its own: it writes into `FJRPGPartyMember` through `FindMemberForWrite()`.
     Splitting the data would create two lists in the save to keep in sync, and one day they
     diverge.
-41. **Only `UStatusSubsystem` writes `Equipment`, `Conditions` and `SeruLevel`.** The fields
+41. **Only `UStatusSubsystem` writes `Equipment`, `Conditions` and `RaSeruLevel`.** The fields
     live in Party because there is a single save, but the rule belongs to Status. Writing them
     directly bypasses `CanEquip` validation and the delegate the UI listens to. The same goes for
     `LearnedArts` and **`UArtsSubsystem::LearnArt`** (it refuses another hero's Art or a `Part`,

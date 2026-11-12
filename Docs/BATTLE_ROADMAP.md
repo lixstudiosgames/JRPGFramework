@@ -102,12 +102,12 @@ None of this needs to be written — only called.
 
 | Needed for | Already in |
 |---|---|
-| Combatant record (HP/MP/AP, 8 stats, 5 equip slots, conditions, SeruLevel) | `FJRPGPartyMember` (`Public/Party/JRPGPartyTypes.h`) |
+| Combatant record (HP/MP/AP, 8 stats, 5 equip slots, conditions, RaSeruLevel) | `FJRPGPartyMember` (`Public/Party/JRPGPartyTypes.h`) |
 | Damage, heal, restore MP, `SetAP`, revive, full restore | `UPartySubsystem` |
 | XP split among survivors, level-up with jitter | `UPartySubsystem::AwardBattleXP` (takes the **raw** EXP sum; applies the version and the difficulty) / `LevelUpMember` |
 | Enemy stats installed and victory EXP / Gold, per version (USA / Japan) | `UJRPGBattleRules` (`InstallEnemyStats`, `VictoryEXPPool`, `VictoryEXPShare`, `VictoryGold`) + `UCoreSubsystem::GetRuleset` |
 | Effective stat (base + equipment + Ra-Seru) | `UStatusSubsystem::GetEffectiveStat` — the menu number. The fight snapshots UDF / LDF / SPD / INT / AGL from it, but **not ATK** ([Damage formula](#damage-formula)) |
-| Ra-Seru bonus (1..9) | `UStatusSubsystem::GetSeruBonus` — ours, not the disc's (INT only). The Ra-Seru's ATK in a fight is its tier's equipment row ([Damage formula](#damage-formula)) |
+| Ra-Seru bonus (1..9) | `UStatusSubsystem::GetRaSeruBonus` — ours, not the disc's (INT only). The Ra-Seru's ATK in a fight is its tier's equipment row ([Damage formula](#damage-formula)) |
 | Elemental affinity multiplier | `UStatusSubsystem::GetElementMultiplier` — float, for the menus. The fight uses the integer 8×8 matrix in `UBattleFormulas` |
 | Status conditions | `UStatusSubsystem::ApplyCondition` / `HasCondition` |
 | Enemy scaling by difficulty | `UCoreSubsystem::ScaleEnemyHP/ATK/DEF` |
@@ -831,7 +831,7 @@ advantage (`ctx+0x287`).
 |---|---|---|
 | Each monster's **action entries**: per clip the power bytes (`+0x00..+0x03`, one per hit), the hit frames (the event-frame list `+0x10..+0x13`), the AGL cost (`+0x74`), the playback rate (`+0x78`), the status selector (`+0x7A`), the tag (`0x0B` block; `0x0C..0x1F` what the AI can roll, of which `0x0D` / `0x0E` / `0x0F` are the monster's plain attacks and the rest its specials) | `docs/formats/monster-animation.md` › action entry; the monster archive (PROT 867) | The enemy's timeline, its damage, its AI budget, its block. A table (`DT_EnemyActions`, a row per monster clip), **not notifies** |
 | Each monster's **target class** (record `+0x1E`: 2 = floating, the "Lower, misses floating" hits miss it; 3 = short, the "Upper, misses short" hits miss it; 0 = every hit reaches) | `battle-formulas.md` › "The limb-vs-height miss" | The miss by height. A column in `DT_Enemies` |
-| The **Ra-Seru tiers** as equipment rows (ATK, UDF, LDF, SPD per tier; weapon category with the Ra-Seru bit) | `docs/formats/equipment-table.md` (the ~24 per-tier entries the curated tables collapsed) | The Ra-Seru's ATK fold and its stats at load. The hero's tier is `SeruLevel` |
+| The **Ra-Seru tiers** as equipment rows (ATK, UDF, LDF, SPD per tier; weapon category with the Ra-Seru bit) | `docs/formats/equipment-table.md` (the ~24 per-tier entries the curated tables collapsed) | The Ra-Seru's ATK fold and its stats at load. The hero's tier is `RaSeruLevel` |
 | The party's **per-button cost** (`+0x74` of the weapon section: 30 / 42 / 54) | `arts-command-gauge.md` › "Where the cost comes from" | The input window's cost per button, per weapon |
 
 **The round.** The original's: **every hero's command is entered first, then the round plays
@@ -1081,7 +1081,7 @@ the hit, not by the item:
 
 `BaseOffense = ATK + fold`. Noa is left-handed, but the fold follows the role (her Arms button
 folds her claws, her Ra-Seru button folds Terra). The Ra-Seru's ATK is the tier's equipment row
-(5.0 › Data the fight needs from the disc), not `GetSeruBonus`.
+(5.0 › Data the fight needs from the disc), not `GetRaSeruBonus`.
 
 **Offense, Defense, damage** (`atk` = BaseOffense):
 

@@ -298,11 +298,11 @@ public:
 	/**
 	 * Preenche o golpe simples de cada botão do herói pelo que ele tem equipado, da DT_HeroSwings (FJRPGHeroSwingData): a
 	 * linha <Herói>_<Item>_<Botão> do item (a arma no Arms, o tier "seru_N" no Ra-Seru, o calçado no Low e no High) e, sem ela,
-	 * a <Herói>_default_<Botão>. Põe SwingBytes, SwingProfiles e o custo do botão (só da linha do próprio item, ou da padrão
+	 * a <Herói>_default_<Botão> (RaSeruLevel 0 = sem o Ra-Seru: a padrão). Põe SwingBytes, SwingProfiles e o custo do botão (só da linha do próprio item, ou da padrão
 	 * quando o slot está vazio; um item sem linha mantém o custo que já estava). Table nula ou de outra struct: não faz nada.
 	 * Estática e sem subsistema, para os testes.
 	 */
-	static void ApplyHeroSwings(FJRPGCombatant& Hero, const UDataTable* Table, FName Weapon, FName Shoes, int32 SeruLevel);
+	static void ApplyHeroSwings(FJRPGCombatant& Hero, const UDataTable* Table, FName Weapon, FName Shoes, int32 RaSeruLevel);
 
 	/** Segundos, depois de um encontro aceito ou de uma luta encerrada, em que outro é recusado. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JRPG|Battle", meta = (ClampMin = "0.0"))

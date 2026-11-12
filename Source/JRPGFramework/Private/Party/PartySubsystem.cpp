@@ -479,7 +479,8 @@ bool UPartySubsystem::ResetMemberToBase(FJRPGPartyMember& Member)
 	Member.LDF = Base->BaseLDF;
 	Member.SPD = Base->BaseSPD;
 	Member.INT = Base->BaseINT;
-	Member.SeruLevel = 1;
+	// Sem o Ra-Seru: quem o dá é a história (UStatusSubsystem::SetRaSeruLevel)
+	Member.RaSeruLevel = 0;
 
 	// Um slot por EJRPGEquipSlot, todos vazios. O UStatusSubsystem conta com
 	// o array já dimensionado.

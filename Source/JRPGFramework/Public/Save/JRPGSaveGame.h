@@ -29,8 +29,10 @@ public:
 	//     o UStatusSubsystem completa o array na primeira escrita.
 	// v6: FJRPGPartyMember ganhou LearnedArts (as Arts que cada um sabe). Um save v5 ainda carrega,
 	//     com a lista vazia.
+	// v7: SeruLevel virou RaSeruLevel, e 0 = sem o Ra-Seru (o padrão do começo do jogo). Um save v6 ainda carrega,
+	//     com todos sem o Ra-Seru (o campo antigo é ignorado): o dev menu ("raseru <herói> <level>") devolve.
 	// Save de versão anterior é tratado como vazio.
-	static constexpr int32 CurrentSaveVersion = 6;
+	static constexpr int32 CurrentSaveVersion = 7;
 
 	UPROPERTY()
 	int32 SaveVersion = CurrentSaveVersion;
