@@ -24,6 +24,22 @@ struct FJRPGVFXLayerState
 	bool bDone = false;
 };
 
+/** Um parâmetro float mudado com o efeito tocando (SetEffectFloat): espera Delay e vai de From a To em BlendTime. */
+struct FJRPGVFXFloatParam
+{
+	float From = 0.0f;
+	float To = 0.0f;
+	float Delay = 0.0f;
+	float BlendTime = 0.0f;
+	float Elapsed = 0.0f;
+
+	float Evaluate() const
+	{
+		const float Alpha = BlendTime > 0.0f ? (Elapsed - Delay) / BlendTime : (Elapsed >= Delay ? 1.0f : 0.0f);
+		return FMath::Lerp(From, To, FMath::SmoothStep(0.0f, 1.0f, Alpha));
+	}
+};
+
 /** Um efeito tocando. */
 USTRUCT()
 struct FJRPGVFXInstance
@@ -31,6 +47,9 @@ struct FJRPGVFXInstance
 	GENERATED_BODY()
 
 	int32 Id = 0;
+
+	/** Os parâmetros de SetEffectFloat: escritos em toda camada Niagara (user parameter) e Mesh (material) a cada frame. */
+	TMap<FName, FJRPGVFXFloatParam> FloatParams;
 
 	UPROPERTY()
 	TObjectPtr<const UJRPGVFXRecipe> Recipe;
@@ -77,7 +96,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "JRPG|VFX")
 	FJRPGVFXHandle PlayEffect(const UJRPGVFXRecipe* Recipe, const FJRPGVFXContext& Context);
 
-	/** Toca a receita da linha EffectId do DT_VFX. Recibo inválido se a linha ou a receita não existem. */
+	/**
+	 * Toca a receita da linha EffectId do DT_VFX. Recibo inválido se a linha ou a receita não existem.
+	 * Um Context.Color branco recebe a Color da linha.
+	 */
 	UFUNCTION(BlueprintCallable, Category = "JRPG|VFX")
 	FJRPGVFXHandle PlayEffectById(FName EffectId, const FJRPGVFXContext& Context);
 
@@ -95,6 +117,19 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|VFX")
 	bool IsEffectPlaying(FJRPGVFXHandle Handle) const;
+
+	/**
+	 * Muda um parâmetro float do efeito tocando: o user parameter Name de toda camada Niagara e o parâmetro Name dos
+	 * materiais das camadas Mesh, inclusive as que ainda vão entrar. Espera Delay segundos e vai do valor atual ao novo em
+	 * BlendTime. O primeiro valor de um nome não tem de onde partir: entra direto, depois do Delay. Vence uma faixa da
+	 * receita com o mesmo nome. É assim que a aura da Art cresce a cada starter (AuraPower).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "JRPG|VFX")
+	void SetEffectFloat(FJRPGVFXHandle Handle, FName Name, float Value, float Delay = 0.0f, float BlendTime = 0.0f);
+
+	/** O valor atual de um parâmetro de SetEffectFloat (Fallback se o efeito não toca ou o nome nunca foi escrito). */
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "JRPG|VFX")
+	float GetEffectFloat(FJRPGVFXHandle Handle, FName Name, float Fallback = 0.0f) const;
 
 	/** Quantos efeitos estão tocando (testes e debug). */
 	int32 GetNumActiveEffects() const { return Instances.Num(); }

@@ -290,6 +290,13 @@ struct JRPGFRAMEWORK_API FJRPGVFXRow : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX")
 	TSoftObjectPtr<UJRPGVFXRecipe> Recipe;
+
+	/**
+	 * A cor do disparo quando quem toca não deu uma (Context.Color branco). Deixa a mesma receita servir várias linhas:
+	 * ArtAura_Vahn, ArtAura_Noa e ArtAura_Gala apontam a mesma receita, cada uma com a cor do herói (HDR). Branco = nenhuma.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "VFX", meta = (HideAlphaChannel))
+	FLinearColor Color = FLinearColor::White;
 };
 
 namespace JRPGVFX

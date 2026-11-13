@@ -157,25 +157,40 @@ FJRPGVFXHandle UJRPGVFXSubsystem::PlayEffect(const UJRPGVFXRecipe* Recipe, const
 	return Handle;
 }
 
+namespace
+{
+	const FJRPGVFXRow* FindVFXRow(FName EffectId)
+	{
+		if (EffectId.IsNone())
+		{
+			return nullptr;
+		}
+		const UDataTable* Table = UCoreSubsystem::ResolveDataTable(TEXT("DT_VFX"));
+		return Table ? Table->FindRow<FJRPGVFXRow>(EffectId, TEXT("JRPGVFX"), false) : nullptr;
+	}
+}
+
 FJRPGVFXHandle UJRPGVFXSubsystem::PlayEffectById(FName EffectId, const FJRPGVFXContext& Context)
 {
-	const UJRPGVFXRecipe* Recipe = FindRecipe(EffectId);
+	const FJRPGVFXRow* Row = FindVFXRow(EffectId);
+	const UJRPGVFXRecipe* Recipe = Row ? Row->Recipe.LoadSynchronous() : nullptr;
 	if (!Recipe)
 	{
 		UE_LOG(LogJRPGVFX, Warning, TEXT("PlayEffectById: '%s' não está no DT_VFX (ou a linha não tem receita)"), *EffectId.ToString());
 		return FJRPGVFXHandle();
 	}
-	return PlayEffect(Recipe, Context);
+	// Quem toca não deu cor: vale a da linha (a mesma receita em cada herói)
+	FJRPGVFXContext Colored = Context;
+	if (Colored.Color.Equals(FLinearColor::White))
+	{
+		Colored.Color = Row->Color;
+	}
+	return PlayEffect(Recipe, Colored);
 }
 
 UJRPGVFXRecipe* UJRPGVFXSubsystem::FindRecipe(FName EffectId)
 {
-	if (EffectId.IsNone())
-	{
-		return nullptr;
-	}
-	const UDataTable* Table = UCoreSubsystem::ResolveDataTable(TEXT("DT_VFX"));
-	const FJRPGVFXRow* Row = Table ? Table->FindRow<FJRPGVFXRow>(EffectId, TEXT("JRPGVFX"), false) : nullptr;
+	const FJRPGVFXRow* Row = FindVFXRow(EffectId);
 	return Row ? Row->Recipe.LoadSynchronous() : nullptr;
 }
 
@@ -240,6 +255,34 @@ bool UJRPGVFXSubsystem::IsEffectPlaying(FJRPGVFXHandle Handle) const
 	return Handle.IsValid() && Instances.ContainsByPredicate([&](const FJRPGVFXInstance& Instance) { return Instance.Id == Handle.Id; });
 }
 
+void UJRPGVFXSubsystem::SetEffectFloat(FJRPGVFXHandle Handle, FName Name, float Value, float Delay, float BlendTime)
+{
+	FJRPGVFXInstance* Instance = Handle.IsValid() && !Name.IsNone()
+		? Instances.FindByPredicate([&](const FJRPGVFXInstance& Each) { return Each.Id == Handle.Id; })
+		: nullptr;
+	if (!Instance)
+	{
+		return;
+	}
+	FJRPGVFXFloatParam* Existing = Instance->FloatParams.Find(Name);
+	FJRPGVFXFloatParam Param;
+	// Parte de onde o valor está agora (no meio de um blend anterior, inclusive); um nome novo não tem de onde partir
+	Param.From = Existing ? Existing->Evaluate() : Value;
+	Param.To = Value;
+	Param.Delay = FMath::Max(Delay, 0.0f);
+	Param.BlendTime = FMath::Max(BlendTime, 0.0f);
+	Instance->FloatParams.Add(Name, Param);
+}
+
+float UJRPGVFXSubsystem::GetEffectFloat(FJRPGVFXHandle Handle, FName Name, float Fallback) const
+{
+	const FJRPGVFXInstance* Instance = Handle.IsValid()
+		? Instances.FindByPredicate([&](const FJRPGVFXInstance& Each) { return Each.Id == Handle.Id; })
+		: nullptr;
+	const FJRPGVFXFloatParam* Param = Instance ? Instance->FloatParams.Find(Name) : nullptr;
+	return Param ? Param->Evaluate() : Fallback;
+}
+
 // --- Linha de tempo ---
 
 float UJRPGVFXSubsystem::LayerAlpha(const UJRPGVFXRecipe& Recipe, const FJRPGVFXLayer& Layer, float Elapsed)
@@ -270,6 +313,10 @@ void UJRPGVFXSubsystem::Tick(float DeltaTime)
 		}
 
 		Instance.Elapsed += DeltaTime;
+		for (TPair<FName, FJRPGVFXFloatParam>& Param : Instance.FloatParams)
+		{
+			Param.Value.Elapsed += DeltaTime;
+		}
 		float Fade = 1.0f;
 		if (Instance.bStopping)
 		{
@@ -631,6 +678,19 @@ void UJRPGVFXSubsystem::UpdateLayer(FJRPGVFXInstance& Instance, int32 LayerIndex
 		{
 			const FLinearColor Rest = Track.Evaluate(0.0f, Instance.Context.Color);
 			SetBodyColor(Body, Track.Name, FMath::Lerp(Rest, Value, ClampedFade));
+		}
+	}
+
+	// Os parâmetros de SetEffectFloat vencem as faixas de mesmo nome
+	for (const TPair<FName, FJRPGVFXFloatParam>& Param : Instance.FloatParams)
+	{
+		if (Niagara)
+		{
+			Niagara->SetVariableFloat(Param.Key, Param.Value.Evaluate());
+		}
+		else if (Mesh)
+		{
+			Mesh->SetScalarParameterValueOnMaterials(Param.Key, Param.Value.Evaluate());
 		}
 	}
 

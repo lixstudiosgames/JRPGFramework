@@ -656,6 +656,31 @@ private:
 	void StopSpiritVFX(bool bImmediate);
 	FJRPGVFXHandle SpiritVFX;
 
+	/**
+	 * A aura da Art: a cada ArtStarter / SpecialStarter o herói absorve energia (DT_VFX "ArtAbsorb_<Key>", uma vez) e, no
+	 * primeiro starter da ação, acende a aura de chama no corpo ("ArtAura_<Key>", em loop) até a ação acabar. Cada starter
+	 * seguinte (as Supers) sobe o AuraPower da aura em ArtAuraPowerStep, depois da absorção.
+	 */
+	void StartArtAuraVFX();
+	void StopArtAuraVFX(bool bImmediate);
+	FJRPGVFXHandle ArtAuraVFX;
+	float ArtAuraPower = 0.0f;
+
+public:
+	/** Quanto a absorção do starter dura antes de a aura acender ou crescer, em segundos (o Delay do AuraPower). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|VFX", meta = (ClampMin = "0.0"))
+	float ArtAuraAbsorbSeconds = 0.55f;
+
+	/** Quanto cada starter depois do primeiro soma ao AuraPower da aura (começa em 1). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|VFX", meta = (ClampMin = "0.0"))
+	float ArtAuraPowerStep = 0.35f;
+
+	/** O teto do AuraPower. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn|VFX", meta = (ClampMin = "1.0"))
+	float ArtAuraPowerMax = 2.0f;
+
+private:
+
 	/** Um clip de reação / pose do papel (Idle, Walk, Flinch1, Flinch2, Knockdown, Block, Dying...) e o play rate dele. */
 	UAnimSequence* FindRoleClip(FName ClipRole, float& OutPlayRate) const;
 	/** FindRoleClip sem as trocas do original (o flinch que falta pelo outro, o knockdown que falta pelo flinch). */

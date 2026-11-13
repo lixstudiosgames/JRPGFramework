@@ -1858,6 +1858,10 @@ void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 			{
 				StartSpiritVFX();
 			}
+			else
+			{
+				StartArtAuraVFX();
+			}
 			SetPhase(EJRPGActionPhase::Windup);
 			break;
 		default:
@@ -1911,9 +1915,57 @@ void AJRPGBattlePawn::StopSpiritVFX(bool bImmediate)
 	SpiritVFX = FJRPGVFXHandle();
 }
 
+void AJRPGBattlePawn::StartArtAuraVFX()
+{
+	if (Combatant.Type == EJRPGCombatantType::Enemy || Combatant.Key.IsNone())
+	{
+		return;
+	}
+	UJRPGVFXSubsystem* VFX = UJRPGVFXSubsystem::Get(this);
+	if (!VFX)
+	{
+		return;
+	}
+	// A cor vem da linha do DT_VFX (a mesma receita nos três heróis)
+	FJRPGVFXContext Context;
+	Context.Instigator = this;
+	Context.Target = this;
+	const FString Key = Combatant.Key.ToString();
+
+	// A absorção, em todo starter: um efeito de uma vez, que termina sozinho
+	VFX->PlayEffectById(FName(*FString::Printf(TEXT("ArtAbsorb_%s"), *Key)), Context);
+
+	if (!VFX->IsEffectPlaying(ArtAuraVFX))
+	{
+		// O primeiro starter da ação: a receita da aura já espera a absorção (o StartTime das camadas dela)
+		ArtAuraVFX = VFX->PlayEffectById(FName(*FString::Printf(TEXT("ArtAura_%s"), *Key)), Context);
+		ArtAuraPower = 1.0f;
+		VFX->SetEffectFloat(ArtAuraVFX, TEXT("AuraPower"), ArtAuraPower);
+		return;
+	}
+	// Mais um starter na mesma ação: a aura cresce quando a absorção chega ao corpo
+	ArtAuraPower = FMath::Min(ArtAuraPower + ArtAuraPowerStep, ArtAuraPowerMax);
+	VFX->SetEffectFloat(ArtAuraVFX, TEXT("AuraPower"), ArtAuraPower, ArtAuraAbsorbSeconds, 0.25f);
+}
+
+void AJRPGBattlePawn::StopArtAuraVFX(bool bImmediate)
+{
+	if (!ArtAuraVFX.IsValid())
+	{
+		return;
+	}
+	if (UJRPGVFXSubsystem* VFX = UJRPGVFXSubsystem::Get(this))
+	{
+		VFX->StopEffect(ArtAuraVFX, bImmediate);
+	}
+	ArtAuraVFX = FJRPGVFXHandle();
+	ArtAuraPower = 0.0f;
+}
+
 void AJRPGBattlePawn::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	StopSpiritVFX(true);
+	StopArtAuraVFX(true);
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -1926,6 +1978,8 @@ void AJRPGBattlePawn::FinishAction(int32 LogicFrame)
 	SetPhase(EJRPGActionPhase::Done);
 	// O Spirit acabou com a ação: a aura some no FadeOutTime da receita
 	StopSpiritVFX(false);
+	// Os golpes acabaram: a aura da Art também
+	StopArtAuraVFX(false);
 	// Os sons que ainda esperavam o resultado de um golpe nunca o receberam (o golpe não foi resolvido): descartados
 	HeldSounds.Reset();
 
