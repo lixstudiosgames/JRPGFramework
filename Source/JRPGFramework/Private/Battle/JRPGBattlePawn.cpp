@@ -5,6 +5,7 @@
 #include "Battle/JRPGBattleArena.h"
 #include "Core/CoreSubsystem.h"
 #include "Field/JRPGFieldEnemyAnimInstance.h"
+#include "VFX/JRPGVFXSubsystem.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -1853,6 +1854,14 @@ void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 		case EJRPGActionStepKind::ArtStarter:
 		case EJRPGActionStepKind::SpecialStarter:
 		case EJRPGActionStepKind::Spirit:   // o Spirit concentra no lugar: não é golpe
+			if (Step.Kind == EJRPGActionStepKind::Spirit)
+			{
+				StartSpiritVFX();
+			}
+			else
+			{
+				StartArtAuraVFX();
+			}
 			SetPhase(EJRPGActionPhase::Windup);
 			break;
 		default:
@@ -1875,6 +1884,91 @@ void AJRPGBattlePawn::UpdatePlayback(int32 LogicFrame)
 	}
 }
 
+void AJRPGBattlePawn::StartSpiritVFX()
+{
+	if (Combatant.Type == EJRPGCombatantType::Enemy || Combatant.Key.IsNone())
+	{
+		return;
+	}
+	UJRPGVFXSubsystem* VFX = UJRPGVFXSubsystem::Get(this);
+	if (!VFX || VFX->IsEffectPlaying(SpiritVFX))
+	{
+		return;
+	}
+	// A cor fica a do próprio sistema (o Context.Color branco não tinge): cada herói tem a dele no Niagara
+	FJRPGVFXContext Context;
+	Context.Instigator = this;
+	Context.Target = this;
+	SpiritVFX = VFX->PlayEffectById(FName(*FString::Printf(TEXT("Spirit_%s"), *Combatant.Key.ToString())), Context);
+}
+
+void AJRPGBattlePawn::StopSpiritVFX(bool bImmediate)
+{
+	if (!SpiritVFX.IsValid())
+	{
+		return;
+	}
+	if (UJRPGVFXSubsystem* VFX = UJRPGVFXSubsystem::Get(this))
+	{
+		VFX->StopEffect(SpiritVFX, bImmediate);
+	}
+	SpiritVFX = FJRPGVFXHandle();
+}
+
+void AJRPGBattlePawn::StartArtAuraVFX()
+{
+	if (Combatant.Type == EJRPGCombatantType::Enemy || Combatant.Key.IsNone())
+	{
+		return;
+	}
+	UJRPGVFXSubsystem* VFX = UJRPGVFXSubsystem::Get(this);
+	if (!VFX)
+	{
+		return;
+	}
+	// A cor vem da linha do DT_VFX (a mesma receita nos três heróis)
+	FJRPGVFXContext Context;
+	Context.Instigator = this;
+	Context.Target = this;
+	const FString Key = Combatant.Key.ToString();
+
+	// A absorção, em todo starter: um efeito de uma vez, que termina sozinho
+	VFX->PlayEffectById(FName(*FString::Printf(TEXT("ArtAbsorb_%s"), *Key)), Context);
+
+	if (!VFX->IsEffectPlaying(ArtAuraVFX))
+	{
+		// O primeiro starter da ação: a receita da aura já espera a absorção (o StartTime das camadas dela)
+		ArtAuraVFX = VFX->PlayEffectById(FName(*FString::Printf(TEXT("ArtAura_%s"), *Key)), Context);
+		ArtAuraPower = 1.0f;
+		VFX->SetEffectFloat(ArtAuraVFX, TEXT("AuraPower"), ArtAuraPower);
+		return;
+	}
+	// Mais um starter na mesma ação: a aura cresce quando a absorção chega ao corpo
+	ArtAuraPower = FMath::Min(ArtAuraPower + ArtAuraPowerStep, ArtAuraPowerMax);
+	VFX->SetEffectFloat(ArtAuraVFX, TEXT("AuraPower"), ArtAuraPower, ArtAuraAbsorbSeconds, 0.25f);
+}
+
+void AJRPGBattlePawn::StopArtAuraVFX(bool bImmediate)
+{
+	if (!ArtAuraVFX.IsValid())
+	{
+		return;
+	}
+	if (UJRPGVFXSubsystem* VFX = UJRPGVFXSubsystem::Get(this))
+	{
+		VFX->StopEffect(ArtAuraVFX, bImmediate);
+	}
+	ArtAuraVFX = FJRPGVFXHandle();
+	ArtAuraPower = 0.0f;
+}
+
+void AJRPGBattlePawn::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	StopSpiritVFX(true);
+	StopArtAuraVFX(true);
+	Super::EndPlay(EndPlayReason);
+}
+
 void AJRPGBattlePawn::FinishAction(int32 LogicFrame)
 {
 	// A ação acabou: fica onde está (sem voltar ao lugar) e passa ao idle. O recuo dentro do alcance segue até outra ação começar:
@@ -1882,6 +1976,10 @@ void AJRPGBattlePawn::FinishAction(int32 LogicFrame)
 	bActionActive = false;
 	bPostActionSpacing = true;
 	SetPhase(EJRPGActionPhase::Done);
+	// O Spirit acabou com a ação: a aura some no FadeOutTime da receita
+	StopSpiritVFX(false);
+	// Os golpes acabaram: a aura da Art também
+	StopArtAuraVFX(false);
 	// Os sons que ainda esperavam o resultado de um golpe nunca o receberam (o golpe não foi resolvido): descartados
 	HeldSounds.Reset();
 

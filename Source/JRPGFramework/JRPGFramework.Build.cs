@@ -48,6 +48,7 @@ public class JRPGFramework : ModuleRules
 				"SlateCore",
 				"NavigationSystem", // a party no Field: lugares ao lado do líder no navmesh
 				"EngineSettings",   // a vitória em tela dividida: o split da engine em colunas (JRPGBattleSplitView.cpp)
+				"Niagara",          // as camadas de partículas dos efeitos (JRPGVFXSubsystem.cpp)
 				"D3D11RHI"     // Para OpenSharedResource1 no side Unreal (Parte 4)
 			}
 		);
