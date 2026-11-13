@@ -37,6 +37,7 @@ New here? Read [`ARCHITECTURE.md`](ARCHITECTURE.md), then
 | [CAMERA.md](Guides/CAMERA.md) | 13 presets, automatic UI restore, shakes, level cameras and zones |
 | [PLAYER.md](Guides/PLAYER.md) | The character and controller that walk the map: top-down camera, walk/sprint, input |
 | [MIST.md](Guides/MIST.md) | Living volumetric mist: strands and swirls, flows around scenery, parts around the player |
+| [VFX.md](Guides/VFX.md) | Visual effects as data: recipes of layers (mesh + shader, Niagara, light, body parameters, shake), firing from clips, the Spirit aura of each hero, authoring with Claude |
 | [FIELD_ENEMIES.md](Guides/FIELD_ENEMIES.md) | Enemies on the map: one generic `AJRPGFieldEnemy`, sphere/box/spline encounter zones, the encounter roll, battle arenas |
 | [BATTLE_STAGE.md](Guides/BATTLE_STAGE.md) | A fight assembled over the current map by the arena and taken down: models from the DataTables, camera, field enemies going home, the Muscle Dome waves (JSON + Studio), console commands |
 | [BATTLE.md](Guides/BATTLE.md) | Basic combat (Phase 5, written - to build and test): the round, the logic timeline, one hit, the Arts and AP in a fight, the end of the fight, the console commands to play without a HUD, what to check after building |
@@ -82,6 +83,7 @@ remain for reference.
 | [DT_WeaponCosts.csv](Data/DT_WeaponCosts.csv) | 18 | `FJRPGWeaponCostData` |
 | [DT_HeroSwings.csv](Data/DT_HeroSwings.csv) | 114 | `FJRPGHeroSwingData` |
 | [DT_HeroReactions.csv](Data/DT_HeroReactions.csv) | 4 | `FJRPGHeroReactionData` |
+| [DT_VFX.csv](Data/DT_VFX.csv) | 3 | `FJRPGVFXRow` |
 
 `Data/_backup/` holds the copies LegaiaStudio makes on every save.
 

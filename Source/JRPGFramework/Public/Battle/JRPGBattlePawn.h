@@ -6,6 +6,7 @@
 #include "Battle/EnemyActionData.h"
 #include "Battle/EnemyData.h"
 #include "Battle/HeroBattleData.h"
+#include "VFX/JRPGVFXTypes.h"
 #include "JRPGBattlePawn.generated.h"
 
 class AJRPGBattleArena;
@@ -627,6 +628,9 @@ public:
 	 */
 	virtual void Tick(float DeltaSeconds) override;
 
+	/** A batalha desmontada no meio de um Spirit: o efeito dele não fica pendurado no mundo. */
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 	/** Quanto tempo o texto de um evento fica em cima da cabeça, em segundos. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Battle Pawn", meta = (ClampMin = "0.0"))
 	float EventTextSeconds = 1.4f;
@@ -643,6 +647,14 @@ private:
 
 	/** Toca o clip do passo na velocidade do jogo dele. */
 	void PlayStep(const FJRPGActionStep& Step);
+
+	/**
+	 * O efeito do Spirit do herói: a linha "Spirit_<Key>" do DT_VFX (Spirit_Vahn, Spirit_Noa, Spirit_Gala), presa aos pés dele.
+	 * Começa quando o passo de Spirit entra e some suave quando a ação acaba. Sem linha no DT_VFX, só o aviso no log.
+	 */
+	void StartSpiritVFX();
+	void StopSpiritVFX(bool bImmediate);
+	FJRPGVFXHandle SpiritVFX;
 
 	/** Um clip de reação / pose do papel (Idle, Walk, Flinch1, Flinch2, Knockdown, Block, Dying...) e o play rate dele. */
 	UAnimSequence* FindRoleClip(FName ClipRole, float& OutPlayRate) const;

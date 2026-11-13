@@ -53,6 +53,14 @@ JRPGFramework/
 │   │   │   └── JRPGMistSubsystem.h ✅           ← picks the shader's 8 slots, writes MPC_JRPGMist,
 │   │   │                                           paints the trail texture
 │   │   │
+│   │   ├── VFX/ ✅                              ← VISUAL EFFECTS AS DATA (built; the Spirit auras use it)
+│   │   │   ├── JRPGVFXTypes.h ✅                ← FJRPGVFXLayer (Niagara / Mesh / Light / BodyParam /
+│   │   │   │                                       CameraShake), tracks, FJRPGVFXContext, FJRPGVFXRow (DT_VFX)
+│   │   │   ├── JRPGVFXRecipe.h ✅               ← UJRPGVFXRecipe: one effect = a timeline of layers
+│   │   │   ├── JRPGVFXSubsystem.h ✅            ← plays recipes: spawns, anchors, animates and pools the
+│   │   │   │                                       layers; JRPG.VFX.Play / JRPG.VFX.StopAll
+│   │   │   └── JRPGAnimNotify_VFX.h 🟡          ← fires a recipe from a clip frame
+│   │   │
 │   │   ├── Field/ ✅                            ← THE CHARACTER WALKING THE MAP (no battle)
 │   │   │   ├── JRPGFieldCharacter.h ✅          ← top-down camera with a stack of camera zones,
 │   │   │   │                                       walk/sprint, faces where it walks, mist
@@ -229,6 +237,7 @@ JRPGFramework/
 │       ├── Inventory/ ✅   (InventorySubsystem.cpp ✅)
 │       ├── World/ ✅       (WorldStateSubsystem.cpp ✅, JRPGMistVolume.cpp ✅, JRPGMistBlocker.cpp ✅,
 │       │                    JRPGMistDisturberComponent.cpp ✅, JRPGMistSubsystem.cpp ✅)
+│       ├── VFX/ ✅         (JRPGVFXRecipe.cpp ✅, JRPGVFXSubsystem.cpp ✅, JRPGAnimNotify_VFX.cpp 🟡)
 │       ├── Field/ ✅       (JRPGFieldCharacter.cpp ✅, JRPGFieldPlayerController.cpp ✅,
 │       │                    JRPGFieldPartyComponent.cpp ✅, JRPGPartyFollowerController.cpp ✅,
 │       │                    JRPGFieldMapSettings.cpp ✅, JRPGFieldTypes.cpp ✅,
